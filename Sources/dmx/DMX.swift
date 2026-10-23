@@ -72,7 +72,12 @@ struct Doctor: AsyncParsableCommand {
 struct Boot: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Boot the VM in the foreground with its console attached (debugging).",
-        discussion: "Press Ctrl-] to power off. With --selftest the guest reports on itself and exits."
+        discussion: """
+            Press Ctrl-] to power off. With --selftest the guest reports on itself and exits.
+            With a command after --, runs it in the guest through the agent instead of a console,
+            with stdin, stdout and stderr attached, then powers off and exits with its status.
+            Its output passes through untouched; --json changes only how dmx's own errors print.
+            """
     )
 
     @OptionGroup var global: GlobalOptions
@@ -95,9 +100,22 @@ struct Boot: AsyncParsableCommand {
     @Option(name: .customLong("kernel-arg"), help: "Extra kernel command line argument (repeatable), for experiments.")
     var kernelArgs: [String] = []
 
+    @Argument(parsing: .postTerminator, help: "Command to run in the guest, after --.")
+    var command: [String] = []
+
     @MainActor
     func run() async throws {
         let spec = MachineSpec(cpus: cpus, maxMemory: try memory.map(parseSize), kernelArgs: kernelArgs)
+        if !command.isEmpty {
+            let status: Int32
+            do {
+                status = try await runInGuest(paths: Paths(), spec: spec, argv: command, timeout: .seconds(timeout), echo: verbose)
+            } catch let error as DMXError {
+                try await report(global) { () -> (Bool, String, Bool) in throw error }
+                return
+            }
+            throw ExitCode(status)
+        }
         if selftest {
             try await report(global) {
                 let result = try await runSelftest(paths: Paths(), spec: spec, timeout: .seconds(timeout), echo: verbose)
