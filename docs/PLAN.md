@@ -168,9 +168,10 @@ This is the core feature. Measure before and after every change and log numbers 
 - [ ] Memmap scales with the ceiling (32 MB at 8G, 16 KB pages × 64 bytes). Only plugging memory
       as needed avoids it (virtio-mem, or ACPI-less memory hotplug with our own device). Measure
       against the alternative of a lower default ceiling.
-- [ ] Each vCPU costs ~2.3 MB of guest memory at idle (1 vCPU 155 MB, 10 vCPUs 176 MB before the
-      pcp cap): per-CPU slabs, page lists, kthreads. Measure again after the pcp cap; consider
-      fewer vCPUs online at idle.
+- [ ] Each vCPU costs ~2.3 MB of guest memory at idle, measured again after the pcp cap (1 vCPU
+      125 MB, 2: 129, 4: 133, 10: 147 at 8G). `slub_max_order=1` (default now) brings 10 vCPUs to
+      141 MB; what is left per vCPU is mostly its ~1 MB page list (the cap's floor, 4 × batch)
+      and per-CPU areas. Next lever: fewer vCPUs online at idle (CPU hotplug from the daemon).
 - [ ] Trim the kernel config to what dmx and Docker need. The full Alpine module set (887
       modules) took 2 h 21 min to compile under heavy host load.
 - [ ] Memory controller in the daemon: free page reporting (phase 3) returns freed memory by
@@ -296,6 +297,7 @@ started on 2026-10-23; `/init`, `build-guest.py` and the selftest already handle
 | 2026-10-23 | Streaming guest stdout through the agent | `dmx boot -- sh -c 'head -c 100000000 /dev/zero; sleep 8'`: footprint peaks at 349 MB and stays at 235 MB after the stream (idle 174): 44 MB MALLOC_SMALL and 10 MB MALLOC_LARGE dirty in the `footprint` tool. |
 | 2026-10-23 | Streaming through vsock, before and after `ByteQueue` and pull-based exec output | Guest stdout 100 MB: peak 349 → 151 MB; 500 MB: 637 → 157 MB, ~130 MB/s with a kernel build running beside it. Host stdin 500 MB into `md5sum`: peak 151 MB, 2.5 s, checksum matches. `malloc_history` pinned the growth on `Data.append` in `VirtioVsock.receiveFromGuest` (2 buffers, 119 MB). |
 | 2026-10-23 | Transparent huge pages with 16K pages (32 MB each), 8G | A 1 GB anonymous mapping with one byte touched per 32 MB: `always` (Alpine's default) RssAnon 1048640 kB, `madvise` 576 kB. One byte per 1 MB: 1 GB vs 16 MB. `transparent_hugepage=madvise` is now a default kernel arg; idle footprint unchanged (146 MB with a kernel build running beside it). |
+| 2026-10-24 | Per-vCPU cost and slab order, 8G | Footprint by vCPU count: 1: 125, 2: 129, 4: 133, 10: 146 to 148 MB. `slub_max_order=0`: 10 vCPUs 139 to 142; `=1`: 141 to 142, 1 vCPU unchanged (125). Shrinking slabs and `cpu_partial=0` at runtime: no gain. Adopted order 1 (order 0 would put one kmalloc-16k object per slab). 2G 109 MB (was 114). |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -313,3 +315,4 @@ started on 2026-10-23; `/init`, `build-guest.py` and the selftest already handle
 - 2026-10-23: Idle footprint at 8G from 173 to 145 MB, under the phase 4 target: fixed kernel hash sizes, finer free page reporting, capped per-CPU page lists, no apk in the guest.
 - 2026-10-23: Streaming through vsock no longer grows dmx's memory with the bytes passed (500 MB: 637 → 157 MB peak).
 - 2026-10-23: Transparent huge pages only on madvise: with 32 MB huge pages, a sparse 1 GB heap cost 1 GB instead of 0.6 MB.
+- 2026-10-24: Slabs capped at 32 KB: idle at 8G 146 → 141 MB.

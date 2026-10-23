@@ -238,6 +238,9 @@ public final class Machine: @unchecked Sendable {
         // A transparent huge page is 32 MB with 16K pages, and Alpine's default is "always": one
         // byte touched per 32 MB of a 1 GB mapping cost 1 GB. Only programs that ask get them.
         "transparent_hugepage=madvise",
+        // Slabs of at most 32 KB (order 1) instead of 128 KB. Every vCPU holds an active slab per
+        // cache, so large slabs cost ~0.5 MB per vCPU at idle.
+        "slub_max_order=1",
     ]
 
     private func deviceTree(initrd: Range<UInt64>) -> Data {
