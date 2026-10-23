@@ -179,7 +179,8 @@ This is the core feature. Measure before and after every change and log numbers 
       pressure. Agent `stats.memory.balloon` exists. Never inflate with `init_on_alloc=1`: each
       ballooned page gets zeroed, so backed.
 - [ ] Guest policy: trim page cache when idle (`drop_caches` or cgroup `memory.reclaim`), zram
-      swap with lz4, sensible `vm.*` sysctls.
+      swap with lz4, sensible `vm.*` sysctls. Done so far: transparent huge pages only on
+      `madvise` (a 32 MB THP per touched 32 MB region made sparse heaps cost their whole size).
 - [ ] Host pressure: `DispatchSource.makeMemoryPressureSource` shrinks the guest first.
 
 Done when: idle VM host footprint is under 150 MB at an 8 GB ceiling, and after a container that
@@ -294,6 +295,7 @@ started on 2026-10-23; `/init`, `build-guest.py` and the selftest already handle
 | 2026-10-23 | Selftest with all of the above (16K kernel, 10 vCPU) | 8G 144 to 145 MB, 4G 125, 2G 114 (were 172, 150, 126). Agent up in 220 to 270 ms (was ~300). 1 GB fill then free: back to idle + 4 to 5 MB in 1.0 to 1.3 s at 8G, ~2 s at 2G and 4G. The selftest `reclaim` check now requires idle + 32 MB (was 128). Stock 4K bootstrap guest: 273 MB (was 287), apk still present. |
 | 2026-10-23 | Streaming guest stdout through the agent | `dmx boot -- sh -c 'head -c 100000000 /dev/zero; sleep 8'`: footprint peaks at 349 MB and stays at 235 MB after the stream (idle 174): 44 MB MALLOC_SMALL and 10 MB MALLOC_LARGE dirty in the `footprint` tool. |
 | 2026-10-23 | Streaming through vsock, before and after `ByteQueue` and pull-based exec output | Guest stdout 100 MB: peak 349 → 151 MB; 500 MB: 637 → 157 MB, ~130 MB/s with a kernel build running beside it. Host stdin 500 MB into `md5sum`: peak 151 MB, 2.5 s, checksum matches. `malloc_history` pinned the growth on `Data.append` in `VirtioVsock.receiveFromGuest` (2 buffers, 119 MB). |
+| 2026-10-23 | Transparent huge pages with 16K pages (32 MB each), 8G | A 1 GB anonymous mapping with one byte touched per 32 MB: `always` (Alpine's default) RssAnon 1048640 kB, `madvise` 576 kB. One byte per 1 MB: 1 GB vs 16 MB. `transparent_hugepage=madvise` is now a default kernel arg; idle footprint unchanged (146 MB with a kernel build running beside it). |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -310,3 +312,4 @@ started on 2026-10-23; `/init`, `build-guest.py` and the selftest already handle
 - 2026-10-23: Phase 3 done. Free page reporting returns 1 GB the guest freed within 2 s; the selftest checks it.
 - 2026-10-23: Idle footprint at 8G from 173 to 145 MB, under the phase 4 target: fixed kernel hash sizes, finer free page reporting, capped per-CPU page lists, no apk in the guest.
 - 2026-10-23: Streaming through vsock no longer grows dmx's memory with the bytes passed (500 MB: 637 → 157 MB peak).
+- 2026-10-23: Transparent huge pages only on madvise: with 32 MB huge pages, a sparse 1 GB heap cost 1 GB instead of 0.6 MB.
