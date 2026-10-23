@@ -42,7 +42,7 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | Decision | Why |
 |---|---|
 | Use a VM | macOS has no namespaces/cgroups/Linux syscall ABI. Syscall translation (WSL1 style) failed on compatibility and filesystem speed. |
-| Virtualization.framework, not Hypervisor.framework | Gives virtio devices, balloon, vsock, virtio-fs, Rosetta and save/restore for free. |
+| Virtualization.framework, not Hypervisor.framework | Gives virtio devices, balloon, vsock, virtio-fs, Rosetta and save/restore for free. **Under review (2026-10-23):** the balloon and save/restore do not return host memory (see Findings); waiting on the maintainer. |
 | One long lived VM, not one VM per container | One kernel's overhead instead of N. Revisit per-container VMs for sandboxes (phase 8). |
 | CLI only, no GUI | The work that matters is invisible (memory, sockets). Agents use CLIs. |
 | Memory savings are always on | Balloon, idle stop and cache trimming are defaults, not options. The user's standing preference: improvements are not toggles. |
@@ -118,6 +118,10 @@ This is the core feature. Measure before and after every change and log numbers 
       modules) took 2 h 21 min to compile under heavy host load.
 - [ ] Balloon controller in the daemon: target = guest used + headroom, read from agent `stats`;
       return memory after containers exit; react within seconds.
+      **Blocked:** on Virtualization.framework the balloon inflates in the guest but the host
+      never releases the pages (measured below, matches public reports). Done so far:
+      `Machine.memoryTarget` and agent `stats.memory.balloon`. Needs a maintainer decision on
+      the VMM; see Next up.
 - [ ] Guest policy: trim page cache when idle (`drop_caches` or cgroup `memory.reclaim`), zram
       swap with lz4, sensible `vm.*` sysctls.
 - [ ] Host pressure: `DispatchSource.makeMemoryPressureSource` shrinks the guest first.
@@ -183,13 +187,23 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-Phase 3: balloon controller. Add a way to set the balloon target
-(`VZVirtioTraditionalMemoryBalloonDevice.targetVirtualMachineMemorySize`) and a controller in
-DMXCore that keeps the target at guest used + headroom from agent `stats`. Measure how much it
-gives back at idle (freed initrd, boot-time allocations) and after a 2 GB allocation in the guest
-exits. The daemon does not exist yet, so run the controller from `dmx boot` and the selftest.
-Watch `init_on_alloc`: balloon inflation allocates pages, and init_on_alloc zeroes, and so
-backs, each one before it is handed back.
+**Maintainer decision needed: how to return memory.** Virtualization.framework (macOS 26.6.1)
+does not give back guest memory while the VM runs: ballooned pages stay in the host footprint,
+the balloon has no free page reporting, and restoring a saved state backs the whole ceiling.
+Only exiting the VM process returns memory. Options:
+
+1. Stay on VZ. Memory comes back only when the VM exits: idle stop by shutdown (not save,
+   since restore costs the full ceiling), plus the small baseline (181 MB at 8G). While containers
+   run, the footprint ratchets up to the peak. Keeps Rosetta, virtio-fs and vmnet for free.
+2. Our own VMM on Hypervisor.framework: guest RAM is our `mmap`, free page reporting is
+   ours to offer, release with `hv_vm_unmap` + `madvise(MADV_FREE_REUSABLE)` + remap (ArcBox
+   reports 3 GB returned live). We would write virtio devices (blk, net, vsock, fs, balloon,
+   console) ourselves. Rosetta for Linux exists only in VZ, so x86 images need another path.
+3. libkrun (Apache-2.0, Rust, Hypervisor.framework) as the VMM, as Podman and krunkit do. It
+   already has virtio-fs, vsock, net, and free page reporting. Same Rosetta loss.
+
+Until then, phase 3 work that does not depend on this: shrinking the fixed part of the baseline,
+and the guest policy task (zram, sysctls), which lowers peak usage under any VMM.
 
 ## Findings and measurements
 
@@ -216,6 +230,9 @@ backs, each one before it is handed back.
 | 2026-10-23 | Guest memory at idle, 16K, 8G | MemTotal - MemFree = 98 MB: slab 22 MB, shmem (initramfs) 12 MB, vmalloc 5.6 MB, kernel stacks 1.9 MB, percpu 1.9 MB, page tables 0.9 MB; ~54 MB in no counter. |
 | 2026-10-23 | Kernel build in a dmx VM (8G, 10 vCPU, tmpfs) | 8460 s compile, Image + 887 modules, with host load average 40 to 170 from other work. VM footprint peaked at 4.8 GB and was all returned when the VM exited. 42 MB output tar. |
 | 2026-10-23 | Kernel config pitfalls | The 16K default VA size is 52 bits (needs LPA2, trips a fixmap static_assert); keep 48. `MODULE_SIG_KEY` is still used via IMA_APPRAISE_MODSIG, so the build needs the `openssl` CLI. apk needs `--force-non-repository` for offline local packages. |
+| 2026-10-23 | Balloon on VZ (macOS 26.6.1, 16K and 4K guests, 8G) | Guest touched 1 GB and freed it: footprint 179 → 1205 MB. Target set to used + 256 MB: guest inflated 7.5 GB in ~1 s, footprint stayed 1205 MB for 40 s and after deflating. `footprint` shows guest RAM as dirty, 0 reclaimable. Resident fell (1234 → 854 MB) only because macOS compressed pages. Same with the stock 4K kernel. Matches [ArcBox](https://arcbox.dev/blog/macos-vm-memory-ratchet), [msl #37](https://github.com/onexay/msl/issues/37), [nagstaku/macos-container-vm-memory](https://github.com/nagstaku/macos-container-vm-memory). |
+| 2026-10-23 | Balloon and `init_on_alloc=1` (Alpine default) | Inflating zeroes each page it takes: footprint jumped 1205 → 7826 MB and stayed there. Never inflate with init_on_alloc on, whatever the VMM. |
+| 2026-10-23 | Save/restore on VZ (8G) | Save after 1 GB of random data was freed: 1088 MB file in 3.3 s (zero pages are skipped: 63 MB with a zero fill). Restore into a new VM process: 3.5 s, footprint 8301 MB, so the whole ceiling is backed. Restore needs the same `machineIdentifier` and a fixed MAC address (otherwise "invalid argument"). Not a reclaim path. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -225,3 +242,4 @@ backs, each one before it is handed back.
 - 2026-10-23: Phase 2 done. Host and guest talk over vsock; the selftest runs entirely through the agent.
 - 2026-10-23: Phase 3 started. Selftest reports the VM process's host footprint.
 - 2026-10-23: Baseline at 8G down from 356 to 181 MB: no SWIOTLB, and a 16K page kernel built inside dmx.
+- 2026-10-23: Found that VZ's balloon and save/restore return no host memory. Balloon controller blocked on a VMM decision.

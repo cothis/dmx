@@ -127,6 +127,21 @@ public final class Machine: NSObject {
         return servicePid.flatMap(HostFootprint.read)
     }
 
+    /// Memory the guest may keep; the balloon holds the rest. Starts at the ceiling, and the
+    /// guest inflates or deflates toward it within about a second. On macOS 26 the host does
+    /// not release ballooned pages (see docs/PLAN.md), so this limits the guest, nothing more.
+    public var memoryTarget: UInt64 {
+        get { balloon?.targetVirtualMachineMemorySize ?? spec.maxMemory }
+        set {
+            let target = min(max(newValue, 1 << 20), spec.maxMemory) & ~UInt64((1 << 20) - 1)
+            balloon?.targetVirtualMachineMemorySize = target
+        }
+    }
+
+    private var balloon: VZVirtioTraditionalMemoryBalloonDevice? {
+        vm.memoryBalloonDevices.first as? VZVirtioTraditionalMemoryBalloonDevice
+    }
+
     var socketDevice: VZVirtioSocketDevice? { vm.socketDevices.first as? VZVirtioSocketDevice }
     var stopped: Exit? { exit }
 

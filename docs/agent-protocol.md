@@ -37,7 +37,7 @@ The host turns them into `DMXError` codes prefixed with `agent_`.
 | Method | Params | Result |
 |---|---|---|
 | `hello` | none | `agent`, `version`, `protocol` (1), `kernel` |
-| `stats` | none | `memory` (bytes from /proc/meminfo: `total`, `free`, `available`, `buffers`, `cached`, `shmem`, `swap_total`, `swap_free`), `uptime_s`, `load` [3], `cgroups` [{`path`, `memory_current`}] |
+| `stats` | none | `memory` (bytes from /proc/meminfo: `total`, `free`, `available`, `buffers`, `cached`, `shmem`, `swap_total`, `swap_free`, `balloon`), `uptime_s`, `load` [3], `cgroups` [{`path`, `memory_current`}] |
 | `drop_caches` | `level` 1, 2 or 3 (default 3) | `available_before`, `available_after` |
 | `time_sync` | `unix_ns` (host clock) | `offset_ns`: guest minus host before the change |
 | `shutdown` | none | `{}`, then the guest syncs and powers off |

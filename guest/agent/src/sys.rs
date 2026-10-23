@@ -28,6 +28,8 @@ pub struct Memory {
     pub shmem: u64,
     pub swap_total: u64,
     pub swap_free: u64,
+    /// Pages held by the balloon driver, i.e. handed back to the host.
+    pub balloon: u64,
 }
 
 #[derive(Serialize)]
@@ -58,6 +60,7 @@ pub fn memory() -> io::Result<Memory> {
             "Shmem:" => &mut m.shmem,
             "SwapTotal:" => &mut m.swap_total,
             "SwapFree:" => &mut m.swap_free,
+            "Balloon:" => &mut m.balloon,
             _ => continue,
         };
         *slot = kb * 1024;

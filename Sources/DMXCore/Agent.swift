@@ -27,6 +27,8 @@ public struct GuestMemory: Codable, Sendable {
     public let shmem: UInt64
     public let swapTotal: UInt64
     public let swapFree: UInt64
+    /// Held by the balloon, so returned to the host. Absent from agents before it was added.
+    public let balloon: UInt64?
 
     /// Memory the guest cannot reclaim without swapping: everything except free pages and
     /// droppable cache (shmem, which includes the unpacked initramfs, counts as used).
