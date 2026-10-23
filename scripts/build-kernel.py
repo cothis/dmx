@@ -99,11 +99,46 @@ CONFIG = {
     "MODULE_SIG_ALL": None,
     "MODULE_SIG_KEY": None,
     "GCC_PLUGINS": None,
+    # Devices dmx's VMM has, built in so /init loads nothing for them.
+    **{sym: "y" for sym in [
+        "VIRTIO_MMIO", "VIRTIO_BALLOON", "VSOCKETS", "VIRTIO_VSOCKETS", "HW_RANDOM", "HW_RANDOM_VIRTIO",
+        "VIRTIO_BLK", "VIRTIO_NET", "FUSE_FS", "VIRTIO_FS", "OVERLAY_FS", "EXT4_FS", "ZRAM",
+    ]},
+    # The VMM has 64 vCPUs at most and one memory node; NR_CPUS=4096 sizes static per-CPU arrays.
+    "NR_CPUS": "64",
+    "NUMA": None,
+    # With 16K pages a transparent huge page is 32 MB; only programs that ask get them.
+    "TRANSPARENT_HUGEPAGE_ALWAYS": None,
+    "TRANSPARENT_HUGEPAGE_MADVISE": "y",
+    # What the VMM does not have or the guest never does: firmware tables, PCI, other platforms,
+    # real hardware, 32-bit user space (Apple CPUs have no AArch32), nested VMs, sleep, kexec.
+    **{sym: None for sym in [
+        "ARCH_ALPINE", "ARCH_HISI", "ARCH_QCOM", "ARCH_SEATTLE", "ARCH_THUNDER", "ARCH_THUNDER2",
+        "ARCH_VEXPRESS", "ARCH_XGENE",
+        "ACPI", "EFI", "DMI", "PCI", "PNP", "IOMMU_SUPPORT", "LIBNVDIMM", "QCOM_SCM",
+        "COMPAT", "VIRTUALIZATION", "KVM", "HYPERV", "VHOST_MENU", "VDPA",
+        "SUSPEND", "HIBERNATION", "CPU_FREQ", "CPU_IDLE", "KEXEC", "CRASH_DUMP",
+        "SOUND", "DRM", "FB", "VT", "USB_SUPPORT", "HID", "SERIO", "INPUT_MISC", "SERIAL_8250",
+        "RTC_CLASS", "GPIOLIB", "PINCTRL", "PWM", "RESET_CONTROLLER", "MAILBOX", "NVMEM",
+        "POWER_SUPPLY", "THERMAL", "HWMON", "CRYPTO_DEV_CCP",
+        "MD", "SCSI", "ATA", "NVME_CORE", "MTD", "ETHERNET", "WLAN", "WIRELESS",
+        "XFS_FS", "OCFS2_FS", "BTRFS_FS", "CEPH_LIB", "NET_9P",
+    ]},
+    # Fewer kernel threads and less memory at idle; nothing in dmx reads them.
+    **{sym: None for sym in ["AUDIT", "INTEGRITY", "KFENCE", "KALLSYMS_ALL"]},
+    **{f"RD_{c}": None for c in ["BZIP2", "LZMA", "XZ", "LZO", "LZ4", "ZSTD"]},
 }
 # Derived symbols removed so olddefconfig recomputes them for 16K pages. The VA size stays
 # Alpine's 48 bits; the 16K default is 52, which needs LPA2 (Apple CPUs lack it) and trips a
 # fixmap static_assert in 6.18.
 DROP = {"ARM64_VA_BITS"}
+# Checked after olddefconfig, because a symbol another option selects does not go away.
+MUST = {
+    "y": ["ARM64_16K_PAGES", "ARM64_VA_BITS_48", "DEBUG_INFO_NONE", "VIRTIO_MMIO", "VIRTIO_BALLOON",
+          "VIRTIO_VSOCKETS", "HW_RANDOM_VIRTIO", "VIRTIO_CONSOLE", "SERIAL_AMBA_PL011", "PAGE_REPORTING",
+          "MEMCG", "CGROUPS", "NAMESPACES", "USER_NS", "SECCOMP", "BPF_SYSCALL", "OVERLAY_FS", "PSI"],
+    "unset": ["PCI", "ACPI", "EFI", "NUMA", "COMPAT", "TRANSPARENT_HUGEPAGE_ALWAYS"],
+}
 
 BUILD_SH = r"""
 set -eu
@@ -117,9 +152,13 @@ rm linux.tar.xz
 cp config src/.config
 cd src
 make -s olddefconfig
-for s in ARM64_16K_PAGES ARM64_VA_BITS_48 DEBUG_INFO_NONE; do
-	grep -q "^CONFIG_$s=y" .config || { echo "build-kernel: CONFIG_$s did not stick" >&2; exit 1; }
+for s in $MUST_Y; do
+	grep -q "^CONFIG_$s=y" .config || { echo "build-kernel: CONFIG_$s=y did not stick" >&2; exit 1; }
 done
+for s in $MUST_UNSET; do
+	! grep -q "^CONFIG_$s=" .config || { echo "build-kernel: CONFIG_$s is still set" >&2; exit 1; }
+done
+if [ -n "${CONFIG_ONLY:-}" ]; then cat .config >&3; exit 0; fi
 export KBUILD_BUILD_USER=dmx KBUILD_BUILD_HOST=dmx KBUILD_BUILD_TIMESTAMP="$BUILD_TIMESTAMP"
 start=$(date +%s)
 make -j"$(nproc)" Image modules  # not -s: this takes long enough that progress matters
@@ -217,7 +256,7 @@ def lock():
 def build(args):
     if not TOOLCHAIN:
         sys.exit("TOOLCHAIN is empty; run with --lock and paste the result")
-    out = CACHE / f"kernel-{RELEASE}.tar"
+    out = CACHE / (f"kernel-{RELEASE}.config" if args.config_only else f"kernel-{RELEASE}.tar")
     payload = io.BytesIO()
     with tarfile.open(fileobj=payload, mode="w") as tar:
         def add(name, data):
@@ -239,7 +278,8 @@ def build(args):
     script = (
         "set -e; mkdir /build /out; mount -t tmpfs -o size=90% tmpfs /build; "
         "cd /build; tar -xf -; "
-        f"BUILD_TIMESTAMP='{args.timestamp}' sh build.sh"
+        f"BUILD_TIMESTAMP='{args.timestamp}' MUST_Y='{' '.join(MUST['y'])}' MUST_UNSET='{' '.join(MUST['unset'])}' "
+        f"CONFIG_ONLY='{'1' if args.config_only else ''}' sh build.sh"
     )
     cmd = [str(dmx), "boot", "--memory", args.memory, "--", "sh", "-c", script]
     start = time.monotonic()
@@ -250,10 +290,11 @@ def build(args):
         tmp.unlink(missing_ok=True)
         sys.exit(f"kernel build failed (exit {proc.returncode})")
     tmp.rename(out)
-    with tarfile.open(out) as tar:
-        names = tar.getnames()
-    if "boot/Image" not in names and "./boot/Image" not in names:
-        sys.exit(f"{out} has no boot/Image")
+    if not args.config_only:
+        with tarfile.open(out) as tar:
+            names = tar.getnames()
+        if "boot/Image" not in names and "./boot/Image" not in names:
+            sys.exit(f"{out} has no boot/Image")
     digest = hashlib.sha256(out.read_bytes()).hexdigest()
     print(f'{{"ok": true, "out": "{out}", "sha256": "{digest}", "seconds": {time.monotonic() - start:.0f}}}')
 
@@ -266,6 +307,8 @@ def main():
     ap.add_argument("--memory", default="8G", help="memory ceiling of the build VM")
     ap.add_argument("--timestamp", default="2026-01-01", help="KBUILD_BUILD_TIMESTAMP")
     ap.add_argument("--lock", action="store_true", help="print TOOLCHAIN pins for the current APKINDEX")
+    ap.add_argument("--config-only", action="store_true",
+                    help="stop after olddefconfig and write the resulting .config to <cache>/kernel-<release>.config")
     args = ap.parse_args()
     CACHE = args.cache
     CACHE.mkdir(parents=True, exist_ok=True)

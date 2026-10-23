@@ -85,10 +85,11 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
         let missing = try? await agent.run(["/nonexistent"])
         check("exec_missing", missing == nil, missing == nil ? "rejected with an error" : "unexpectedly ran")
 
-        let modules = text(try await agent.run(["cat", "/proc/modules"]).stdout)
-        for module in ["virtio_balloon", "vmw_vsock_virtio_transport"] {
-            let loaded = modules.split(separator: "\n").contains { $0.hasPrefix(module + " ") }
-            check("module.\(module)", loaded, loaded ? "loaded" : "missing")
+        // Bound drivers, whether built in or loaded as modules: /sys/bus/virtio/drivers/<driver>/virtioN.
+        let bound = text(try await agent.run(["find", "/sys/bus/virtio/drivers", "-mindepth", "2", "-maxdepth", "2", "-name", "virtio*"]).stdout)
+            .split(separator: "\n").map { $0.split(separator: "/").dropLast().last.map(String.init) ?? "" }
+        for driver in ["virtio_console", "virtio_rng", "virtio_balloon", "vmw_vsock_virtio_transport"] {
+            check("driver.\(driver)", bound.contains(driver), bound.contains(driver) ? "bound" : "no device bound")
         }
 
         let dropped = try await agent.dropCaches()

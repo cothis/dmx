@@ -39,7 +39,8 @@ KERNEL_RELEASE = "6.18.58-0-virt"
 # The Alpine kernel above is used only to boot the VM that builds it (`--kernel alpine`).
 DMX_KERNEL_RELEASE = "6.18.58-dmx"
 
-# Modules the guest may load. Dependencies are added from modules.dep.
+# Modules the guest may load. Dependencies are added from modules.dep; the ones the kernel has
+# built in are skipped.
 MODULES = [
     "virtio_mmio",
     "virtio_balloon",
@@ -188,7 +189,8 @@ def package_files(tar: tarfile.TarFile, packages: set) -> set:
     return files
 
 
-def module_closure(dep_text: str, release: str) -> set:
+def module_closure(dep_text: str, builtin_text: str, release: str) -> set:
+    builtin = {Path(p).name.split(".ko")[0].replace("-", "_") for p in builtin_text.split()}
     deps = {}
     for line in dep_text.splitlines():
         path, _, rest = line.partition(":")
@@ -198,6 +200,8 @@ def module_closure(dep_text: str, release: str) -> set:
     }
     want, todo = set(), []
     for mod in MODULES:
+        if mod in builtin:
+            continue
         if mod not in by_name:
             sys.exit(f"module {mod} not found in {release}")
         todo.append(by_name[mod])
@@ -247,7 +251,8 @@ def main():
     moddir = f"lib/modules/{release}/"
     with open_kernel() as tar:
         dep = tar.extractfile(moddir + "modules.dep").read().decode()
-        want = {moddir + p for p in module_closure(dep, release)}
+        builtin = tar.extractfile(moddir + "modules.builtin").read().decode()
+        want = {moddir + p for p in module_closure(dep, builtin, release)}
         meta = {moddir + f for f in ("modules.dep", "modules.alias", "modules.symbols", "modules.builtin", "modules.order")}
         add_tar(cpio, tar, keep=lambda n: n in want or n in meta)
         image = read_image(tar)

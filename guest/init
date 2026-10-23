@@ -13,8 +13,10 @@ echo "+cpu +memory +io +pids" >/sys/fs/cgroup/cgroup.subtree_control || echo "dm
 hostname dmx
 ip link set lo up
 
+# The dmx kernel has these built in; the stock Alpine kernel that bootstraps `make kernel` does not.
+builtin=/lib/modules/$(uname -r)/modules.builtin
 for m in virtio_mmio virtio_balloon vmw_vsock_virtio_transport virtio_rng; do
-	modprobe "$m" || echo "dmx-init: modprobe $m failed" >&2
+	sed s/-/_/g "$builtin" 2>/dev/null | grep -q "/$m.ko$" || modprobe "$m" || echo "dmx-init: modprobe $m failed" >&2
 done
 
 # The host talks to the guest through dmx-agent on vsock port 1024. Restart it if it dies.

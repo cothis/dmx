@@ -172,8 +172,13 @@ This is the core feature. Measure before and after every change and log numbers 
       125 MB, 2: 129, 4: 133, 10: 147 at 8G). `slub_max_order=1` (default now) brings 10 vCPUs to
       141 MB; what is left per vCPU is mostly its ~1 MB page list (the cap's floor, 4 × batch)
       and per-CPU areas. Next lever: fewer vCPUs online at idle (CPU hotplug from the daemon).
-- [ ] Trim the kernel config to what dmx and Docker need. The full Alpine module set (887
-      modules) took 2 h 21 min to compile under heavy host load.
+- [x] Trim the kernel config to what dmx and Docker need (`CONFIG` in `scripts/build-kernel.py`,
+      checked after olddefconfig by `MUST`; `--config-only` writes the resulting .config in ~30 s).
+      Built in: virtio-mmio, balloon, vsock, rng, blk, net, fs, ext4, overlay, zram. Out: ACPI,
+      EFI, PCI, NUMA, 32-bit user space, other platforms, real hardware, KVM, sleep, kexec, audit,
+      IMA, KFENCE; NR_CPUS 4096 → 64; THP default madvise. Built-in symbols 1579 → 1179, modules
+      894 → 653. Build 2 h 21 min → 19 min. 8G 141 → 120 MB, 2G 109 → 87 MB, agent up in 140 to
+      180 ms. Netfilter, bridge, veth, overlay, namespaces and all cgroup v2 controllers still work.
 - [ ] Memory controller in the daemon: free page reporting (phase 3) returns freed memory by
       itself (with order 5 and the pcp cap only ~5 MB stays behind after the 1 GB test); the
       controller inflates the balloon (config `num_pages`) only to squeeze the guest under host
@@ -245,12 +250,11 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-Phase 4, "Trim the kernel config": the kernel image is 29 MB of the guest's 121 MB and slab 23 MB.
-Build in `virtio_mmio`, vsock, balloon and rng so `/init` needs no modprobe for them, and drop
-drivers and subsystems dmx never uses. Each build takes 1 to 2.5 h (`make kernel`); measure image
-size, reserved, slab and footprint against the current 145 MB at 8G. A build with the trimmed
-config (`CONFIG` and `MUST` in `scripts/build-kernel.py`, checked with `--config-only`) was
-started on 2026-10-23; `/init`, `build-guest.py` and the selftest already handle built-in drivers.
+Phase 4: the remaining tasks need the daemon (memory controller, idle page cache trimming, host
+pressure), so phase 5 comes next unless a kernel trim is still worth it. Small kernel follow-up
+first: the lockdown LSM selects `MODULE_SIG`, so loading any module taints the kernel with
+"module verification failed"; drop it and add `MODULE_SIG` to `MUST["unset"]`. Then phase 5,
+"`dmx daemon`".
 
 ## Findings and measurements
 
@@ -298,6 +302,7 @@ started on 2026-10-23; `/init`, `build-guest.py` and the selftest already handle
 | 2026-10-23 | Streaming through vsock, before and after `ByteQueue` and pull-based exec output | Guest stdout 100 MB: peak 349 → 151 MB; 500 MB: 637 → 157 MB, ~130 MB/s with a kernel build running beside it. Host stdin 500 MB into `md5sum`: peak 151 MB, 2.5 s, checksum matches. `malloc_history` pinned the growth on `Data.append` in `VirtioVsock.receiveFromGuest` (2 buffers, 119 MB). |
 | 2026-10-23 | Transparent huge pages with 16K pages (32 MB each), 8G | A 1 GB anonymous mapping with one byte touched per 32 MB: `always` (Alpine's default) RssAnon 1048640 kB, `madvise` 576 kB. One byte per 1 MB: 1 GB vs 16 MB. `transparent_hugepage=madvise` is now a default kernel arg; idle footprint unchanged (146 MB with a kernel build running beside it). |
 | 2026-10-24 | Per-vCPU cost and slab order, 8G | Footprint by vCPU count: 1: 125, 2: 129, 4: 133, 10: 146 to 148 MB. `slub_max_order=0`: 10 vCPUs 139 to 142; `=1`: 141 to 142, 1 vCPU unchanged (125). Shrinking slabs and `cpu_partial=0` at runtime: no gain. Adopted order 1 (order 0 would put one kmalloc-16k object per slab). 2G 109 MB (was 114). |
+| 2026-10-24 | Trimmed kernel config (6.18.58-dmx), 10 vCPU | Compile 1130 s with host load ~25 (was 8460 s). Image 22.4 → 17.4 MB, initramfs 2.5 → 1.6 MB (6 modules left). dmesg: kernel code 13.3 → 11.4 MB, bss 9.3 MB → 463 KB (NR_CPUS), reserved 82 → 59 MB. Slab 11 MB, shmem 3.6 MB. Selftest 8G 120 to 121 MB (was 141), 2G 87 (was 109); agent up in 140 to 180 ms; after the 1 GB test 122 to 124 MB in 0.2 to 0.3 s. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -316,3 +321,4 @@ started on 2026-10-23; `/init`, `build-guest.py` and the selftest already handle
 - 2026-10-23: Streaming through vsock no longer grows dmx's memory with the bytes passed (500 MB: 637 → 157 MB peak).
 - 2026-10-23: Transparent huge pages only on madvise: with 32 MB huge pages, a sparse 1 GB heap cost 1 GB instead of 0.6 MB.
 - 2026-10-24: Slabs capped at 32 KB: idle at 8G 146 → 141 MB.
+- 2026-10-24: Kernel config trimmed to what dmx and Docker use: idle at 8G 141 → 120 MB, kernel build 19 min instead of 2 h 21 min.
