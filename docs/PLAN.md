@@ -67,20 +67,24 @@ Status: `[x]` done, `[ ]` to do. Each phase lists how to tell it is done.
 
 Done when: `make build guest selftest` passes. Measured: boot 0.7 s, guest uses 64 MB inside.
 
-### Phase 2: Guest agent and control channel
+### Phase 2: Guest agent and control channel (done)
 
 - [x] `guest/agent` Rust crate, built for `aarch64-unknown-linux-musl` from macOS with
       `rustup target add` + the bundled `rust-lld` (no zig or Linux C toolchain needed).
       `make guest` builds it (`cargo build --locked`) and puts it at `/sbin/dmx-agent`.
-- [ ] Protocol over vsock (guest listens on a fixed port, e.g. 1024): length-prefixed JSON,
-      request/response plus streams. Keep it small and versioned (`hello` returns agent version).
-- [ ] Agent calls: `exec` (with stdin/stdout/stderr streams, tty option, exit code), `stats`
-      (MemTotal, MemAvailable, page cache, per-cgroup usage), `drop_caches`, `shutdown`, `time_sync`.
-- [ ] Host side `AgentClient` in DMXCore via `VZVirtioSocketDevice.connect(toPort:)`.
-- [ ] `dmx boot --selftest` uses the agent instead of parsing console text.
-- [ ] Keep the hvc0 console as a debug fallback.
+- [x] Protocol over vsock port 1024, specified in [agent-protocol.md](agent-protocol.md):
+      length-prefixed frames carrying JSON or stdin/stdout/stderr bytes, versioned by `hello`.
+- [x] Agent calls: `exec` (streams, tty, resize, signal, exit code), `stats` (meminfo,
+      per-cgroup `memory.current`), `drop_caches`, `shutdown`, `time_sync`.
+- [x] Host side `AgentClient` in DMXCore via `VZVirtioSocketDevice.connect(toPort:)`: one
+      connection for control calls, one per exec. Retries until the agent listens.
+- [x] `dmx boot --selftest` drives the agent (exec with stdin, stderr, exit code, tty, a missing
+      binary; modules; drop_caches; stats) and powers off through it. `/init` no longer has a
+      selftest mode.
+- [x] The hvc0 console stays as a debug fallback (`dmx boot`); `/init` restarts the agent if it dies.
 
-Done when: the selftest runs `uname -a` through the agent and gets stats as JSON.
+Done when: the selftest runs `uname -a` through the agent and gets stats as JSON. Measured: agent
+answers 0.35 to 0.5 s after `start()`, clean shutdown through the agent takes 15 ms.
 
 ### Phase 3: Memory
 
@@ -161,8 +165,9 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-Phase 2, protocol: the agent listens on vsock port 1024, `/init` keeps it running, and `hello`
-answers with the agent and protocol versions.
+Phase 3, first task: host footprint measurement. Find the `com.apple.Virtualization.VirtualMachine`
+process that backs our VM, read `ri_phys_footprint` with `proc_pid_rusage`, and add it to the
+selftest JSON next to `guest_used_mb`, so every later memory change is measured the same way.
 
 ## Findings and measurements
 
@@ -172,9 +177,15 @@ answers with the agent and protocol versions.
 | 2026-10-23 | Guest memory used after boot | 64 MB |
 | 2026-10-23 | Host footprint of the VM process | 170 MB at 2 GB ceiling, 354 MB at 8 GB |
 | 2026-10-23 | Static aarch64 musl agent (hello world, opt-level s, LTO, stripped) | 330 KB; builds in 3 s with rust-lld |
+| 2026-10-23 | Agent built with vsock, exec, stats (libc, serde, serde_json) | 545 KB binary; 448 KB RSS idle, 1 thread |
+| 2026-10-23 | Boot to agent `hello` (host clock, 10 vCPU) | 335 to 520 ms at 2 GB and 8 GB ceilings |
+| 2026-10-23 | Clean shutdown via agent `shutdown` until `guestDidStop` | 15 ms |
+| 2026-10-23 | Guest clock at boot vs host | 0.25 to 0.3 s behind; `time_sync` corrects it |
+| 2026-10-23 | Guest used (total - free - buffers - cached + shmem, after drop_caches) | 72 to 86 MB. `total - MemAvailable` reads ~175 MB at 8 GB because MemAvailable subtracts the watermark reserve, so it is not used. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
 
 - 2026-10-23: Phase 1 done. Repo published at https://github.com/cothis/dmx (commit e630133).
 - 2026-10-23: Phase 2 started. Rust agent cross compiles on macOS and runs in the guest.
+- 2026-10-23: Phase 2 done. Host and guest talk over vsock; the selftest runs entirely through the agent.

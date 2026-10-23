@@ -9,6 +9,7 @@ mkdir -p /dev/pts /dev/shm /run
 mount -t devpts devpts /dev/pts
 mount -t tmpfs -o mode=0755 tmpfs /run
 mount -t cgroup2 cgroup2 /sys/fs/cgroup
+echo "+cpu +memory +io +pids" >/sys/fs/cgroup/cgroup.subtree_control || echo "dmx-init: cgroup controllers not enabled" >&2
 hostname dmx
 ip link set lo up
 
@@ -16,23 +17,16 @@ for m in virtio_balloon vmw_vsock_virtio_transport virtio_rng; do
 	modprobe "$m" || echo "dmx-init: modprobe $m failed" >&2
 done
 
-case " $(cat /proc/cmdline) " in
-*" dmx.selftest=1 "*)
-	echo "DMX-SELFTEST-BEGIN"
-	echo "kernel $(uname -r)"
-	echo "cpus $(nproc)"
-	echo "agent $(/sbin/dmx-agent --version 2>&1 || echo failed)"
-	free -m | awk '/^Mem:/ { print "mem_total_mb " $2; print "mem_used_mb " $3 }'
-	for m in virtio_balloon vmw_vsock_virtio_transport; do
-		grep -q "^$m " /proc/modules && echo "module $m ok" || echo "module $m missing"
+# The host talks to the guest through dmx-agent on vsock port 1024. Restart it if it dies.
+(
+	while :; do
+		/sbin/dmx-agent
+		echo "dmx-init: dmx-agent exited with status $?, restarting" >&2
+		sleep 1
 	done
-	[ -c /dev/vsock ] && echo "vsock ok" || echo "vsock missing"
-	echo "DMX-SELFTEST-END"
-	poweroff -f
-	;;
-esac
+) </dev/null >/dev/console 2>&1 &
 
-# Debug console on hvc0 until the vsock agent exists.
+# Debug console on hvc0, independent of the agent.
 while :; do
 	setsid -c /bin/sh -l </dev/hvc0 >/dev/hvc0 2>&1
 done

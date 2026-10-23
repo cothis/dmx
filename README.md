@@ -2,7 +2,7 @@
 
 A container engine for macOS that stays out of your memory, built to be driven by AI agents as easily as by people.
 
-> Early development. Today `dmx` boots its Linux VM and gives you a console. Docker compatibility comes next.
+> Early development. Today `dmx` boots its Linux VM, talks to a guest agent over vsock, and gives you a console. Memory work and Docker compatibility come next.
 
 ## Why
 
@@ -19,8 +19,8 @@ See [docs/PLAN.md](docs/PLAN.md) for the detailed plan.
 | Phase | | |
 |---|---|---|
 | 1 | Boot a Linux VM with Virtualization.framework, debug console | done |
-| 2 | Guest agent (Rust) and vsock control channel | next |
-| 3 | Memory: footprint tracking, smaller baseline, balloon controller | |
+| 2 | Guest agent (Rust) and vsock control channel | done |
+| 3 | Memory: footprint tracking, smaller baseline, balloon controller | next |
 | 4 | Daemon, launchd socket activation, idle stop | |
 | 5 | Data disk, networking, port forwarding, file sharing | |
 | 6 | Docker compatibility (dockerd in the guest first) | |
@@ -28,11 +28,12 @@ See [docs/PLAN.md](docs/PLAN.md) for the detailed plan.
 | 8 | `dmx mcp`, sandboxes, checkpoints | |
 | 9 | Release: CI, guest artifacts, Homebrew | |
 
-Measured on an M-series Mac (10 cores, 16 GB): the guest boots in about 0.7 s and uses 64 MB inside. On the host the VM costs 170 MB with a 2 GB ceiling and 354 MB with 8 GB, because Linux keeps page metadata for its whole ceiling. Shrinking that is part of phase 3.
+Measured on an M-series Mac (10 cores, 16 GB): the guest agent answers about 0.4 s after boot starts and the guest uses about 75 MB inside. On the host the VM costs 170 MB with a 2 GB ceiling and 354 MB with 8 GB, because Linux keeps page metadata for its whole ceiling. Shrinking that is part of phase 3.
 
 ## Build
 
-Requires macOS 14+ on Apple Silicon, Xcode (Swift 6) and Python 3.
+Requires macOS 14+ on Apple Silicon, Xcode (Swift 6), Python 3, and Rust via rustup with the
+guest target: `rustup target add aarch64-unknown-linux-musl` (it links with the bundled `rust-lld`).
 
 ```sh
 make build     # swift build + ad-hoc sign with the virtualization entitlement
@@ -49,6 +50,7 @@ State lives in `~/.dmx` (override with `DMX_HOME`).
 - `Sources/DMXCore`: VM, console, doctor and selftest logic, shared by the CLI and the future MCP mode
 - `Sources/dmx`: the command line
 - `guest/init`: PID 1 inside the VM
+- `guest/agent`: `dmx-agent`, the Rust guest agent on vsock ([protocol](docs/agent-protocol.md))
 - `scripts/build-guest.py`: builds the guest from pinned, checksummed Alpine Linux packages
 - `docs/PLAN.md`: full plan, decisions, progress and measurements
 

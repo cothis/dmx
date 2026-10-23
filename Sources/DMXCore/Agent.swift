@@ -1,0 +1,414 @@
+import Foundation
+import Virtualization
+
+/// The vsock port dmx-agent listens on inside the guest.
+public let agentPort: UInt32 = 1024
+/// The protocol version this host speaks; see docs/agent-protocol.md.
+public let agentProtocol = 1
+
+enum FrameKind: UInt8 {
+    case json = 0, stdin, stdout, stderr
+}
+
+public struct AgentHello: Codable, Sendable {
+    public let agent: String
+    public let version: String
+    public let `protocol`: Int
+    public let kernel: String
+}
+
+/// Guest memory in bytes, from /proc/meminfo.
+public struct GuestMemory: Codable, Sendable {
+    public let total: UInt64
+    public let free: UInt64
+    public let available: UInt64
+    public let buffers: UInt64
+    public let cached: UInt64
+    public let shmem: UInt64
+    public let swapTotal: UInt64
+    public let swapFree: UInt64
+
+    /// Memory the guest cannot reclaim without swapping: everything except free pages and
+    /// droppable cache (shmem, which includes the unpacked initramfs, counts as used).
+    /// Not `total - available`: MemAvailable also subtracts the kernel's watermark reserve,
+    /// which grows with the ceiling (about 88 MB at 8 GB) without being touched.
+    public var used: UInt64 {
+        let reclaimable = free + buffers + (cached > shmem ? cached - shmem : 0)
+        return total > reclaimable ? total - reclaimable : 0
+    }
+}
+
+public struct GuestCgroup: Codable, Sendable {
+    public let path: String
+    public let memoryCurrent: UInt64
+}
+
+public struct AgentStats: Codable, Sendable {
+    public let memory: GuestMemory
+    public let uptimeS: Double
+    public let load: [Double]
+    public let cgroups: [GuestCgroup]
+}
+
+public struct DropCachesResult: Codable, Sendable {
+    public let availableBefore: UInt64
+    public let availableAfter: UInt64
+}
+
+public struct ExecRequest: Encodable, Sendable {
+    public var argv: [String]
+    public var env: [String] = []
+    public var cwd: String?
+    public var tty = false
+    /// Without a tty: whether stdin will be sent. Otherwise the process reads /dev/null.
+    public var stdin = false
+    public var rows = 24
+    public var cols = 80
+
+    public init(argv: [String]) { self.argv = argv }
+}
+
+public struct ExecExit: Codable, Sendable {
+    public let code: Int32?
+    public let signal: Int32?
+}
+
+public enum ExecEvent: Sendable {
+    case stdout(Data)
+    case stderr(Data)
+    case exit(ExecExit)
+}
+
+public struct ExecOutput: Sendable {
+    public let exit: ExecExit
+    public let stdout: Data
+    public let stderr: Data
+}
+
+/// One connection to dmx-agent. Requests on it are answered in order; an exec takes it over.
+/// Blocking socket I/O runs on the connection's own queue, never on the caller's thread.
+public final class AgentConnection: @unchecked Sendable {
+    private let connection: VZVirtioSocketConnection
+    private let fd: Int32
+    private let queue = DispatchQueue(label: "dmx.agent.connection")
+    private let writeLock = NSLock()
+    private var nextID: UInt64 = 1
+
+    init(_ connection: VZVirtioSocketConnection) {
+        self.connection = connection
+        fd = connection.fileDescriptor
+        let flags = fcntl(fd, F_GETFL)
+        _ = fcntl(fd, F_SETFL, flags & ~O_NONBLOCK)
+        var on: Int32 = 1
+        _ = setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
+    }
+
+    deinit { connection.close() }
+
+    public func close() { connection.close() }
+
+    public func call<P: Encodable & Sendable, R: Decodable>(_ method: String, _ params: P) async throws -> R {
+        let data = try await onQueue { () throws -> Data in
+            let id = self.nextID
+            self.nextID += 1
+            try self.writeJSON(Request(id: id, method: method, params: params))
+            return try self.readReply(method: method)
+        }
+        do {
+            return try Self.decoder.decode(Reply<R>.self, from: data).result
+        } catch {
+            throw DMXError("agent_protocol", "\(method): unexpected reply: \(error)")
+        }
+    }
+
+    /// Starts a process in the guest. This connection belongs to the session from now on.
+    func exec(_ request: ExecRequest) async throws -> ExecSession {
+        let reply = try await onQueue { () throws -> Data in
+            let id = self.nextID
+            self.nextID += 1
+            try self.writeJSON(Request(id: id, method: "exec", params: request))
+            return try self.readReply(method: "exec")
+        }
+        struct Started: Decodable { let pid: Int }
+        guard let started = try? Self.decoder.decode(Reply<Started>.self, from: reply).result else {
+            throw DMXError("agent_protocol", "exec: unexpected reply")
+        }
+        let (events, continuation) = AsyncThrowingStream<ExecEvent, Error>.makeStream()
+        queue.async { self.pump(into: continuation) }
+        return ExecSession(connection: self, pid: started.pid, events: events)
+    }
+
+    // MARK: Framing
+
+    func writeFrame(_ kind: FrameKind, _ payload: Data) throws {
+        var header = Data(count: 5)
+        let length = UInt32(payload.count + 1).bigEndian
+        withUnsafeBytes(of: length) { header.replaceSubrange(0..<4, with: $0) }
+        header[4] = kind.rawValue
+        writeLock.lock()
+        defer { writeLock.unlock() }
+        try writeAll(header + payload)
+    }
+
+    private func writeJSON(_ value: some Encodable) throws {
+        try writeFrame(.json, try Self.encoder.encode(value))
+    }
+
+    private func writeAll(_ data: Data) throws {
+        try data.withUnsafeBytes { (buf: UnsafeRawBufferPointer) in
+            var offset = 0
+            while offset < buf.count {
+                let n = Darwin.write(fd, buf.baseAddress! + offset, buf.count - offset)
+                if n < 0 {
+                    if errno == EINTR { continue }
+                    throw DMXError("agent_disconnected", "write to agent: \(String(cString: strerror(errno)))")
+                }
+                offset += n
+            }
+        }
+    }
+
+    private func readExactly(_ count: Int) throws -> Data? {
+        var data = Data(count: count)
+        var offset = 0
+        while offset < count {
+            let n = data.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress! + offset, count - offset) }
+            if n < 0 {
+                if errno == EINTR { continue }
+                throw DMXError("agent_disconnected", "read from agent: \(String(cString: strerror(errno)))")
+            }
+            if n == 0 {
+                if offset == 0 { return nil }
+                throw DMXError("agent_disconnected", "agent closed the connection mid-frame")
+            }
+            offset += n
+        }
+        return data
+    }
+
+    func readFrame() throws -> (FrameKind, Data)? {
+        guard let header = try readExactly(4) else { return nil }
+        let length = Int(header.withUnsafeBytes { UInt32(bigEndian: $0.loadUnaligned(as: UInt32.self)) })
+        guard length >= 1, length <= 16 << 20 else {
+            throw DMXError("agent_protocol", "bad frame length \(length)")
+        }
+        guard let body = try readExactly(length) else {
+            throw DMXError("agent_disconnected", "agent closed the connection mid-frame")
+        }
+        guard let kind = FrameKind(rawValue: body[body.startIndex]) else {
+            throw DMXError("agent_protocol", "unknown frame kind \(body[body.startIndex])")
+        }
+        return (kind, body.dropFirst())
+    }
+
+    /// Reads the next JSON frame and turns an agent error into a DMXError.
+    private func readReply(method: String) throws -> Data {
+        guard let (kind, payload) = try readFrame() else {
+            throw DMXError("agent_disconnected", "\(method): agent closed the connection")
+        }
+        guard kind == .json else { throw DMXError("agent_protocol", "\(method): expected a JSON frame") }
+        let envelope: Envelope
+        do {
+            envelope = try Self.decoder.decode(Envelope.self, from: payload)
+        } catch {
+            throw DMXError("agent_protocol", "\(method): unreadable reply: \(error)")
+        }
+        if envelope.ok != true {
+            let failure = envelope.error ?? AgentFailure(code: "unknown", message: "no error given")
+            throw DMXError("agent_\(failure.code)", "\(method): \(failure.message)")
+        }
+        return Data(payload)
+    }
+
+    private func pump(into continuation: AsyncThrowingStream<ExecEvent, Error>.Continuation) {
+        do {
+            while let (kind, payload) = try readFrame() {
+                switch kind {
+                case .stdout: continuation.yield(.stdout(Data(payload)))
+                case .stderr: continuation.yield(.stderr(Data(payload)))
+                case .json:
+                    if let exit = try? Self.decoder.decode(ExecExit.self, from: payload),
+                       (try? Self.decoder.decode(Envelope.self, from: payload))?.event == "exit" {
+                        continuation.yield(.exit(exit))
+                        continuation.finish()
+                        return
+                    }
+                case .stdin: break
+                }
+            }
+            continuation.finish(throwing: DMXError("agent_disconnected", "exec: connection closed before the process exited"))
+        } catch {
+            continuation.finish(throwing: error)
+        }
+    }
+
+    private func onQueue<T: Sendable>(_ body: @escaping @Sendable () throws -> T) async throws -> T {
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async { continuation.resume(with: Result { try body() }) }
+        }
+    }
+
+    private static let encoder: JSONEncoder = {
+        let e = JSONEncoder()
+        e.keyEncodingStrategy = .convertToSnakeCase
+        return e
+    }()
+
+    private static let decoder: JSONDecoder = {
+        let d = JSONDecoder()
+        d.keyDecodingStrategy = .convertFromSnakeCase
+        return d
+    }()
+}
+
+/// Talks to dmx-agent: control calls share one connection, each exec opens its own
+/// (the agent hands an exec's connection over to that process's streams).
+public final class AgentClient: Sendable {
+    private let control: AgentConnection
+    private let open: @MainActor @Sendable () async throws -> AgentConnection
+
+    init(control: AgentConnection, open: @escaping @MainActor @Sendable () async throws -> AgentConnection) {
+        self.control = control
+        self.open = open
+    }
+
+    public func close() { control.close() }
+
+    public func call<P: Encodable & Sendable, R: Decodable>(_ method: String, _ params: P) async throws -> R {
+        try await control.call(method, params)
+    }
+
+    public func hello() async throws -> AgentHello { try await control.call("hello", Empty()) }
+    public func stats() async throws -> AgentStats { try await control.call("stats", Empty()) }
+
+    public func dropCaches(level: Int = 3) async throws -> DropCachesResult {
+        try await control.call("drop_caches", ["level": level])
+    }
+
+    /// Sets the guest clock to the host clock and returns how far off it was, in nanoseconds.
+    public func syncTime() async throws -> Int64 {
+        struct Params: Encodable { let unixNs: Int64 }
+        struct Result: Decodable { let offsetNs: Int64 }
+        let now = Int64(Date().timeIntervalSince1970 * 1e9)
+        let result: Result = try await control.call("time_sync", Params(unixNs: now))
+        return result.offsetNs
+    }
+
+    /// Asks the guest to sync and power off. The VM stops shortly after this returns.
+    public func shutdown() async throws {
+        let _: Empty = try await control.call("shutdown", Empty())
+    }
+
+    /// Starts a process in the guest on a new connection.
+    public func exec(_ request: ExecRequest) async throws -> ExecSession {
+        try await open().exec(request)
+    }
+
+    /// Runs a process to completion and collects its output.
+    public func run(_ argv: [String], stdin: Data? = nil, tty: Bool = false) async throws -> ExecOutput {
+        var request = ExecRequest(argv: argv)
+        request.tty = tty
+        request.stdin = stdin != nil
+        let session = try await exec(request)
+        if let stdin {
+            if !stdin.isEmpty { try session.write(stdin) }
+            try session.closeStdin()
+        }
+        var out = Data(), err = Data()
+        for try await event in session.events {
+            switch event {
+            case .stdout(let d): out.append(d)
+            case .stderr(let d): err.append(d)
+            case .exit(let exit): return ExecOutput(exit: exit, stdout: out, stderr: err)
+            }
+        }
+        throw DMXError("agent_disconnected", "\(argv.first ?? "exec"): connection closed before the process exited")
+    }
+}
+
+/// A running process in the guest. Output arrives on `events`, ending with `.exit`.
+public final class ExecSession: Sendable {
+    public let pid: Int
+    public let events: AsyncThrowingStream<ExecEvent, Error>
+    private let connection: AgentConnection
+
+    init(connection: AgentConnection, pid: Int, events: AsyncThrowingStream<ExecEvent, Error>) {
+        self.connection = connection
+        self.pid = pid
+        self.events = events
+    }
+
+    public func write(_ data: Data) throws { try connection.writeFrame(.stdin, data) }
+    public func closeStdin() throws { try connection.writeFrame(.stdin, Data()) }
+
+    public func resize(rows: Int, cols: Int) throws {
+        try control("resize", ["rows": rows, "cols": cols])
+    }
+
+    public func signal(_ number: Int32) throws {
+        try control("signal", ["signal": Int(number)])
+    }
+
+    private func control(_ method: String, _ params: [String: Int]) throws {
+        let body = try JSONSerialization.data(withJSONObject: ["method": method, "params": params])
+        try connection.writeFrame(.json, body)
+    }
+}
+
+private struct Empty: Codable, Sendable {}
+
+private struct Request<P: Encodable>: Encodable {
+    let id: UInt64
+    let method: String
+    let params: P
+}
+
+private struct AgentFailure: Decodable {
+    let code: String
+    let message: String
+}
+
+private struct Envelope: Decodable {
+    let ok: Bool?
+    let error: AgentFailure?
+    let event: String?
+}
+
+private struct Reply<R: Decodable>: Decodable {
+    let result: R
+}
+
+extension Machine {
+    /// Connects to dmx-agent, retrying until it listens (it starts a few hundred ms into boot).
+    public func connectAgent(timeout: Duration) async throws -> AgentClient {
+        let deadline = ContinuousClock.now + timeout
+        var lastError = ""
+        while ContinuousClock.now < deadline {
+            if stopped != nil {
+                throw DMXError("vm_stopped", "the VM stopped before the agent answered", hint: "run `dmx boot --verbose` to see the guest console")
+            }
+            do {
+                let control = try await openAgentConnection()
+                let client = AgentClient(control: control) { [self] in try await self.openAgentConnection() }
+                let hello = try await client.hello()
+                guard hello.protocol == agentProtocol else {
+                    throw DMXError("agent_version", "agent speaks protocol \(hello.protocol), this dmx speaks \(agentProtocol)", hint: "run `make guest` to rebuild the guest with a matching agent")
+                }
+                return client
+            } catch let error as DMXError where error.code == "agent_version" || error.code == "vm_error" {
+                throw error
+            } catch {
+                lastError = (error as? DMXError)?.message ?? (error as NSError).localizedDescription
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        throw DMXError("agent_unreachable", "no answer from dmx-agent on vsock port \(agentPort) within \(timeout): \(lastError)", hint: "run `dmx boot --verbose` and look for dmx-init or dmx-agent errors")
+    }
+
+    func openAgentConnection() async throws -> AgentConnection {
+        guard let device = socketDevice else {
+            throw DMXError("vm_error", "the VM has no vsock device")
+        }
+        return AgentConnection(try await device.connect(toPort: agentPort))
+    }
+}

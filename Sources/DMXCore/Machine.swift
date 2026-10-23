@@ -105,11 +105,15 @@ public final class Machine: NSObject {
     }
 
     /// Hard stop, like pulling the power cord. The guest has no disk to corrupt yet.
+    /// For a clean stop, ask the agent: `AgentConnection.shutdown()`.
     public func stop() async {
         guard vm.canStop else { return }
         try? await vm.stop()
         finish(.guestStopped)
     }
+
+    var socketDevice: VZVirtioSocketDevice? { vm.socketDevices.first as? VZVirtioSocketDevice }
+    var stopped: Exit? { exit }
 
     public func waitUntilStopped() async -> Exit {
         if let exit { return exit }

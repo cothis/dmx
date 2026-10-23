@@ -83,7 +83,7 @@ struct Boot: AsyncParsableCommand {
     @Option(help: "Memory ceiling, e.g. 8G. Only touched pages use host memory.")
     var memory: String?
 
-    @Flag(help: "Boot, collect a report from the guest, and power off.")
+    @Flag(help: "Boot, exercise the guest agent over vsock, and power off through it.")
     var selftest = false
 
     @Option(help: "Seconds before --selftest gives up.")
@@ -99,8 +99,12 @@ struct Boot: AsyncParsableCommand {
             try await report(global) {
                 let result = try await runSelftest(paths: Paths(), spec: spec, timeout: .seconds(timeout), echo: verbose)
                 var text = result.ok ? "selftest ok" : "selftest FAILED"
-                if let ms = result.bootMs { text += " (guest up in \(ms) ms)" }
-                text += "\n" + result.guest.sorted { $0.key < $1.key }.map { "  \($0.key): \($0.value)" }.joined(separator: "\n")
+                if let ms = result.bootMs { text += " (agent up in \(ms) ms)" }
+                if let agent = result.agent { text += "\n  agent: \(agent.agent) \(agent.version), protocol \(agent.protocol)" }
+                if let uname = result.uname { text += "\n  uname: \(uname)" }
+                if let used = result.guestUsedMb { text += "\n  guest used: \(used) MB of \(result.maxMemory)" }
+                if let ms = result.shutdownMs { text += "\n  shutdown: \(ms) ms" }
+                for check in result.checks { text += "\n  \(check.ok ? "ok  " : "FAIL") \(check.name): \(check.detail)" }
                 for problem in result.problems { text += "\n  problem: \(problem)" }
                 return (result, text, result.ok)
             }
