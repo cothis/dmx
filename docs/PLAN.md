@@ -251,10 +251,9 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-A kernel without `ZONE_DMA`/`ZONE_DMA32` (one zone halves the per-CPU free lists, 11 MB at idle)
-is configured in `scripts/build-kernel.py` but not yet built and measured. Then phase 5,
-"`dmx daemon`": the remaining phase 4 tasks (memory controller, idle page cache trimming, host
-pressure) need it.
+Phase 5, "`dmx daemon`": the remaining phase 4 tasks (memory controller, idle page cache
+trimming, host pressure) need it. Phase 4's idle target is met (111 MB at 8G, goal under 150);
+its second half (a 2 GB container's memory back within 10 s) is tested once containers run.
 
 ## Findings and measurements
 
@@ -309,6 +308,7 @@ pressure) need it.
 | 2026-10-24 | Reserved memory by caller (`memblock=debug`, trimmed kernel, 8G) | memmap 32 MB, kernel image 17.3, linear map page tables 4.0 (258 tables of 16 KB: RAM mapped page by page), hash tables 1.5, percpu first chunk 1.3. `rodata=on` is the same as full on 6.18; `rodata=noalias` maps the linear map in 32 MB blocks: 3 tables, footprint 119-120 → 114-117 MB. |
 | 2026-10-24 | Guest MemTotal - MemFree at idle (48 MB) | per-CPU free lists 11.3 MB (722 pages over 20 lists: DMA and Normal zone per vCPU), slab 10, vmalloc ~5 (3 MB of it the atomic DMA pools), shmem 3.6, kernel stacks 2, page tables 1.8, percpu 1.8, the rest driver buffers. `coherent_pool=64K` (pools of 1 MB per zone otherwise): 112 to 113 MB. |
 | 2026-10-24 | Kernel without the lockdown LSM | `MODULE_SIG` off; modprobe no longer taints the kernel. Compiled in 7423 s at host load 30 to 76. Selftest with `rodata=noalias coherent_pool=64K`: 112 MB at 8G (3 runs), back to 113 to 118 MB after the 1 GB test. |
+| 2026-10-24 | Kernel without ZONE_DMA/ZONE_DMA32 (one Normal zone) | Compiled in 933 s at host load ~10 to 25. Per-CPU free lists 20 → 10, but they hold the same in total (776 pages, 12 MB): each list's high mark grows with its zone. Selftest 8G 111 to 112 MB (was 112), 2G 87; after the 1 GB test 113 MB in 0.3 s. Kept: nothing in dmx needs memory below 4 GB. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -330,3 +330,4 @@ pressure) need it.
 - 2026-10-24: Kernel config trimmed to what dmx and Docker use: idle at 8G 141 → 120 MB, kernel build 19 min instead of 2 h 21 min.
 - 2026-10-24: VMM fixes: vCPUs come back after CPU_OFF, no lost virtio interrupts on ack, a stopped VM closes its vsock streams.
 - 2026-10-24: The unexplained 24 MB turned out to be guest pages `mincore` misses. Linear map in blocks and small atomic DMA pools: idle at 8G 120 → 112 MB.
+- 2026-10-24: One memory zone in the guest kernel; idle 111 MB at 8G.

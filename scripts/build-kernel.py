@@ -107,6 +107,10 @@ CONFIG = {
     # The VMM has 64 vCPUs at most and one memory node; NR_CPUS=4096 sizes static per-CPU arrays.
     "NR_CPUS": "64",
     "NUMA": None,
+    # No device needs memory below 4 GB, and each zone has its own per-CPU free list per vCPU
+    # (free pages that page reporting cannot see), so one zone halves them.
+    "ZONE_DMA": None,
+    "ZONE_DMA32": None,
     # With 16K pages a transparent huge page is 32 MB; only programs that ask get them.
     "TRANSPARENT_HUGEPAGE_ALWAYS": None,
     "TRANSPARENT_HUGEPAGE_MADVISE": "y",
@@ -140,7 +144,8 @@ MUST = {
     "y": ["ARM64_16K_PAGES", "ARM64_VA_BITS_48", "DEBUG_INFO_NONE", "VIRTIO_MMIO", "VIRTIO_BALLOON",
           "VIRTIO_VSOCKETS", "HW_RANDOM_VIRTIO", "VIRTIO_CONSOLE", "SERIAL_AMBA_PL011", "PAGE_REPORTING",
           "MEMCG", "CGROUPS", "NAMESPACES", "USER_NS", "SECCOMP", "BPF_SYSCALL", "OVERLAY_FS", "PSI"],
-    "unset": ["PCI", "ACPI", "EFI", "NUMA", "COMPAT", "TRANSPARENT_HUGEPAGE_ALWAYS", "MODULE_SIG"],
+    "unset": ["PCI", "ACPI", "EFI", "NUMA", "COMPAT", "TRANSPARENT_HUGEPAGE_ALWAYS", "MODULE_SIG",
+              "ZONE_DMA", "ZONE_DMA32"],
 }
 
 BUILD_SH = r"""
