@@ -16,16 +16,19 @@ Linux containers need a Linux kernel, so every container tool on macOS runs a VM
 
 See [docs/PLAN.md](docs/PLAN.md) for the detailed plan.
 
-| Step | | |
+| Phase | | |
 |---|---|---|
 | 1 | Boot a Linux VM with Virtualization.framework, debug console | done |
-| 2 | Memory: balloon controller, idle stop, host-side footprint tracking | next |
-| 3 | vsock agent in the guest, `dmx shell`, networking, file sharing | |
-| 4 | Docker Engine API socket (dockerd in the guest first) | |
-| 5 | Own runtime in the guest, replacing dockerd piece by piece | |
-| 6 | `dmx mcp`, sandboxes, checkpoints | |
+| 2 | Guest agent (Rust) and vsock control channel | next |
+| 3 | Memory: footprint tracking, smaller baseline, balloon controller | |
+| 4 | Daemon, launchd socket activation, idle stop | |
+| 5 | Data disk, networking, port forwarding, file sharing | |
+| 6 | Docker compatibility (dockerd in the guest first) | |
+| 7 | Own runtime, replacing dockerd piece by piece | |
+| 8 | `dmx mcp`, sandboxes, checkpoints | |
+| 9 | Release: CI, guest artifacts, Homebrew | |
 
-Measured on an M-series Mac (10 cores, 16 GB): the guest boots in about 0.7 s and uses 64 MB inside. On the host the VM costs 170 MB with a 2 GB ceiling and 354 MB with 8 GB, because Linux keeps page metadata for its whole ceiling. Shrinking that is part of step 2.
+Measured on an M-series Mac (10 cores, 16 GB): the guest boots in about 0.7 s and uses 64 MB inside. On the host the VM costs 170 MB with a 2 GB ceiling and 354 MB with 8 GB, because Linux keeps page metadata for its whole ceiling. Shrinking that is part of phase 3.
 
 ## Build
 
