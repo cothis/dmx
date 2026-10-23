@@ -14,6 +14,8 @@ Linux containers need a Linux kernel, so every container tool on macOS runs a VM
 
 ## Status
 
+See [docs/PLAN.md](docs/PLAN.md) for the detailed plan.
+
 | Step | | |
 |---|---|---|
 | 1 | Boot a Linux VM with Virtualization.framework, debug console | done |
@@ -45,6 +47,7 @@ State lives in `~/.dmx` (override with `DMX_HOME`).
 - `Sources/dmx`: the command line
 - `guest/init`: PID 1 inside the VM
 - `scripts/build-guest.py`: builds the guest from pinned, checksummed Alpine Linux packages
+- `docs/PLAN.md`: full plan, decisions, progress and measurements
 
 ## License
 
