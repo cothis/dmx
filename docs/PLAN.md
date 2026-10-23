@@ -105,14 +105,16 @@ Measure boot time and idle footprint at each step against the VZ numbers (8G: 18
       HVC (VERSION, CPU_ON, SYSTEM_OFF, SYSTEM_RESET), WFI and the vtimer. Console on a PL011.
       10 vCPUs come up; shell prompt on ttyAMA0 0.18 to 0.57 s after start; idle CPU ~0%.
       WFI waits are capped at 1 ms because SGIs between vCPUs are invisible to us; revisit.
-- [ ] virtio-mmio transport with split virtqueues, shared by every device. `/init` loads
+- [x] virtio-mmio transport with split virtqueues, shared by every device. `/init` loads
       `virtio_mmio` (a module in the current kernel config) before the other virtio modules.
-- [ ] virtio-console (hvc0) for the debug console, and virtio-rng.
-- [ ] virtio-vsock: the host side of `AgentClient` on our own device instead of
-      `VZVirtioSocketDevice`.
-- [ ] `hostFootprint()` for the new VMM (guest RAM now lives in our own process).
-- [ ] Switch `Machine` to the new VMM so the selftest passes unchanged, then remove the
-      Virtualization.framework backend.
+- [x] virtio-console (hvc0) for the debug console, and virtio-rng.
+- [x] virtio-vsock: the host end of each stream is one end of a Unix socketpair, so
+      `AgentConnection` is unchanged. Credit flow control both ways; data the guest sent before
+      SHUTDOWN is flushed before the connection closes.
+- [x] `hostFootprint()` for the new VMM: `ri_phys_footprint` of the dmx process.
+- [x] Switch `Machine` to the new VMM so the selftest passes unchanged, then remove the
+      Virtualization.framework backend. Done: `Machine` is the Hypervisor.framework VM, the
+      only entitlement is `com.apple.security.hypervisor`, doctor checks `kern.hv_support`.
 - [ ] virtio-balloon with free page reporting (`VIRTIO_BALLOON_F_REPORTING`): for each reported
       range, `hv_vm_unmap`, `madvise(MADV_FREE_REUSABLE)`, `hv_vm_map` again. Also deflate on OOM
       and the stats queue.
@@ -220,10 +222,13 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-Phase 3, second task: the virtio-mmio transport with split virtqueues (`Sources/DMXCore/HV`),
-then virtio-console and virtio-rng on it (third task). `/init` already loads `virtio_mmio`
-and falls back to ttyAMA0 while there is no hvc0. After that, virtio-vsock so the agent and the
-selftest run on the new VMM.
+Phase 3, last task: virtio-balloon with free page reporting (`VIRTIO_BALLOON_F_REPORTING`,
+feature bit 5, its own virtqueue after inflate/deflate/stats). For each reported range:
+`hv_vm_unmap`, `madvise(MADV_FREE_REUSABLE)`, `hv_vm_map` again (ArcBox found the advice takes
+effect on guest-dirtied pages only with the mapping torn down around it). Measure with the
+1 GB fill test from Findings: footprint must fall back within 10 s. Check
+`/sys/module/page_reporting/parameters/page_reporting_order` (reports are whole 2^order page
+blocks) and how long the kernel waits before reporting (about 2 s).
 
 ## Findings and measurements
 
@@ -231,7 +236,7 @@ selftest run on the new VMM.
 |---|---|---|
 | 2026-10-23 | Boot to init report | 725 ms (10 vCPU, 8 GB ceiling) |
 | 2026-10-23 | Guest memory used after boot | 64 MB |
-| 2026-10-23 | Host footprint of the VM process | 170 MB at 2 GB ceiling, 354 MB at 8 GB |
+| 2026-10-23 | Host footprint of the VM process (VZ) | 170 MB at 2 GB ceiling, 354 MB at 8 GB |
 | 2026-10-23 | Static aarch64 musl agent (hello world, opt-level s, LTO, stripped) | 330 KB; builds in 3 s with rust-lld |
 | 2026-10-23 | Agent built with vsock, exec, stats (libc, serde, serde_json) | 545 KB binary; 448 KB RSS idle, 1 thread |
 | 2026-10-23 | Boot to agent `hello` (host clock, 10 vCPU) | 335 to 520 ms at 2 GB and 8 GB ceilings |
@@ -256,6 +261,9 @@ selftest run on the new VMM.
 | 2026-10-23 | Own VMM (HVF), idle footprint of the dmx process, guest RAM included | 2G 126 MB, 8G 171 MB (VZ: 137 and 181 MB, not counting dmx itself). Shell prompt 0.18 to 0.57 s after start, 10 vCPUs. |
 | 2026-10-23 | Measuring an HVF VM | `footprint <pid>` leaves out guest pages dirtied through `hv_vm_map` (it showed 58 MB while the guest held 1 GB); `ri_phys_footprint` from `proc_pid_rusage` counts them and matches the drop in host free memory. Read the kernel and initramfs with `.alwaysMapped`: copies held in malloc cost 27 MB. |
 | 2026-10-23 | Hypervisor.framework GIC and MPIDR | The redistributor region is 32 MB (sized for the framework's maximum vCPUs), 128 KB per vCPU, handed out in vCPU creation order. MPIDR_EL1 starts at 0 on every vCPU; set it (Aff0 = index) or the kernel finds no redistributor. Linux traps OSLAR_EL1/OSDLR_EL1 at boot; ignoring them is fine. |
+| 2026-10-23 | Selftest on the own VMM (8G, 10 vCPU) | All checks pass. Agent up in 299 to 321 ms (VZ: 252 to 350 ms), shutdown 1 to 5 ms (VZ: 11 to 15), dmx process footprint 172 to 173 MB including guest RAM (VZ service process alone: 181). |
+| 2026-10-23 | vsock throughput on the own VMM | 500 MB guest → host in ~2.7 s after boot (~180 MB/s, one stream, 256 KB window, socketpair buffers 1 MB). 50 MB both ways round trip intact. |
+| 2026-10-23 | Stock Alpine 4K kernel on the own VMM | Boots and passes the selftest (footprint 287 MB at 8G, the 4K memmap), so `make kernel` bootstraps without VZ. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -268,3 +276,4 @@ selftest run on the new VMM.
 - 2026-10-23: Found that VZ's balloon and save/restore return no host memory. Balloon controller blocked on a VMM decision.
 - 2026-10-23: Maintainer decision: own VMM on Hypervisor.framework, written in Swift in DMXCore; macOS 15+; x86 images via QEMU binfmt. New phase 3; later phases renumbered.
 - 2026-10-23: dmx's own VMM boots the guest to a shell on 10 vCPUs, smaller than on VZ at idle.
+- 2026-10-23: virtio-mmio, console, rng and vsock on the own VMM; the selftest passes on it. Virtualization.framework removed.

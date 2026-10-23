@@ -8,24 +8,37 @@ enum HVLayout {
     static let gicRedistributors: UInt64 = 0x0c00_0000
     static let uart: UInt64 = 0x0900_0000
     static let uartSize: UInt64 = 0x1000
+    /// virtio-mmio slots, `VirtioMMIO.size` apart, each with its own SPI.
+    static let virtio: UInt64 = 0x0a00_0000
     static let ramBase: UInt64 = 0x4000_0000
     /// GIC interrupt numbers: SPIs start at 32. The device tree names SPIs by their offset.
     static let uartSPI: UInt32 = 1
+    static let virtioSPI: UInt32 = 16
 }
 
 /// One Linux VM on dmx's own VMM over Hypervisor.framework. Guest RAM is an anonymous mapping
 /// in this process, so dmx decides when freed guest memory goes back to macOS. A process can
 /// hold only one such VM at a time.
-public final class HVMachine: @unchecked Sendable {
+public final class Machine: @unchecked Sendable {
+    public enum Exit: Sendable {
+        case guestStopped
+        case failed(DMXError)
+    }
+
     public let spec: MachineSpec
 
     private let ram: UnsafeMutableRawPointer
     private let ramSize: UInt64
     private let uart: PL011
+    private let console: VirtioConsole
+    let vsock = VirtioVsock()
+    /// Every MMIO device by guest address, UART first.
+    private var bus: [(base: UInt64, size: UInt64, device: MMIODevice)] = []
+    private var virtioSlots = 0
     private let lock = NSLock()
     private var vcpus: [VCPU] = []
-    private var exit: Machine.Exit?
-    private var waiters: [CheckedContinuation<Machine.Exit, Never>] = []
+    private var exit: Exit?
+    private var waiters: [CheckedContinuation<Exit, Never>] = []
     /// File contents until they are copied into guest RAM, then released.
     private var kernel: Data, initramfs: Data
     private var redistributorBase: UInt64 = 0
@@ -45,6 +58,9 @@ public final class HVMachine: @unchecked Sendable {
         self.spec = resolved
         ramSize = resolved.maxMemory
 
+        guard hvSupported else {
+            throw DMXError("virtualization_unsupported", "this Mac does not support Hypervisor.framework")
+        }
         var config: hv_vm_config_t? = hv_vm_config_create()
         defer { config = nil }
         try check(hv_vm_create(config), "hv_vm_create")
@@ -70,6 +86,21 @@ public final class HVMachine: @unchecked Sendable {
         uart = PL011(output: console) { level in
             hv_gic_set_spi(32 + HVLayout.uartSPI, level)
         }
+        bus.append((HVLayout.uart, HVLayout.uartSize, uart))
+        self.console = VirtioConsole(output: console)
+        let ram = GuestRAM(base: ram, guestBase: HVLayout.ramBase, size: ramSize)
+        addVirtio(self.console, ram: ram)
+        addVirtio(VirtioRNG(), ram: ram)
+        addVirtio(vsock, ram: ram)
+    }
+
+    private func addVirtio(_ device: VirtioDevice, ram: GuestRAM) {
+        let slot = UInt32(virtioSlots)
+        virtioSlots += 1
+        let transport = VirtioMMIO(device: device, ram: ram) { level in
+            hv_gic_set_spi(32 + HVLayout.virtioSPI + slot, level)
+        }
+        bus.append((HVLayout.virtio + UInt64(slot) * VirtioMMIO.size, VirtioMMIO.size, transport))
     }
 
     deinit {
@@ -78,8 +109,8 @@ public final class HVMachine: @unchecked Sendable {
         hv_vm_destroy()
     }
 
-    /// Bytes typed on the host console.
-    public func input(_ bytes: [UInt8]) { uart.receive(bytes) }
+    /// Bytes typed on the host console, for the guest's hvc0.
+    public func input(_ bytes: [UInt8]) { console.receive(Data(bytes)) }
 
     /// Guest RAM lives in this process, so its footprint is the VM's cost, dmx included.
     /// The `footprint` tool leaves out pages the guest dirtied through `hv_vm_map`;
@@ -110,7 +141,7 @@ public final class HVMachine: @unchecked Sendable {
 
     public func stop() async { stop(.guestStopped) }
 
-    public func waitUntilStopped() async -> Machine.Exit {
+    public func waitUntilStopped() async -> Exit {
         await withCheckedContinuation { continuation in
             lock.lock()
             if let exit {
@@ -123,7 +154,7 @@ public final class HVMachine: @unchecked Sendable {
         }
     }
 
-    func stop(_ result: Machine.Exit) {
+    func stop(_ result: Exit) {
         lock.lock()
         guard exit == nil else { lock.unlock(); return }
         exit = result
@@ -242,6 +273,15 @@ public final class HVMachine: @unchecked Sendable {
                 t.property("clocks", u32: clockPhandle, clockPhandle)
                 t.property("clock-names", strings: ["uartclk", "apb_pclk"])
             }
+            for slot in 0..<virtioSlots {
+                let base = HVLayout.virtio + UInt64(slot) * VirtioMMIO.size
+                t.node("virtio_mmio@\(String(base, radix: 16))") { t in
+                    t.property("compatible", string: "virtio,mmio")
+                    t.property("reg", u32: hi(base), lo(base), 0, UInt32(VirtioMMIO.size))
+                    t.property("interrupts", u32: 0, HVLayout.virtioSPI + UInt32(slot), level)
+                    t.property("dma-coherent")
+                }
+            }
         }
         return t.finish()
     }
@@ -249,23 +289,26 @@ public final class HVMachine: @unchecked Sendable {
     // MARK: Exits
 
     func mmioRead(_ address: UInt64, size: Int) -> UInt64? {
-        if (HVLayout.uart..<(HVLayout.uart + HVLayout.uartSize)).contains(address) {
-            return uart.read(offset: address - HVLayout.uart, size: size)
-        }
-        return nil
+        guard let entry = bus.first(where: { address >= $0.base && address - $0.base < $0.size }) else { return nil }
+        return entry.device.read(offset: address - entry.base, size: size)
     }
 
     func mmioWrite(_ address: UInt64, size: Int, value: UInt64) -> Bool {
-        if (HVLayout.uart..<(HVLayout.uart + HVLayout.uartSize)).contains(address) {
-            uart.write(offset: address - HVLayout.uart, size: size, value: value)
-            return true
-        }
-        return false
+        guard let entry = bus.first(where: { address >= $0.base && address - $0.base < $0.size }) else { return false }
+        entry.device.write(offset: address - entry.base, size: size, value: value)
+        return true
     }
 
     func vcpu(mpidr: UInt64) -> VCPU? {
         vcpus.first { $0.mpidr & 0xff_ffff == mpidr & 0xff_ffff }
     }
+}
+
+/// `kern.hv_support`: whether this Mac can run Hypervisor.framework VMs at all.
+var hvSupported: Bool {
+    var value: Int32 = 0
+    var size = MemoryLayout<Int32>.size
+    return sysctlbyname("kern.hv_support", &value, &size, nil, 0) == 0 && value == 1
 }
 
 func alignUp(_ value: UInt64, _ alignment: UInt64) -> UInt64 {

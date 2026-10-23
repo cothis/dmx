@@ -5,7 +5,7 @@ import Hypervisor
 /// vCPU to come from the thread that created it, except `hv_vcpus_exit`.
 final class VCPU: @unchecked Sendable {
     let index: Int
-    private unowned let machine: HVMachine
+    private unowned let machine: Machine
     private(set) var mpidr: UInt64 = 0
     private(set) var createError: String?
     private var id: hv_vcpu_t = 0
@@ -23,7 +23,7 @@ final class VCPU: @unchecked Sendable {
         return info
     }()
 
-    init(index: Int, machine: HVMachine) {
+    init(index: Int, machine: Machine) {
         self.index = index
         self.machine = machine
     }

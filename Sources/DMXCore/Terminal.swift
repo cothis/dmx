@@ -19,19 +19,15 @@ public final class RawTerminal {
     deinit { restore() }
 }
 
-/// Copies stdin to the guest on a background thread. Calls `onEscape` when Ctrl-] is typed.
-public func forwardStdin(to guest: FileHandle, onEscape: @escaping @Sendable () -> Void) {
-    forwardStdin({ guest.write($0) }, onEscape: onEscape)
-}
-
-/// Like `forwardStdin(to:onEscape:)`, handing each chunk to `send`.
+/// Copies stdin to the guest on a background thread, handing each chunk to `send`.
+/// Calls `onEscape` when Ctrl-] is typed.
 public func forwardStdin(_ send: @escaping @Sendable (Data) -> Void, onEscape: @escaping @Sendable () -> Void) {
     let thread = Thread {
         var buffer = [UInt8](repeating: 0, count: 4096)
         while true {
             let n = read(STDIN_FILENO, &buffer, buffer.count)
-            // On a terminal stdin shares its file description with stdout, which the
-            // serial attachment makes non-blocking, so wait instead of treating EAGAIN as EOF.
+            // On a terminal stdin shares its file description with stdout, which may have been
+            // made non-blocking, so wait instead of treating EAGAIN as EOF.
             if n < 0, errno == EAGAIN || errno == EINTR {
                 var fd = pollfd(fd: STDIN_FILENO, events: Int16(POLLIN), revents: 0)
                 _ = poll(&fd, 1, -1)

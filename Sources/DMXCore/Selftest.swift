@@ -36,12 +36,11 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
     if !echo { spec.kernelArgs.append("quiet") }
 
     let capture = ConsoleCapture(echo: echo)
-    let console = Console(fromGuest: capture.pipe.fileHandleForWriting)
-    let machine = try Machine(spec: spec, paths: paths, console: console)
+    let machine = try Machine(spec: spec, paths: paths, console: capture.pipe.fileHandleForWriting)
 
     let started = ContinuousClock.now
     capture.start()
-    try await machine.start()
+    try machine.start()
 
     let watchdog = Task { @MainActor () -> Bool in
         do { try await Task.sleep(for: timeout) } catch { return false }

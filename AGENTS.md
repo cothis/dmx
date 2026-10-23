@@ -31,4 +31,5 @@ phase with its tasks, the next task, and the measurements so far.
 - macOS has no `timeout`; use `perl -e 'alarm 20; exec @ARGV' <cmd>`.
 - To test the interactive console, drive `dmx boot` through a pty from Python (`pty.openpty()`);
   macOS `script` with piped stdin does not forward input reliably.
-- Host memory of the VM: `footprint <pid>` on the `com.apple.Virtualization.VirtualMachine` process.
+- Host memory of the VM: selftest `host.footprint_mb`, which is `ri_phys_footprint` of the dmx process
+  (guest RAM lives there). Do not use the `footprint` tool: it leaves out guest pages.

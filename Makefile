@@ -2,7 +2,7 @@ BIN := .build/release/dmx
 
 .PHONY: build kernel guest selftest clean
 
-# Virtualization.framework refuses to run without this entitlement; ad-hoc signing is enough locally.
+# Hypervisor.framework refuses to run without this entitlement; ad-hoc signing is enough locally.
 build:
 	swift build -c release
 	codesign --force --sign - --entitlements dmx.entitlements $(BIN)

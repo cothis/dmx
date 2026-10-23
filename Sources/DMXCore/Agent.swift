@@ -1,5 +1,4 @@
 import Foundation
-import Virtualization
 
 /// The vsock port dmx-agent listens on inside the guest.
 public let agentPort: UInt32 = 1024
@@ -90,24 +89,35 @@ public struct ExecOutput: Sendable {
 /// One connection to dmx-agent. Requests on it are answered in order; an exec takes it over.
 /// Blocking socket I/O runs on the connection's own queue, never on the caller's thread.
 public final class AgentConnection: @unchecked Sendable {
-    private let connection: VZVirtioSocketConnection
+    private let closeConnection: @Sendable () -> Void
     private let fd: Int32
     private let queue = DispatchQueue(label: "dmx.agent.connection")
     private let writeLock = NSLock()
     private var nextID: UInt64 = 1
 
-    init(_ connection: VZVirtioSocketConnection) {
-        self.connection = connection
-        fd = connection.fileDescriptor
+    /// A connection on any stream socket; `close` releases it.
+    init(fd: Int32, close: @escaping @Sendable () -> Void) {
+        closeConnection = close
+        self.fd = fd
         let flags = fcntl(fd, F_GETFL)
         _ = fcntl(fd, F_SETFL, flags & ~O_NONBLOCK)
         var on: Int32 = 1
         _ = setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
     }
 
-    deinit { connection.close() }
+    private let closeLock = NSLock()
+    private var closed = false
 
-    public func close() { connection.close() }
+    deinit { close() }
+
+    /// Closes once; later calls do nothing, so a reused descriptor number is never closed.
+    public func close() {
+        closeLock.lock()
+        defer { closeLock.unlock() }
+        guard !closed else { return }
+        closed = true
+        closeConnection()
+    }
 
     public func call<P: Encodable & Sendable, R: Decodable>(_ method: String, _ params: P) async throws -> R {
         let data = try await onQueue { () throws -> Data in
@@ -380,37 +390,40 @@ private struct Reply<R: Decodable>: Decodable {
     let result: R
 }
 
-extension Machine {
-    /// Connects to dmx-agent, retrying until it listens (it starts a few hundred ms into boot).
-    public func connectAgent(timeout: Duration) async throws -> AgentClient {
-        let deadline = ContinuousClock.now + timeout
-        var lastError = ""
-        while ContinuousClock.now < deadline {
-            if stopped != nil {
-                throw DMXError("vm_stopped", "the VM stopped before the agent answered", hint: "run `dmx boot --verbose` to see the guest console")
-            }
-            do {
-                let control = try await openAgentConnection()
-                let client = AgentClient(control: control) { [self] in try await self.openAgentConnection() }
-                let hello = try await client.hello()
-                guard hello.protocol == agentProtocol else {
-                    throw DMXError("agent_version", "agent speaks protocol \(hello.protocol), this dmx speaks \(agentProtocol)", hint: "run `make guest` to rebuild the guest with a matching agent")
-                }
-                return client
-            } catch let error as DMXError where error.code == "agent_version" || error.code == "vm_error" {
-                throw error
-            } catch {
-                lastError = (error as? DMXError)?.message ?? (error as NSError).localizedDescription
-            }
-            try await Task.sleep(for: .milliseconds(10))
+/// Connects to dmx-agent, retrying until it listens (it starts a few hundred ms into boot).
+/// `open` makes one connection to the agent's port; `isStopped` ends the wait early.
+@MainActor
+func connectAgent(timeout: Duration, isStopped: () -> Bool,
+                  open: @escaping @MainActor @Sendable () async throws -> AgentConnection) async throws -> AgentClient {
+    let deadline = ContinuousClock.now + timeout
+    var lastError = ""
+    while ContinuousClock.now < deadline {
+        if isStopped() {
+            throw DMXError("vm_stopped", "the VM stopped before the agent answered", hint: "run `dmx boot --verbose` to see the guest console")
         }
-        throw DMXError("agent_unreachable", "no answer from dmx-agent on vsock port \(agentPort) within \(timeout): \(lastError)", hint: "run `dmx boot --verbose` and look for dmx-init or dmx-agent errors")
+        do {
+            let client = AgentClient(control: try await open(), open: open)
+            let hello = try await client.hello()
+            guard hello.protocol == agentProtocol else {
+                throw DMXError("agent_version", "agent speaks protocol \(hello.protocol), this dmx speaks \(agentProtocol)", hint: "run `make guest` to rebuild the guest with a matching agent")
+            }
+            return client
+        } catch let error as DMXError where error.code == "agent_version" || error.code == "vm_error" {
+            throw error
+        } catch {
+            lastError = (error as? DMXError)?.message ?? (error as NSError).localizedDescription
+        }
+        try await Task.sleep(for: .milliseconds(10))
     }
+    throw DMXError("agent_unreachable", "no answer from dmx-agent on vsock port \(agentPort) within \(timeout): \(lastError)", hint: "run `dmx boot --verbose` and look for dmx-init or dmx-agent errors")
+}
 
-    func openAgentConnection() async throws -> AgentConnection {
-        guard let device = socketDevice else {
-            throw DMXError("vm_error", "the VM has no vsock device")
+extension Machine {
+    @MainActor
+    public func connectAgent(timeout: Duration) async throws -> AgentClient {
+        try await DMXCore.connectAgent(timeout: timeout, isStopped: { stopping }) { [self] in
+            let fd = try await vsock.connect(port: agentPort)
+            return AgentConnection(fd: fd) { _ = Darwin.close(fd) }
         }
-        return AgentConnection(try await device.connect(toPort: agentPort))
     }
 }

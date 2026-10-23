@@ -1,6 +1,5 @@
 import Foundation
 import Security
-import Virtualization
 
 public struct Check: Encodable, Sendable {
     public let name: String
@@ -21,17 +20,17 @@ public func runDoctor(paths: Paths) -> DoctorReport {
     let info = ProcessInfo.processInfo
 
     checks.append(Check(
-        name: "virtualization",
-        ok: VZVirtualMachine.isSupported,
+        name: "hypervisor",
+        ok: hvSupported,
         detail: "macOS \(info.operatingSystemVersionString), \(info.activeProcessorCount) cpus, \(formatSize(info.physicalMemory)) memory",
-        hint: VZVirtualMachine.isSupported ? nil : "Virtualization.framework is unavailable on this Mac"
+        hint: hvSupported ? nil : "Hypervisor.framework is unavailable on this Mac (kern.hv_support is 0)"
     ))
 
-    let entitled = hasEntitlement("com.apple.security.virtualization")
+    let entitled = hasEntitlement("com.apple.security.hypervisor")
     checks.append(Check(
         name: "entitlement",
         ok: entitled,
-        detail: entitled ? "com.apple.security.virtualization present" : "binary is not signed with com.apple.security.virtualization",
+        detail: entitled ? "com.apple.security.hypervisor present" : "binary is not signed with com.apple.security.hypervisor",
         hint: entitled ? nil : "build with `make build`"
     ))
 

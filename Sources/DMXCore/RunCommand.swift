@@ -7,9 +7,9 @@ import Foundation
 public func runInGuest(paths: Paths, spec: MachineSpec, argv: [String], timeout: Duration, echo: Bool) async throws -> Int32 {
     var spec = spec
     if !echo { spec.kernelArgs.append("quiet") }
-    let console = Console(fromGuest: echo ? .standardError : FileHandle(forWritingAtPath: "/dev/null")!)
-    let machine = try Machine(spec: spec, paths: paths, console: console)
-    try await machine.start()
+    let output = echo ? FileHandle.standardError : FileHandle(forWritingAtPath: "/dev/null")!
+    let machine = try Machine(spec: spec, paths: paths, console: output)
+    try machine.start()
 
     let status: Int32
     do {
