@@ -103,6 +103,7 @@ struct Boot: AsyncParsableCommand {
                 if let agent = result.agent { text += "\n  agent: \(agent.agent) \(agent.version), protocol \(agent.protocol)" }
                 if let uname = result.uname { text += "\n  uname: \(uname)" }
                 if let used = result.guestUsedMb { text += "\n  guest used: \(used) MB of \(result.maxMemory)" }
+                if let host = result.host { text += "\n  host footprint: \(host.footprintMb) MB (peak \(host.peakFootprintMb) MB, pid \(host.pid))" }
                 if let ms = result.shutdownMs { text += "\n  shutdown: \(ms) ms" }
                 for check in result.checks { text += "\n  \(check.ok ? "ok  " : "FAIL") \(check.name): \(check.detail)" }
                 for problem in result.problems { text += "\n  problem: \(problem)" }

@@ -18,9 +18,11 @@ public struct SelftestReport: Encodable, Sendable {
     public let uname: String?
     /// Guest clock minus host clock at boot, before `time_sync` corrected it.
     public let clockOffsetMs: Double?
-    /// Guest memory in use (total minus available), in MiB, after dropping caches.
+    /// Guest memory in use (total - free - buffers - cached + shmem), in MiB, after dropping caches.
     public let guestUsedMb: Int?
     public let stats: AgentStats?
+    /// Host memory of the VM process, read after dropping caches, before shutdown.
+    public let host: HostFootprint?
     public let checks: [SelftestCheck]
     public let problems: [String]
     /// Raw console output, included only when the run failed.
@@ -50,6 +52,7 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
     var problems: [String] = []
     var checks: [SelftestCheck] = []
     var hello: AgentHello?, uname: String?, offsetMs: Double?, stats: AgentStats?
+    var host: HostFootprint?
     var bootMs: Int?, shutdownStarted: ContinuousClock.Instant?
     func check(_ name: String, _ ok: Bool, _ detail: String) {
         checks.append(SelftestCheck(name: name, ok: ok, detail: detail))
@@ -91,6 +94,8 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
         check("drop_caches", dropped.availableAfter >= dropped.availableBefore / 2,
               "available \(formatSize(dropped.availableBefore)) -> \(formatSize(dropped.availableAfter))")
         stats = try await agent.stats()
+        host = machine.hostFootprint()
+        check("host_footprint", host != nil, host.map { "pid \($0.pid), \($0.footprintMb) MB (peak \($0.peakFootprintMb) MB)" } ?? "VM process not found")
 
         shutdownStarted = ContinuousClock.now
         try await agent.shutdown()
@@ -120,6 +125,7 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
         clockOffsetMs: offsetMs,
         guestUsedMb: stats.map { Int($0.memory.used >> 20) },
         stats: stats,
+        host: host,
         checks: checks,
         problems: problems,
         console: ok ? nil : lines

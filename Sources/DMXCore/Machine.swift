@@ -44,6 +44,8 @@ public final class Machine: NSObject {
     public let spec: MachineSpec
     private let vm: VZVirtualMachine
     private var exit: Exit?
+    private let servicePidsBefore: Set<Int32>
+    private var servicePid: Int32?
     private var waiters: [CheckedContinuation<Exit, Never>] = []
 
     public init(spec: MachineSpec, paths: Paths, console: Console) throws {
@@ -91,6 +93,7 @@ public final class Machine: NSObject {
         } catch {
             throw Self.translate(error)
         }
+        servicePidsBefore = vmServicePids()
         vm = VZVirtualMachine(configuration: config)
         super.init()
         vm.delegate = self
@@ -110,6 +113,13 @@ public final class Machine: NSObject {
         guard vm.canStop else { return }
         try? await vm.stop()
         finish(.guestStopped)
+    }
+
+    /// Physical footprint of the process that holds this VM's memory, or nil before `start()`
+    /// or if that process cannot be identified.
+    public func hostFootprint() -> HostFootprint? {
+        if servicePid == nil { servicePid = ownVMServicePid(before: servicePidsBefore) }
+        return servicePid.flatMap(HostFootprint.read)
     }
 
     var socketDevice: VZVirtioSocketDevice? { vm.socketDevices.first as? VZVirtioSocketDevice }

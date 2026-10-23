@@ -90,9 +90,11 @@ answers 0.35 to 0.5 s after `start()`, clean shutdown through the agent takes 15
 
 This is the core feature. Measure before and after every change and log numbers below.
 
-- [ ] Host footprint measurement: find the `com.apple.Virtualization.VirtualMachine` XPC process
-      for our VM (it is not our child; match by responsible pid or by appearance after `start()`)
-      and read `ri_phys_footprint` with `proc_pid_rusage`. Expose it in selftest/status JSON.
+- [x] Host footprint measurement: `Machine.hostFootprint()` finds the
+      `com.apple.Virtualization.VirtualMachine` XPC process whose responsible pid is us
+      (`responsibility_get_pid_responsible_for_pid`; falls back to "appeared after we created the
+      VM") and reads `ri_phys_footprint` with `proc_pid_rusage`. Selftest JSON has `host`
+      (`pid`, `footprint_mb`, `peak_footprint_mb`), read after drop_caches. Status JSON comes in phase 4.
 - [ ] Shrink the baseline that scales with the ceiling (finding: 2G → 170 MB, 8G → 354 MB host
       footprint while the guest used 64 MB). Investigate in this order and record results:
       1. What the kernel touches at boot for the whole ceiling (struct page memmap is ~16 MB/GB with 4K pages; check `init_on_alloc`/`init_on_free`, page poisoning, KASAN-like options in the Alpine config).
@@ -165,9 +167,9 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-Phase 3, first task: host footprint measurement. Find the `com.apple.Virtualization.VirtualMachine`
-process that backs our VM, read `ri_phys_footprint` with `proc_pid_rusage`, and add it to the
-selftest JSON next to `guest_used_mb`, so every later memory change is measured the same way.
+Phase 3, second task: shrink the baseline that scales with the ceiling (~31 MB per GB, measured
+with selftest `host.footprint_mb`). Start with step 1: find what the kernel touches at boot for
+the whole ceiling (memmap, `init_on_alloc`/`init_on_free`, page poisoning in the Alpine config).
 
 ## Findings and measurements
 
@@ -182,6 +184,8 @@ selftest JSON next to `guest_used_mb`, so every later memory change is measured 
 | 2026-10-23 | Clean shutdown via agent `shutdown` until `guestDidStop` | 15 ms |
 | 2026-10-23 | Guest clock at boot vs host | 0.25 to 0.3 s behind; `time_sync` corrects it |
 | 2026-10-23 | Guest used (total - free - buffers - cached + shmem, after drop_caches) | 72 to 86 MB. `total - MemAvailable` reads ~175 MB at 8 GB because MemAvailable subtracts the watermark reserve, so it is not used. |
+| 2026-10-23 | Selftest `host.footprint_mb` (after drop_caches, 10 vCPU) | 171 MB at 2G, 274 MB at 4G, 356 MB at 8G; guest used 64 to 79 MB. Matches `footprint <pid>`. Baseline grows ~31 MB per GB of ceiling. |
+| 2026-10-23 | Finding the VM process | `proc_name` truncates to 32 bytes, shorter than `com.apple.Virtualization.VirtualMachine`; match on `proc_pidpath`. Other VMs (other apps, stale dmx runs) share the name, so match on responsible pid. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -189,3 +193,4 @@ selftest JSON next to `guest_used_mb`, so every later memory change is measured 
 - 2026-10-23: Phase 1 done. Repo published at https://github.com/cothis/dmx (commit e630133).
 - 2026-10-23: Phase 2 started. Rust agent cross compiles on macOS and runs in the guest.
 - 2026-10-23: Phase 2 done. Host and guest talk over vsock; the selftest runs entirely through the agent.
+- 2026-10-23: Phase 3 started. Selftest reports the VM process's host footprint.
