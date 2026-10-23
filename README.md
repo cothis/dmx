@@ -20,19 +20,20 @@ See [docs/PLAN.md](docs/PLAN.md) for the detailed plan.
 |---|---|---|
 | 1 | Boot a Linux VM with Virtualization.framework, debug console | done |
 | 2 | Guest agent (Rust) and vsock control channel | done |
-| 3 | Memory: footprint tracking, smaller baseline, balloon controller | in progress |
-| 4 | Daemon, launchd socket activation, idle stop | |
-| 5 | Data disk, networking, port forwarding, file sharing | |
-| 6 | Docker compatibility (dockerd in the guest first) | |
-| 7 | Own runtime, replacing dockerd piece by piece | |
-| 8 | `dmx mcp`, sandboxes, checkpoints | |
-| 9 | Release: CI, guest artifacts, Homebrew | |
+| 3 | Own VMM on Hypervisor.framework, so freed guest memory goes back to macOS | next |
+| 4 | Memory: footprint tracking, smaller baseline, memory controller | in progress |
+| 5 | Daemon, launchd socket activation, idle stop | |
+| 6 | Data disk, networking, port forwarding, file sharing | |
+| 7 | Docker compatibility (dockerd in the guest first) | |
+| 8 | Own runtime, replacing dockerd piece by piece | |
+| 9 | `dmx mcp`, sandboxes, checkpoints | |
+| 10 | Release: CI, guest artifacts, Homebrew | |
 
-Measured on an M-series Mac (10 cores, 16 GB): the guest agent answers about 0.3 s after boot starts. On the host the idle VM costs 137 MB with a 2 GB ceiling and 181 MB with 8 GB (it was 170 and 356 MB), thanks to a 16K page guest kernel and no SWIOTLB bounce buffer. Getting under 150 MB at 8 GB and returning memory after use are the rest of phase 3.
+Measured on an M-series Mac (10 cores, 16 GB): the guest agent answers about 0.3 s after boot starts. On the host the idle VM costs 137 MB with a 2 GB ceiling and 181 MB with 8 GB (it was 170 and 356 MB), thanks to a 16K page guest kernel and no SWIOTLB bounce buffer. Virtualization.framework never hands memory the guest frees back to macOS (its balloon is a no-op on the host), so dmx is moving to its own VMM on Hypervisor.framework, where it can.
 
 ## Build
 
-Requires macOS 14+ on Apple Silicon, Xcode (Swift 6), Python 3, and Rust via rustup with the
+Requires macOS 15+ on Apple Silicon, Xcode (Swift 6), Python 3, and Rust via rustup with the
 guest target: `rustup target add aarch64-unknown-linux-musl` (it links with the bundled `rust-lld`).
 
 ```sh

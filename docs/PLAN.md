@@ -21,9 +21,10 @@ Non-goals for now: a GUI (a menu bar item may come much later), Intel Macs, Wind
 
 ```
 dmx (CLI) ──▶ dmx daemon (launchd agent, socket activated)
-                ├─ Linux VM via Virtualization.framework
-                │    balloon, vsock, virtio-net (NAT), virtio-fs, virtio-blk
-                ├─ memory controller (balloon, idle stop, host pressure)
+                ├─ Linux VM on dmx's own VMM (Hypervisor.framework, Swift in DMXCore)
+                │    guest RAM mapped by dmx; virtio-mmio: console, rng, vsock,
+                │    balloon with free page reporting, blk, net, fs
+                ├─ memory controller (free page reporting, idle stop, host pressure)
                 └─ ~/.dmx/docker.sock ◀── docker CLI / compose
                       │ vsock
 Linux guest:  /init ─▶ dmx-agent (Rust) ─▶ dockerd/containerd first, own runtime later
@@ -35,15 +36,18 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
   `Sources/DMXCore` holds all logic so every entry point shares it.
 - The daemon is not the MCP server. AI clients start `dmx mcp`, which is short lived, so the
   daemon can stop completely when idle.
-- Guest side code is Rust (`guest/agent`, not created yet), cross compiled to static musl.
+- Guest side code is Rust (`guest/agent`), cross compiled to static musl.
 
 ## Decisions
 
 | Decision | Why |
 |---|---|
 | Use a VM | macOS has no namespaces/cgroups/Linux syscall ABI. Syscall translation (WSL1 style) failed on compatibility and filesystem speed. |
-| Virtualization.framework, not Hypervisor.framework | Gives virtio devices, balloon, vsock, virtio-fs, Rosetta and save/restore for free. **Under review (2026-10-23):** the balloon and save/restore do not return host memory (see Findings); waiting on the maintainer. |
-| One long lived VM, not one VM per container | One kernel's overhead instead of N. Revisit per-container VMs for sandboxes (phase 8). |
+| Own VMM on Hypervisor.framework, not Virtualization.framework (2026-10-23) | VZ never returns guest memory while the VM runs: ballooned pages stay in the host footprint, there is no free page reporting, and restore backs the whole ceiling (see Findings). With guest RAM mapped by dmx itself, dmx can release freed pages (`hv_vm_unmap` + `madvise(MADV_FREE_REUSABLE)`). Costs: we write the virtio devices, and lose Rosetta. Phase 1 to 2 ran on VZ. |
+| The VMM is Swift, in DMXCore (2026-10-23) | One language and one binary for all host code; Hypervisor.framework is a C API Swift calls directly. Maintainer's choice over a Rust VMM process. |
+| macOS 15 or later (2026-10-23) | Hypervisor.framework has an in-kernel GICv3 (`hv_gic_create`) from macOS 15, so dmx does not emulate an interrupt controller. |
+| x86_64 images through QEMU user mode + binfmt, not Rosetta (2026-10-23) | Rosetta for Linux exists only inside Virtualization.framework. Most images are multi-arch; emulation is a fallback. |
+| One long lived VM, not one VM per container | One kernel's overhead instead of N. Revisit per-container VMs for sandboxes (phase 9). |
 | CLI only, no GUI | The work that matters is invisible (memory, sockets). Agents use CLIs. |
 | Memory savings are always on | Balloon, idle stop and cache trimming are defaults, not options. The user's standing preference: improvements are not toggles. |
 | Docker compatibility first via dockerd in the guest | Gets `docker run` working early; own runtime replaces pieces later. |
@@ -86,15 +90,43 @@ Done when: `make build guest selftest` passes. Measured: boot 0.7 s, guest uses 
 Done when: the selftest runs `uname -a` through the agent and gets stats as JSON. Measured: agent
 answers 0.35 to 0.5 s after `start()`, clean shutdown through the agent takes 15 ms.
 
-### Phase 3: Memory
+### Phase 3: Own VMM on Hypervisor.framework
+
+Virtualization.framework never gives guest memory back while the VM runs (see Findings), so dmx
+runs its own VMM, in Swift in `Sources/DMXCore`, on Hypervisor.framework. Guest RAM is memory dmx
+maps itself, so dmx decides when it goes back to macOS. Needs macOS 15 (`hv_gic_create`).
+Measure boot time and idle footprint at each step against the VZ numbers (8G: 181 MB, agent up in
+~0.3 s).
+
+- [ ] Boot to a kernel console: `com.apple.security.hypervisor` entitlement; guest RAM from
+      `mmap` mapped with `hv_vm_map`; in-kernel GICv3 (`hv_gic`); a device tree (memory, cpus with
+      PSCI, GIC, arch timer, PL011 UART, chosen with bootargs and initrd); the raw Image and the
+      initramfs loaded into guest RAM; one thread per vCPU; exits for MMIO data aborts, PSCI over
+      HVC (VERSION, CPU_ON, SYSTEM_OFF, SYSTEM_RESET), WFI and the vtimer. Console on a PL011.
+- [ ] virtio-mmio transport with split virtqueues, shared by every device. `/init` loads
+      `virtio_mmio` (a module in the current kernel config) before the other virtio modules.
+- [ ] virtio-console (hvc0) for the debug console, and virtio-rng.
+- [ ] virtio-vsock: the host side of `AgentClient` on our own device instead of
+      `VZVirtioSocketDevice`.
+- [ ] `hostFootprint()` for the new VMM (guest RAM now lives in our own process).
+- [ ] Switch `Machine` to the new VMM so the selftest passes unchanged, then remove the
+      Virtualization.framework backend.
+- [ ] virtio-balloon with free page reporting (`VIRTIO_BALLOON_F_REPORTING`): for each reported
+      range, `hv_vm_unmap`, `madvise(MADV_FREE_REUSABLE)`, `hv_vm_map` again. Also deflate on OOM
+      and the stats queue.
+
+Done when: the selftest passes on the new VMM, boot time and idle footprint are no worse than on
+VZ, and after the guest touches and frees 1 GB the host footprint falls back within 10 s.
+
+### Phase 4: Memory
 
 This is the core feature. Measure before and after every change and log numbers below.
 
-- [x] Host footprint measurement: `Machine.hostFootprint()` finds the
+- [x] Host footprint measurement (on VZ): `Machine.hostFootprint()` finds the
       `com.apple.Virtualization.VirtualMachine` XPC process whose responsible pid is us
       (`responsibility_get_pid_responsible_for_pid`; falls back to "appeared after we created the
       VM") and reads `ri_phys_footprint` with `proc_pid_rusage`. Selftest JSON has `host`
-      (`pid`, `footprint_mb`, `peak_footprint_mb`), read after drop_caches. Status JSON comes in phase 4.
+      (`pid`, `footprint_mb`, `peak_footprint_mb`), read after drop_caches. Status JSON comes in phase 5.
 - [x] Shrink the baseline that scales with the ceiling (was 2G → 170 MB, 8G → 356 MB host
       footprint while the guest used 64 MB). Now 2G → 137 MB, 8G → 181 MB, about 7 MB/GB.
       1. [x] What the kernel touches at boot for the whole ceiling. Host footprint ≈ guest
@@ -116,12 +148,11 @@ This is the core feature. Measure before and after every change and log numbers 
       ~30 MB, memmap 32 MB at 8G. Measure each before changing it.
 - [ ] Trim the kernel config to what dmx and Docker need. The full Alpine module set (887
       modules) took 2 h 21 min to compile under heavy host load.
-- [ ] Balloon controller in the daemon: target = guest used + headroom, read from agent `stats`;
-      return memory after containers exit; react within seconds.
-      **Blocked:** on Virtualization.framework the balloon inflates in the guest but the host
-      never releases the pages (measured below, matches public reports). Done so far:
-      `Machine.memoryTarget` and agent `stats.memory.balloon`. Needs a maintainer decision on
-      the VMM; see Next up.
+- [ ] Memory controller in the daemon: free page reporting (phase 3) returns freed memory by
+      itself; the controller tunes how quickly (reporting order and delay), and inflates the
+      balloon only to squeeze the guest under host pressure. On VZ the balloon returned nothing
+      (measured below); `Machine.memoryTarget` and agent `stats.memory.balloon` exist already.
+      Never inflate with `init_on_alloc=1`: each ballooned page gets zeroed, so backed.
 - [ ] Guest policy: trim page cache when idle (`drop_caches` or cgroup `memory.reclaim`), zram
       swap with lz4, sensible `vm.*` sysctls.
 - [ ] Host pressure: `DispatchSource.makeMemoryPressureSource` shrinks the guest first.
@@ -129,53 +160,53 @@ This is the core feature. Measure before and after every change and log numbers 
 Done when: idle VM host footprint is under 150 MB at an 8 GB ceiling, and after a container that
 uses 2 GB exits, footprint falls back within 10 s. Numbers recorded in the log.
 
-### Phase 4: Daemon and lifecycle
+### Phase 5: Daemon and lifecycle
 
 - [ ] `dmx daemon`: owns the VM, control socket `~/.dmx/dmx.sock` (JSON requests, same codes as CLI errors).
 - [ ] launchd user agent with socket activation (`dmx install` / `dmx uninstall`), so nothing runs until a client connects.
 - [ ] `dmx start`, `dmx stop`, `dmx status --json` (state, uptime, cpus, ceiling, guest used, host footprint, containers).
-- [ ] Idle stop: no containers and no clients for N minutes → save state (`saveMachineStateTo`) or shut down; next connection restores/boots. Measure resume time.
+- [ ] Idle stop: no containers and no clients for N minutes → shut down; the next connection boots. (On VZ, restoring a saved state backed the whole ceiling. Snapshots on our own VMM can map the saved memory lazily; measure before adopting.)
 - [ ] `dmx shell` and `dmx exec` through the daemon and agent.
 - [ ] `dmx config get/set` (max-memory, cpus, idle timeout) stored in `~/.dmx/config.json`.
 
 Done when: after `dmx install`, connecting to the socket boots the VM, and an idle VM disappears and its processes exit.
 
-### Phase 5: Storage, network, file sharing
+### Phase 6: Storage, network, file sharing
 
-- [ ] Data disk: sparse raw image `~/.dmx/data.img` on virtio-blk, ext4 with discard, so deleted data shrinks the file (APFS sparse + TRIM). Mounted at `/var/lib` in the guest.
-- [ ] Network: virtio-net NAT, DHCP in the guest (udhcpc), DNS, check outbound HTTPS.
+- [ ] Data disk: sparse raw image `~/.dmx/data.img` on our virtio-blk, ext4 with discard, so deleted data shrinks the file (APFS sparse + TRIM). Mounted at `/var/lib` in the guest.
+- [ ] Network: our virtio-net with a user space NAT on the host (vmnet needs root or an entitlement Apple grants). Options: a slirp-like TCP/UDP proxy behind virtio-net, or socket calls forwarded over vsock (libkrun's TSI). DHCP in the guest (udhcpc), DNS, check outbound HTTPS.
 - [ ] Port forwarding: host listener → vsock → guest port (no privileged helper).
-- [ ] virtio-fs share of the user's home (or configured paths) at the same path in the guest, so bind mounts keep their paths. Measure throughput against native.
+- [ ] Our virtio-fs device (a FUSE server on the host) sharing the user's home (or configured paths) at the same path in the guest, so bind mounts keep their paths. Measure throughput against native.
 
 Done when: the guest can `wget` from the internet, a guest web server is reachable on `localhost`, and a host directory is readable/writable in the guest.
 
-### Phase 6: Docker compatibility
+### Phase 7: Docker compatibility
 
 - [ ] dockerd + containerd in the guest (Alpine packages installed onto the data disk, or a separate pinned layer).
 - [ ] `~/.dmx/docker.sock` forwarded to the guest's `/var/run/docker.sock` over vsock.
 - [ ] `dmx install` creates and selects a `docker context` named `dmx`.
 - [ ] Published ports are forwarded automatically (watch Docker events).
 - [ ] Bind mounts of host paths work through virtio-fs.
-- [ ] x86_64 images through Rosetta (`VZLinuxRosettaDirectoryShare` + binfmt).
+- [ ] x86_64 images through QEMU user mode registered with binfmt_misc (pinned build). Check which x86 programs mind 16K guest pages.
 - [ ] Test suite: `docker run hello-world`, `docker build`, a compose app with a volume and a port.
 
 Done when: the test suite passes with the stock `docker` CLI.
 
-### Phase 7: Own runtime
+### Phase 8: Own runtime
 
 - [ ] OCI image pull and unpack (registry auth, layers, content store) in Rust.
 - [ ] overlayfs snapshotter.
 - [ ] Container runtime: namespaces, cgroups v2, seccomp, capabilities (study youki/runc).
-- [ ] Serve a subset of the Docker Engine API from dmx itself; replace dockerd piece by piece while the phase 6 suite keeps passing.
+- [ ] Serve a subset of the Docker Engine API from dmx itself; replace dockerd piece by piece while the phase 7 suite keeps passing.
 
-### Phase 8: AI native
+### Phase 9: AI native
 
 - [ ] `dmx mcp` (stdio MCP server) on top of DMXCore: status, run, exec, logs, stop, sandbox tools.
 - [ ] Sandboxes: disposable environments with a policy (allowed host paths, network egress allowlist, cpu/memory limits, TTL).
 - [ ] Checkpoints: snapshot and roll back an environment; fork one to try two approaches.
 - [ ] Output limits and summaries so large logs do not flood an agent's context.
 
-### Phase 9: Release
+### Phase 10: Release
 
 - [ ] CI on GitHub Actions: build and unit tests (hosted macOS runners may not allow nested virtualization; VM tests stay local until proven otherwise).
 - [ ] Guest artifacts published as GitHub Releases, downloaded and verified by `dmx`, so users do not need Python.
@@ -187,23 +218,10 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-**Maintainer decision needed: how to return memory.** Virtualization.framework (macOS 26.6.1)
-does not give back guest memory while the VM runs: ballooned pages stay in the host footprint,
-the balloon has no free page reporting, and restoring a saved state backs the whole ceiling.
-Only exiting the VM process returns memory. Options:
-
-1. Stay on VZ. Memory comes back only when the VM exits: idle stop by shutdown (not save,
-   since restore costs the full ceiling), plus the small baseline (181 MB at 8G). While containers
-   run, the footprint ratchets up to the peak. Keeps Rosetta, virtio-fs and vmnet for free.
-2. Our own VMM on Hypervisor.framework: guest RAM is our `mmap`, free page reporting is
-   ours to offer, release with `hv_vm_unmap` + `madvise(MADV_FREE_REUSABLE)` + remap (ArcBox
-   reports 3 GB returned live). We would write virtio devices (blk, net, vsock, fs, balloon,
-   console) ourselves. Rosetta for Linux exists only in VZ, so x86 images need another path.
-3. libkrun (Apache-2.0, Rust, Hypervisor.framework) as the VMM, as Podman and krunkit do. It
-   already has virtio-fs, vsock, net, and free page reporting. Same Rosetta loss.
-
-Until then, phase 3 work that does not depend on this: shrinking the fixed part of the baseline,
-and the guest policy task (zram, sysctls), which lowers peak usage under any VMM.
+Phase 3, first task: boot to a kernel console on our own VMM. Start a new `VMM` type in DMXCore
+beside the VZ `Machine` (switch over at the end of the phase), with a debug entry point such as
+`dmx boot --vmm hvf` until it reaches parity. First milestone: kernel log lines on the PL011.
+Raise the platform to macOS 15 and add `com.apple.security.hypervisor` to `dmx.entitlements`.
 
 ## Findings and measurements
 
@@ -243,3 +261,4 @@ and the guest policy task (zram, sysctls), which lowers peak usage under any VMM
 - 2026-10-23: Phase 3 started. Selftest reports the VM process's host footprint.
 - 2026-10-23: Baseline at 8G down from 356 to 181 MB: no SWIOTLB, and a 16K page kernel built inside dmx.
 - 2026-10-23: Found that VZ's balloon and save/restore return no host memory. Balloon controller blocked on a VMM decision.
+- 2026-10-23: Maintainer decision: own VMM on Hypervisor.framework, written in Swift in DMXCore; macOS 15+; x86 images via QEMU binfmt. New phase 3; later phases renumbered.
