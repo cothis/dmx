@@ -149,16 +149,30 @@ This is the core feature. Measure before and after every change and log numbers 
       3. [x] Early balloon inflation: not needed for the baseline. Pages the guest never touches
          are never backed, so there is nothing to give back at boot. The balloon matters for
          memory touched and then freed, which is the balloon controller task.
-- [ ] Shrink the fixed part (181 MB at 8G = ~96 MB reserved + ~90 MB used). Leads: slab 22 MB,
-      initramfs content 12 MB (shmem), ~50 MB used but in no meminfo counter (driver page
-      allocations such as vsock/console rings, per-cpu free lists with 10 vCPUs), kernel image
-      ~30 MB, memmap 32 MB at 8G. Measure each before changing it.
+- [x] Shrink the fixed part: 8G 173 → 145 MB, 2G 126 → 114 MB. Measured by host page
+      (`mincore` on guest RAM) against guest `/proc/kpageflags`. Now default kernel args:
+      fixed dentry/inode/TCP hash sizes (−15 MB; the kernel sized them to the ceiling), free page
+      reporting from order 5 (512 KB), per-CPU free lists capped at ~1 MB per vCPU (they could hold
+      38 MB each, unreported). The dmx guest drops apk and OpenSSL from the initramfs (−6 MB of
+      shmem; the `make kernel` bootstrap guest keeps them). What is left at 145 MB: guest pages
+      121 MB (memmap 32, kernel image 29, slab 23, unattributed page allocations 20, reserved
+      other 7, shmem 5), dmx's own memory 5 MB, and ~24 MB that `ri_phys_footprint` charges to
+      the process but that is neither a guest page nor a dmx region (see Findings).
+- [ ] dmx's own memory when streaming: 100 MB of guest stdout through `dmx boot --` peaks at
+      349 MB and leaves ~57 MB in malloc (44 MB MALLOC_SMALL, 10 MB MALLOC_LARGE) afterwards.
+      Find the copies and the missing backpressure in the vsock/agent path; the daemon will stream
+      logs and the Docker socket through it.
+- [ ] Memmap scales with the ceiling (32 MB at 8G, 16 KB pages × 64 bytes). Only plugging memory
+      as needed avoids it (virtio-mem, or ACPI-less memory hotplug with our own device). Measure
+      against the alternative of a lower default ceiling.
+- [ ] Each vCPU costs ~2.3 MB of guest memory at idle (1 vCPU 155 MB, 10 vCPUs 176 MB before the
+      pcp cap): per-CPU slabs, page lists, kthreads. Measure again after the pcp cap; consider
+      fewer vCPUs online at idle.
 - [ ] Trim the kernel config to what dmx and Docker need. The full Alpine module set (887
       modules) took 2 h 21 min to compile under heavy host load.
 - [ ] Memory controller in the daemon: free page reporting (phase 3) returns freed memory by
-      itself; the controller tunes how much (`page_reporting_order`: reports are whole free
-      blocks, 32 MB with 16K pages by default, so ~30 to 80 MB stays behind after the 1 GB test)
-      and inflates the balloon (config `num_pages`) only to squeeze the guest under host
+      itself (with order 5 and the pcp cap only ~5 MB stays behind after the 1 GB test); the
+      controller inflates the balloon (config `num_pages`) only to squeeze the guest under host
       pressure. Agent `stats.memory.balloon` exists. Never inflate with `init_on_alloc=1`: each
       ballooned page gets zeroed, so backed.
 - [ ] Guest policy: trim page cache when idle (`drop_caches` or cgroup `memory.reclaim`), zram
@@ -226,11 +240,11 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-Phase 4, "Shrink the fixed part": idle is 172 MB at 8G for the whole dmx process (goal: under
-150 MB). Measure where it goes first: guest reserved (~96 MB: memmap 32 MB, kernel image ~30 MB),
-guest used (~90 MB: slab 22 MB, initramfs 12 MB, ~50 MB in no meminfo counter), and dmx's own
-~31 MB. Free page reporting already returns freed boot-time memory, so idle now reflects what is
-in use. Then the kernel config trim, which also makes `virtio_mmio` built in.
+Phase 4, "Trim the kernel config": the kernel image is 29 MB of the guest's 121 MB and slab 23 MB.
+Build in `virtio_mmio`, vsock, balloon and rng so `/init` needs no modprobe for them, and drop
+drivers and subsystems dmx never uses. Each build takes 1 to 2.5 h (`make kernel`); measure image
+size, reserved, slab and footprint against the current 145 MB at 8G. Then dmx's own memory when
+streaming (100 MB of guest stdout leaves ~57 MB in malloc).
 
 ## Findings and measurements
 
@@ -268,6 +282,13 @@ in use. Then the kernel config trim, which also makes `virtio_mmio` built in.
 | 2026-10-23 | Stock Alpine 4K kernel on the own VMM | Boots and passes the selftest (footprint 287 MB at 8G, the 4K memmap), so `make kernel` bootstraps without VZ. |
 | 2026-10-23 | Free page reporting on the own VMM (8G) | 1 GB of random data in tmpfs, then `rm`: footprint 1197 to 1199 MB → 205 to 253 MB in 0.5 to 2 s, 8 to 9 reports. 2G: 1131 → 155 MB in 2 s. Stock 4K kernel: 1310 → 290 MB in 3.5 s, 27 reports (2 MB blocks). A second fill is counted again (1152 MB footprint, 1204 MB resident: ~50 MB of re-dirtied reusable pages go uncounted). |
 | 2026-10-23 | Release safety | A 512 MB file kept its md5 across five 1 GB fill/free/report cycles; no kernel warnings. `page_reporting_order` is -1 (pageblock order: 32 MB blocks with 16K pages). |
+| 2026-10-23 | Where the 8G idle footprint goes (173 MB, before the changes below) | `mincore` over guest RAM: 144.5 MB resident guest pages. By kpageflags: reserved 79 MB (kernel 29, memmap 32, dentry+inode hash 12, rest 6), slab 21, pages with no flags 31 (freed initrd and init memory parked on per-CPU lists, hash tables allocated after boot), shmem 12, free buddy pages 0. dmx's own regions 5 MB (`footprint` tool). ~24 MB more is charged to the process but is neither. |
+| 2026-10-23 | The ~24 MB nobody owns | `task_info(TASK_VM_INFO)`: all of `phys_footprint` is `internal`; nothing compressed, reusable or tagged. Constant across ceilings (2G, 8G) and vCPU counts (1, 2, 10), absent before the first vCPU runs, appears within 50 ms of boot. Likely Hypervisor.framework state charged to the process; unexplained. |
+| 2026-10-23 | Per-CPU free page lists (pcp) | 2200 to 2900 pages (35 to 45 MB) on pcp lists after boot at 8G, 10 vCPUs; `high_min` 1055 and `high_max` 2428 pages per CPU. Free page reporting sees only the buddy lists, and idle CPUs never run the vmstat work that would drain them. `vm.percpu_pagelist_high_fraction=100000` caps them at 60 pages. |
+| 2026-10-23 | Kernel arg experiments, 8G, three runs each | Baseline 172 to 174 MB. `kfence.sample_interval=0`: 171 to 172 (not adopted). `page_reporting_order` 9/7/5 alone: no change at idle. `dhash_entries=131072 ihash_entries=65536 thash_entries=16384`: 155 to 160. With twice those: 161 to 162. Plus pcp cap: 158 to 160, residue after the 1 GB test 176 to 192 (was 196 to 272). Plus order 5: residue 162 to 164 MB, back in 0.3 to 0.5 s (order 7: 168 to 262). |
+| 2026-10-23 | Initramfs without apk, OpenSSL, CA bundle, zlib | 5.6 → 2.5 MB compressed, shmem 12 → 5 MB. |
+| 2026-10-23 | Selftest with all of the above (16K kernel, 10 vCPU) | 8G 144 to 145 MB, 4G 125, 2G 114 (were 172, 150, 126). Agent up in 220 to 270 ms (was ~300). 1 GB fill then free: back to idle + 4 to 5 MB in 1.0 to 1.3 s at 8G, ~2 s at 2G and 4G. The selftest `reclaim` check now requires idle + 32 MB (was 128). Stock 4K bootstrap guest: 273 MB (was 287), apk still present. |
+| 2026-10-23 | Streaming guest stdout through the agent | `dmx boot -- sh -c 'head -c 100000000 /dev/zero; sleep 8'`: footprint peaks at 349 MB and stays at 235 MB after the stream (idle 174): 44 MB MALLOC_SMALL and 10 MB MALLOC_LARGE dirty in the `footprint` tool. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -282,3 +303,4 @@ in use. Then the kernel config trim, which also makes `virtio_mmio` built in.
 - 2026-10-23: dmx's own VMM boots the guest to a shell on 10 vCPUs, smaller than on VZ at idle.
 - 2026-10-23: virtio-mmio, console, rng and vsock on the own VMM; the selftest passes on it. Virtualization.framework removed.
 - 2026-10-23: Phase 3 done. Free page reporting returns 1 GB the guest freed within 2 s; the selftest checks it.
+- 2026-10-23: Idle footprint at 8G from 173 to 145 MB, under the phase 4 target: fixed kernel hash sizes, finer free page reporting, capped per-CPU page lists, no apk in the guest.

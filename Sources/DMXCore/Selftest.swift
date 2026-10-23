@@ -153,7 +153,7 @@ public struct ReclaimReport: Encodable, Sendable {
 }
 
 /// Touches 1 GB in the guest (a tmpfs file of random data), deletes it, and waits up to 10 s for
-/// free page reporting to bring the host footprint back within 128 MB of `idle`.
+/// free page reporting to bring the host footprint back within 32 MB of `idle`.
 @MainActor
 private func measureReclaim(machine: Machine, agent: AgentClient, idle: HostFootprint) async throws -> ReclaimReport {
     _ = try await agent.run(["sh", "-c", "head -c 1073741824 /dev/urandom > /run/fill"])
@@ -166,7 +166,7 @@ private func measureReclaim(machine: Machine, agent: AgentClient, idle: HostFoot
         try await Task.sleep(for: .milliseconds(100))
         guard let now = machine.hostFootprint() else { break }
         last = now
-        if now.footprint <= idle.footprint + (128 << 20) {
+        if now.footprint <= idle.footprint + (32 << 20) {
             returnedMs = milliseconds(ContinuousClock.now - freed)
             break
         }

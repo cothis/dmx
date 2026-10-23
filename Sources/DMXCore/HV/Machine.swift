@@ -224,7 +224,18 @@ public final class Machine: @unchecked Sendable {
         data.withUnsafeBytes { ram.advanced(by: Int(guestAddress - HVLayout.ramBase)).copyMemory(from: $0.baseAddress!, byteCount: data.count) }
     }
 
-    static let baseKernelArgs = ["console=ttyAMA0", "earlycon=pl011,0x\(String(HVLayout.uart, radix: 16))", "swiotlb=noforce"]
+    static let baseKernelArgs = [
+        "console=ttyAMA0", "earlycon=pl011,0x\(String(HVLayout.uart, radix: 16))", "swiotlb=noforce",
+        // Hash tables the kernel sizes by the memory ceiling (14 MB at 8 GB, zeroed at boot).
+        // Fixed sizes cost 1.6 MB; a million cached dentries would average 8 per chain.
+        "dhash_entries=131072", "ihash_entries=65536", "thash_entries=16384",
+        // Report free blocks from 512 KB (order 5 with 16K pages) instead of 16 MB, so little
+        // freed memory stays behind in blocks too fragmented to report.
+        "page_reporting.page_reporting_order=5",
+        // Per-CPU free page lists are invisible to free page reporting and by default may hold
+        // up to 38 MB per vCPU at 8 GB. This caps them at 60 pages (~1 MB) each.
+        "sysctl.vm.percpu_pagelist_high_fraction=100000",
+    ]
 
     private func deviceTree(initrd: Range<UInt64>) -> Data {
         let gicPhandle: UInt32 = 1, clockPhandle: UInt32 = 2

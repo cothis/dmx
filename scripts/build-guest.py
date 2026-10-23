@@ -56,6 +56,12 @@ MODULES = [
     "nf_tables",
 ]
 
+# Minirootfs packages the dmx guest leaves out: apk and the TLS stack only it uses (~6 MB of
+# initramfs that would sit in guest RAM). The bootstrap guest for `make kernel` keeps them.
+DROP_PACKAGES = {
+    "apk-tools", "libapk", "libcrypto3", "libssl3", "ca-certificates-bundle", "ssl_client", "zlib", "alpine-keys",
+}
+
 AGENT_TARGET = "aarch64-unknown-linux-musl"
 
 # Fixed mtime so the same inputs give a byte-identical initramfs.
@@ -167,6 +173,21 @@ def add_tar(cpio: Cpio, tar: tarfile.TarFile, keep=lambda name: True):
             cpio.file(name, tar.extractfile(m).read(), perm)
 
 
+def package_files(tar: tarfile.TarFile, packages: set) -> set:
+    """Paths the apk database lists for `packages` (F: is a directory, R: a file in it)."""
+    db = tar.extractfile("./lib/apk/db/installed").read().decode()
+    files, package, directory = set(), None, ""
+    for line in db.splitlines():
+        key, _, value = line.partition(":")
+        if key == "P":
+            package = value
+        elif key == "F":
+            directory = value
+        elif key == "R" and package in packages:
+            files.add(f"{directory}/{value}")
+    return files
+
+
 def module_closure(dep_text: str, release: str) -> set:
     deps = {}
     for line in dep_text.splitlines():
@@ -216,7 +237,12 @@ def main():
 
     cpio = Cpio()
     with tarfile.open(rootfs_tgz, "r:gz") as tar:
-        add_tar(cpio, tar)
+        keep = lambda name: True
+        if args.kernel == "dmx":
+            # Without apk its database and keys only mislead.
+            dropped = package_files(tar, DROP_PACKAGES)
+            keep = lambda name: name not in dropped and not name.startswith(("etc/apk", "lib/apk"))
+        add_tar(cpio, tar, keep)
 
     moddir = f"lib/modules/{release}/"
     with open_kernel() as tar:
