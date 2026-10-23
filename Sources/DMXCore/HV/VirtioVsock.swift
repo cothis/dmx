@@ -68,8 +68,8 @@ final class VirtioVsock: VirtioDevice, @unchecked Sendable {
         var readSource: DispatchSourceRead?
         var writeSource: DispatchSourceWrite?
         var readPaused = false, writeArmed = false
-        var outbox = Data()      // read from the host, not yet sent to the guest
-        var inbox = Data()       // from the guest, not yet written to the host
+        var outbox = ByteQueue() // read from the host, not yet sent to the guest
+        var inbox = ByteQueue()  // from the guest, not yet written to the host
         var txCount: UInt32 = 0  // bytes sent to the guest
         var fwdCount: UInt32 = 0 // bytes from the guest that reached the host socket
         var advertised: UInt32 = 0
@@ -260,7 +260,7 @@ final class VirtioVsock: VirtioDevice, @unchecked Sendable {
                     continuation.resume(returning: c.hostFD)
                 }
             case .rw:
-                c.inbox.append(payload)
+                c.inbox.append(contentsOf: payload)
                 flushInbox(c)
             case .creditRequest:
                 send(c, .creditUpdate)
@@ -345,5 +345,42 @@ final class VirtioVsock: VirtioDevice, @unchecked Sendable {
             source.cancel()
         }
         if c.sources == 0 { close(c.fd) }
+    }
+}
+
+/// Bytes waiting to cross a connection in one direction. `Data.removeFirst` only moves the start
+/// of the data and keeps the consumed front allocated, so a long stream through a `Data` grows
+/// it by everything that ever passed. This reuses consumed space instead: it holds about twice
+/// its largest backlog however much passes through.
+struct ByteQueue {
+    private var storage: [UInt8] = []
+    private var head = 0
+
+    var count: Int { storage.count - head }
+    var isEmpty: Bool { head == storage.count }
+
+    mutating func append<S: Sequence>(contentsOf bytes: S) where S.Element == UInt8 {
+        if head > 0 && head >= storage.count / 2 {
+            storage.removeFirst(head)
+            head = 0
+        }
+        storage.append(contentsOf: bytes)
+    }
+
+    mutating func removeFirst(_ n: Int) {
+        head += n
+        if head == storage.count { removeAll() }
+    }
+
+    /// Keeps up to 1 MB of capacity for the next burst; a larger buffer goes back to the system.
+    mutating func removeAll() {
+        storage.removeAll(keepingCapacity: storage.capacity <= 1 << 20)
+        head = 0
+    }
+
+    func prefix(_ n: Int) -> Data { Data(storage[head..<(head + min(n, count))]) }
+
+    func withUnsafeBytes<R>(_ body: (UnsafeRawBufferPointer) throws -> R) rethrows -> R {
+        try storage.withUnsafeBytes { try body(UnsafeRawBufferPointer(rebasing: $0[head...])) }
     }
 }

@@ -158,10 +158,13 @@ This is the core feature. Measure before and after every change and log numbers 
       121 MB (memmap 32, kernel image 29, slab 23, unattributed page allocations 20, reserved
       other 7, shmem 5), dmx's own memory 5 MB, and ~24 MB that `ri_phys_footprint` charges to
       the process but that is neither a guest page nor a dmx region (see Findings).
-- [ ] dmx's own memory when streaming: 100 MB of guest stdout through `dmx boot --` peaks at
-      349 MB and leaves ~57 MB in malloc (44 MB MALLOC_SMALL, 10 MB MALLOC_LARGE) afterwards.
-      Find the copies and the missing backpressure in the vsock/agent path; the daemon will stream
-      logs and the Docker socket through it.
+- [x] dmx's own memory when streaming: 100 MB of guest stdout through `dmx boot --` peaked at
+      349 MB and left 90 MB behind. Two causes: each vsock connection queued bytes in a `Data`
+      whose `removeFirst` keeps the consumed front allocated, so it grew by everything that
+      passed (500 MB streamed: 637 MB); and exec output went into an unbounded
+      `AsyncThrowingStream`. Now a `ByteQueue` that reuses consumed space, and exec output is
+      read from the socket only as the caller consumes it, so the guest waits on vsock credit.
+      500 MB out: peak 157 MB (idle 145). 500 MB in: peak 151 MB.
 - [ ] Memmap scales with the ceiling (32 MB at 8G, 16 KB pages × 64 bytes). Only plugging memory
       as needed avoids it (virtio-mem, or ACPI-less memory hotplug with our own device). Measure
       against the alternative of a lower default ceiling.
@@ -243,8 +246,9 @@ Done when: the test suite passes with the stock `docker` CLI.
 Phase 4, "Trim the kernel config": the kernel image is 29 MB of the guest's 121 MB and slab 23 MB.
 Build in `virtio_mmio`, vsock, balloon and rng so `/init` needs no modprobe for them, and drop
 drivers and subsystems dmx never uses. Each build takes 1 to 2.5 h (`make kernel`); measure image
-size, reserved, slab and footprint against the current 145 MB at 8G. Then dmx's own memory when
-streaming (100 MB of guest stdout leaves ~57 MB in malloc).
+size, reserved, slab and footprint against the current 145 MB at 8G. A build with the trimmed
+config (`CONFIG` and `MUST` in `scripts/build-kernel.py`, checked with `--config-only`) was
+started on 2026-10-23; `/init`, `build-guest.py` and the selftest already handle built-in drivers.
 
 ## Findings and measurements
 
@@ -289,6 +293,7 @@ streaming (100 MB of guest stdout leaves ~57 MB in malloc).
 | 2026-10-23 | Initramfs without apk, OpenSSL, CA bundle, zlib | 5.6 → 2.5 MB compressed, shmem 12 → 5 MB. |
 | 2026-10-23 | Selftest with all of the above (16K kernel, 10 vCPU) | 8G 144 to 145 MB, 4G 125, 2G 114 (were 172, 150, 126). Agent up in 220 to 270 ms (was ~300). 1 GB fill then free: back to idle + 4 to 5 MB in 1.0 to 1.3 s at 8G, ~2 s at 2G and 4G. The selftest `reclaim` check now requires idle + 32 MB (was 128). Stock 4K bootstrap guest: 273 MB (was 287), apk still present. |
 | 2026-10-23 | Streaming guest stdout through the agent | `dmx boot -- sh -c 'head -c 100000000 /dev/zero; sleep 8'`: footprint peaks at 349 MB and stays at 235 MB after the stream (idle 174): 44 MB MALLOC_SMALL and 10 MB MALLOC_LARGE dirty in the `footprint` tool. |
+| 2026-10-23 | Streaming through vsock, before and after `ByteQueue` and pull-based exec output | Guest stdout 100 MB: peak 349 → 151 MB; 500 MB: 637 → 157 MB, ~130 MB/s with a kernel build running beside it. Host stdin 500 MB into `md5sum`: peak 151 MB, 2.5 s, checksum matches. `malloc_history` pinned the growth on `Data.append` in `VirtioVsock.receiveFromGuest` (2 buffers, 119 MB). |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -304,3 +309,4 @@ streaming (100 MB of guest stdout leaves ~57 MB in malloc).
 - 2026-10-23: virtio-mmio, console, rng and vsock on the own VMM; the selftest passes on it. Virtualization.framework removed.
 - 2026-10-23: Phase 3 done. Free page reporting returns 1 GB the guest freed within 2 s; the selftest checks it.
 - 2026-10-23: Idle footprint at 8G from 173 to 145 MB, under the phase 4 target: fixed kernel hash sizes, finer free page reporting, capped per-CPU page lists, no apk in the guest.
+- 2026-10-23: Streaming through vsock no longer grows dmx's memory with the bytes passed (500 MB: 637 → 157 MB peak).

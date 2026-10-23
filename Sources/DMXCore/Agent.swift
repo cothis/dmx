@@ -145,9 +145,28 @@ public final class AgentConnection: @unchecked Sendable {
         guard let started = try? Self.decoder.decode(Reply<Started>.self, from: reply).result else {
             throw DMXError("agent_protocol", "exec: unexpected reply")
         }
-        let (events, continuation) = AsyncThrowingStream<ExecEvent, Error>.makeStream()
-        queue.async { self.pump(into: continuation) }
-        return ExecSession(connection: self, pid: started.pid, events: events)
+        return ExecSession(connection: self, pid: started.pid)
+    }
+
+    /// The next output frame or the exit status of the exec on this connection. Frames are read
+    /// only when asked for, so a guest process that writes faster than the caller consumes waits
+    /// on vsock credit instead of piling its output up in host memory.
+    func nextEvent() async throws -> ExecEvent {
+        try await onQueue { () throws -> ExecEvent in
+            while let (kind, payload) = try self.readFrame() {
+                switch kind {
+                case .stdout: return .stdout(Data(payload))
+                case .stderr: return .stderr(Data(payload))
+                case .json:
+                    if let exit = try? Self.decoder.decode(ExecExit.self, from: payload),
+                       (try? Self.decoder.decode(Envelope.self, from: payload))?.event == "exit" {
+                        return .exit(exit)
+                    }
+                case .stdin: break
+                }
+            }
+            throw DMXError("agent_disconnected", "exec: connection closed before the process exited")
+        }
     }
 
     // MARK: Framing
@@ -232,28 +251,6 @@ public final class AgentConnection: @unchecked Sendable {
         return Data(payload)
     }
 
-    private func pump(into continuation: AsyncThrowingStream<ExecEvent, Error>.Continuation) {
-        do {
-            while let (kind, payload) = try readFrame() {
-                switch kind {
-                case .stdout: continuation.yield(.stdout(Data(payload)))
-                case .stderr: continuation.yield(.stderr(Data(payload)))
-                case .json:
-                    if let exit = try? Self.decoder.decode(ExecExit.self, from: payload),
-                       (try? Self.decoder.decode(Envelope.self, from: payload))?.event == "exit" {
-                        continuation.yield(.exit(exit))
-                        continuation.finish()
-                        return
-                    }
-                case .stdin: break
-                }
-            }
-            continuation.finish(throwing: DMXError("agent_disconnected", "exec: connection closed before the process exited"))
-        } catch {
-            continuation.finish(throwing: error)
-        }
-    }
-
     private func onQueue<T: Sendable>(_ body: @escaping @Sendable () throws -> T) async throws -> T {
         try await withCheckedThrowingContinuation { continuation in
             queue.async { continuation.resume(with: Result { try body() }) }
@@ -322,16 +319,22 @@ public final class AgentClient: Sendable {
         request.tty = tty
         request.stdin = stdin != nil
         let session = try await exec(request)
-        if let stdin {
-            if !stdin.isEmpty { try session.write(stdin) }
-            try session.closeStdin()
+        // Output is read only while we iterate, so stdin goes in alongside: a process that echoes
+        // a large stdin would otherwise block on its full stdout while we block on its stdin.
+        let feed = Task.detached {
+            if let stdin {
+                if !stdin.isEmpty { try session.write(stdin) }
+                try session.closeStdin()
+            }
         }
         var out = Data(), err = Data()
         for try await event in session.events {
             switch event {
             case .stdout(let d): out.append(d)
             case .stderr(let d): err.append(d)
-            case .exit(let exit): return ExecOutput(exit: exit, stdout: out, stderr: err)
+            case .exit(let exit):
+                try await feed.value
+                return ExecOutput(exit: exit, stdout: out, stderr: err)
             }
         }
         throw DMXError("agent_disconnected", "\(argv.first ?? "exec"): connection closed before the process exited")
@@ -341,13 +344,13 @@ public final class AgentClient: Sendable {
 /// A running process in the guest. Output arrives on `events`, ending with `.exit`.
 public final class ExecSession: Sendable {
     public let pid: Int
-    public let events: AsyncThrowingStream<ExecEvent, Error>
+    public let events: ExecEvents
     private let connection: AgentConnection
 
-    init(connection: AgentConnection, pid: Int, events: AsyncThrowingStream<ExecEvent, Error>) {
+    init(connection: AgentConnection, pid: Int) {
         self.connection = connection
         self.pid = pid
-        self.events = events
+        events = ExecEvents(connection: connection)
     }
 
     public func write(_ data: Data) throws { try connection.writeFrame(.stdin, data) }
@@ -364,6 +367,32 @@ public final class ExecSession: Sendable {
     private func control(_ method: String, _ params: [String: Int]) throws {
         let body = try JSONSerialization.data(withJSONObject: ["method": method, "params": params])
         try connection.writeFrame(.json, body)
+    }
+}
+
+/// A process's output and then its exit status, read from the guest as it is consumed.
+/// Iterate it once.
+public struct ExecEvents: AsyncSequence, Sendable {
+    public typealias Element = ExecEvent
+    let connection: AgentConnection
+
+    public func makeAsyncIterator() -> Iterator { Iterator(connection: connection) }
+
+    public struct Iterator: AsyncIteratorProtocol {
+        let connection: AgentConnection
+        var finished = false
+
+        public mutating func next() async throws -> ExecEvent? {
+            guard !finished else { return nil }
+            do {
+                let event = try await connection.nextEvent()
+                if case .exit = event { finished = true }
+                return event
+            } catch {
+                finished = true
+                throw error
+            }
+        }
     }
 }
 
