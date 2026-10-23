@@ -2,7 +2,7 @@
 
 A container engine for macOS that stays out of your memory, built to be driven by AI agents as easily as by people.
 
-> Early development. Today `dmx` boots its Linux VM, talks to a guest agent over vsock, and gives you a console. Memory work and Docker compatibility come next.
+> Early development. Today `dmx` boots its Linux VM, talks to a guest agent over vsock, runs a command or a console in it, and measures what the VM costs the host. Memory work and Docker compatibility come next.
 
 ## Why
 
@@ -20,7 +20,7 @@ See [docs/PLAN.md](docs/PLAN.md) for the detailed plan.
 |---|---|---|
 | 1 | Boot a Linux VM with Virtualization.framework, debug console | done |
 | 2 | Guest agent (Rust) and vsock control channel | done |
-| 3 | Memory: footprint tracking, smaller baseline, balloon controller | next |
+| 3 | Memory: footprint tracking, smaller baseline, balloon controller | in progress |
 | 4 | Daemon, launchd socket activation, idle stop | |
 | 5 | Data disk, networking, port forwarding, file sharing | |
 | 6 | Docker compatibility (dockerd in the guest first) | |
@@ -28,7 +28,7 @@ See [docs/PLAN.md](docs/PLAN.md) for the detailed plan.
 | 8 | `dmx mcp`, sandboxes, checkpoints | |
 | 9 | Release: CI, guest artifacts, Homebrew | |
 
-Measured on an M-series Mac (10 cores, 16 GB): the guest agent answers about 0.4 s after boot starts and the guest uses about 75 MB inside. On the host the VM costs 170 MB with a 2 GB ceiling and 354 MB with 8 GB, because Linux keeps page metadata for its whole ceiling. Shrinking that is part of phase 3.
+Measured on an M-series Mac (10 cores, 16 GB): the guest agent answers about 0.3 s after boot starts. On the host the idle VM costs 137 MB with a 2 GB ceiling and 181 MB with 8 GB (it was 170 and 356 MB), thanks to a 16K page guest kernel and no SWIOTLB bounce buffer. Getting under 150 MB at 8 GB and returning memory after use are the rest of phase 3.
 
 ## Build
 
@@ -37,6 +37,7 @@ guest target: `rustup target add aarch64-unknown-linux-musl` (it links with the 
 
 ```sh
 make build     # swift build + ad-hoc sign with the virtualization entitlement
+make kernel    # build the 16K page guest kernel inside a dmx VM (slow; once per kernel version)
 make guest     # fetch pinned Alpine Linux artifacts, build ~/.dmx/guest/{Image,initramfs.gz}
 .build/release/dmx doctor
 .build/release/dmx boot --selftest --json
@@ -51,7 +52,8 @@ State lives in `~/.dmx` (override with `DMX_HOME`).
 - `Sources/dmx`: the command line
 - `guest/init`: PID 1 inside the VM
 - `guest/agent`: `dmx-agent`, the Rust guest agent on vsock ([protocol](docs/agent-protocol.md))
-- `scripts/build-guest.py`: builds the guest from pinned, checksummed Alpine Linux packages
+- `scripts/build-kernel.py`: builds the guest kernel in a dmx VM from pinned, checksummed sources and toolchain
+- `scripts/build-guest.py`: builds the guest from pinned, checksummed Alpine Linux packages and that kernel
 - `docs/PLAN.md`: full plan, decisions, progress and measurements
 
 ## License

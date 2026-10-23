@@ -95,16 +95,27 @@ This is the core feature. Measure before and after every change and log numbers 
       (`responsibility_get_pid_responsible_for_pid`; falls back to "appeared after we created the
       VM") and reads `ri_phys_footprint` with `proc_pid_rusage`. Selftest JSON has `host`
       (`pid`, `footprint_mb`, `peak_footprint_mb`), read after drop_caches. Status JSON comes in phase 4.
-- [ ] Shrink the baseline that scales with the ceiling (finding: 2G → 170 MB, 8G → 354 MB host
-      footprint while the guest used 64 MB). Investigate in this order and record results:
+- [x] Shrink the baseline that scales with the ceiling (was 2G → 170 MB, 8G → 356 MB host
+      footprint while the guest used 64 MB). Now 2G → 137 MB, 8G → 181 MB, about 7 MB/GB.
       1. [x] What the kernel touches at boot for the whole ceiling. Host footprint ≈ guest
          "reserved" (dmesg `Memory:` line) + guest used, and reserved explains the whole slope.
          SWIOTLB was sized to the ceiling (64 MB at 8 GB, zeroed by memblock); `swiotlb=noforce`
          is now a default kernel arg (8G: 356 → 291 MB). What scales now is the memmap,
          16 MB/GB (128 MB at 8 GB). `init_on_alloc=0` and `rodata=on` change nothing at idle;
          no page poisoning, KASAN or page_owner in the Alpine config.
-      2. A custom kernel with 16K pages (`CONFIG_ARM64_16K_PAGES`), which makes memmap 4x smaller and matches Apple Silicon's native page size. Build it inside a dmx VM.
-      3. Inflating the balloon early in boot and deflating on demand, so untouched memory is never backed.
+      2. [x] A 16K page kernel: `make kernel` (`scripts/build-kernel.py`) builds kernel.org
+         6.18.58 with Alpine's virt config, 16K pages, 48-bit VA, no debug info/BTF/module
+         signing/GCC plugins, inside a dmx VM booted from the stock Alpine kernel, with a pinned
+         offline toolchain (34 Alpine apks). `make guest` uses it. 8G: 291 → 181 MB.
+      3. [x] Early balloon inflation: not needed for the baseline. Pages the guest never touches
+         are never backed, so there is nothing to give back at boot. The balloon matters for
+         memory touched and then freed, which is the balloon controller task.
+- [ ] Shrink the fixed part (181 MB at 8G = ~96 MB reserved + ~90 MB used). Leads: slab 22 MB,
+      initramfs content 12 MB (shmem), ~50 MB used but in no meminfo counter (driver page
+      allocations such as vsock/console rings, per-cpu free lists with 10 vCPUs), kernel image
+      ~30 MB, memmap 32 MB at 8G. Measure each before changing it.
+- [ ] Trim the kernel config to what dmx and Docker need. The full Alpine module set (887
+      modules) took 2 h 21 min to compile under heavy host load.
 - [ ] Balloon controller in the daemon: target = guest used + headroom, read from agent `stats`;
       return memory after containers exit; react within seconds.
 - [ ] Guest policy: trim page cache when idle (`drop_caches` or cgroup `memory.reclaim`), zram
@@ -172,10 +183,13 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-Phase 3, second task, step 2: a 16K page kernel. Memmap is now the only part of the baseline
-that scales with the ceiling (16 MB/GB with 4K pages, 4 MB/GB with 16K). Plan: same 6.18.58
-source and Alpine's virt config (from the pinned apk) with `CONFIG_ARM64_16K_PAGES=y`, built
-inside a dmx VM with a pinned toolchain, and `make guest` taking the kernel and modules from it.
+Phase 3: balloon controller. Add a way to set the balloon target
+(`VZVirtioTraditionalMemoryBalloonDevice.targetVirtualMachineMemorySize`) and a controller in
+DMXCore that keeps the target at guest used + headroom from agent `stats`. Measure how much it
+gives back at idle (freed initrd, boot-time allocations) and after a 2 GB allocation in the guest
+exits. The daemon does not exist yet, so run the controller from `dmx boot` and the selftest.
+Watch `init_on_alloc`: balloon inflation allocates pages, and init_on_alloc zeroes, and so
+backs, each one before it is handed back.
 
 ## Findings and measurements
 
@@ -197,6 +211,11 @@ inside a dmx VM with a pinned toolchain, and `make guest` taking the kernel and 
 | 2026-10-23 | `init_on_alloc=0`, `rodata=on` | No change at idle (355 MB, 293 MB). Not adopted. |
 | 2026-10-23 | Virtio features VZ offers | Balloon: MUST_TELL_HOST and DEFLATE_ON_OOM only; no free page reporting, no stats queue. No device offers ACCESS_PLATFORM. Returning memory needs the balloon. |
 | 2026-10-23 | Boot time vs host load | 240 to 640 ms for the same build; host load average was 17 during the slow runs. Compare boot times only on a quiet host. |
+| 2026-10-23 | 16K page kernel (6.18.58-dmx), selftest `host.footprint_mb` | 2G 137 MB (was 165), 4G 150 MB (was 208), 8G 181 MB (was 291). Guest used 81 to 100 MB (was 64 to 79): 16K pages cost some memory. All selftest checks pass; agent up in 315 to 350 ms. |
+| 2026-10-23 | Guest reserved with 16K pages | 59 MB at 2G, 96 MB at 8G: ~6 MB/GB, of which memmap is 4 MB/GB. |
+| 2026-10-23 | Guest memory at idle, 16K, 8G | MemTotal - MemFree = 98 MB: slab 22 MB, shmem (initramfs) 12 MB, vmalloc 5.6 MB, kernel stacks 1.9 MB, percpu 1.9 MB, page tables 0.9 MB; ~54 MB in no counter. |
+| 2026-10-23 | Kernel build in a dmx VM (8G, 10 vCPU, tmpfs) | 8460 s compile, Image + 887 modules, with host load average 40 to 170 from other work. VM footprint peaked at 4.8 GB and was all returned when the VM exited. 42 MB output tar. |
+| 2026-10-23 | Kernel config pitfalls | The 16K default VA size is 52 bits (needs LPA2, trips a fixmap static_assert); keep 48. `MODULE_SIG_KEY` is still used via IMA_APPRAISE_MODSIG, so the build needs the `openssl` CLI. apk needs `--force-non-repository` for offline local packages. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -205,3 +224,4 @@ inside a dmx VM with a pinned toolchain, and `make guest` taking the kernel and 
 - 2026-10-23: Phase 2 started. Rust agent cross compiles on macOS and runs in the guest.
 - 2026-10-23: Phase 2 done. Host and guest talk over vsock; the selftest runs entirely through the agent.
 - 2026-10-23: Phase 3 started. Selftest reports the VM process's host footprint.
+- 2026-10-23: Baseline at 8G down from 356 to 181 MB: no SWIOTLB, and a 16K page kernel built inside dmx.

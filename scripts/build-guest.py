@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Build the dmx guest: an arm64 Linux kernel Image and a gzip'd initramfs.
 
-Inputs are pinned Alpine Linux artifacts (verified by sha256). Outputs:
+Inputs are pinned Alpine Linux artifacts (verified by sha256) and the dmx kernel that
+scripts/build-kernel.py builds from pinned inputs (`make kernel`). Outputs:
   <out>/Image           uncompressed arm64 kernel (what VZLinuxBootLoader wants)
   <out>/initramfs.gz    minirootfs + selected kernel modules + guest/init + dmx-agent
   <out>/manifest.json   versions and hashes, read by `dmx doctor`
@@ -34,6 +35,9 @@ SOURCES = {
     },
 }
 KERNEL_RELEASE = "6.18.58-0-virt"
+# The kernel the guest runs: Alpine's source and config with 16K pages, from scripts/build-kernel.py.
+# The Alpine kernel above is used only to boot the VM that builds it (`--kernel alpine`).
+DMX_KERNEL_RELEASE = "6.18.58-dmx"
 
 # Modules the guest may load. Dependencies are added from modules.dep.
 MODULES = [
@@ -162,7 +166,7 @@ def add_tar(cpio: Cpio, tar: tarfile.TarFile, keep=lambda name: True):
             cpio.file(name, tar.extractfile(m).read(), perm)
 
 
-def module_closure(dep_text: str) -> set:
+def module_closure(dep_text: str, release: str) -> set:
     deps = {}
     for line in dep_text.splitlines():
         path, _, rest = line.partition(":")
@@ -173,7 +177,7 @@ def module_closure(dep_text: str) -> set:
     want, todo = set(), []
     for mod in MODULES:
         if mod not in by_name:
-            sys.exit(f"module {mod} not found in {KERNEL_RELEASE}")
+            sys.exit(f"module {mod} not found in {release}")
         todo.append(by_name[mod])
     while todo:
         p = todo.pop()
@@ -189,26 +193,37 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--out", type=Path, default=home / "guest")
     ap.add_argument("--cache", type=Path, default=home / "cache")
+    ap.add_argument("--kernel", choices=["dmx", "alpine"], default="dmx",
+                    help="alpine: the stock 4K page kernel, to bootstrap `make kernel`")
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     args.cache.mkdir(parents=True, exist_ok=True)
 
     agent = build_agent(root)
     rootfs_tgz = fetch("minirootfs", args.cache)
-    kernel_apk = fetch("kernel", args.cache)
+    if args.kernel == "alpine":
+        release, kernel = KERNEL_RELEASE, fetch("kernel", args.cache)
+        # An .apk is several gzip'd tar segments back to back.
+        open_kernel = lambda: tarfile.open(kernel, "r:gz", ignore_zeros=True)
+        read_image = lambda tar: extract_zboot(tar.extractfile("boot/vmlinuz-virt").read())
+    else:
+        release, kernel = DMX_KERNEL_RELEASE, args.cache / f"kernel-{DMX_KERNEL_RELEASE}.tar"
+        if not kernel.exists():
+            sys.exit(f"{kernel} not found; run `make kernel` to build it")
+        open_kernel = lambda: tarfile.open(kernel)
+        read_image = lambda tar: tar.extractfile("boot/Image").read()
 
     cpio = Cpio()
     with tarfile.open(rootfs_tgz, "r:gz") as tar:
         add_tar(cpio, tar)
 
-    moddir = f"lib/modules/{KERNEL_RELEASE}/"
-    # An .apk is several gzip'd tar segments back to back.
-    with tarfile.open(kernel_apk, "r:gz", ignore_zeros=True) as tar:
+    moddir = f"lib/modules/{release}/"
+    with open_kernel() as tar:
         dep = tar.extractfile(moddir + "modules.dep").read().decode()
-        want = {moddir + p for p in module_closure(dep)}
+        want = {moddir + p for p in module_closure(dep, release)}
         meta = {moddir + f for f in ("modules.dep", "modules.alias", "modules.symbols", "modules.builtin", "modules.order")}
         add_tar(cpio, tar, keep=lambda n: n in want or n in meta)
-        image = extract_zboot(tar.extractfile("boot/vmlinuz-virt").read())
+        image = read_image(tar)
 
     # Kernel opens /dev/console before running /init; devtmpfs comes later.
     cpio.dir("dev")
@@ -220,10 +235,11 @@ def main():
     (args.out / "Image").write_bytes(image)
     (args.out / "initramfs.gz").write_bytes(initramfs)
     manifest = {
-        "kernel": KERNEL_RELEASE,
+        "kernel": release,
         "sources": SOURCES,
         "modules": sorted(Path(p).name for p in want),
         "files": {
+            Path(kernel).name: hashlib.sha256(Path(kernel).read_bytes()).hexdigest(),
             "Image": hashlib.sha256(image).hexdigest(),
             "initramfs.gz": hashlib.sha256(initramfs).hexdigest(),
             "dmx-agent": hashlib.sha256(agent).hexdigest(),
