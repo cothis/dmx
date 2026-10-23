@@ -126,6 +126,9 @@ CONFIG = {
     ]},
     # Fewer kernel threads and less memory at idle; nothing in dmx reads them.
     **{sym: None for sym in ["AUDIT", "INTEGRITY", "KFENCE", "KALLSYMS_ALL"]},
+    # Lockdown selects module signing, and our modules are unsigned, so every modprobe tainted
+    # the kernel ("module verification failed").
+    "SECURITY_LOCKDOWN_LSM": None,
     **{f"RD_{c}": None for c in ["BZIP2", "LZMA", "XZ", "LZO", "LZ4", "ZSTD"]},
 }
 # Derived symbols removed so olddefconfig recomputes them for 16K pages. The VA size stays
@@ -137,7 +140,7 @@ MUST = {
     "y": ["ARM64_16K_PAGES", "ARM64_VA_BITS_48", "DEBUG_INFO_NONE", "VIRTIO_MMIO", "VIRTIO_BALLOON",
           "VIRTIO_VSOCKETS", "HW_RANDOM_VIRTIO", "VIRTIO_CONSOLE", "SERIAL_AMBA_PL011", "PAGE_REPORTING",
           "MEMCG", "CGROUPS", "NAMESPACES", "USER_NS", "SECCOMP", "BPF_SYSCALL", "OVERLAY_FS", "PSI"],
-    "unset": ["PCI", "ACPI", "EFI", "NUMA", "COMPAT", "TRANSPARENT_HUGEPAGE_ALWAYS"],
+    "unset": ["PCI", "ACPI", "EFI", "NUMA", "COMPAT", "TRANSPARENT_HUGEPAGE_ALWAYS", "MODULE_SIG"],
 }
 
 BUILD_SH = r"""
@@ -283,7 +286,7 @@ def build(args):
     )
     cmd = [str(dmx), "boot", "--memory", args.memory, "--", "sh", "-c", script]
     start = time.monotonic()
-    tmp = out.with_suffix(".tar.part")
+    tmp = out.with_name(out.name + ".part")  # distinct for --config-only, so the two can run at once
     with open(tmp, "wb") as f:
         proc = subprocess.run(cmd, input=payload.getvalue(), stdout=f, env={**os.environ, "DMX_HOME": str(bootstrap)})
     if proc.returncode != 0:

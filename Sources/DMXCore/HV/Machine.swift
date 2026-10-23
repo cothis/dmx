@@ -242,6 +242,13 @@ public final class Machine: @unchecked Sendable {
         // Slabs of at most 32 KB (order 1) instead of 128 KB. Every vCPU holds an active slab per
         // cache, so large slabs cost ~0.5 MB per vCPU at idle.
         "slub_max_order=1",
+        // Map RAM in the kernel's linear map with 32 MB blocks instead of 16 KB pages: 4 MB of
+        // page tables at 8 GB. The cost is that the linear alias of kernel text and rodata is not
+        // write-protected (the kernel's own mapping of them still is).
+        "rodata=noalias",
+        // Atomic DMA pools (1 MB each per zone, preallocated) serve devices that are not
+        // DMA-coherent; dmx's virtio devices are. The pools grow on demand if ever needed.
+        "coherent_pool=64K",
     ]
 
     private func deviceTree(initrd: Range<UInt64>) -> Data {

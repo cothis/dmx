@@ -251,11 +251,10 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-Phase 4: the remaining tasks need the daemon (memory controller, idle page cache trimming, host
-pressure), so phase 5 comes next unless a kernel trim is still worth it. Small kernel follow-up
-first: the lockdown LSM selects `MODULE_SIG`, so loading any module taints the kernel with
-"module verification failed"; drop it and add `MODULE_SIG` to `MUST["unset"]`. Then phase 5,
-"`dmx daemon`".
+A kernel without `ZONE_DMA`/`ZONE_DMA32` (one zone halves the per-CPU free lists, 11 MB at idle)
+is configured in `scripts/build-kernel.py` but not yet built and measured. Then phase 5,
+"`dmx daemon`": the remaining phase 4 tasks (memory controller, idle page cache trimming, host
+pressure) need it.
 
 ## Findings and measurements
 
@@ -306,6 +305,10 @@ first: the lockdown LSM selects `MODULE_SIG`, so loading any module taints the k
 | 2026-10-24 | Trimmed kernel config (6.18.58-dmx), 10 vCPU | Compile 1130 s with host load ~25 (was 8460 s). Image 22.4 → 17.4 MB, initramfs 2.5 → 1.6 MB (6 modules left). dmesg: kernel code 13.3 → 11.4 MB, bss 9.3 MB → 463 KB (NR_CPUS), reserved 82 → 59 MB. Slab 11 MB, shmem 3.6 MB. Selftest 8G 120 to 121 MB (was 141), 2G 87 (was 109); agent up in 140 to 180 ms; after the 1 GB test 122 to 124 MB in 0.2 to 0.3 s. |
 | 2026-10-24 | vCPU offline at idle (trimmed kernel, 8G) | 1 vCPU booted: 104 MB; 10 vCPUs: 118 to 121 MB; 9 of 10 taken offline: 116 to 119 MB. Bringing one back online crashed the guest ("kernel stack overflow"): CPU_ON reused the old EL1 state, so the CPU entered the kernel with the MMU on. Now the vCPU's EL1 registers as created are restored on every CPU_ON. |
 | 2026-10-24 | Selftest hangs under host load ~40 | 1 of 5 runs hung forever before any change today. Cause found in code: the virtio-mmio ack path lowered the interrupt line after releasing the lock, so a buffer used in between could leave the line low with work pending. Lowered under the lock now. Also a timed-out selftest never returned: stopping the VM did not close vsock streams, so agent reads blocked; they get EOF now. After both: 29 of 30 runs pass (the other hit the 30 s selftest timeout while host load was 40 to 76); 12 of 12 with an 80 s timeout. |
+| 2026-10-24 | The "~24 MB nobody owns" was a measuring error | A 112-byte test guest that writes one word per 16K page with the MMU off: touching 0 MB gives a footprint of 3 MB, 100 MB → 103 to 104, 1000 MB → 1003 to 1004, with 1 or 10 vCPUs. `mincore` reported 0 MB for all of it. So Hypervisor.framework plus dmx cost ~3 MB, stage-2 tables under 1 MB per GB touched, and `mincore` misses guest pages: the 24 MB were guest pages. Guest accounting has to come from inside the guest (reserved + MemTotal - MemFree ≈ footprint - 4 MB). |
+| 2026-10-24 | Reserved memory by caller (`memblock=debug`, trimmed kernel, 8G) | memmap 32 MB, kernel image 17.3, linear map page tables 4.0 (258 tables of 16 KB: RAM mapped page by page), hash tables 1.5, percpu first chunk 1.3. `rodata=on` is the same as full on 6.18; `rodata=noalias` maps the linear map in 32 MB blocks: 3 tables, footprint 119-120 → 114-117 MB. |
+| 2026-10-24 | Guest MemTotal - MemFree at idle (48 MB) | per-CPU free lists 11.3 MB (722 pages over 20 lists: DMA and Normal zone per vCPU), slab 10, vmalloc ~5 (3 MB of it the atomic DMA pools), shmem 3.6, kernel stacks 2, page tables 1.8, percpu 1.8, the rest driver buffers. `coherent_pool=64K` (pools of 1 MB per zone otherwise): 112 to 113 MB. |
+| 2026-10-24 | Kernel without the lockdown LSM | `MODULE_SIG` off; modprobe no longer taints the kernel. Compiled in 7423 s at host load 30 to 76. Selftest with `rodata=noalias coherent_pool=64K`: 112 MB at 8G (3 runs), back to 113 to 118 MB after the 1 GB test. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -326,3 +329,4 @@ first: the lockdown LSM selects `MODULE_SIG`, so loading any module taints the k
 - 2026-10-24: Slabs capped at 32 KB: idle at 8G 146 → 141 MB.
 - 2026-10-24: Kernel config trimmed to what dmx and Docker use: idle at 8G 141 → 120 MB, kernel build 19 min instead of 2 h 21 min.
 - 2026-10-24: VMM fixes: vCPUs come back after CPU_OFF, no lost virtio interrupts on ack, a stopped VM closes its vsock streams.
+- 2026-10-24: The unexplained 24 MB turned out to be guest pages `mincore` misses. Linear map in blocks and small atomic DMA pools: idle at 8G 120 → 112 MB.
