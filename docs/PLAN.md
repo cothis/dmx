@@ -168,10 +168,11 @@ This is the core feature. Measure before and after every change and log numbers 
 - [ ] Memmap scales with the ceiling (32 MB at 8G, 16 KB pages × 64 bytes). Only plugging memory
       as needed avoids it (virtio-mem, or ACPI-less memory hotplug with our own device). Measure
       against the alternative of a lower default ceiling.
-- [ ] Each vCPU costs ~2.3 MB of guest memory at idle, measured again after the pcp cap (1 vCPU
-      125 MB, 2: 129, 4: 133, 10: 147 at 8G). `slub_max_order=1` (default now) brings 10 vCPUs to
-      141 MB; what is left per vCPU is mostly its ~1 MB page list (the cap's floor, 4 × batch)
-      and per-CPU areas. Next lever: fewer vCPUs online at idle (CPU hotplug from the daemon).
+- [x] Each vCPU costs ~2.3 MB of guest memory at idle (1 vCPU 125 MB, 10: 147 at 8G before the
+      kernel trim). `slub_max_order=1` (default now) took 10 vCPUs to 141 MB. Taking 9 vCPUs
+      offline at idle gives back only 2 to 5 MB (121 → 116 to 119 MB with the trimmed kernel):
+      per-CPU areas and parked kthreads stay. Not worth an idle policy. Trying it found that a
+      vCPU turned off and on again crashed the guest (fixed, and the selftest checks it).
 - [x] Trim the kernel config to what dmx and Docker need (`CONFIG` in `scripts/build-kernel.py`,
       checked after olddefconfig by `MUST`; `--config-only` writes the resulting .config in ~30 s).
       Built in: virtio-mmio, balloon, vsock, rng, blk, net, fs, ext4, overlay, zram. Out: ACPI,
@@ -303,6 +304,8 @@ first: the lockdown LSM selects `MODULE_SIG`, so loading any module taints the k
 | 2026-10-23 | Transparent huge pages with 16K pages (32 MB each), 8G | A 1 GB anonymous mapping with one byte touched per 32 MB: `always` (Alpine's default) RssAnon 1048640 kB, `madvise` 576 kB. One byte per 1 MB: 1 GB vs 16 MB. `transparent_hugepage=madvise` is now a default kernel arg; idle footprint unchanged (146 MB with a kernel build running beside it). |
 | 2026-10-24 | Per-vCPU cost and slab order, 8G | Footprint by vCPU count: 1: 125, 2: 129, 4: 133, 10: 146 to 148 MB. `slub_max_order=0`: 10 vCPUs 139 to 142; `=1`: 141 to 142, 1 vCPU unchanged (125). Shrinking slabs and `cpu_partial=0` at runtime: no gain. Adopted order 1 (order 0 would put one kmalloc-16k object per slab). 2G 109 MB (was 114). |
 | 2026-10-24 | Trimmed kernel config (6.18.58-dmx), 10 vCPU | Compile 1130 s with host load ~25 (was 8460 s). Image 22.4 → 17.4 MB, initramfs 2.5 → 1.6 MB (6 modules left). dmesg: kernel code 13.3 → 11.4 MB, bss 9.3 MB → 463 KB (NR_CPUS), reserved 82 → 59 MB. Slab 11 MB, shmem 3.6 MB. Selftest 8G 120 to 121 MB (was 141), 2G 87 (was 109); agent up in 140 to 180 ms; after the 1 GB test 122 to 124 MB in 0.2 to 0.3 s. |
+| 2026-10-24 | vCPU offline at idle (trimmed kernel, 8G) | 1 vCPU booted: 104 MB; 10 vCPUs: 118 to 121 MB; 9 of 10 taken offline: 116 to 119 MB. Bringing one back online crashed the guest ("kernel stack overflow"): CPU_ON reused the old EL1 state, so the CPU entered the kernel with the MMU on. Now the vCPU's EL1 registers as created are restored on every CPU_ON. |
+| 2026-10-24 | Selftest hangs under host load ~40 | 1 of 5 runs hung forever before any change today. Cause found in code: the virtio-mmio ack path lowered the interrupt line after releasing the lock, so a buffer used in between could leave the line low with work pending. Lowered under the lock now. Also a timed-out selftest never returned: stopping the VM did not close vsock streams, so agent reads blocked; they get EOF now. After both: 29 of 30 runs pass (the other hit the 30 s selftest timeout while host load was 40 to 76); 12 of 12 with an 80 s timeout. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -322,3 +325,4 @@ first: the lockdown LSM selects `MODULE_SIG`, so loading any module taints the k
 - 2026-10-23: Transparent huge pages only on madvise: with 32 MB huge pages, a sparse 1 GB heap cost 1 GB instead of 0.6 MB.
 - 2026-10-24: Slabs capped at 32 KB: idle at 8G 146 → 141 MB.
 - 2026-10-24: Kernel config trimmed to what dmx and Docker use: idle at 8G 141 → 120 MB, kernel build 19 min instead of 2 h 21 min.
+- 2026-10-24: VMM fixes: vCPUs come back after CPU_OFF, no lost virtio interrupts on ack, a stopped VM closes its vsock streams.

@@ -115,6 +115,13 @@ final class VirtioVsock: VirtioDevice, @unchecked Sendable {
         }
     }
 
+    /// The VM stopped: closes every stream, so whoever waits on one reads EOF instead of hanging.
+    func closeAll() {
+        queue.async {
+            for c in Array(self.connections.values) { self.drop(c, error: DMXError("vm_stopped", "the VM stopped")) }
+        }
+    }
+
     // MARK: Host side
 
     /// Opens a stream to `port` in the guest. Returns the host end of a connected socket.

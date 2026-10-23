@@ -184,6 +184,7 @@ public final class Machine: @unchecked Sendable {
         waiters.removeAll()
         lock.unlock()
         for vcpu in vcpus { vcpu.halt() }
+        vsock.closeAll()
         for waiter in pending { waiter.resume(returning: result) }
     }
 

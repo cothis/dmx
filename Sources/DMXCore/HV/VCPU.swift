@@ -11,6 +11,19 @@ final class VCPU: @unchecked Sendable {
     private var id: hv_vcpu_t = 0
     private var exitInfo: UnsafeMutablePointer<hv_vcpu_exit_t>!
 
+    /// EL1 state as `hv_vcpu_create` left it, restored on every power-on: a CPU turned off and on
+    /// again must enter the kernel with the MMU off, not with its previous life's translation.
+    private static let resetRegisters: [hv_sys_reg_t] = [
+        HV_SYS_REG_SCTLR_EL1, HV_SYS_REG_TCR_EL1, HV_SYS_REG_TTBR0_EL1, HV_SYS_REG_TTBR1_EL1,
+        HV_SYS_REG_MAIR_EL1, HV_SYS_REG_AMAIR_EL1, HV_SYS_REG_VBAR_EL1, HV_SYS_REG_CPACR_EL1,
+        HV_SYS_REG_CONTEXTIDR_EL1, HV_SYS_REG_TPIDR_EL1, HV_SYS_REG_TPIDR_EL0, HV_SYS_REG_TPIDRRO_EL0,
+        HV_SYS_REG_SP_EL0, HV_SYS_REG_SP_EL1, HV_SYS_REG_ELR_EL1, HV_SYS_REG_SPSR_EL1,
+        HV_SYS_REG_ESR_EL1, HV_SYS_REG_FAR_EL1, HV_SYS_REG_PAR_EL1, HV_SYS_REG_AFSR0_EL1,
+        HV_SYS_REG_AFSR1_EL1, HV_SYS_REG_MDSCR_EL1, HV_SYS_REG_CNTKCTL_EL1, HV_SYS_REG_CNTV_CTL_EL0,
+        HV_SYS_REG_CNTV_CVAL_EL0, HV_SYS_REG_CSSELR_EL1,
+    ]
+    private var resetValues: [(hv_sys_reg_t, UInt64)] = []
+
     private let cond = NSCondition()
     private var start: (entry: UInt64, context: UInt64)?
     private var on = false
@@ -79,9 +92,16 @@ final class VCPU: @unchecked Sendable {
         // Hypervisor.framework leaves MPIDR at 0 for every vCPU; give each its own affinity.
         hv_vcpu_set_sys_reg(id, HV_SYS_REG_MPIDR_EL1, UInt64(index))
         hv_vcpu_get_sys_reg(id, HV_SYS_REG_MPIDR_EL1, &mpidr)
+        resetValues = Self.resetRegisters.map { r in
+            var value: UInt64 = 0
+            hv_vcpu_get_sys_reg(id, r, &value)
+            return (r, value)
+        }
         ready.signal()
 
         while let (entry, context) = waitForPowerOn() {
+            for (r, value) in resetValues { hv_vcpu_set_sys_reg(id, r, value) }
+            hv_vcpu_set_vtimer_mask(id, false)
             setReg(HV_REG_PC, entry)
             setReg(HV_REG_CPSR, 0x3c5)  // EL1h with D, A, I, F masked
             for n in 0..<4 { setX(n, 0) }

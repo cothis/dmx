@@ -92,6 +92,14 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
             check("driver.\(driver)", bound.contains(driver), bound.contains(driver) ? "bound" : "no device bound")
         }
 
+        // PSCI CPU_OFF then CPU_ON: the CPU must come back with its reset state, MMU off.
+        if machine.spec.cpus > 1 {
+            let cpu = "/sys/devices/system/cpu/cpu\(machine.spec.cpus - 1)/online"
+            let hotplug = try await agent.run(["sh", "-c", "echo 0 > \(cpu) && echo 1 > \(cpu) && cat /sys/devices/system/cpu/online"])
+            let online = text(hotplug.stdout).trimmingCharacters(in: .whitespacesAndNewlines)
+            check("cpu_hotplug", hotplug.exit.code == 0 && online == "0-\(machine.spec.cpus - 1)", "cpu \(machine.spec.cpus - 1) off and on, online \(online.debugDescription)")
+        }
+
         let dropped = try await agent.dropCaches()
         check("drop_caches", dropped.availableAfter >= dropped.availableBefore / 2,
               "available \(formatSize(dropped.availableBefore)) -> \(formatSize(dropped.availableAfter))")

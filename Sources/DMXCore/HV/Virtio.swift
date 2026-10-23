@@ -157,8 +157,8 @@ final class VirtioMMIO: MMIODevice, @unchecked Sendable {
     /// Tells the driver that used buffers are waiting (interrupt status bit 0).
     func signalUsed() {
         lock.lock()
+        defer { lock.unlock() }
         interruptStatus |= 1
-        lock.unlock()
         irq(true)
     }
 
@@ -227,9 +227,11 @@ final class VirtioMMIO: MMIODevice, @unchecked Sendable {
             }
         default: break
         }
+        // Lowered under the lock: lowered after it, the line could go down just after
+        // `signalUsed` raised it for a new buffer, and the guest would never look again.
+        if lower { irq(false) }
         let accepted = driverFeatures
         lock.unlock()
-        if lower { irq(false) }
         if reset { device.reset() }
         if activate { device.activate(self, features: accepted) }
     }
