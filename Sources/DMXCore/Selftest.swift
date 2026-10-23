@@ -23,6 +23,7 @@ public struct SelftestReport: Encodable, Sendable {
     public let stats: AgentStats?
     /// Host memory of the VM process, read after dropping caches, before shutdown.
     public let host: HostFootprint?
+    public let reclaim: ReclaimReport?
     public let checks: [SelftestCheck]
     public let problems: [String]
     /// Raw console output, included only when the run failed.
@@ -52,6 +53,7 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
     var checks: [SelftestCheck] = []
     var hello: AgentHello?, uname: String?, offsetMs: Double?, stats: AgentStats?
     var host: HostFootprint?
+    var reclaim: ReclaimReport?
     var bootMs: Int?, shutdownStarted: ContinuousClock.Instant?
     func check(_ name: String, _ ok: Bool, _ detail: String) {
         checks.append(SelftestCheck(name: name, ok: ok, detail: detail))
@@ -96,6 +98,13 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
         host = machine.hostFootprint()
         check("host_footprint", host != nil, host.map { "pid \($0.pid), \($0.footprintMb) MB (peak \($0.peakFootprintMb) MB)" } ?? "VM process not found")
 
+        if let idle = host {
+            let r = try await measureReclaim(machine: machine, agent: agent, idle: idle)
+            reclaim = r
+            check("reclaim", r.returnedMs != nil,
+                  "1 GB touched and freed: \(r.afterFreeMb) MB -> \(r.afterReclaimMb) MB \(r.returnedMs.map { "in \($0) ms" } ?? "(not within 10 s)"), \(r.reports) reports")
+        }
+
         shutdownStarted = ContinuousClock.now
         try await agent.shutdown()
     } catch let error as DMXError {
@@ -125,10 +134,46 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
         guestUsedMb: stats.map { Int($0.memory.used >> 20) },
         stats: stats,
         host: host,
+        reclaim: reclaim,
         checks: checks,
         problems: problems,
         console: ok ? nil : lines
     )
+}
+
+public struct ReclaimReport: Encodable, Sendable {
+    public let idleMb: Int
+    public let afterFreeMb: Int
+    public let afterReclaimMb: Int
+    /// From freeing the memory in the guest until the footprint came back near idle, if it did.
+    public let returnedMs: Int?
+    /// Free page reports the guest made and the bytes they covered, since boot.
+    public let reports: Int
+    public let reportedMb: Int
+}
+
+/// Touches 1 GB in the guest (a tmpfs file of random data), deletes it, and waits up to 10 s for
+/// free page reporting to bring the host footprint back within 128 MB of `idle`.
+@MainActor
+private func measureReclaim(machine: Machine, agent: AgentClient, idle: HostFootprint) async throws -> ReclaimReport {
+    _ = try await agent.run(["sh", "-c", "head -c 1073741824 /dev/urandom > /run/fill"])
+    let afterFill = machine.hostFootprint() ?? idle
+    _ = try await agent.run(["rm", "/run/fill"])
+    let freed = ContinuousClock.now
+    var returnedMs: Int?
+    var last = afterFill
+    while ContinuousClock.now - freed < .seconds(10) {
+        try await Task.sleep(for: .milliseconds(100))
+        guard let now = machine.hostFootprint() else { break }
+        last = now
+        if now.footprint <= idle.footprint + (128 << 20) {
+            returnedMs = milliseconds(ContinuousClock.now - freed)
+            break
+        }
+    }
+    let stats = machine.freePageReports
+    return ReclaimReport(idleMb: idle.footprintMb, afterFreeMb: afterFill.footprintMb, afterReclaimMb: last.footprintMb,
+                         returnedMs: returnedMs, reports: stats.reports, reportedMb: Int(stats.bytes >> 20))
 }
 
 private func milliseconds(_ d: Duration) -> Int {

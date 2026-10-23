@@ -32,6 +32,7 @@ public final class Machine: @unchecked Sendable {
     private let uart: PL011
     private let console: VirtioConsole
     let vsock = VirtioVsock()
+    private var balloon: VirtioBalloon!
     /// Every MMIO device by guest address, UART first.
     private var bus: [(base: UInt64, size: UInt64, device: MMIODevice)] = []
     private var virtioSlots = 0
@@ -92,6 +93,8 @@ public final class Machine: @unchecked Sendable {
         addVirtio(self.console, ram: ram)
         addVirtio(VirtioRNG(), ram: ram)
         addVirtio(vsock, ram: ram)
+        balloon = VirtioBalloon(ram: ram) { [unowned self] address, length in self.release(address, length) }
+        addVirtio(balloon, ram: ram)
     }
 
     private func addVirtio(_ device: VirtioDevice, ram: GuestRAM) {
@@ -111,6 +114,25 @@ public final class Machine: @unchecked Sendable {
 
     /// Bytes typed on the host console, for the guest's hvc0.
     public func input(_ bytes: [UInt8]) { console.receive(Data(bytes)) }
+
+    /// Free page reports so far: how many, and how many bytes the guest handed back.
+    public var freePageReports: (reports: Int, bytes: UInt64) { balloon.stats }
+
+    /// Gives a guest-physical range back to macOS. The guest promised not to touch it until it
+    /// reuses the pages, which then fault in again as zeros. `MADV_FREE_REUSABLE` drops the pages
+    /// from our footprint; it only takes hold on pages the guest dirtied if the stage-2 mapping is
+    /// torn down around it.
+    func release(_ address: UInt64, _ length: UInt64) {
+        let page = UInt64(getpagesize())
+        let start = alignUp(max(address, HVLayout.ramBase), page)
+        let end = min(address + length, HVLayout.ramBase + ramSize) / page * page
+        guard end > start else { return }
+        let host = ram.advanced(by: Int(start - HVLayout.ramBase))
+        let size = Int(end - start)
+        hv_vm_unmap(start, size)
+        madvise(host, size, MADV_FREE_REUSABLE)
+        hv_vm_map(host, start, size, hv_memory_flags_t(HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC))
+    }
 
     /// Guest RAM lives in this process, so its footprint is the VM's cost, dmx included.
     /// The `footprint` tool leaves out pages the guest dirtied through `hv_vm_map`;

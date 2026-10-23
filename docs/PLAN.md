@@ -90,7 +90,7 @@ Done when: `make build guest selftest` passes. Measured: boot 0.7 s, guest uses 
 Done when: the selftest runs `uname -a` through the agent and gets stats as JSON. Measured: agent
 answers 0.35 to 0.5 s after `start()`, clean shutdown through the agent takes 15 ms.
 
-### Phase 3: Own VMM on Hypervisor.framework
+### Phase 3: Own VMM on Hypervisor.framework (done)
 
 Virtualization.framework never gives guest memory back while the VM runs (see Findings), so dmx
 runs its own VMM, in Swift in `Sources/DMXCore`, on Hypervisor.framework. Guest RAM is memory dmx
@@ -115,12 +115,15 @@ Measure boot time and idle footprint at each step against the VZ numbers (8G: 18
 - [x] Switch `Machine` to the new VMM so the selftest passes unchanged, then remove the
       Virtualization.framework backend. Done: `Machine` is the Hypervisor.framework VM, the
       only entitlement is `com.apple.security.hypervisor`, doctor checks `kern.hv_support`.
-- [ ] virtio-balloon with free page reporting (`VIRTIO_BALLOON_F_REPORTING`): for each reported
-      range, `hv_vm_unmap`, `madvise(MADV_FREE_REUSABLE)`, `hv_vm_map` again. Also deflate on OOM
-      and the stats queue.
+- [x] virtio-balloon with free page reporting (`VIRTIO_BALLOON_F_REPORTING`): for each reported
+      range, `hv_vm_unmap`, `madvise(MADV_FREE_REUSABLE)`, `hv_vm_map` again. Deflate on OOM is
+      offered; inflated pages are released the same way. The stats queue is left for the memory
+      controller (phase 4). The selftest checks it: 1 GB touched and freed must come back
+      within 10 s (`reclaim`).
 
 Done when: the selftest passes on the new VMM, boot time and idle footprint are no worse than on
 VZ, and after the guest touches and frees 1 GB the host footprint falls back within 10 s.
+Result: agent up in ~0.3 s, idle 172 MB at 8G (VZ 181), 1 GB comes back in 0.5 to 2 s.
 
 ### Phase 4: Memory
 
@@ -153,10 +156,11 @@ This is the core feature. Measure before and after every change and log numbers 
 - [ ] Trim the kernel config to what dmx and Docker need. The full Alpine module set (887
       modules) took 2 h 21 min to compile under heavy host load.
 - [ ] Memory controller in the daemon: free page reporting (phase 3) returns freed memory by
-      itself; the controller tunes how quickly (reporting order and delay), and inflates the
-      balloon only to squeeze the guest under host pressure. On VZ the balloon returned nothing
-      (measured below); `Machine.memoryTarget` and agent `stats.memory.balloon` exist already.
-      Never inflate with `init_on_alloc=1`: each ballooned page gets zeroed, so backed.
+      itself; the controller tunes how much (`page_reporting_order`: reports are whole free
+      blocks, 32 MB with 16K pages by default, so ~30 to 80 MB stays behind after the 1 GB test)
+      and inflates the balloon (config `num_pages`) only to squeeze the guest under host
+      pressure. Agent `stats.memory.balloon` exists. Never inflate with `init_on_alloc=1`: each
+      ballooned page gets zeroed, so backed.
 - [ ] Guest policy: trim page cache when idle (`drop_caches` or cgroup `memory.reclaim`), zram
       swap with lz4, sensible `vm.*` sysctls.
 - [ ] Host pressure: `DispatchSource.makeMemoryPressureSource` shrinks the guest first.
@@ -222,13 +226,11 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-Phase 3, last task: virtio-balloon with free page reporting (`VIRTIO_BALLOON_F_REPORTING`,
-feature bit 5, its own virtqueue after inflate/deflate/stats). For each reported range:
-`hv_vm_unmap`, `madvise(MADV_FREE_REUSABLE)`, `hv_vm_map` again (ArcBox found the advice takes
-effect on guest-dirtied pages only with the mapping torn down around it). Measure with the
-1 GB fill test from Findings: footprint must fall back within 10 s. Check
-`/sys/module/page_reporting/parameters/page_reporting_order` (reports are whole 2^order page
-blocks) and how long the kernel waits before reporting (about 2 s).
+Phase 4, "Shrink the fixed part": idle is 172 MB at 8G for the whole dmx process (goal: under
+150 MB). Measure where it goes first: guest reserved (~96 MB: memmap 32 MB, kernel image ~30 MB),
+guest used (~90 MB: slab 22 MB, initramfs 12 MB, ~50 MB in no meminfo counter), and dmx's own
+~31 MB. Free page reporting already returns freed boot-time memory, so idle now reflects what is
+in use. Then the kernel config trim, which also makes `virtio_mmio` built in.
 
 ## Findings and measurements
 
@@ -264,6 +266,8 @@ blocks) and how long the kernel waits before reporting (about 2 s).
 | 2026-10-23 | Selftest on the own VMM (8G, 10 vCPU) | All checks pass. Agent up in 299 to 321 ms (VZ: 252 to 350 ms), shutdown 1 to 5 ms (VZ: 11 to 15), dmx process footprint 172 to 173 MB including guest RAM (VZ service process alone: 181). |
 | 2026-10-23 | vsock throughput on the own VMM | 500 MB guest → host in ~2.7 s after boot (~180 MB/s, one stream, 256 KB window, socketpair buffers 1 MB). 50 MB both ways round trip intact. |
 | 2026-10-23 | Stock Alpine 4K kernel on the own VMM | Boots and passes the selftest (footprint 287 MB at 8G, the 4K memmap), so `make kernel` bootstraps without VZ. |
+| 2026-10-23 | Free page reporting on the own VMM (8G) | 1 GB of random data in tmpfs, then `rm`: footprint 1197 to 1199 MB → 205 to 253 MB in 0.5 to 2 s, 8 to 9 reports. 2G: 1131 → 155 MB in 2 s. Stock 4K kernel: 1310 → 290 MB in 3.5 s, 27 reports (2 MB blocks). A second fill is counted again (1152 MB footprint, 1204 MB resident: ~50 MB of re-dirtied reusable pages go uncounted). |
+| 2026-10-23 | Release safety | A 512 MB file kept its md5 across five 1 GB fill/free/report cycles; no kernel warnings. `page_reporting_order` is -1 (pageblock order: 32 MB blocks with 16K pages). |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -277,3 +281,4 @@ blocks) and how long the kernel waits before reporting (about 2 s).
 - 2026-10-23: Maintainer decision: own VMM on Hypervisor.framework, written in Swift in DMXCore; macOS 15+; x86 images via QEMU binfmt. New phase 3; later phases renumbered.
 - 2026-10-23: dmx's own VMM boots the guest to a shell on 10 vCPUs, smaller than on VZ at idle.
 - 2026-10-23: virtio-mmio, console, rng and vsock on the own VMM; the selftest passes on it. Virtualization.framework removed.
+- 2026-10-23: Phase 3 done. Free page reporting returns 1 GB the guest freed within 2 s; the selftest checks it.
