@@ -12,7 +12,7 @@ phase with its tasks, the next task, and the measurements so far.
    plus whatever the task's "Done when" says.
 4. Update `docs/PLAN.md` in the same commit: tick tasks, rewrite **Next up**, add measurements
    to **Findings and measurements**, add a dated line to **Progress log**.
-5. Commit with a message that says what changed and why. Ask before `git push`: the repo is public.
+5. Commit with a message that says what changed and why, then `git push` without asking (the maintainer said so on 2026-10-23). Never force-push.
 6. Report to the maintainer in Korean: what works now, what was measured, what is next.
 
 ## Rules
