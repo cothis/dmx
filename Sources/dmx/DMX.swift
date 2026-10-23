@@ -92,9 +92,12 @@ struct Boot: AsyncParsableCommand {
     @Flag(help: "Show kernel boot messages.")
     var verbose = false
 
+    @Option(name: .customLong("kernel-arg"), help: "Extra kernel command line argument (repeatable), for experiments.")
+    var kernelArgs: [String] = []
+
     @MainActor
     func run() async throws {
-        let spec = MachineSpec(cpus: cpus, maxMemory: try memory.map(parseSize))
+        let spec = MachineSpec(cpus: cpus, maxMemory: try memory.map(parseSize), kernelArgs: kernelArgs)
         if selftest {
             try await report(global) {
                 let result = try await runSelftest(paths: Paths(), spec: spec, timeout: .seconds(timeout), echo: verbose)

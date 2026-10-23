@@ -48,6 +48,11 @@ public final class Machine: NSObject {
     private var servicePid: Int32?
     private var waiters: [CheckedContinuation<Exit, Never>] = []
 
+    /// `swiotlb=noforce`: by default the kernel zeroes a bounce buffer sized to the ceiling
+    /// (64 MB at 8 GB), which the host then backs. No virtio device here negotiates
+    /// VIRTIO_F_ACCESS_PLATFORM, so virtio never bounces and the buffer is never used.
+    static let baseKernelArgs = ["console=hvc0", "swiotlb=noforce"]
+
     public init(spec: MachineSpec, paths: Paths, console: Console) throws {
         for file in [paths.kernel, paths.initramfs] where !FileManager.default.fileExists(atPath: file.path) {
             throw DMXError("guest_missing", "guest file not found: \(file.path)", hint: "run `make guest` to build the guest kernel and initramfs")
@@ -67,7 +72,7 @@ public final class Machine: NSObject {
 
         let boot = VZLinuxBootLoader(kernelURL: paths.kernel)
         boot.initialRamdiskURL = paths.initramfs
-        boot.commandLine = (["console=hvc0"] + spec.kernelArgs).joined(separator: " ")
+        boot.commandLine = (Self.baseKernelArgs + spec.kernelArgs).joined(separator: " ")
 
         let serial = VZVirtioConsoleDeviceSerialPortConfiguration()
         serial.attachment = VZFileHandleSerialPortAttachment(

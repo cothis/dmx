@@ -97,7 +97,12 @@ This is the core feature. Measure before and after every change and log numbers 
       (`pid`, `footprint_mb`, `peak_footprint_mb`), read after drop_caches. Status JSON comes in phase 4.
 - [ ] Shrink the baseline that scales with the ceiling (finding: 2G → 170 MB, 8G → 354 MB host
       footprint while the guest used 64 MB). Investigate in this order and record results:
-      1. What the kernel touches at boot for the whole ceiling (struct page memmap is ~16 MB/GB with 4K pages; check `init_on_alloc`/`init_on_free`, page poisoning, KASAN-like options in the Alpine config).
+      1. [x] What the kernel touches at boot for the whole ceiling. Host footprint ≈ guest
+         "reserved" (dmesg `Memory:` line) + guest used, and reserved explains the whole slope.
+         SWIOTLB was sized to the ceiling (64 MB at 8 GB, zeroed by memblock); `swiotlb=noforce`
+         is now a default kernel arg (8G: 356 → 291 MB). What scales now is the memmap,
+         16 MB/GB (128 MB at 8 GB). `init_on_alloc=0` and `rodata=on` change nothing at idle;
+         no page poisoning, KASAN or page_owner in the Alpine config.
       2. A custom kernel with 16K pages (`CONFIG_ARM64_16K_PAGES`), which makes memmap 4x smaller and matches Apple Silicon's native page size. Build it inside a dmx VM.
       3. Inflating the balloon early in boot and deflating on demand, so untouched memory is never backed.
 - [ ] Balloon controller in the daemon: target = guest used + headroom, read from agent `stats`;
@@ -167,9 +172,10 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-Phase 3, second task: shrink the baseline that scales with the ceiling (~31 MB per GB, measured
-with selftest `host.footprint_mb`). Start with step 1: find what the kernel touches at boot for
-the whole ceiling (memmap, `init_on_alloc`/`init_on_free`, page poisoning in the Alpine config).
+Phase 3, second task, step 2: a 16K page kernel. Memmap is now the only part of the baseline
+that scales with the ceiling (16 MB/GB with 4K pages, 4 MB/GB with 16K). Plan: same 6.18.58
+source and Alpine's virt config (from the pinned apk) with `CONFIG_ARM64_16K_PAGES=y`, built
+inside a dmx VM with a pinned toolchain, and `make guest` taking the kernel and modules from it.
 
 ## Findings and measurements
 
@@ -186,6 +192,11 @@ the whole ceiling (memmap, `init_on_alloc`/`init_on_free`, page poisoning in the
 | 2026-10-23 | Guest used (total - free - buffers - cached + shmem, after drop_caches) | 72 to 86 MB. `total - MemAvailable` reads ~175 MB at 8 GB because MemAvailable subtracts the watermark reserve, so it is not used. |
 | 2026-10-23 | Selftest `host.footprint_mb` (after drop_caches, 10 vCPU) | 171 MB at 2G, 274 MB at 4G, 356 MB at 8G; guest used 64 to 79 MB. Matches `footprint <pid>`. Baseline grows ~31 MB per GB of ceiling. |
 | 2026-10-23 | Finding the VM process | `proc_name` truncates to 32 bytes, shorter than `com.apple.Virtualization.VirtualMachine`; match on `proc_pidpath`. Other VMs (other apps, stale dmx runs) share the name, so match on responsible pid. |
+| 2026-10-23 | Guest "reserved" at boot (dmesg `Memory:`) | 89 MB at 2G, 271 MB at 8G: +182 MB, same as the host footprint's +184 MB. At 8G: memmap 128 MB, SWIOTLB 64 MB, kernel image ~35 MB. |
+| 2026-10-23 | `swiotlb=noforce` (default now) | 8G: 356 → 291 MB. 2G 165, 4G 208, 8G 291 MB. Selftest passes. Remaining slope ~21 MB/GB, mostly memmap. |
+| 2026-10-23 | `init_on_alloc=0`, `rodata=on` | No change at idle (355 MB, 293 MB). Not adopted. |
+| 2026-10-23 | Virtio features VZ offers | Balloon: MUST_TELL_HOST and DEFLATE_ON_OOM only; no free page reporting, no stats queue. No device offers ACCESS_PLATFORM. Returning memory needs the balloon. |
+| 2026-10-23 | Boot time vs host load | 240 to 640 ms for the same build; host load average was 17 during the slow runs. Compare boot times only on a quiet host. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
