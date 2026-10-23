@@ -69,9 +69,9 @@ Done when: `make build guest selftest` passes. Measured: boot 0.7 s, guest uses 
 
 ### Phase 2: Guest agent and control channel
 
-- [ ] `guest/agent` Rust crate, built for `aarch64-unknown-linux-musl` from macOS
-      (try `rustup target add` + `rust-lld`; fall back to `cargo-zigbuild`). `make guest` builds
-      it and puts it in the initramfs; `/init` starts it.
+- [x] `guest/agent` Rust crate, built for `aarch64-unknown-linux-musl` from macOS with
+      `rustup target add` + the bundled `rust-lld` (no zig or Linux C toolchain needed).
+      `make guest` builds it (`cargo build --locked`) and puts it at `/sbin/dmx-agent`.
 - [ ] Protocol over vsock (guest listens on a fixed port, e.g. 1024): length-prefixed JSON,
       request/response plus streams. Keep it small and versioned (`hello` returns agent version).
 - [ ] Agent calls: `exec` (with stdin/stdout/stderr streams, tty option, exit code), `stats`
@@ -161,8 +161,8 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-Phase 2, first task: create `guest/agent` and prove that a Rust binary cross compiled on macOS
-runs in the guest (start it from `/init`, print a line, check it in the selftest).
+Phase 2, protocol: the agent listens on vsock port 1024, `/init` keeps it running, and `hello`
+answers with the agent and protocol versions.
 
 ## Findings and measurements
 
@@ -171,8 +171,10 @@ runs in the guest (start it from `/init`, print a line, check it in the selftest
 | 2026-10-23 | Boot to init report | 725 ms (10 vCPU, 8 GB ceiling) |
 | 2026-10-23 | Guest memory used after boot | 64 MB |
 | 2026-10-23 | Host footprint of the VM process | 170 MB at 2 GB ceiling, 354 MB at 8 GB |
+| 2026-10-23 | Static aarch64 musl agent (hello world, opt-level s, LTO, stripped) | 330 KB; builds in 3 s with rust-lld |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
 
 - 2026-10-23: Phase 1 done. Repo published at https://github.com/cothis/dmx (commit e630133).
+- 2026-10-23: Phase 2 started. Rust agent cross compiles on macOS and runs in the guest.

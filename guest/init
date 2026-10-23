@@ -21,6 +21,7 @@ case " $(cat /proc/cmdline) " in
 	echo "DMX-SELFTEST-BEGIN"
 	echo "kernel $(uname -r)"
 	echo "cpus $(nproc)"
+	echo "agent $(/sbin/dmx-agent --version 2>&1 || echo failed)"
 	free -m | awk '/^Mem:/ { print "mem_total_mb " $2; print "mem_used_mb " $3 }'
 	for m in virtio_balloon vmw_vsock_virtio_transport; do
 		grep -q "^$m " /proc/modules && echo "module $m ok" || echo "module $m missing"

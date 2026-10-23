@@ -3,7 +3,7 @@
 
 Inputs are pinned Alpine Linux artifacts (verified by sha256). Outputs:
   <out>/Image           uncompressed arm64 kernel (what VZLinuxBootLoader wants)
-  <out>/initramfs.gz    minirootfs + selected kernel modules + guest/init
+  <out>/initramfs.gz    minirootfs + selected kernel modules + guest/init + dmx-agent
   <out>/manifest.json   versions and hashes, read by `dmx doctor`
 
 Only the Python standard library is used, so this runs on a stock Mac.
@@ -16,6 +16,7 @@ import io
 import json
 import os
 import struct
+import subprocess
 import sys
 import tarfile
 import urllib.request
@@ -50,6 +51,8 @@ MODULES = [
     "nf_tables",
 ]
 
+AGENT_TARGET = "aarch64-unknown-linux-musl"
+
 # Fixed mtime so the same inputs give a byte-identical initramfs.
 EPOCH = 0
 
@@ -69,6 +72,14 @@ def fetch(name: str, cache: Path) -> Path:
         path.unlink()
         sys.exit(f"sha256 mismatch for {path.name}: got {digest}")
     return path
+
+
+def build_agent(root: Path) -> bytes:
+    """Cross compile guest/agent to a static aarch64 musl binary (target set in .cargo/config.toml).
+    Crates are pinned by the checksums in Cargo.lock; --locked refuses to change them."""
+    crate = root / "guest" / "agent"
+    subprocess.run(["cargo", "build", "--release", "--locked"], cwd=crate, check=True)
+    return (crate / "target" / AGENT_TARGET / "release" / "dmx-agent").read_bytes()
 
 
 def extract_zboot(pe: bytes) -> bytes:
@@ -182,6 +193,7 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
     args.cache.mkdir(parents=True, exist_ok=True)
 
+    agent = build_agent(root)
     rootfs_tgz = fetch("minirootfs", args.cache)
     kernel_apk = fetch("kernel", args.cache)
 
@@ -202,6 +214,7 @@ def main():
     cpio.dir("dev")
     cpio.chardev("dev/console", 5, 1)
     cpio.file("init", (root / "guest" / "init").read_bytes(), 0o755)
+    cpio.file("sbin/dmx-agent", agent, 0o755)
 
     initramfs = gzip.compress(cpio.finish(), mtime=EPOCH)
     (args.out / "Image").write_bytes(image)
@@ -213,6 +226,7 @@ def main():
         "files": {
             "Image": hashlib.sha256(image).hexdigest(),
             "initramfs.gz": hashlib.sha256(initramfs).hexdigest(),
+            "dmx-agent": hashlib.sha256(agent).hexdigest(),
         },
     }
     (args.out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
