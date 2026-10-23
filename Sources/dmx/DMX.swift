@@ -100,6 +100,9 @@ struct Boot: AsyncParsableCommand {
     @Option(name: .customLong("kernel-arg"), help: "Extra kernel command line argument (repeatable), for experiments.")
     var kernelArgs: [String] = []
 
+    @Option(help: ArgumentHelp("Which VMM runs the VM: vz (Virtualization.framework) or hvf (dmx's own, in progress).", visibility: .hidden))
+    var vmm = "vz"
+
     @Argument(parsing: .postTerminator, help: "Command to run in the guest, after --.")
     var command: [String] = []
 
@@ -132,7 +135,33 @@ struct Boot: AsyncParsableCommand {
             }
             return
         }
+        if vmm == "hvf" {
+            try await interactiveHVF(spec)
+            return
+        }
         try await interactive(spec)
+    }
+
+    @MainActor
+    private func interactiveHVF(_ base: MachineSpec) async throws {
+        var spec = base
+        if !verbose { spec.kernelArgs.append("quiet") }
+        let machine: HVMachine
+        do {
+            machine = try HVMachine(spec: spec, paths: Paths(), console: .standardOutput)
+            let terminal = RawTerminal()
+            defer { terminal?.restore() }
+            FileHandle.standardError.write(Data("dmx: booting on the dmx VMM (\(machine.spec.cpus) cpus, \(formatSize(machine.spec.maxMemory)) max). Ctrl-] powers off.\r\n".utf8))
+            try machine.start()
+            forwardStdin({ machine.input(Array($0)) }) {
+                Task { await machine.stop() }
+            }
+            let exit = await machine.waitUntilStopped()
+            terminal?.restore()
+            if case .failed(let error) = exit { throw error }
+        } catch let error as DMXError {
+            try await report(global) { () -> (Bool, String, Bool) in throw error }
+        }
     }
 
     @MainActor

@@ -41,6 +41,7 @@ DMX_KERNEL_RELEASE = "6.18.58-dmx"
 
 # Modules the guest may load. Dependencies are added from modules.dep.
 MODULES = [
+    "virtio_mmio",
     "virtio_balloon",
     "vmw_vsock_virtio_transport",
     "virtio_rng",

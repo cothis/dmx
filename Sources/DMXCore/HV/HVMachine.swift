@@ -1,0 +1,280 @@
+import Foundation
+import Hypervisor
+
+/// Guest physical memory map. Devices sit below RAM, like QEMU's `virt` board.
+enum HVLayout {
+    static let gicDistributor: UInt64 = 0x0800_0000
+    /// Hypervisor.framework sizes the redistributor region for its maximum vCPU count (32 MB).
+    static let gicRedistributors: UInt64 = 0x0c00_0000
+    static let uart: UInt64 = 0x0900_0000
+    static let uartSize: UInt64 = 0x1000
+    static let ramBase: UInt64 = 0x4000_0000
+    /// GIC interrupt numbers: SPIs start at 32. The device tree names SPIs by their offset.
+    static let uartSPI: UInt32 = 1
+}
+
+/// One Linux VM on dmx's own VMM over Hypervisor.framework. Guest RAM is an anonymous mapping
+/// in this process, so dmx decides when freed guest memory goes back to macOS. A process can
+/// hold only one such VM at a time.
+public final class HVMachine: @unchecked Sendable {
+    public let spec: MachineSpec
+
+    private let ram: UnsafeMutableRawPointer
+    private let ramSize: UInt64
+    private let uart: PL011
+    private let lock = NSLock()
+    private var vcpus: [VCPU] = []
+    private var exit: Machine.Exit?
+    private var waiters: [CheckedContinuation<Machine.Exit, Never>] = []
+    /// File contents until they are copied into guest RAM, then released.
+    private var kernel: Data, initramfs: Data
+    private var redistributorBase: UInt64 = 0
+    private var redistributorStride: UInt64 = 0
+
+    public init(spec: MachineSpec, paths: Paths, console: FileHandle) throws {
+        for file in [paths.kernel, paths.initramfs] where !FileManager.default.fileExists(atPath: file.path) {
+            throw DMXError("guest_missing", "guest file not found: \(file.path)", hint: "run `make guest` to build the guest kernel and initramfs")
+        }
+        // Mapped, not read: clean file pages do not count toward this process's footprint.
+        kernel = try Data(contentsOf: paths.kernel, options: .alwaysMapped)
+        initramfs = try Data(contentsOf: paths.initramfs, options: .alwaysMapped)
+
+        var resolved = spec
+        resolved.cpus = min(max(spec.cpus, 1), ProcessInfo.processInfo.activeProcessorCount)
+        resolved.maxMemory = max(spec.maxMemory, 256 << 20) & ~UInt64((2 << 20) - 1)
+        self.spec = resolved
+        ramSize = resolved.maxMemory
+
+        var config: hv_vm_config_t? = hv_vm_config_create()
+        defer { config = nil }
+        try check(hv_vm_create(config), "hv_vm_create")
+
+        guard let memory = mmap(nil, Int(ramSize), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0),
+              memory != MAP_FAILED else {
+            hv_vm_destroy()
+            throw DMXError("vm_error", "cannot reserve \(formatSize(ramSize)) of guest memory")
+        }
+        ram = memory
+        try check(hv_vm_map(ram, HVLayout.ramBase, Int(ramSize),
+                            hv_memory_flags_t(HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC)), "hv_vm_map")
+
+        let gic = hv_gic_config_create()
+        var redistSize = 0
+        hv_gic_get_redistributor_size(&redistSize)
+        redistributorBase = HVLayout.gicRedistributors
+        redistributorStride = UInt64(redistSize)
+        try check(hv_gic_config_set_distributor_base(gic, HVLayout.gicDistributor), "hv_gic_config_set_distributor_base")
+        try check(hv_gic_config_set_redistributor_base(gic, redistributorBase), "hv_gic_config_set_redistributor_base")
+        try check(hv_gic_create(gic), "hv_gic_create")
+
+        uart = PL011(output: console) { level in
+            hv_gic_set_spi(32 + HVLayout.uartSPI, level)
+        }
+    }
+
+    deinit {
+        hv_vm_unmap(HVLayout.ramBase, Int(ramSize))
+        munmap(ram, Int(ramSize))
+        hv_vm_destroy()
+    }
+
+    /// Bytes typed on the host console.
+    public func input(_ bytes: [UInt8]) { uart.receive(bytes) }
+
+    /// Guest RAM lives in this process, so its footprint is the VM's cost, dmx included.
+    /// The `footprint` tool leaves out pages the guest dirtied through `hv_vm_map`;
+    /// `ri_phys_footprint` (what Activity Monitor shows) counts them.
+    public func hostFootprint() -> HostFootprint? { HostFootprint.read(pid: getpid()) }
+
+    public func start() throws {
+        // Each vCPU must be created and run on its own thread; create them all first so the
+        // device tree can list their MPIDRs, then release CPU 0. The rest wait for PSCI CPU_ON.
+        let ready = DispatchSemaphore(value: 0)
+        for index in 0..<spec.cpus {
+            let vcpu = VCPU(index: index, machine: self)
+            vcpus.append(vcpu)
+            let thread = Thread { vcpu.main(ready: ready) }
+            thread.name = "dmx.vcpu.\(index)"
+            thread.stackSize = 1 << 20
+            thread.start()
+        }
+        for _ in vcpus { ready.wait() }
+        if let failed = vcpus.first(where: { $0.createError != nil }) {
+            stop(.failed(DMXError("vm_error", "hv_vcpu_create: \(failed.createError!)")))
+            throw DMXError("vm_error", "hv_vcpu_create: \(failed.createError!)")
+        }
+
+        let entry = try loadGuest()
+        vcpus[0].powerOn(entry: entry.kernel, context: entry.fdt)
+    }
+
+    public func stop() async { stop(.guestStopped) }
+
+    public func waitUntilStopped() async -> Machine.Exit {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if let exit {
+                lock.unlock()
+                continuation.resume(returning: exit)
+            } else {
+                waiters.append(continuation)
+                lock.unlock()
+            }
+        }
+    }
+
+    func stop(_ result: Machine.Exit) {
+        lock.lock()
+        guard exit == nil else { lock.unlock(); return }
+        exit = result
+        let pending = waiters
+        waiters.removeAll()
+        lock.unlock()
+        for vcpu in vcpus { vcpu.halt() }
+        for waiter in pending { waiter.resume(returning: result) }
+    }
+
+    var stopping: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return exit != nil
+    }
+
+    // MARK: Guest image
+
+    /// Copies kernel, initramfs and device tree into guest RAM. Returns the kernel entry and the
+    /// device tree address, which the boot protocol passes in x0.
+    private func loadGuest() throws -> (kernel: UInt64, fdt: UInt64) {
+        // arm64 Image header: text_offset at 8, image_size at 16, magic "ARM\x64" at 56.
+        guard kernel.count > 64, kernel[56..<60] == Data("ARM\u{64}".utf8) else {
+            throw DMXError("guest_invalid", "the kernel is not an arm64 Image", hint: "run `make guest`")
+        }
+        let textOffset = kernel.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 8, as: UInt64.self) }
+        let imageSize = kernel.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 16, as: UInt64.self) }
+        let kernelAddr = HVLayout.ramBase + textOffset
+        let initrdAddr = alignUp(kernelAddr + max(imageSize, UInt64(kernel.count)), 2 << 20)
+        let fdtAddr = HVLayout.ramBase + ramSize - (2 << 20)
+        guard initrdAddr + UInt64(initramfs.count) < fdtAddr else {
+            throw DMXError("vm_error", "guest memory is too small for the kernel and initramfs")
+        }
+        copy(kernel, to: kernelAddr)
+        copy(initramfs, to: initrdAddr)
+        let fdt = deviceTree(initrd: initrdAddr..<(initrdAddr + UInt64(initramfs.count)))
+        guard fdt.count < 2 << 20 else { throw DMXError("vm_error", "device tree too large") }
+        copy(fdt, to: fdtAddr)
+        kernel = Data()
+        initramfs = Data()
+        return (kernelAddr, fdtAddr)
+    }
+
+    private func copy(_ data: Data, to guestAddress: UInt64) {
+        data.withUnsafeBytes { ram.advanced(by: Int(guestAddress - HVLayout.ramBase)).copyMemory(from: $0.baseAddress!, byteCount: data.count) }
+    }
+
+    static let baseKernelArgs = ["console=ttyAMA0", "earlycon=pl011,0x\(String(HVLayout.uart, radix: 16))", "swiotlb=noforce"]
+
+    private func deviceTree(initrd: Range<UInt64>) -> Data {
+        let gicPhandle: UInt32 = 1, clockPhandle: UInt32 = 2
+        let level: UInt32 = 4  // IRQ_TYPE_LEVEL_HIGH
+        func hi(_ v: UInt64) -> UInt32 { UInt32(v >> 32) }
+        func lo(_ v: UInt64) -> UInt32 { UInt32(truncatingIfNeeded: v) }
+        var distSize = 0
+        hv_gic_get_distributor_size(&distSize)
+
+        var t = FDT()
+        t.node("") { t in
+            t.property("compatible", string: "linux,dummy-virt")
+            t.property("#address-cells", u32: 2)
+            t.property("#size-cells", u32: 2)
+            t.property("interrupt-parent", u32: gicPhandle)
+
+            t.node("chosen") { t in
+                t.property("bootargs", string: (Self.baseKernelArgs + spec.kernelArgs).joined(separator: " "))
+                t.property("stdout-path", string: "/pl011@\(String(HVLayout.uart, radix: 16))")
+                t.property("linux,initrd-start", u64: initrd.lowerBound)
+                t.property("linux,initrd-end", u64: initrd.upperBound)
+            }
+            t.node("memory@\(String(HVLayout.ramBase, radix: 16))") { t in
+                t.property("device_type", string: "memory")
+                t.property("reg", u32: hi(HVLayout.ramBase), lo(HVLayout.ramBase), hi(ramSize), lo(ramSize))
+            }
+            t.node("cpus") { t in
+                t.property("#address-cells", u32: 1)
+                t.property("#size-cells", u32: 0)
+                for vcpu in vcpus {
+                    t.node("cpu@\(vcpu.index)") { t in
+                        t.property("device_type", string: "cpu")
+                        t.property("compatible", string: "arm,arm-v8")
+                        t.property("enable-method", string: "psci")
+                        t.property("reg", u32: UInt32(vcpu.mpidr & 0xff_ffff))
+                    }
+                }
+            }
+            t.node("psci") { t in
+                t.property("compatible", strings: ["arm,psci-0.2"])
+                t.property("method", string: "hvc")
+            }
+            t.node("intc@\(String(HVLayout.gicDistributor, radix: 16))") { t in
+                t.property("compatible", string: "arm,gic-v3")
+                t.property("#interrupt-cells", u32: 3)
+                t.property("interrupt-controller")
+                let redistSize = redistributorStride * UInt64(vcpus.count)
+                t.property("reg", u32: hi(HVLayout.gicDistributor), lo(HVLayout.gicDistributor), 0, UInt32(distSize),
+                           hi(redistributorBase), lo(redistributorBase), hi(redistSize), lo(redistSize))
+                t.property("phandle", u32: gicPhandle)
+            }
+            t.node("timer") { t in
+                t.property("compatible", string: "arm,armv8-timer")
+                // Secure, non-secure physical, virtual, hypervisor timer PPIs.
+                t.property("interrupts", u32: 1, 13, level, 1, 14, level, 1, 11, level, 1, 10, level)
+                t.property("always-on")
+            }
+            t.node("apb-pclk") { t in
+                t.property("compatible", string: "fixed-clock")
+                t.property("#clock-cells", u32: 0)
+                t.property("clock-frequency", u32: 24_000_000)
+                t.property("phandle", u32: clockPhandle)
+            }
+            t.node("pl011@\(String(HVLayout.uart, radix: 16))") { t in
+                t.property("compatible", strings: ["arm,pl011", "arm,primecell"])
+                t.property("reg", u32: hi(HVLayout.uart), lo(HVLayout.uart), 0, UInt32(HVLayout.uartSize))
+                t.property("interrupts", u32: 0, HVLayout.uartSPI, level)
+                t.property("clocks", u32: clockPhandle, clockPhandle)
+                t.property("clock-names", strings: ["uartclk", "apb_pclk"])
+            }
+        }
+        return t.finish()
+    }
+
+    // MARK: Exits
+
+    func mmioRead(_ address: UInt64, size: Int) -> UInt64? {
+        if (HVLayout.uart..<(HVLayout.uart + HVLayout.uartSize)).contains(address) {
+            return uart.read(offset: address - HVLayout.uart, size: size)
+        }
+        return nil
+    }
+
+    func mmioWrite(_ address: UInt64, size: Int, value: UInt64) -> Bool {
+        if (HVLayout.uart..<(HVLayout.uart + HVLayout.uartSize)).contains(address) {
+            uart.write(offset: address - HVLayout.uart, size: size, value: value)
+            return true
+        }
+        return false
+    }
+
+    func vcpu(mpidr: UInt64) -> VCPU? {
+        vcpus.first { $0.mpidr & 0xff_ffff == mpidr & 0xff_ffff }
+    }
+}
+
+func alignUp(_ value: UInt64, _ alignment: UInt64) -> UInt64 {
+    (value + alignment - 1) / alignment * alignment
+}
+
+func check(_ result: hv_return_t, _ what: String) throws {
+    guard result == HV_SUCCESS else {
+        throw DMXError("vm_error", "\(what) failed: \(String(format: "0x%08x", result))",
+                       hint: result == HV_DENIED ? "build with `make build`, which signs dmx with the hypervisor entitlement" : nil)
+    }
+}

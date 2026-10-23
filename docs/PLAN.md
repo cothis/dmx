@@ -98,11 +98,13 @@ maps itself, so dmx decides when it goes back to macOS. Needs macOS 15 (`hv_gic_
 Measure boot time and idle footprint at each step against the VZ numbers (8G: 181 MB, agent up in
 ~0.3 s).
 
-- [ ] Boot to a kernel console: `com.apple.security.hypervisor` entitlement; guest RAM from
+- [x] Boot to a kernel console (`dmx boot --vmm hvf`, `Sources/DMXCore/HV`): `com.apple.security.hypervisor` entitlement; guest RAM from
       `mmap` mapped with `hv_vm_map`; in-kernel GICv3 (`hv_gic`); a device tree (memory, cpus with
       PSCI, GIC, arch timer, PL011 UART, chosen with bootargs and initrd); the raw Image and the
       initramfs loaded into guest RAM; one thread per vCPU; exits for MMIO data aborts, PSCI over
       HVC (VERSION, CPU_ON, SYSTEM_OFF, SYSTEM_RESET), WFI and the vtimer. Console on a PL011.
+      10 vCPUs come up; shell prompt on ttyAMA0 0.18 to 0.57 s after start; idle CPU ~0%.
+      WFI waits are capped at 1 ms because SGIs between vCPUs are invisible to us; revisit.
 - [ ] virtio-mmio transport with split virtqueues, shared by every device. `/init` loads
       `virtio_mmio` (a module in the current kernel config) before the other virtio modules.
 - [ ] virtio-console (hvc0) for the debug console, and virtio-rng.
@@ -218,10 +220,10 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-Phase 3, first task: boot to a kernel console on our own VMM. Start a new `VMM` type in DMXCore
-beside the VZ `Machine` (switch over at the end of the phase), with a debug entry point such as
-`dmx boot --vmm hvf` until it reaches parity. First milestone: kernel log lines on the PL011.
-Raise the platform to macOS 15 and add `com.apple.security.hypervisor` to `dmx.entitlements`.
+Phase 3, second task: the virtio-mmio transport with split virtqueues (`Sources/DMXCore/HV`),
+then virtio-console and virtio-rng on it (third task). `/init` already loads `virtio_mmio`
+and falls back to ttyAMA0 while there is no hvc0. After that, virtio-vsock so the agent and the
+selftest run on the new VMM.
 
 ## Findings and measurements
 
@@ -251,6 +253,9 @@ Raise the platform to macOS 15 and add `com.apple.security.hypervisor` to `dmx.e
 | 2026-10-23 | Balloon on VZ (macOS 26.6.1, 16K and 4K guests, 8G) | Guest touched 1 GB and freed it: footprint 179 → 1205 MB. Target set to used + 256 MB: guest inflated 7.5 GB in ~1 s, footprint stayed 1205 MB for 40 s and after deflating. `footprint` shows guest RAM as dirty, 0 reclaimable. Resident fell (1234 → 854 MB) only because macOS compressed pages. Same with the stock 4K kernel. Matches [ArcBox](https://arcbox.dev/blog/macos-vm-memory-ratchet), [msl #37](https://github.com/onexay/msl/issues/37), [nagstaku/macos-container-vm-memory](https://github.com/nagstaku/macos-container-vm-memory). |
 | 2026-10-23 | Balloon and `init_on_alloc=1` (Alpine default) | Inflating zeroes each page it takes: footprint jumped 1205 → 7826 MB and stayed there. Never inflate with init_on_alloc on, whatever the VMM. |
 | 2026-10-23 | Save/restore on VZ (8G) | Save after 1 GB of random data was freed: 1088 MB file in 3.3 s (zero pages are skipped: 63 MB with a zero fill). Restore into a new VM process: 3.5 s, footprint 8301 MB, so the whole ceiling is backed. Restore needs the same `machineIdentifier` and a fixed MAC address (otherwise "invalid argument"). Not a reclaim path. |
+| 2026-10-23 | Own VMM (HVF), idle footprint of the dmx process, guest RAM included | 2G 126 MB, 8G 171 MB (VZ: 137 and 181 MB, not counting dmx itself). Shell prompt 0.18 to 0.57 s after start, 10 vCPUs. |
+| 2026-10-23 | Measuring an HVF VM | `footprint <pid>` leaves out guest pages dirtied through `hv_vm_map` (it showed 58 MB while the guest held 1 GB); `ri_phys_footprint` from `proc_pid_rusage` counts them and matches the drop in host free memory. Read the kernel and initramfs with `.alwaysMapped`: copies held in malloc cost 27 MB. |
+| 2026-10-23 | Hypervisor.framework GIC and MPIDR | The redistributor region is 32 MB (sized for the framework's maximum vCPUs), 128 KB per vCPU, handed out in vCPU creation order. MPIDR_EL1 starts at 0 on every vCPU; set it (Aff0 = index) or the kernel finds no redistributor. Linux traps OSLAR_EL1/OSDLR_EL1 at boot; ignoring them is fine. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -262,3 +267,4 @@ Raise the platform to macOS 15 and add `com.apple.security.hypervisor` to `dmx.e
 - 2026-10-23: Baseline at 8G down from 356 to 181 MB: no SWIOTLB, and a 16K page kernel built inside dmx.
 - 2026-10-23: Found that VZ's balloon and save/restore return no host memory. Balloon controller blocked on a VMM decision.
 - 2026-10-23: Maintainer decision: own VMM on Hypervisor.framework, written in Swift in DMXCore; macOS 15+; x86 images via QEMU binfmt. New phase 3; later phases renumbered.
+- 2026-10-23: dmx's own VMM boots the guest to a shell on 10 vCPUs, smaller than on VZ at idle.

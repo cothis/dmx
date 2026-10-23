@@ -13,7 +13,7 @@ echo "+cpu +memory +io +pids" >/sys/fs/cgroup/cgroup.subtree_control || echo "dm
 hostname dmx
 ip link set lo up
 
-for m in virtio_balloon vmw_vsock_virtio_transport virtio_rng; do
+for m in virtio_mmio virtio_balloon vmw_vsock_virtio_transport virtio_rng; do
 	modprobe "$m" || echo "dmx-init: modprobe $m failed" >&2
 done
 
@@ -26,7 +26,10 @@ done
 	done
 ) </dev/null >/dev/console 2>&1 &
 
-# Debug console on hvc0, independent of the agent.
+# Debug console, independent of the agent: hvc0 (virtio-console) when there is one, otherwise
+# the PL011 UART that dmx's own VMM provides.
+tty=/dev/hvc0
+[ -e "$tty" ] || tty=/dev/ttyAMA0
 while :; do
-	setsid -c /bin/sh -l </dev/hvc0 >/dev/hvc0 2>&1
+	setsid -c /bin/sh -l <"$tty" >"$tty" 2>&1 || sleep 1
 done

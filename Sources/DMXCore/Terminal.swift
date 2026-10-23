@@ -21,6 +21,11 @@ public final class RawTerminal {
 
 /// Copies stdin to the guest on a background thread. Calls `onEscape` when Ctrl-] is typed.
 public func forwardStdin(to guest: FileHandle, onEscape: @escaping @Sendable () -> Void) {
+    forwardStdin({ guest.write($0) }, onEscape: onEscape)
+}
+
+/// Like `forwardStdin(to:onEscape:)`, handing each chunk to `send`.
+public func forwardStdin(_ send: @escaping @Sendable (Data) -> Void, onEscape: @escaping @Sendable () -> Void) {
     let thread = Thread {
         var buffer = [UInt8](repeating: 0, count: 4096)
         while true {
@@ -36,11 +41,11 @@ public func forwardStdin(to guest: FileHandle, onEscape: @escaping @Sendable () 
             var chunk = buffer[0..<n]
             if let escape = chunk.firstIndex(of: 0x1d) {
                 chunk = chunk[..<escape]
-                guest.write(Data(chunk))
+                send(Data(chunk))
                 onEscape()
                 return
             }
-            guest.write(Data(chunk))
+            send(Data(chunk))
         }
     }
     thread.start()
