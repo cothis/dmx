@@ -276,6 +276,14 @@ func describe(_ s: DaemonStatus) -> String {
     if let host = s.hostFootprintMb {
         lines.append("  memory: host footprint \(host) MB" + (s.guestUsedMb.map { ", guest uses \($0) MB" } ?? ""))
     }
+    if let m = s.memory {
+        var parts = ["host pressure \(m.hostPressure)" + (m.pressureSimulated ? " (simulated)" : "")]
+        if let balloon = m.balloonMb, balloon > 0 || (m.balloonTargetMb ?? 0) > 0 {
+            parts.append("balloon \(balloon) of \(m.balloonTargetMb ?? 0) MB")
+        }
+        if let trim = m.lastTrim { parts.append("last trim \(formatElapsed(trim.secondsAgo)) ago (\(trim.reason), \(trim.freedMb) MB)") }
+        lines.append("  policy: " + parts.joined(separator: ", "))
+    }
     if let clients = s.clients, let execs = s.execs, s.state != "not_running" {
         lines.append("  clients: \(clients), execs: \(execs)")
     }

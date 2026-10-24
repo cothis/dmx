@@ -39,6 +39,8 @@ public final class Daemon {
     private var idleSince = ContinuousClock.now
     private var quietSince = ContinuousClock.now
     private var idleCheck: Task<Void, Never>?
+    /// Idle trims, host pressure and the balloon (MemoryController.swift).
+    private let memory = MemoryController()
 
     /// Takes the control socket from launchd when launchd started us, otherwise binds it.
     public init(paths: Paths, version: String) throws {
@@ -142,6 +144,13 @@ public final class Daemon {
                     claimVM()
                     try await exec(params, id: request.id, client: connection)
                     return usesVM
+                case "simulate_pressure":
+                    struct Params: Decodable { let level: MemoryController.Pressure? }
+                    guard let params = try? FrameConnection.decoder.decode(DaemonParams<Params>.self, from: payload).params else {
+                        throw DMXError("bad_request", "simulate_pressure: level must be normal, warning, critical or null")
+                    }
+                    memory.simulate(params.level)
+                    try connection.send(DaemonReply(id: request.id, result: await status()))
                 default:
                     throw DMXError("unknown_method", "the daemon has no method \"\(request.method)\"", hint: "update the daemon: `dmx stop`, then retry")
                 }
@@ -165,13 +174,15 @@ public final class Daemon {
         defer { session.connection.close() }
         try client.send(DaemonReply(id: id, result: ExecStarted(pid: session.pid)))
         execs += 1
-        defer { execs -= 1 }
+        memory.noteActivity()
+        defer { execs -= 1; memory.noteActivity() }
         await relay(client.fd, session.connection.fd)
     }
 
     private func status() async -> DaemonStatus {
-        var used: Int?
-        if state == .running, let stats = try? await agent?.stats() { used = Int(stats.memory.used >> 20) }
+        var guest: GuestMemory?
+        if state == .running { guest = try? await agent?.stats().memory }
+        let used = guest.map { Int($0.used >> 20) }
         let host = HostFootprint.read(pid: getpid())
         let others = max(clients - 1, 0)
         var idleStopIn: Int?
@@ -185,7 +196,8 @@ public final class Daemon {
             cpus: machine?.spec.cpus, maxMemory: machine.map { formatSize($0.spec.maxMemory) },
             guestUsedMb: used, hostFootprintMb: host?.footprintMb, hostPeakFootprintMb: host?.peakFootprintMb,
             clients: others, execs: execs, containers: nil, idleTimeoutS: idleTimeout, idleStopInS: idleStopIn,
-            socket: paths.controlSocket.path, consoleLog: paths.consoleLog.path)
+            socket: paths.controlSocket.path, consoleLog: paths.consoleLog.path,
+            memory: memory.status(guest: guest))
     }
 
     // MARK: VM lifecycle
@@ -232,6 +244,7 @@ public final class Daemon {
                 idleSince = .now
                 log("VM up in \(milliseconds(ContinuousClock.now - started)) ms (\(spec.cpus) cpus, \(formatSize(machine.spec.maxMemory)) max)")
                 watch(machine)
+                memory.attach(machine: machine, agent: agent)
                 scheduleIdleCheck()
                 return agent
             } catch {
@@ -257,6 +270,7 @@ public final class Daemon {
             let exit = await machine.waitUntilStopped()
             guard self.machine === machine, state == .running else { return }
             if case .failed(let error) = exit { log("VM failed: \(error.message)") } else { log("VM stopped by the guest") }
+            memory.detach()
             agent?.close()
             agent = nil
             self.machine = nil
@@ -290,6 +304,7 @@ public final class Daemon {
     private func powerOff() async {
         defer { stopping = nil }
         guard let machine else { state = .stopped; return }
+        memory.detach()
         let started = ContinuousClock.now
         let deadline = Task {
             try await Task.sleep(for: .seconds(10))
@@ -372,12 +387,12 @@ public final class Daemon {
     }
 }
 
-private func log(_ message: String) {
+func log(_ message: String) {
     let stamp = ISO8601DateFormatter().string(from: Date())
     FileHandle.standardError.write(Data("\(stamp) dmx-daemon: \(message)\n".utf8))
 }
 
-private func seconds(_ d: Duration) -> Double {
+func seconds(_ d: Duration) -> Double {
     Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
 }
 

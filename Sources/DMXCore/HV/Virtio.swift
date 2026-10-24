@@ -147,6 +147,7 @@ final class VirtioMMIO: MMIODevice, @unchecked Sendable {
     private var driverFeaturesSel: UInt32 = 0
     private var driverFeatures: UInt64 = 0
     private var queueSel: UInt32 = 0
+    private var configGeneration: UInt32 = 0
 
     init(device: VirtioDevice, ram: GuestRAM, irq: @escaping (Bool) -> Void) {
         self.device = device
@@ -159,6 +160,15 @@ final class VirtioMMIO: MMIODevice, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         interruptStatus |= 1
+        irq(true)
+    }
+
+    /// Tells the driver that the device configuration changed (interrupt status bit 1).
+    func signalConfigChange() {
+        lock.lock()
+        defer { lock.unlock() }
+        configGeneration &+= 1
+        interruptStatus |= 2
         irq(true)
     }
 
@@ -179,7 +189,7 @@ final class VirtioMMIO: MMIODevice, @unchecked Sendable {
         case 0x044: return selected?.ready == true ? 1 : 0
         case 0x060: return UInt64(interruptStatus)
         case 0x070: return UInt64(status)
-        case 0x0fc: return 0                      // config generation
+        case 0x0fc: return UInt64(configGeneration)
         default: return 0
         }
     }

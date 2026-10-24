@@ -44,14 +44,37 @@ command to run.
 | `stop` | none | status, once the VM is off |
 | `quit` | none | `{}`, then the daemon powers the VM off and exits (used by `dmx install`) |
 | `exec` | the agent's `exec` params | `pid`, then the connection carries the process's streams |
+| `simulate_pressure` | `level`: `normal`, `warning`, `critical`, or null for the host's real level again | status. For tests: the memory controller acts as if macOS reported that level. Does not count as using the VM. |
 
 `status` fields: `state` (`stopped`, `starting`, `running`, `stopping`), `pid` (the daemon, which
 is also the process guest memory is charged to), `version`, `launchd`, `uptime_s`, `cpus`,
 `max_memory`, `guest_used_mb`, `host_footprint_mb` and `host_peak_footprint_mb` (the daemon's
 `ri_phys_footprint`, guest RAM included), `clients` (other connections), `execs`, `containers`
 (null until Docker runs in the guest), `idle_timeout_s`, `idle_stop_in_s` (when nothing uses
-the VM), `socket`, `console_log`. `dmx status` prints `state: not_running` when no daemon
-answers.
+the VM), `socket`, `console_log`, `memory` (below). `dmx status` prints `state: not_running` when
+no daemon answers.
+
+`memory` fields: `host_pressure` (`normal`, `warning`, `critical`: macOS's level, as the controller
+sees it), `pressure_simulated`, `balloon_mb` and `balloon_target_mb` (what the guest gave back on
+request, and what was asked), `guest_cache_mb` (clean page cache), `guest_swap_mb` (zram in use),
+`reported_mb` (returned by free page reporting since boot), `trims`, and `last_trim` (`reason`,
+`seconds_ago`, `freed_mb`, `ms`). VM fields are null while the VM is stopped.
+
+## Memory controller
+
+Free page reporting returns what the guest frees by itself, within about 2 s. The daemon also:
+
+- trims the guest's clean page cache to 16 MB (`memory.reclaim`, file pages only) once the VM has
+  been idle for 30 s: no exec started or ended, and under 5 % of one CPU;
+- on macOS memory pressure (`DispatchSource.makeMemoryPressureSource`, and the level read with
+  `kern.memorystatus_vm_pressure_level`): at warning, trims at once and after 5 s of idle; at
+  critical, also pushes cold anonymous and tmpfs pages into zram and inflates the balloon to cap the
+  guest at what it uses plus 256 MB, following its use. After critical the cap loosens to 1 GB at
+  warning; at normal the balloon deflates;
+- turns zram swap on (agent `swap_on`) the first time the guest is squeezed or uses more than half
+  its ceiling, not at boot (it costs ~3.5 MB of guest memory).
+
+Each action is logged to the daemon log with a `memory:` prefix.
 
 ## exec
 
