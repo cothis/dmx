@@ -290,7 +290,9 @@ Done when: the guest can `wget` from the internet, a guest web server is reachab
 - [x] `dmx install` creates and selects a `docker context` named `dmx`; `dmx uninstall` removes it.
 - [x] Published ports follow Docker's start/die events like Docker Desktop: `-p 8080:80` on 0.0.0.0,
       `-p 127.0.0.1:...` on loopback; shown as `(docker)` in `dmx port ls`, never persisted.
-      Left: UDP, and failing `docker run` when the host port is taken.
+      UDP published ports too (one vsock stream per peer, datagrams framed). A taken host port fails
+      `docker run`/`compose up` with Docker Desktop's error: every docker.sock connection goes through
+      a proxy (`DockerProxy.swift`) that takes the ports before dockerd starts the container.
 - [x] Bind mounts through virtio-fs; default shares are Docker Desktop's (`/Users`, `/Volumes`,
       `/private`; dockerd sees `/tmp` and `/var/folders` as the Mac's). `host.docker.internal` and
       `gateway.docker.internal` answered by the NAT's DNS; `host-gateway` is the Mac.
@@ -298,14 +300,15 @@ Done when: the guest can `wget` from the internet, a guest web server is reachab
       checked) registered with binfmt_misc, flags `POCF` (Docker Desktop uses `CF`; `P` keeps
       argv[0]). Carried compressed in the initramfs and unpacked onto the data disk on first boot
       or a version change, so it uses guest RAM only while x86 code runs (+~2 MB idle; moves to
-      Docker's delivery later). 16K pages: msync, mincore, MADV_DONTNEED, MAP_FIXED|MAP_SHARED and
+      Docker's delivery later). Now carried at the end of docker.img instead (initramfs 3.1 → 2.1 MB). 16K pages: msync, mincore, MADV_DONTNEED, MAP_FIXED|MAP_SHARED and
       mprotect/munmap on single 4K pages misbehave (Findings). `make x86test`.
 - [x] `make dockertest` (`scripts/test-docker.py`, 33 checks): hello-world, `run -it`, build, compose
       with a volume, a published port and a bind mount, idle stop with Docker, the context.
 
 Done when: the test suite passes with the stock `docker` CLI.
-Result: passes with Homebrew's docker 29.9.1 and Compose 5.6.0. Left: restart policies bring
-containers back on the next Docker client rather than at boot; `docker build` uses the legacy
+Result: passes with Homebrew's docker 29.9.1 and Compose 5.6.0. Containers with a restart policy
+come back at boot (agent `docker_autostart` reads dockerd's records; no dockerd otherwise); dmx
+does not start at login, so after a Mac reboot they wait for the VM to boot. Earlier: `docker build` uses the legacy
 builder unless `docker-buildx` is installed. Now: BuildKit through dmx's Buildx; `make dockertest` uses
 only dmx's tools (43 checks).
 
@@ -366,11 +369,11 @@ only dmx's tools (43 checks).
 ## Next up
 
 Phase 7 is done. Open items, roughly in order of value:
-- Memory: reusable pages the guest re-dirties go uncounted (Findings, "Reusable pages"); ~10 MB
-  left after network traffic; qemu's copy in the initramfs (+2 MB idle) should move into
-  `docker.img` (agents `reuse` and `gaps` are on these). Plug state in `dmx status`; unplug
-  instead of balloon under critical host pressure.
-- Docker gaps: UDP published ports, failing on a taken host port, restart policies at boot.
+- Memory: plug state in `dmx status`; unplug (virtio-mem) instead of only the balloon under
+  critical host pressure.
+- `make sandboxtest` is flaky since the docker.sock proxy (agent `flaky` is on it).
+- Before a public release: compatibility of popular images with 16K pages, a comparison with
+  Docker Desktop, OrbStack and Colima on a quiet Mac, Developer ID signing.
 - Phase 10: guest artifacts as releases (GPL obligations noted there), an install script; no CI, no Homebrew.
 - Re-measure timings on a quiet host: most of today's numbers were taken at load 15 to 90.
 
@@ -462,6 +465,9 @@ Phase 7 is done. Open items, roughly in order of value:
 | 2026-10-24 | Guest download | Release guest archive 61.7 MB; download, check and unpack from a local server 0.3 to 0.6 s. Hashing with `FileHandle.read` left ~130 MB in the daemon (autoreleased chunks, no pool drains); one 1 MB buffer now. Daemon after a download: 10 MB with the VM stopped (4 MB otherwise), until it exits idle. |
 | 2026-10-24 | Sandboxes, load 10 to 28 | First create on a new data disk (boot, dockerd, pull) 6.2 to 6.9 s; create with the image present 0.21 to 0.53 s; exec `true` 35 to 52 ms; checkpoint 0.17 to 0.27 s (1.0 s with 3 MB changed, +3.8 MB per 4 MB written); rollback 0.25 to 0.36 s; fork 0.19 to 0.69 s; remove 0.09 to 0.14 s; a 10 s TTL removes it after 10.3 to 10.5 s with the client gone. Guest memory per idle sandbox 7 to 8 MB. Allowlist sandboxes still resolve any name (Docker's resolver runs outside the sandbox). |
 | 2026-10-24 | virtio-mem, load 8 to 50 | Idle footprint by ceiling, all memory at boot → virtio-mem: 2G 79 → 80, 4G 88 → 80, 8G 107 → 79, 16G 145 → 83 MB; guest reserved 32/41/59/95 → 27.5 MB. Idle: 1 GB boot + 256 MB plugged. Burst of 4 × 512 MB into tmpfs in 0.5 to 0.7 s: no OOM, lowest MemAvailable 425 MB, 1.9 GB plugged 60 ms after the request (~32 ms/GB); back to 1.25 GB present 30 s after deleting, footprint 79 to 90 MB. 10 × 200 MB: a fixed 1 GB headroom gave 7 OOM kills (plugging needs memory for its memmap and CPU from a guest busy reclaiming, ~700 ms); the rate-based step none. Idle CPU 0.12 % of a core (0.08 % before). Coordinator's run after merging: selftest 81 MB, daemontest 83, x86test 81, dockertest idle without Docker 67, dockerd idle 274. |
+| 2026-10-24 | Docker gaps, load 5 to 14 | qemu moved into docker.img: initramfs 3.10 → 2.06 MB; idle without Docker 92 to 94 vs 91 to 95 MB (no measurable difference). UDP: first reply 0.14 to 0.19 s after `docker run -d`; 2000 round trips at 190 to 300 µs; 200 new peers at once all answered. Restart policy: the container answers 1.0 to 1.2 s after `dmx start` returns, dockerd up in 170 to 190 ms. Proxy integrity: 50 MB through `docker run -i` and `docker exec -i`, checksums match. |
+| 2026-10-24 | Reused pages after free page reporting | `MADV_FREE_REUSABLE` pages the guest writes again stay uncounted until macOS reclaims them. Release now uses `MADV_ZERO` (after `hv_vm_unmap`; with stage 2 mapped it only zeroes in place), falling back to REUSABLE: 1 GB tmpfs refills 12 of 12 counted (1125 to 1128 MB) vs 5 of 12 up to 220 MB short; standalone 512 MB rewrite 514 MB vs 2 MB. Refill 0.26 to 0.44 s per GB (0.23 to 0.33), release of 512 MB 13 to 25 ms (7 to 16). A fault-driven alternative (`MADV_FREE_REUSE` on stage-2 abort) worked but cost 4 to 14 µs per exit. |
+| 2026-10-24 | Memory left after network traffic | Linux sizes mergeable rx buffers by the average frame: after bulk traffic each takes a 32 KB fragment, 256 posted = 8 MB with no meminfo counter. Receive ring 256 → 64: after 3 × 500 MB +5 to 6 MB footprint instead of +11 to 12; host → guest median 1.3 → 1.7 GB/s. |
 | 2026-10-24 | `dmx mcp` (stdio MCP), load 5 to 6 | `make mcptest` 5.3 to 6.3 s, 30 of 30 checks. Cold `dmx_exec uname -a` with no daemon 215 to 376 ms end to end; warm 0 to 2 ms. 200 MB of stdout capped to 8 KiB in 0.65 to 1.41 s; `dmx mcp` RSS 8 to 9 MB, 10 MB at peak. A 2 s timeout returns in 2.01 to 2.13 s with the guest processes gone. `tools/list` is 4.6 KB (3.8 KB without `outputSchema`). |
 | 2026-10-24 | Truncated exec output after a boot | `dmx stop`, an exec, then 200 MB of stdout: 5 to 6 of 40 runs ended with "daemon closed the connection mid-frame" (load 9 to 15); logging the shutdown path hid it. The guest sometimes sends RST right after its SHUTDOWN, and the host dropped the connection with up to 200 KB from the guest still unwritten to the full host socket. Now an RST on an open stream delivers what the guest sent, then closes: 0 of 50. Found by the `dmx mcp` tests. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
@@ -503,3 +509,4 @@ Phase 7 is done. Open items, roughly in order of value:
 - 2026-10-24: `dmx tools` (docker CLI, Compose, Buildx without Homebrew; BuildKit builds) and release groundwork (guest download, `make release`, install.sh) merged.
 - 2026-10-24: Phase 9 done: sandboxes with policies and TTLs, checkpoints, fork, rollback and logs, in the CLI and over MCP.
 - 2026-10-24: virtio-mem merged: the guest boots with 1 GB and plugs the rest on demand; idle ~80 MB at any ceiling (8G was 107, 16G 145).
+- 2026-10-24: Docker gaps closed (UDP ports, taken-port errors, restart policies at boot, qemu in docker.img); reused guest pages counted again (`MADV_ZERO`); smaller rx ring. daemontest updated for virtio-mem.

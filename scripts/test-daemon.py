@@ -153,7 +153,9 @@ def memory_checks(results):
 
     # Critical: zram swap goes on and the balloon caps the guest; normal deflates it.
     daemon_call("simulate_pressure", {"level": "critical"})
-    inflated = wait_for(lambda: (memory()[1].get("balloon_mb") or 0) > 1024, 15)
+    # With virtio-mem the guest holds only ~1.25 GB, so the balloon takes what is present above the
+    # cap (hundreds of MB), not most of the ceiling.
+    inflated = wait_for(lambda: (memory()[1].get("balloon_mb") or 0) >= 256, 15)
     fp, m = memory()
     results["memory_critical_footprint_mb"] = fp
     check("memory_balloon_on_critical", inflated and fp < idle + 64, f"footprint {fp} MB, {m}")
