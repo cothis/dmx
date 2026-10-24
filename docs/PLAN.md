@@ -182,15 +182,19 @@ This is the core feature. Measure before and after every change and log numbers 
       IMA, KFENCE; NR_CPUS 4096 → 64; THP default madvise. Built-in symbols 1579 → 1179, modules
       894 → 653. Build 2 h 21 min → 19 min. 8G 141 → 120 MB, 2G 109 → 87 MB, agent up in 140 to
       180 ms. Netfilter, bridge, veth, overlay, namespaces and all cgroup v2 controllers still work.
-- [ ] Memory controller in the daemon: free page reporting (phase 3) returns freed memory by
-      itself (with order 5 and the pcp cap only ~5 MB stays behind after the 1 GB test); the
-      controller inflates the balloon (config `num_pages`) only to squeeze the guest under host
-      pressure. Agent `stats.memory.balloon` exists. Never inflate with `init_on_alloc=1`: each
-      ballooned page gets zeroed, so backed.
-- [ ] Guest policy: trim page cache when idle (`drop_caches` or cgroup `memory.reclaim`), zram
-      swap with lz4, sensible `vm.*` sysctls. Done so far: transparent huge pages only on
-      `madvise` (a 32 MB THP per touched 32 MB region made sparse heaps cost their whole size).
-- [ ] Host pressure: `DispatchSource.makeMemoryPressureSource` shrinks the guest first.
+- [x] Memory controller in the daemon (`Daemon/MemoryController.swift`, [daemon-protocol.md](daemon-protocol.md)):
+      host pressure from `DispatchSource.makeMemoryPressureSource`. Normal: after 30 s with no exec
+      and the guest under 5 % of a CPU, trim clean page cache to 16 MB (`memory.reclaim` with
+      swappiness 0). Warning: trim at once, then after 5 s idle; after a critical spell the balloon
+      cap loosens to used + 1 GB. Critical: also push cold anonymous and tmpfs pages to zram and
+      inflate the balloon to cap the guest at used + 256 MB, re-checked every 2 s. Normal again:
+      deflate. `dmx status` shows a `memory` object; actions are logged with `memory:`.
+- [x] Guest policy: zram swap (lz4, a quarter of the ceiling) turned on by the agent the first time
+      the guest is squeezed or passes half its ceiling (at boot it costs ~3.5 MB);
+      `vm.swappiness=100` and `vm.page-cluster=0` with it. Transparent huge pages only on `madvise`.
+      `init_on_alloc` stays on: on dmx's VMM inflating costs CPU (~1.5 s for 7.8 GB), not memory.
+- [x] Host pressure drives the controller above. `memory_pressure -S` needs root, so tests use the
+      daemon's `simulate_pressure` method.
 
 Done when: idle VM host footprint is under 150 MB at an 8 GB ceiling, and after a container that
 uses 2 GB exits, footprint falls back within 10 s. Numbers recorded in the log.
@@ -280,11 +284,10 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-Phase 4's remaining tasks, now that the daemon exists: the memory controller in the daemon
-(balloon under host pressure), guest policy (trim page cache when idle, zram, `vm.*` sysctls),
-and host pressure (`DispatchSource.makeMemoryPressureSource`). Each needs a before/after
-measurement with `dmx status --json` and `make daemontest`. Phase 4's second "done when" half
-(a 2 GB container's memory back within 10 s) waits for containers (phase 7).
+Phase 6 is being merged from parallel worktrees (network merged next, then port forwarding, data
+disk, virtio-fs). Then phase 7 (Docker). Phase 4's last open item is the memmap that scales with
+the ceiling, and its "done when" second half (a 2 GB container's memory back within 10 s) waits
+for containers. Idle detection must count container activity once Docker runs.
 
 ## Findings and measurements
 
@@ -345,6 +348,12 @@ measurement with `dmx status --json` and `make daemontest`. Phase 4's second "do
 | 2026-10-24 | Streams through the daemon relay | 500 MB guest stdout into `wc -c`: 2.1 s (~240 MB/s); 300 MB stdin into `md5sum`: 0.95 s, checksum matches. Footprint after both 123 to 127 MB (idle 116), guest used unchanged: the same +11 MB of guest pages as streaming through `dmx boot --` (see the vsock rows); the daemon's own malloc 5.5 MB. |
 | 2026-10-24 | launchd socket activation | With `ThrottleInterval` 1 and the daemon lingering 10 s, relaunch on the next connection is immediate (`dmx status` 33 ms including the start). `launch_activate_socket` is missing from Swift's Darwin module; it is looked up with `dlsym`. |
 | 2026-10-24 | Signals in the guest | `/proc/<pid>/status` SigIgn 0x6 for every exec'd process: `/init` starts the agent in `( ... ) &`, and POSIX shells start background jobs with SIGINT and SIGQUIT ignored, which survives exec. Ctrl-C reached the pty but killed nothing. |
+| 2026-10-24 | Idle footprint with the memory controller | 112 to 116 MB over 8 boots (113 to 115 before); selftest 115 to 116 MB. |
+| 2026-10-24 | Idle trim of 1.5 GB clean page cache | Before: stayed at 1653 MB until idle stop. Now trimmed 33 s after the last exec; reclaim 10 ms; footprint 1653 → 134 MB within 3 s. Under warning: 512 MB trimmed in 2.0 to 2.2 s, idle trim 7.5 to 8.2 s after the exec. |
+| 2026-10-24 | Simulated critical, guest holding 1 GB tmpfs + 512 MB cache | Footprint 1639 → 1147 MB in 1 s, then 1010 MB; 525 MB of tmpfs into zram (lz4 1.3x on copied binaries). Balloon took 6.9 GB in under 2 s and gave it back in under 2 s at normal, footprint unchanged by either. 1.5 GB more into tmpfs under the cap: no OOM kill, the balloon target followed use. |
+| 2026-10-24 | Balloon and `init_on_alloc` on dmx's VMM | Inflating 7.8 GB with init_on_alloc on: ~1.5 s CPU, ~2 s wall, peak +2 MB, nothing lasting (each 1 MB batch is released as it arrives); off: ~0.3 s CPU. The VZ rule "never inflate with init_on_alloc" does not apply here. |
+| 2026-10-24 | zram swap at idle | 2 GB disksize costs 3.7 MB of guest memory (table and swap maps), +1 to 3 MB footprint: turned on on demand. |
+| 2026-10-24 | Footprint under real host pressure | At critical one reading was 217 MB while the guest held 1.6 GB: macOS swapped guest pages out and `ri_phys_footprint` drops them. Compare footprints only at normal or simulated pressure. |
 | 2026-10-24 | `dmx mcp` (stdio MCP), load 5 to 6 | `make mcptest` 5.3 to 6.3 s, 30 of 30 checks. Cold `dmx_exec uname -a` with no daemon 215 to 376 ms end to end; warm 0 to 2 ms. 200 MB of stdout capped to 8 KiB in 0.65 to 1.41 s; `dmx mcp` RSS 8 to 9 MB, 10 MB at peak. A 2 s timeout returns in 2.01 to 2.13 s with the guest processes gone. `tools/list` is 4.6 KB (3.8 KB without `outputSchema`). |
 | 2026-10-24 | Truncated exec output after a boot | `dmx stop`, an exec, then 200 MB of stdout: 5 to 6 of 40 runs ended with "daemon closed the connection mid-frame" (load 9 to 15); logging the shutdown path hid it. The guest sometimes sends RST right after its SHUTDOWN, and the host dropped the connection with up to 200 KB from the guest still unwritten to the full host socket. Now an RST on an open stream delivers what the guest sent, then closes: 0 of 50. Found by the `dmx mcp` tests. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
@@ -373,3 +382,4 @@ measurement with `dmx status --json` and `make daemontest`. Phase 4's second "do
 - 2026-10-24: Phase 5 done. `dmx daemon` boots the VM on first use and stops it when idle; `dmx exec`, `shell`, `start`, `stop`, `status`, `config`, `install` (launchd socket activation). Ctrl-C now reaches guest processes.
 - 2026-10-24: `make install`. Phase 4 memory work and phases 6 and 9 started in parallel worktrees.
 - 2026-10-24: `dmx mcp` merged: AI clients run commands in the VM over MCP with capped output. Fixed truncated exec output after a vsock reset.
+- 2026-10-24: Memory controller merged: idle page cache trims, zram on demand, balloon under host pressure. Phase 4 tasks done except the memmap.
