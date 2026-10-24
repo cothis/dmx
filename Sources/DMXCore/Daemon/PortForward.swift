@@ -78,6 +78,8 @@ public struct PortForwardStatus: Codable, Sendable {
     /// Connections open now, and accepted since the daemon started.
     public let connections: Int
     public let totalConnections: Int
+    /// `docker` for a port a container publishes (forwarded while it runs, never saved), else nil.
+    public var source: String? = nil
 }
 
 public struct PortList: Codable, Sendable {
@@ -107,7 +109,8 @@ final class PortForwards {
 
     init(paths: Paths) { self.paths = paths }
 
-    var isEmpty: Bool { listeners.isEmpty }
+    /// Whether no saved forward exists, so the daemon need not stay up to listen.
+    var isEmpty: Bool { !listeners.contains { !$0.docker } }
 
     /// Listens on every saved forward. A port that cannot be listened on stays in the list with
     /// its error (`dmx port ls`) until it is removed.
@@ -135,6 +138,32 @@ final class PortForwards {
     /// connections already open end with the VM.
     func stop() {
         for listener in listeners { listener.close() }
+    }
+
+    /// Makes the forwards that follow Docker's published ports (Docker.swift) exactly `wanted`.
+    /// They are not saved: they last while their containers run, which needs the VM. A port that
+    /// overlaps a `dmx port` forward or cannot be listened on is logged and left out.
+    func setDockerForwards(_ wanted: [PortForward]) {
+        for listener in listeners where listener.docker && !wanted.contains(listener.forward) {
+            listener.close()
+            log("stopped forwarding \(listener.forward.hostEndpoint) (docker)")
+        }
+        listeners.removeAll { $0.docker && !wanted.contains($0.forward) }
+        for forward in wanted where !listeners.contains(where: { $0.docker && $0.forward == forward }) {
+            if let taken = listeners.first(where: { $0.forward.overlaps(forward) }) {
+                log("port \(forward.hostEndpoint) (docker): \(taken.forward.hostEndpoint) is forwarded already (`dmx port`)")
+                continue
+            }
+            let listener = Listener(forward, docker: true)
+            do {
+                try listen(listener)
+            } catch {
+                log("port \(forward.hostEndpoint) (docker): \((error as? DMXError)?.message ?? "\(error)")")
+                continue
+            }
+            listeners.append(listener)
+            log("forwarding \(forward.hostEndpoint) to guest port \(forward.guestPort) (docker)")
+        }
     }
 
     /// Listens on a new forward and saves it. Does not boot the VM.
@@ -184,7 +213,7 @@ final class PortForwards {
         encoder.keyEncodingStrategy = .convertToSnakeCase
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         do {
-            try (encoder.encode(listeners.map(\.forward)) + Data("\n".utf8)).write(to: paths.ports, options: .atomic)
+            try (encoder.encode(listeners.filter { !$0.docker }.map(\.forward)) + Data("\n".utf8)).write(to: paths.ports, options: .atomic)
         } catch {
             throw DMXError("daemon_error", "cannot save \(paths.ports.path): \(error.localizedDescription)", hint: "check that \(paths.home.path) is writable")
         }
@@ -274,13 +303,18 @@ final class PortForwards {
 @MainActor
 private final class Listener {
     let forward: PortForward
+    /// Follows a port a container publishes; not saved.
+    let docker: Bool
     var source: DispatchSourceRead?
     var error: String?
     var active = 0, total = 0
     /// Accepting is suspended for a moment after running out of descriptors.
     var paused = false
 
-    init(_ forward: PortForward) { self.forward = forward }
+    init(_ forward: PortForward, docker: Bool = false) {
+        self.forward = forward
+        self.docker = docker
+    }
 
     func close() {
         if paused { source?.resume() }
@@ -291,7 +325,8 @@ private final class Listener {
 
     var status: PortForwardStatus {
         PortForwardStatus(hostAddress: forward.hostAddress, hostPort: forward.hostPort, guestPort: forward.guestPort,
-                          listening: source != nil, error: error, connections: active, totalConnections: total)
+                          listening: source != nil, error: error, connections: active, totalConnections: total,
+                          source: docker ? "docker" : nil)
     }
 }
 
@@ -355,15 +390,16 @@ private func accepts(_ address: sockaddr_in) -> Bool {
 }
 
 extension AgentClient {
-    /// Opens a TCP connection to `port` in the guest (on `host`, loopback by default). From now
-    /// on the returned connection carries the TCP stream's bytes, unframed; close it when done.
+    /// Opens a TCP connection to `port` in the guest (on `host`, loopback by default), or to the
+    /// Unix socket at `path`. From now on the returned connection carries the stream's bytes,
+    /// unframed; close it when done.
     @MainActor
-    func connect(port: Int, host: String? = nil) async throws -> FrameConnection {
-        struct Params: Encodable, Sendable { let port: Int; let host: String? }
+    func connect(port: Int? = nil, host: String? = nil, path: String? = nil) async throws -> FrameConnection {
+        struct Params: Encodable, Sendable { let port: Int?; let host: String?; let path: String? }
         struct Connected: Decodable {}
         let connection = try await openRetrying()
         do {
-            let _: Connected = try await connection.call("connect", Params(port: port, host: host))
+            let _: Connected = try await connection.call("connect", Params(port: port, host: host, path: path))
         } catch {
             connection.close()
             throw error

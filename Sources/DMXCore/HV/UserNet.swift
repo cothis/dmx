@@ -208,6 +208,13 @@ final class UserNet: @unchecked Sendable {
         let length = Int(p.u16(4))
         guard length >= 8, length <= p.count else { return }
         let key = FlowKey(guestPort: p.u16(0), remote: destination, remotePort: p.u16(2))
+        if destination == Self.gateway, key.remotePort == 53,
+           let answer = LocalDNS.answer(UnsafeRawBufferPointer(rebasing: p[8..<length])) {
+            var header: [UInt8] = []
+            header.be16(53); header.be16(key.guestPort); header.be16(UInt16(8 + answer.count)); header.be16(0)
+            answer.withUnsafeBytes { device.send(ipv4Frame(protocol: 17, from: destination, transport: header, payload: $0)) }
+            return
+        }
         let flow: UDPFlow
         if let existing = udp[key] {
             flow = existing

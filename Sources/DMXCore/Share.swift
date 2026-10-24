@@ -13,8 +13,11 @@ public struct Share: Sendable, Equatable {
         self.readOnly = readOnly
     }
 
-    /// The default: the user's home directory, read-write.
-    public static var defaults: [Share] { [Share(path: NSHomeDirectory())] }
+    /// The default, Docker Desktop's: /Users, /Volumes and /private, read-write. Docker Desktop
+    /// also lists /tmp and /var/folders, which on macOS are links into /private; dockerd sees
+    /// them at their own paths (guest/docker), so `docker run -v /tmp/x:/x` names the Mac's
+    /// /tmp/x. The rest of the guest keeps its own /tmp.
+    public static var defaults: [Share] { ["/Users", "/Volumes", "/private"].map { Share(path: $0) } }
 
     /// Guest directories a share must not cover: the guest's own system and the data disk.
     static let reserved = ["/bin", "/dev", "/etc", "/lib", "/proc", "/run", "/sbin", "/sys", "/usr", "/var/lib"]

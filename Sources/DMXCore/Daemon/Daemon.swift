@@ -43,6 +43,8 @@ public final class Daemon {
     private let memory = MemoryController()
     /// Host ports forwarded to the guest (`dmx port`); see PortForward.swift.
     private let ports: PortForwards
+    /// `~/.dmx/docker.sock` and the containers behind it; see Docker.swift.
+    private let docker: DockerBridge
 
     /// Takes the control socket from launchd when launchd started us, otherwise binds it.
     public init(paths: Paths, version: String) throws {
@@ -59,6 +61,7 @@ public final class Daemon {
         }
         idleTimeout = (try? Config.load(paths))?.idleTimeoutSeconds ?? Config.defaultIdleTimeout
         ports = PortForwards(paths: paths)
+        docker = DockerBridge(paths: paths, ports: ports)
     }
 
     /// Serves until the daemon decides to exit (idle, `quit`, SIGTERM or SIGINT).
@@ -81,10 +84,16 @@ public final class Daemon {
             signalSources.append(s)
         }
         // A forwarded connection uses the VM like an exec does: it boots it and holds off idle stop.
-        ports.start(agent: { [unowned self] in try await running() }) { [unowned self] open in
+        // So does a Docker client's connection, and so does a running container.
+        let using: @MainActor (Bool) -> Void = { [unowned self] open in
             users += open ? 1 : -1
             if users == 0 { idleSince = .now }
             memory.noteActivity()
+            scheduleIdleCheck()
+        }
+        ports.start(agent: { [unowned self] in try await running() }, using: using)
+        docker.start(agent: { [unowned self] in try await running() }, using: using) { [unowned self] in
+            if users == 0 && !docker.busy { idleSince = .now }
             scheduleIdleCheck()
         }
         log("listening on \(paths.controlSocket.path) (\(launchd ? "launchd" : "standalone"), pid \(getpid()))")
@@ -139,6 +148,7 @@ public final class Daemon {
                     _ = try await running()
                     try connection.send(DaemonReply(id: request.id, result: await status()))
                 case "stop":
+                    docker.used = false  // a daemon the CLI started may exit again
                     await stopVM(reason: "stop requested")
                     try connection.send(DaemonReply(id: request.id, result: await status()))
                 case "port_add", "port_rm", "port_ls":
@@ -198,7 +208,7 @@ public final class Daemon {
         let host = HostFootprint.read(pid: getpid())
         let others = max(clients - 1, 0)
         var idleStopIn: Int?
-        if state == .running, users == 0 {
+        if state == .running, users == 0, !docker.busy {
             let left = Duration.seconds(idleTimeout) - (ContinuousClock.now - idleSince)
             idleStopIn = max(Int(left.components.seconds), 0)
         }
@@ -207,9 +217,9 @@ public final class Daemon {
             uptimeS: bootedAt.map { (seconds(ContinuousClock.now - $0) * 10).rounded() / 10 },
             cpus: machine?.spec.cpus, maxMemory: machine.map { formatSize($0.spec.maxMemory) },
             guestUsedMb: used, hostFootprintMb: host?.footprintMb, hostPeakFootprintMb: host?.peakFootprintMb,
-            clients: others, execs: execs, containers: nil, idleTimeoutS: idleTimeout, idleStopInS: idleStopIn,
+            clients: others, execs: execs, containers: docker.containers, idleTimeoutS: idleTimeout, idleStopInS: idleStopIn,
             socket: paths.controlSocket.path, consoleLog: paths.consoleLog.path,
-            memory: memory.status(guest: guest), disk: DataDisk.usage(paths.dataDisk))
+            memory: memory.status(guest: guest), disk: DataDisk.usage(paths.dataDisk), dockerSocket: paths.dockerSocket.path)
     }
 
     // MARK: VM lifecycle
@@ -243,6 +253,9 @@ public final class Daemon {
                 var spec = try config.spec
                 spec.kernelArgs.append("quiet")
                 spec.dataDisk = DataDisk(url: paths.dataDisk, size: try config.diskSizeBytes)
+                if FileManager.default.fileExists(atPath: paths.dockerImage.path) {
+                    spec.extraDisks = [DataDisk(url: paths.dockerImage, size: 0, readOnly: true, id: "dmx-docker")]
+                }
                 FileManager.default.createFile(atPath: paths.consoleLog.path, contents: nil)
                 let console = try FileHandle(forWritingTo: paths.consoleLog)
                 let machine = try Machine(spec: spec, paths: paths, console: console)
@@ -284,6 +297,7 @@ public final class Daemon {
             guard self.machine === machine, state == .running else { return }
             if case .failed(let error) = exit { log("VM failed: \(error.message)") } else { log("VM stopped by the guest") }
             memory.detach()
+            docker.vmStopped()
             agent?.close()
             agent = nil
             self.machine = nil
@@ -318,6 +332,7 @@ public final class Daemon {
         defer { stopping = nil }
         guard let machine else { state = .stopped; return }
         memory.detach()
+        docker.vmStopped()
         let started = ContinuousClock.now
         let deadline = Task {
             try await Task.sleep(for: .seconds(10))
@@ -348,9 +363,9 @@ public final class Daemon {
         guard !exiting else { return }
         let deadline: ContinuousClock.Instant
         switch state {
-        case .running where users == 0:
+        case .running where users == 0 && !docker.busy:
             deadline = idleSince + .seconds(idleTimeout)
-        case .stopped where clients == 0 && ports.isEmpty:
+        case .stopped where clients == 0 && ports.isEmpty && !docker.keepsDaemon:
             deadline = quietSince + Self.linger
         default:
             return
@@ -359,9 +374,9 @@ public final class Daemon {
             try? await Task.sleep(until: deadline, clock: .continuous)
             guard !Task.isCancelled else { return }
             switch state {
-            case .running where users == 0:
+            case .running where users == 0 && !docker.busy:
                 await stopVM(reason: "idle for \(formatDuration(idleTimeout))")
-            case .stopped where clients == 0 && ports.isEmpty:
+            case .stopped where clients == 0 && ports.isEmpty && !docker.keepsDaemon:
                 await shutdown()
             default:
                 break
@@ -378,6 +393,7 @@ public final class Daemon {
         accepting = nil
         idleCheck?.cancel()
         ports.stop()
+        docker.stop()
         await stopVM(reason: "daemon exiting")
         if !launchd {
             unlink(paths.controlSocket.path)
@@ -453,16 +469,17 @@ private func pump(from: Int32, to: Int32) -> Bool {
     }
 }
 
-/// The socket launchd opened for us (`Sockets.Listeners` in the plist), or nil when launchd did
-/// not start this process. `launch_activate_socket` is not in Swift's Darwin module.
-private func launchdSocket() throws -> Int32? {
+/// The socket launchd opened for us (`Sockets.<name>` in the plist), or nil when launchd did
+/// not start this process or the plist has no such socket (an install from an older dmx).
+/// `launch_activate_socket` is not in Swift's Darwin module.
+func launchdSocket(_ name: String = "Listeners") throws -> Int32? {
     typealias Activate = @convention(c) (UnsafePointer<CChar>, UnsafeMutablePointer<UnsafeMutablePointer<Int32>?>, UnsafeMutablePointer<Int>) -> Int32
     guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "launch_activate_socket") else { return nil }
     let activate = unsafeBitCast(symbol, to: Activate.self)
     var fds: UnsafeMutablePointer<Int32>?
     var count = 0
-    let result = activate("Listeners", &fds, &count)
-    if result == ESRCH { return nil }
+    let result = activate(name, &fds, &count)
+    if result == ESRCH || result == ENOENT { return nil }
     guard result == 0, let fds, count > 0 else {
         throw DMXError("daemon_error", "launch_activate_socket: \(String(cString: strerror(result)))", hint: "run `dmx install` again")
     }
@@ -471,7 +488,7 @@ private func launchdSocket() throws -> Int32? {
 }
 
 /// Binds and listens on a Unix socket only this user can reach.
-private func listenUnix(_ url: URL) throws -> Int32 {
+func listenUnix(_ url: URL) throws -> Int32 {
     var address = try unixAddress(url)
     let fd = socket(AF_UNIX, SOCK_STREAM, 0)
     guard fd >= 0 else { throw DMXError("daemon_error", "socket: \(String(cString: strerror(errno)))") }

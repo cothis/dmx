@@ -9,8 +9,8 @@ public struct Config: Codable, Sendable, Equatable {
     public var memory: String?
     /// Seconds without clients before the VM stops; default 300.
     public var idleTimeout: Int?
-    /// Host directories shared at the same path in the guest (`Share.text` forms); default the
-    /// home directory. An empty list shares nothing.
+    /// Host directories shared at the same path in the guest (`Share.text` forms); default
+    /// Docker Desktop's list (`Share.defaults`). An empty list shares nothing.
     public var shares: [String]?
 
     /// Size of the data disk when it is created, e.g. "64G": a ceiling, the image is sparse.

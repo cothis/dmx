@@ -119,7 +119,10 @@ func runExec(_ global: GlobalOptions, argv: [String], tty: Bool, env: [String], 
 struct Install: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Let launchd start the daemon when a client connects, from now on and after login.",
-        discussion: "Without it, dmx commands start the daemon themselves. Run it again after moving the dmx binary."
+        discussion: """
+            launchd then also listens on ~/.dmx/docker.sock, and the docker context `dmx` (pointing there) is created and selected. \
+            Without it, dmx commands start the daemon themselves. Run it again after moving the dmx binary.
+            """
     )
 
     @OptionGroup var global: GlobalOptions
@@ -128,7 +131,9 @@ struct Install: AsyncParsableCommand {
     func run() async throws {
         try await report(global) {
             let result = try await LaunchAgent.install(paths: Paths())
-            return (result, "installed \(result.label): \(result.plist)\n  socket \(result.socket), daemon pid \(result.daemonPid.map(String.init) ?? "-")", true)
+            var text = "installed \(result.label): \(result.plist)\n  socket \(result.socket), daemon pid \(result.daemonPid.map(String.init) ?? "-")"
+            if let context = result.dockerContext { text += "\n  docker context \(context.name) (\(context.host)) selected" }
+            return (result, text, true)
         }
     }
 }
@@ -288,6 +293,9 @@ func describe(_ s: DaemonStatus) -> String {
     }
     if let disk = s.disk {
         lines.append("  disk: \(disk.path), \(formatSize(UInt64(disk.sizeMb) << 20)) max, \(disk.allocatedMb) MB used on the host")
+    }
+    if let socket = s.dockerSocket {
+        lines.append("  docker: \(socket)" + (s.containers.map { ", \($0) running container\($0 == 1 ? "" : "s")" } ?? ""))
     }
     if let clients = s.clients, let execs = s.execs, s.state != "not_running" {
         lines.append("  clients: \(clients), execs: \(execs)")

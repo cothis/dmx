@@ -29,7 +29,8 @@ public struct DaemonStatus: Codable, Sendable {
     /// Connections to the daemon other than the one asking, exec sessions included.
     public let clients: Int?
     public let execs: Int?
-    /// Docker containers; nil until the guest runs Docker (phase 7).
+    /// Running Docker containers; nil until a Docker client has used the VM since it booted.
+    /// While any runs, the VM does not stop for being idle.
     public let containers: Int?
     public let idleTimeoutS: Int
     /// Seconds until the VM stops for being idle, when nothing is using it.
@@ -40,6 +41,8 @@ public struct DaemonStatus: Codable, Sendable {
     public var memory: MemoryStatus? = nil
     /// The data disk image on the host; nil until the first boot creates it.
     public var disk: DiskUsage? = nil
+    /// The Docker API socket (`DOCKER_HOST=unix://...`, or the `dmx` docker context).
+    public var dockerSocket: String? = nil
 
     public static func notRunning(_ paths: Paths, config: Config) -> DaemonStatus {
         DaemonStatus(state: "not_running", pid: nil, version: nil, launchd: nil, uptimeS: nil, cpus: nil,
