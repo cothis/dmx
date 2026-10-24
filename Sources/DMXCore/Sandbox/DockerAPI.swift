@@ -26,6 +26,11 @@ final class DockerStream: @unchecked Sendable {
         lock.withLock { if !closed { _ = Darwin.shutdown(fd, SHUT_RDWR) } }
     }
 
+    /// Tells dockerd the input is done.
+    func shutdownWrite() {
+        lock.withLock { if !closed { _ = Darwin.shutdown(fd, SHUT_WR) } }
+    }
+
     func writeAll(_ data: Data) throws {
         try data.withUnsafeBytes { buf in
             var offset = 0

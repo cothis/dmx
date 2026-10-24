@@ -58,22 +58,31 @@ extension Sandboxes {
                 guard (try? stream.writeAll(stdin[offset..<end])) != nil else { return }
                 offset = end
             }
-            _ = Darwin.shutdown(stream.fd, SHUT_WR)
+            stream.shutdownWrite()
         }
-        defer { feed.cancel() }
 
-        try await withTaskCancellationHandler {
-            _ = try await onThread {
-                var frames = DockerFrames()
-                for (s, data) in frames.feed(rest) { output(s, data) }
-                while true {
-                    guard let chunk = try? stream.read(), !chunk.isEmpty else { return }
-                    for (s, data) in frames.feed(chunk) { output(s, data) }
+        do {
+            try await withTaskCancellationHandler {
+                _ = try await onThread {
+                    var frames = DockerFrames()
+                    for (s, data) in frames.feed(rest) { output(s, data) }
+                    while true {
+                        guard let chunk = try? stream.read(), !chunk.isEmpty else { return }
+                        for (s, data) in frames.feed(chunk) { output(s, data) }
+                    }
                 }
+            } onCancel: {
+                killer.kill(timedOut: false)
             }
-        } onCancel: {
-            killer.kill(timedOut: false)
+        } catch {
+            stream.shutdown()
+            await feed.value
+            throw error
         }
+        // The output ended, maybe before all of stdin went in: wake a write still blocked and let
+        // the feeder finish before the deferred close, so it never writes to a reused descriptor.
+        stream.shutdown()
+        await feed.value
 
         if killer.killed {
             await kill(execID)
