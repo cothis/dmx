@@ -255,10 +255,16 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ### Phase 9: AI native
 
-- [ ] `dmx mcp` (stdio MCP server) on top of DMXCore: status, run, exec, logs, stop, sandbox tools.
+- [x] `dmx mcp` (`Sources/DMXCore/MCP`, [mcp.md](mcp.md)): stdio JSON-RPC serving MCP 2026-07-28
+      (`server/discover`, per-request `_meta`) and the `initialize` revisions 2024-11-05 to
+      2025-11-25. Tools `dmx_exec`, `dmx_status`, `dmx_start`, `dmx_stop`, `dmx_config_get`,
+      `dmx_config_set`. One daemon connection per call, so idle stop still works. `make mcptest`.
+      Still to come: logs and sandbox tools.
 - [ ] Sandboxes: disposable environments with a policy (allowed host paths, network egress allowlist, cpu/memory limits, TTL).
 - [ ] Checkpoints: snapshot and roll back an environment; fork one to try two approaches.
-- [ ] Output limits and summaries so large logs do not flood an agent's context.
+- [x] Output limits: head and tail per stream (default 8 KiB, at most 1 MiB), cut on UTF-8
+      boundaries, with a marker giving the bytes left out and totals; bounded memory while reading.
+      Timeout and cancellation kill the guest process group. Summaries are still to do.
 
 ### Phase 10: Release
 
@@ -339,6 +345,7 @@ measurement with `dmx status --json` and `make daemontest`. Phase 4's second "do
 | 2026-10-24 | Streams through the daemon relay | 500 MB guest stdout into `wc -c`: 2.1 s (~240 MB/s); 300 MB stdin into `md5sum`: 0.95 s, checksum matches. Footprint after both 123 to 127 MB (idle 116), guest used unchanged: the same +11 MB of guest pages as streaming through `dmx boot --` (see the vsock rows); the daemon's own malloc 5.5 MB. |
 | 2026-10-24 | launchd socket activation | With `ThrottleInterval` 1 and the daemon lingering 10 s, relaunch on the next connection is immediate (`dmx status` 33 ms including the start). `launch_activate_socket` is missing from Swift's Darwin module; it is looked up with `dlsym`. |
 | 2026-10-24 | Signals in the guest | `/proc/<pid>/status` SigIgn 0x6 for every exec'd process: `/init` starts the agent in `( ... ) &`, and POSIX shells start background jobs with SIGINT and SIGQUIT ignored, which survives exec. Ctrl-C reached the pty but killed nothing. |
+| 2026-10-24 | `dmx mcp` (stdio MCP), load 5 to 6 | `make mcptest` 5.3 to 6.3 s, 30 of 30 checks. Cold `dmx_exec uname -a` with no daemon 215 to 376 ms end to end; warm 0 to 2 ms. 200 MB of stdout capped to 8 KiB in 0.65 to 1.41 s; `dmx mcp` RSS 8 to 9 MB, 10 MB at peak. A 2 s timeout returns in 2.01 to 2.13 s with the guest processes gone. `tools/list` is 4.6 KB (3.8 KB without `outputSchema`). |
 | 2026-10-24 | Truncated exec output after a boot | `dmx stop`, an exec, then 200 MB of stdout: 5 to 6 of 40 runs ended with "daemon closed the connection mid-frame" (load 9 to 15); logging the shutdown path hid it. The guest sometimes sends RST right after its SHUTDOWN, and the host dropped the connection with up to 200 KB from the guest still unwritten to the full host socket. Now an RST on an open stream delivers what the guest sent, then closes: 0 of 50. Found by the `dmx mcp` tests. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
@@ -365,3 +372,4 @@ measurement with `dmx status --json` and `make daemontest`. Phase 4's second "do
 - 2026-10-24: Kept kernel text protected in the linear map (no `rodata=noalias`); idle 115 MB at 8G.
 - 2026-10-24: Phase 5 done. `dmx daemon` boots the VM on first use and stops it when idle; `dmx exec`, `shell`, `start`, `stop`, `status`, `config`, `install` (launchd socket activation). Ctrl-C now reaches guest processes.
 - 2026-10-24: `make install`. Phase 4 memory work and phases 6 and 9 started in parallel worktrees.
+- 2026-10-24: `dmx mcp` merged: AI clients run commands in the VM over MCP with capped output. Fixed truncated exec output after a vsock reset.
