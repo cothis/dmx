@@ -42,6 +42,10 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
     try? FileManager.default.removeItem(at: scratchDisk)
     defer { try? FileManager.default.removeItem(at: scratchDisk) }
     spec.dataDisk = DataDisk(url: scratchDisk, size: Config.defaultDiskSize)
+    // qemu-x86_64 for the x86_64 check comes from docker.img, as for the daemon's VM.
+    if FileManager.default.fileExists(atPath: paths.dockerImage.path) {
+        spec.extraDisks = [DataDisk(url: paths.dockerImage, size: 0, readOnly: true, id: "dmx-docker")]
+    }
 
     let capture = ConsoleCapture(echo: echo)
     let machine = try Machine(spec: spec, paths: paths, console: capture.pipe.fileHandleForWriting)
