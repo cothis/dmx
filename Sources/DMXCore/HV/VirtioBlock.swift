@@ -7,10 +7,16 @@ public struct DataDisk: Sendable {
     public var url: URL
     /// Size of a new image. An existing image keeps its size.
     public var size: UInt64
+    /// A read-only disk is never created or written, and the guest sees it as read-only.
+    public var readOnly: Bool
+    /// The serial the guest reads (`/sys/block/vdX/serial`), at most 20 bytes.
+    public var id: String
 
-    public init(url: URL, size: UInt64) {
+    public init(url: URL, size: UInt64, readOnly: Bool = false, id: String = "dmx-data") {
         self.url = url
         self.size = size
+        self.readOnly = readOnly
+        self.id = id
     }
 
     /// Apparent size and the bytes the host has allocated, or nil if there is no image yet.
@@ -39,6 +45,7 @@ public struct DiskUsage: Codable, Sendable {
 final class VirtioBlock: VirtioDevice, @unchecked Sendable {
     static let sizeMaxFeature: UInt64 = 1 << 1
     static let segMaxFeature: UInt64 = 1 << 2
+    static let readOnlyFeature: UInt64 = 1 << 5
     static let blockSizeFeature: UInt64 = 1 << 6
     static let flushFeature: UInt64 = 1 << 9
     static let discardFeature: UInt64 = 1 << 13
@@ -54,10 +61,9 @@ final class VirtioBlock: VirtioDevice, @unchecked Sendable {
     /// Per discard or write-zeroes request, in 512-byte sectors (2 GB), and ranges per request.
     static let maxDiscardSectors: UInt32 = 1 << 22
     static let maxDiscardRanges: UInt32 = 64
-    static let id = "dmx-data"
 
     let deviceID: UInt32 = 2
-    let features: UInt64 = sizeMaxFeature | segMaxFeature | blockSizeFeature | flushFeature | discardFeature | writeZeroesFeature
+    let features: UInt64
     let queueSizes: [UInt16] = [queueSize]
 
     /// Bytes the guest sees, a multiple of `blockSize`.
@@ -66,6 +72,8 @@ final class VirtioBlock: VirtioDevice, @unchecked Sendable {
     /// The host file system's block size; holes are punched in whole blocks.
     private let hostBlock: UInt64
     private let config: [UInt8]
+    private let readOnly: Bool
+    private let id: String
     /// Takes requests off the virtqueue in order and hands them to `workers`.
     private let queue = DispatchQueue(label: "dmx.blk")
     /// Writes bypass the host cache, so each waits for the SSD; several in flight keep small
@@ -77,23 +85,29 @@ final class VirtioBlock: VirtioDevice, @unchecked Sendable {
     private var transport: VirtioMMIO?
 
     /// Opens the image, creating it sparse if missing. Holds an exclusive lock on it until
-    /// `close()`, so two VMs never write the same disk.
+    /// `close()`, so two VMs never write the same disk; a read-only one only a shared lock.
     init(_ disk: DataDisk) throws {
         let path = disk.url.path
-        try FileManager.default.createDirectory(at: disk.url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let file = open(path, O_RDWR | O_CREAT | O_CLOEXEC, 0o600)
+        readOnly = disk.readOnly
+        id = disk.id
+        features = Self.sizeMaxFeature | Self.segMaxFeature | Self.blockSizeFeature
+            | (readOnly ? Self.readOnlyFeature : Self.flushFeature | Self.discardFeature | Self.writeZeroesFeature)
+        if !readOnly {
+            try FileManager.default.createDirectory(at: disk.url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        }
+        let file = readOnly ? open(path, O_RDONLY | O_CLOEXEC) : open(path, O_RDWR | O_CREAT | O_CLOEXEC, 0o600)
         guard file >= 0 else { throw DMXError("disk_error", "cannot open \(path): \(String(cString: strerror(errno)))") }
         func fail(_ error: DMXError) -> DMXError {
             Darwin.close(file)
             return error
         }
-        guard flock(file, LOCK_EX | LOCK_NB) == 0 else {
+        guard flock(file, (readOnly ? LOCK_SH : LOCK_EX) | LOCK_NB) == 0 else {
             throw fail(DMXError("disk_in_use", "\(path) is in use by another dmx VM",
                                 hint: "run `dmx status`; stop the VM using it (`dmx stop`) or use another DMX_HOME"))
         }
         var st = stat()
         guard fstat(file, &st) == 0 else { throw fail(DMXError("disk_error", "cannot stat \(path): \(String(cString: strerror(errno)))")) }
-        if st.st_size == 0 {
+        if st.st_size == 0 && !readOnly {
             // ftruncate on APFS makes a sparse file: nothing is allocated until written.
             guard ftruncate(file, off_t(disk.size)) == 0 else {
                 throw fail(DMXError("disk_error", "cannot size \(path) to \(formatSize(disk.size)): \(String(cString: strerror(errno)))"))
@@ -211,6 +225,8 @@ final class VirtioBlock: VirtioDevice, @unchecked Sendable {
             let length = iov.reduce(0) { $0 + $1.iov_len }
             result = inBounds(sector, length) && transfer(iov, at: sector * 512, write: false) ? .ok : .ioError
             if result == .ok { written = length }
+        case _ where readOnly && [1, 4, 11, 13].contains(type):  // the guest knows it is read-only (VIRTIO_BLK_F_RO)
+            result = type == 4 ? .ok : .ioError
         case 1:  // OUT: write the readable buffers after the header
             let iov = slices(chain.readable, dropFirst: 16, dropLast: 0)
             let length = iov.reduce(0) { $0 + $1.iov_len }
@@ -218,7 +234,7 @@ final class VirtioBlock: VirtioDevice, @unchecked Sendable {
         case 4:  // FLUSH
             result = fcntl(fd, F_BARRIERFSYNC) == 0 ? .ok : .ioError
         case 8:  // GET_ID: up to 20 bytes, no terminator needed
-            let id = Array(Self.id.utf8.prefix(20))
+            let id = Array(self.id.utf8.prefix(20))
             var data = Data(id)
             data.append(contentsOf: [UInt8](repeating: 0, count: 20 - id.count))
             var trimmed = VirtqueueChain(head: chain.head)

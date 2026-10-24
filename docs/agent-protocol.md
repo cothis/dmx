@@ -31,7 +31,7 @@ A connection carries requests answered in order:
 {"id": 1, "ok": false, "error": {"code": "bad_request", "message": "..."}}
 ```
 
-Error codes: `bad_request`, `unknown_method`, `exec_failed`, `connect_failed`, `io_error`, `internal`.
+Error codes: `bad_request`, `unknown_method`, `exec_failed`, `connect_failed`, `docker_failed`, `io_error`, `internal`.
 The host turns them into `DMXError` codes prefixed with `agent_`.
 
 | Method | Params | Result |
@@ -42,9 +42,10 @@ The host turns them into `DMXError` codes prefixed with `agent_`.
 | `reclaim` | `bytes`, `swappiness` (0 to 200; 0 takes only file cache, absent uses `vm.swappiness`) | `free_before`, `free_after` (MemFree), `complete` (false when the kernel found less than `bytes`). Writes the root cgroup's `memory.reclaim`. |
 | `swap_on` | none | `size` (bytes), `enabled_now` (false if it was on). zram0 with lz4, a quarter of MemTotal, priority 100; sets `vm.swappiness` 100 and `vm.page-cluster` 0. |
 | `time_sync` | `unix_ns` (host clock) | `offset_ns`: guest minus host before the change |
-| `shutdown` | none | `{}`, then the guest syncs, freezes the data disk at `/var/lib` (its journal is left clean) and powers off |
+| `shutdown` | none | `{}`, then the guest stops dockerd if it runs (SIGTERM, at most 7 s, so containers stop cleanly), syncs, freezes the data disk at `/var/lib` (its journal is left clean) and powers off |
+| `docker_start` | none | `started` (false if dockerd answered already), `ms`. Runs `/sbin/dmx-docker` (`guest/docker`) unless `/var/run/docker.sock` answers and returns once it does (at most 120 s); concurrent calls wait for one start. See [docker.md](docker.md). |
 | `exec` | see below | `pid`, then the connection becomes the process's streams |
-| `connect` | see below | `{}`, then the connection becomes a TCP stream's raw bytes |
+| `connect` | see below | `{}`, then the connection becomes a TCP or Unix socket stream's raw bytes |
 
 ## exec
 
@@ -73,9 +74,10 @@ a new one per exec (`AgentClient` does this).
 
 ## connect
 
-Params: `port` (required), `host` (an IP address, default `127.0.0.1`). The agent opens a TCP
+Params: `port` and `host` (an IP address, default `127.0.0.1`), or `path`. The agent opens a TCP
 connection to `host:port` in the guest, which is how the daemon forwards a host port
-([daemon protocol](daemon-protocol.md#port-forwarding)). A refused or unreachable port answers
+([daemon protocol](daemon-protocol.md#port-forwarding)), or connects to the Unix socket at `path`,
+which is how it forwards the Docker socket. Giving both or neither is `bad_request`. A refused or unreachable port answers
 `connect_failed`; a target that drops the connection attempt fails after 5 s.
 
 After the `ok` reply there are no more frames: the vsock connection carries the TCP stream's bytes

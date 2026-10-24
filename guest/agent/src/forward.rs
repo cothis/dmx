@@ -1,18 +1,73 @@
-//! `connect`: open a TCP connection in the guest for a host port forward. After the `ok` reply
-//! the vsock connection carries the TCP stream's raw bytes both ways, with no framing.
+//! `connect`: open a TCP connection or a Unix socket connection in the guest, for a host port
+//! forward or the Docker socket. After the `ok` reply the vsock connection carries the stream's
+//! raw bytes both ways, with no framing.
 
 use crate::vsock::Stream;
 use serde::Deserialize;
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream};
+use std::os::unix::net::UnixStream;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 #[derive(Deserialize)]
 pub struct Params {
-    pub port: u16,
+    /// A TCP port, or else `path`.
+    pub port: Option<u16>,
     /// The address to connect to; loopback by default, where the forwarded service listens.
     pub host: Option<IpAddr>,
+    /// A Unix socket to connect to instead of a TCP port.
+    pub path: Option<String>,
+}
+
+/// The guest end of a forwarded connection.
+enum Target {
+    Tcp(TcpStream),
+    Unix(UnixStream),
+}
+
+impl Target {
+    fn shutdown(&self, how: Shutdown) {
+        let _ = match self {
+            Target::Tcp(s) => s.shutdown(how),
+            Target::Unix(s) => s.shutdown(how),
+        };
+    }
+}
+
+impl Read for &Target {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match *self {
+            Target::Tcp(s) => (&*s).read(buf),
+            Target::Unix(s) => (&*s).read(buf),
+        }
+    }
+}
+
+impl Write for &Target {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match *self {
+            Target::Tcp(s) => (&*s).write(buf),
+            Target::Unix(s) => (&*s).write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+fn open(p: &Params) -> Result<Target, String> {
+    match (&p.path, p.port) {
+        (Some(path), None) => UnixStream::connect(path).map(Target::Unix).map_err(|e| format!("connect {path}: {e}")),
+        (None, Some(port)) => {
+            let addr = SocketAddr::new(p.host.unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST)), port);
+            let tcp = TcpStream::connect_timeout(&addr, CONNECT_TIMEOUT).map_err(|e| format!("connect {addr}: {e}"))?;
+            let _ = tcp.set_nodelay(true);
+            Ok(Target::Tcp(tcp))
+        }
+        _ => Err("give either port or path".into()),
+    }
 }
 
 /// A refused or unreachable port fails at once; this only bounds a target that drops SYNs.
@@ -24,36 +79,35 @@ const BUF: usize = 32 << 10;
 const STACK: usize = BUF + (64 << 10);
 
 pub fn run(id: u64, p: Params, conn: Stream, out: Arc<Mutex<Stream>>) {
-    let addr = SocketAddr::new(p.host.unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST)), p.port);
-    let tcp = match TcpStream::connect_timeout(&addr, CONNECT_TIMEOUT) {
+    let target = match open(&p) {
         Ok(t) => t,
-        Err(e) => return crate::reply_err(&out, id, "connect_failed", format!("connect {addr}: {e}")),
+        Err(e) if p.path.is_some() == p.port.is_some() => return crate::reply_err(&out, id, "bad_request", e),
+        Err(e) => return crate::reply_err(&out, id, "connect_failed", e),
     };
-    let _ = tcp.set_nodelay(true);
     crate::reply_ok(&out, id, serde_json::json!({}));
     drop(out);
 
     // Two descriptors per connection: both directions share the sockets instead of duplicating them.
     // End of stream on one side becomes a half close on the other; an error ends both sides.
-    let (conn, tcp) = (Arc::new(conn), Arc::new(tcp));
+    let (conn, target) = (Arc::new(conn), Arc::new(target));
     let up = {
-        let (conn, tcp) = (conn.clone(), tcp.clone());
+        let (conn, target) = (conn.clone(), target.clone());
         std::thread::Builder::new().stack_size(STACK).spawn(move || {
-            let ok = copy(&*conn, &*tcp);
-            let _ = tcp.shutdown(if ok { Shutdown::Write } else { Shutdown::Both });
+            let ok = copy(&*conn, &*target);
+            target.shutdown(if ok { Shutdown::Write } else { Shutdown::Both });
             ok
         })
     };
     let Ok(up) = up else {
         conn.shutdown();
-        let _ = tcp.shutdown(Shutdown::Both);
+        target.shutdown(Shutdown::Both);
         return;
     };
-    if copy(&*tcp, &*conn) {
+    if copy(&*target, &*conn) {
         conn.shutdown_write();
     } else {
         conn.shutdown();
-        let _ = tcp.shutdown(Shutdown::Both);
+        target.shutdown(Shutdown::Both);
     }
     if !up.join().unwrap_or(false) {
         conn.shutdown();

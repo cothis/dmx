@@ -54,6 +54,37 @@ MKFS_FILES = {
 }
 MKFS_DIR = "usr/libexec/dmx-mkfs"
 
+# Docker in the guest (docs/docker.md): dockerd, containerd, runc and what they run. Not in the
+# initramfs (~150 MB would sit in guest RAM): they go into docker.img, a read-only disk that
+# guest/docker unpacks onto the data disk when its contents change. ca-certificates-bundle is
+# the CA file dockerd checks registries against. Signatures checked against the Alpine keys in
+# the minirootfs when these were pinned.
+DOCKER_PACKAGES = {
+    "docker-engine": ("community", "docker-engine-29.9.2-r0.apk", "54020dff7d00fc5b165a37029ff23233af981bdd022ce4d15d13e2eb7e4195db"),
+    "containerd": ("community", "containerd-2.3.7-r0.apk", "6ec45c52859e40f2b2ecf23a9be1d45d2199a86a5caa00f31586a29a53725646"),
+    "runc": ("community", "runc-1.4.3-r2.apk", "969ef33f23a2a3586505cf9b5f9adda397851e615431a3267bfb970d16df4143"),
+    "tini-static": ("community", "tini-static-0.19.0-r3.apk", "1cab1e98b70661fb92f53309f2dd7c2526c615eca9a1f57badc86b66f90607bc"),
+    "iptables": ("main", "iptables-1.8.13-r0.apk", "9d22aef2e74346e9d537f6dc964786ab14b35580e3ccc0e4001dc3a725e8fe77"),
+    "libxtables": ("main", "libxtables-1.8.13-r0.apk", "7535f18d9c7229178bc5e3809e5fea171033e33dfa054d88846512e1f25eefa8"),
+    "libnftnl": ("main", "libnftnl-1.3.1-r0.apk", "8b31395671e910c294d7f0e29d3ac3c7efe9d89264db255f39aa9944dd4b6cac"),
+    "libmnl": ("main", "libmnl-1.0.5-r2.apk", "0ca382c70f78affef3a4a28016aab25ad8c3ccf1bcdad59f3968d4536a7b2478"),
+    "libseccomp": ("main", "libseccomp-2.6.1-r0.apk", "9a2a2a5ff3b17ca394a484a5905bceaa57c7d4d392079f07d68a03e44cdcdcd6"),
+    "ca-certificates-bundle": ("main", "ca-certificates-bundle-20261020-r0.apk", "d0a573c27d337c369ad3abe3f39f09ffe67b95af23861577a8d134738375176a"),
+}
+for _name, (_repo, _file, _sha) in DOCKER_PACKAGES.items():
+    SOURCES[_name] = {"url": f"{ALPINE}/{_repo}/aarch64/{_file}", "sha256": _sha}
+# What dockerd needs from the packages: binaries under usr/, libraries, the CA file. tini-static
+# is docker-init (the package links it from /sbin).
+DOCKER_SKIP = ("usr/share/", "etc/containerd/", "etc/ethertypes", "etc/ssl1.1", "usr/bin/scmp_sys_resolver", "usr/sbin/iptables-apply",
+               "usr/sbin/ip6tables-apply", "sbin/tini-static")
+# Kernel modules Docker networking loads (bridge, veth, iptables over nf_tables, network drivers),
+# kept on the data disk with the rest; guest/docker puts them at /lib/modules.
+DOCKER_MODULE_DIRS = ("kernel/net/netfilter/", "kernel/net/ipv4/netfilter/", "kernel/net/ipv6/netfilter/", "kernel/net/bridge/")
+DOCKER_MODULES = ["veth", "bridge", "br_netfilter", "macvlan", "ipvlan", "vxlan", "dummy", "tun"]
+# docker.img: a 4 KB header ("dmx-docker 1", the sha256 and length of the payload, one per line),
+# then the payload, a gzip'd tar, padded to 4 KB blocks for the block device.
+DOCKER_IMAGE_MAGIC = b"dmx-docker 1\n"
+
 KERNEL_RELEASE = "6.18.58-0-virt"
 # The kernel the guest runs: Alpine's source and config with 16K pages, from scripts/build-kernel.py.
 # The Alpine kernel above is used only to boot the VM that builds it (`--kernel alpine`).
@@ -228,7 +259,67 @@ def add_mkfs(cpio: Cpio, cache: Path):
         cpio.file(f"{MKFS_DIR}/{Path(path).name}", data, perm)
 
 
-def module_closure(dep_text: str, builtin_text: str, release: str) -> set:
+def docker_image(cache: Path, out: Path, open_kernel, kernel_sha: str, moddir: str, modules: set) -> dict:
+    """Writes out/docker.img (see DOCKER_IMAGE_MAGIC) unless the one there has the same inputs.
+    The payload unpacks to usr/ (dockerd and the rest, at the paths they were built for), etc/ssl
+    and lib/modules/<release>/ (DOCKER_MODULES and MODULES, with the kernel's module index)."""
+    key = hashlib.sha256(json.dumps([sorted(v[2] for v in DOCKER_PACKAGES.values()), sorted(modules), kernel_sha,
+                                     hashlib.sha256(Path(__file__).read_bytes()).hexdigest()]).encode()).hexdigest()
+    path = out / "docker.img"
+    if path.exists():
+        with open(path, "rb") as f:
+            header = f.read(4096).split(b"\0")[0].decode(errors="replace").splitlines()
+        if len(header) == 4 and header[3] == key:
+            return {"bytes": path.stat().st_size, "sha256": header[1], "reused": True}
+
+    def entry(src: tarfile.TarInfo, name: str) -> tarfile.TarInfo:
+        ti = tarfile.TarInfo(name)
+        ti.type, ti.mode, ti.linkname, ti.size, ti.mtime = src.type, src.mode, src.linkname, src.size, src.mtime
+        return ti
+
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w", format=tarfile.GNU_FORMAT) as tar:
+        for name in DOCKER_PACKAGES:
+            with tarfile.open(fetch(name, cache), "r:gz", ignore_zeros=True) as apk:
+                for m in apk.getmembers():
+                    if m.name.startswith(".") or m.name.startswith(DOCKER_SKIP) and m.name != "sbin/tini-static":
+                        continue
+                    if m.name == "usr/bin/docker-init":
+                        continue  # a link to /sbin/tini-static; the file itself goes here instead
+                    if m.name == "sbin/tini-static":
+                        tar.addfile(entry(m, "usr/bin/docker-init"), apk.extractfile(m))
+                    elif m.islnk():
+                        target = apk.getmember(m.linkname)
+                        ti = entry(target, m.name)
+                        tar.addfile(ti, apk.extractfile(target))
+                    else:
+                        tar.addfile(entry(m, m.name), apk.extractfile(m) if m.isfile() else None)
+        with open_kernel() as kt:
+            meta = {moddir + f for f in ("modules.dep", "modules.alias", "modules.symbols", "modules.builtin", "modules.order")}
+            dirs = set()
+            for m in kt.getmembers():
+                if m.name in modules or m.name in meta:
+                    parts = m.name.split("/")[:-1]
+                    for i in range(1, len(parts) + 1):
+                        d = "/".join(parts[:i])
+                        if d not in dirs:
+                            dirs.add(d)
+                            ti = tarfile.TarInfo(d)
+                            ti.type, ti.mode = tarfile.DIRTYPE, 0o755
+                            tar.addfile(ti)
+                    tar.addfile(entry(m, m.name), kt.extractfile(m))
+    payload = gzip.compress(buf.getvalue(), compresslevel=6, mtime=EPOCH)
+    digest = hashlib.sha256(payload).hexdigest()
+    header = DOCKER_IMAGE_MAGIC + f"{digest}\n{len(payload)}\n{key}\n".encode()
+    image = header.ljust(4096, b"\0") + payload
+    image += b"\0" * (-len(image) % 4096)
+    tmp = path.with_suffix(".part")
+    tmp.write_bytes(image)
+    tmp.rename(path)
+    return {"bytes": len(image), "sha256": digest, "unpacked_bytes": len(buf.getvalue()), "reused": False}
+
+
+def module_closure(dep_text: str, builtin_text: str, release: str, modules=MODULES, dirs=()) -> set:
     builtin = {Path(p).name.split(".ko")[0].replace("-", "_") for p in builtin_text.split()}
     deps = {}
     for line in dep_text.splitlines():
@@ -237,8 +328,8 @@ def module_closure(dep_text: str, builtin_text: str, release: str) -> set:
     by_name = {
         Path(p).name.split(".ko")[0].replace("-", "_"): p for p in deps
     }
-    want, todo = set(), []
-    for mod in MODULES:
+    want, todo = set(), [p for p in deps if p.startswith(dirs)] if dirs else []
+    for mod in modules:
         if mod in builtin:
             continue
         if mod not in by_name:
@@ -278,6 +369,7 @@ def main():
         open_kernel = lambda: tarfile.open(kernel)
         read_image = lambda tar: tar.extractfile("boot/Image").read()
 
+    kernel_sha = hashlib.sha256(Path(kernel).read_bytes()).hexdigest()
     cpio = Cpio()
     with tarfile.open(rootfs_tgz, "r:gz") as tar:
         keep = lambda name: True
@@ -301,7 +393,12 @@ def main():
     cpio.chardev("dev/console", 5, 1)
     cpio.file("init", (root / "guest" / "init").read_bytes(), 0o755)
     cpio.file("sbin/dmx-agent", agent, 0o755)
+    cpio.file("sbin/dmx-docker", (root / "guest" / "docker").read_bytes(), 0o755)
     add_mkfs(cpio, args.cache)
+    docker = None
+    if args.kernel == "dmx":
+        docker_modules = {moddir + p for p in module_closure(dep, builtin, release, MODULES + DOCKER_MODULES, DOCKER_MODULE_DIRS)}
+        docker = docker_image(args.cache, args.out, open_kernel, kernel_sha, moddir, docker_modules)
 
     initramfs = gzip.compress(cpio.finish(), mtime=EPOCH)
     (args.out / "Image").write_bytes(image)
@@ -311,14 +408,17 @@ def main():
         "sources": SOURCES,
         "modules": sorted(Path(p).name for p in want),
         "files": {
-            Path(kernel).name: hashlib.sha256(Path(kernel).read_bytes()).hexdigest(),
+            Path(kernel).name: kernel_sha,
             "Image": hashlib.sha256(image).hexdigest(),
             "initramfs.gz": hashlib.sha256(initramfs).hexdigest(),
             "dmx-agent": hashlib.sha256(agent).hexdigest(),
         },
     }
+    if docker:
+        manifest["docker"] = {"payload_sha256": docker["sha256"], "image_bytes": docker["bytes"]}
     (args.out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    print(json.dumps({"ok": True, "out": str(args.out), "image_bytes": len(image), "initramfs_bytes": len(initramfs), "modules": len(want)}))
+    print(json.dumps({"ok": True, "out": str(args.out), "image_bytes": len(image), "initramfs_bytes": len(initramfs), "modules": len(want),
+                      "docker": docker}))
 
 
 if __name__ == "__main__":

@@ -69,14 +69,7 @@ pub fn run(id: u64, p: Params, mut conn: Stream, out: Arc<Mutex<Stream>>) {
     // ignored, and dispositions set to SIG_IGN survive exec. Give the process default ones.
     unsafe {
         cmd.pre_exec(|| {
-            for sig in 1..libc::SIGRTMIN() {
-                if sig != libc::SIGKILL && sig != libc::SIGSTOP {
-                    libc::signal(sig, libc::SIG_DFL);
-                }
-            }
-            let mut empty: libc::sigset_t = std::mem::zeroed();
-            libc::sigemptyset(&mut empty);
-            libc::sigprocmask(libc::SIG_SETMASK, &empty, std::ptr::null_mut());
+            default_signals();
             Ok(())
         });
     }
@@ -205,6 +198,20 @@ pub fn run(id: u64, p: Params, mut conn: Stream, out: Arc<Mutex<Stream>>) {
     let event = serde_json::json!({ "id": id, "event": "exit", "code": code, "signal": signal });
     let _ = frame::write(&mut *out.lock().unwrap(), frame::JSON, event.to_string().as_bytes());
     drop(master);
+}
+
+/// Default dispositions and an empty mask, for a process the agent starts (in `pre_exec`).
+pub fn default_signals() {
+    unsafe {
+        for sig in 1..libc::SIGRTMIN() {
+            if sig != libc::SIGKILL && sig != libc::SIGSTOP {
+                libc::signal(sig, libc::SIG_DFL);
+            }
+        }
+        let mut empty: libc::sigset_t = std::mem::zeroed();
+        libc::sigemptyset(&mut empty);
+        libc::sigprocmask(libc::SIG_SETMASK, &empty, std::ptr::null_mut());
+    }
 }
 
 fn control(payload: &[u8], pid: libc::pid_t, master: Option<libc::c_int>) {

@@ -28,4 +28,9 @@ public struct Paths: Sendable {
     public var consoleLog: URL { logs.appendingPathComponent("console.log") }
     /// The guest's data disk (/var/lib), a sparse raw image.
     public var dataDisk: URL { home.appendingPathComponent("data.img") }
+    /// Docker for the guest (dockerd and what it runs), a read-only disk `make guest` writes.
+    public var dockerImage: URL { guest.appendingPathComponent("docker.img") }
+    /// The Docker API, forwarded to dockerd in the guest. `dmx install` points a `docker context`
+    /// named dmx at it.
+    public var dockerSocket: URL { home.appendingPathComponent("docker.sock") }
 }

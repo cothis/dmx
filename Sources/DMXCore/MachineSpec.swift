@@ -10,6 +10,8 @@ public struct MachineSpec: Sendable {
     public var shares: [Share]
     /// The data disk, `/dev/vda` in the guest, mounted at /var/lib. None when nil.
     public var dataDisk: DataDisk?
+    /// More disks after it (`/dev/vdb` on), told apart in the guest by their `id` (the serial).
+    public var extraDisks: [DataDisk] = []
 
     public init(cpus: Int? = nil, maxMemory: UInt64? = nil, kernelArgs: [String] = [], shares: [Share] = []) {
         let info = ProcessInfo.processInfo
