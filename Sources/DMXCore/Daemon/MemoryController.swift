@@ -3,9 +3,15 @@ import Foundation
 /// The daemon's memory policy for the running VM. Free page reporting already hands back what
 /// the guest frees, within about 2 s; this decides when the guest should free more.
 ///
-/// - Idle: 30 s after the last exec started or ended, with the guest's CPU nearly idle, the guest
-///   reclaims its clean page cache down to 16 MB (`memory.reclaim`, file pages only), so the cache
-///   of a build or a big read is not charged to the Mac until the VM stops.
+/// - Idle: 30 s after the last exec started or ended, with the guest's CPU nearly idle all along,
+///   the guest reclaims its clean page cache down to 16 MB (`memory.reclaim`, file pages only), so
+///   the cache of a build or a big read is not charged to the Mac until the VM stops.
+/// - Idle sweep, at the same moment: free page reporting goes down from 512 KB blocks to single
+///   16 KB pages, and the slab caches free their empty slabs. Bursts of connections, processes or
+///   small files leave tens of MB free in blocks under 512 KB, which reporting skips (and
+///   compaction does not merge); this hands them back within seconds. Once the guest is in use
+///   again, reporting goes back to 512 KB blocks, so a busy guest does not hand back, and fault in
+///   again, single pages it keeps reusing.
 /// - Host pressure warning: the same trim at once, and after 5 s of idle instead of 30.
 /// - Host pressure critical: the guest also pushes cold anonymous and tmpfs pages into zram, and the
 ///   balloon caps it at what it uses plus 256 MB, following its use as it changes. Back at warning
@@ -37,6 +43,12 @@ final class MemoryController {
     static let criticalHeadroom: UInt64 = 256 << 20
     static let warningHeadroom: UInt64 = 1 << 30
     static let balloonStep: UInt64 = 64 << 20
+    /// Free page reporting while idle, as a page order: single pages (16 KB). In use it is the
+    /// kernel arg's order 5 (512 KB), which the sweep reads back from the guest.
+    static let idleReportingOrder = 0
+    /// How long after a sweep the guest's CPU (shrinking slabs, then reporting what was freed
+    /// 2 s later) does not count as use. Otherwise the sweep would end itself, and repeat.
+    static let sweepSettle: Duration = .seconds(10)
 
     private var source: DispatchSourceMemoryPressure?
     private var hostPressure: Pressure
@@ -52,6 +64,10 @@ final class MemoryController {
     private var trims = 0
     private var swapOn = false
     private var lastTrim: (reason: String, at: ContinuousClock.Instant, freedMb: Int, ms: Int)?
+    /// Set by an idle sweep until the guest is used again: when, and the reporting order to go
+    /// back to (nil if the guest did not take the change).
+    private var swept: (at: ContinuousClock.Instant, restore: Int?)?
+    private var sweeps = 0
 
     var pressure: Pressure { simulated ?? hostPressure }
 
@@ -78,6 +94,8 @@ final class MemoryController {
         swapOn = false
         trims = 0
         lastTrim = nil
+        swept = nil
+        sweeps = 0
         lastActivity = .now
         loop = Task { await run(machine: machine, agent: agent) }
     }
@@ -109,7 +127,7 @@ final class MemoryController {
             guestCacheMb: guest.map { Int($0.cache >> 20) },
             guestSwapMb: guest.map { Int(($0.swapTotal - min($0.swapFree, $0.swapTotal)) >> 20) },
             reportedMb: machine.map { Int($0.freePageReports.bytes >> 20) },
-            trims: trims,
+            trims: trims, sweeps: sweeps,
             lastTrim: lastTrim.map {
                 TrimRecord(reason: $0.reason, secondsAgo: Int((ContinuousClock.now - $0.at).components.seconds),
                            freedMb: $0.freedMb, ms: $0.ms)
@@ -136,6 +154,8 @@ final class MemoryController {
     }
 
     private func tick(_ memory: GuestMemory, quiet: Bool, machine: Machine, agent: AgentClient) async {
+        // A busy guest is in use, exec or not; but not for the sweep's own work just after it.
+        if !quiet, swept.map({ ContinuousClock.now - $0.at >= Self.sweepSettle }) ?? true { lastActivity = .now }
         hostPressure = Self.readHostPressure()
         let current = pressure
         let rising = current > level
@@ -155,16 +175,22 @@ final class MemoryController {
             }
         }
 
+        let after = current == .normal ? Self.idleTrimAfter : Self.idleTrimAfterUnderPressure
+        let idle = ContinuousClock.now - lastActivity >= after
         if rising && current == .critical {
             // Everything the guest can give: file cache, and cold anonymous and tmpfs pages into zram.
             await trim(agent, bytes: memory.cache + memory.used / 2, swappiness: nil, reason: "host pressure critical")
         } else if rising {
             await trim(agent, bytes: trimmable(memory), swappiness: 0, reason: "host pressure \(current.rawValue)")
-        } else {
-            let after = current == .normal ? Self.idleTrimAfter : Self.idleTrimAfterUnderPressure
-            if quiet, ContinuousClock.now - lastActivity >= after, memory.cache > Self.keepCache + Self.trimSlack {
-                await trim(agent, bytes: trimmable(memory), swappiness: 0, reason: "idle")
-            }
+        } else if idle, memory.cache > Self.keepCache + Self.trimSlack {
+            await trim(agent, bytes: trimmable(memory), swappiness: 0, reason: "idle")
+        }
+
+        if idle, swept == nil {
+            await sweep(agent)
+        } else if let swept, lastActivity > swept.at {
+            self.swept = nil
+            if let order = swept.restore { await setReportingOrder(agent, order, reason: "in use") }
         }
 
         // The balloon from critical pressure until normal: a cap that follows what the guest uses.
@@ -201,6 +227,36 @@ final class MemoryController {
         }
     }
 
+    /// Hands back what the guest freed in blocks too small for free page reporting (see the type's
+    /// comment). Reporting runs about 2 s after the next free, which the slab shrink provides.
+    private func sweep(_ agent: AgentClient) async {
+        let started = ContinuousClock.now
+        let previous = await setReportingOrder(agent, Self.idleReportingOrder, reason: "idle")
+        swept = (.now, previous)
+        do {
+            let slabs = try await agent.shrinkSlabs()
+            let ms = Int(seconds(ContinuousClock.now - started) * 1000)
+            let freed = Int((slabs.freeAfter > slabs.freeBefore ? slabs.freeAfter - slabs.freeBefore : 0) >> 20)
+            sweeps += 1
+            log("memory: idle sweep in \(ms) ms, empty slabs freed \(freed) MB")
+        } catch {
+            log("memory: shrinking slabs failed: \((error as? DMXError)?.message ?? "\(error)")")
+        }
+    }
+
+    /// Returns the order it replaced, nil if the guest refused.
+    @discardableResult
+    private func setReportingOrder(_ agent: AgentClient, _ order: Int, reason: String) async -> Int? {
+        do {
+            let previous = try await agent.setReportingOrder(order)
+            log("memory: free page reporting from \(16 << order) KB blocks (\(reason))")
+            return previous
+        } catch {
+            log("memory: free page reporting order not changed (\(reason)): \((error as? DMXError)?.message ?? "\(error)")")
+            return nil
+        }
+    }
+
     static func readHostPressure() -> Pressure {
         var value: Int32 = 0
         var size = MemoryLayout<Int32>.size
@@ -224,6 +280,8 @@ public struct MemoryStatus: Codable, Sendable {
     /// Returned by free page reporting since the VM booted.
     public let reportedMb: Int?
     public let trims: Int
+    /// Idle sweeps since the VM booted: free page reporting from 16 KB blocks, empty slabs freed.
+    public let sweeps: Int
     public let lastTrim: TrimRecord?
 }
 

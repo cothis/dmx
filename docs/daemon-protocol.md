@@ -70,7 +70,13 @@ request, and what was asked), `guest_cache_mb` (clean page cache), `guest_swap_m
 Free page reporting returns what the guest frees by itself, within about 2 s. The daemon also:
 
 - trims the guest's clean page cache to 16 MB (`memory.reclaim`, file pages only) once the VM has
-  been idle for 30 s: no exec started or ended, and under 5 % of one CPU;
+  been idle for 30 s: no exec started or ended, no forwarded connection opened or closed, and
+  under 5 % of one CPU all along;
+- at the same moment, sweeps once: free page reporting goes from 512 KB blocks down to single
+  16 KB pages (agent `reporting_order`) and the guest's slab caches free their empty slabs
+  (`shrink_slabs`). Bursts of connections, processes or small files leave tens of MB free in
+  blocks under 512 KB, which reporting at 512 KB never hands back. When the guest is used again,
+  reporting goes back to 512 KB blocks. `dmx status` counts these in `memory.sweeps`;
 - on macOS memory pressure (`DispatchSource.makeMemoryPressureSource`, and the level read with
   `kern.memorystatus_vm_pressure_level`): at warning, trims at once and after 5 s of idle; at
   critical, also pushes cold anonymous and tmpfs pages into zram and inflates the balloon to cap the
