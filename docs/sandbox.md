@@ -173,15 +173,15 @@ From `make sandboxtest` (`scripts/test-sandbox.py`) runs and by hand:
 
 | What | Result |
 |---|---|
-| `make sandboxtest` | 40 of 40 checks pass |
-| First create on a new data disk (boot, dockerd, pull alpine) | 6.6 to 6.9 s |
-| Create, image present (`none`, `all`, allowlist with its rules) | 0.25 to 0.53 s |
-| Exec of `true` through MCP or the CLI | 44 to 52 ms |
-| Checkpoint, small change | 0.20 to 0.27 s; with 3 MB changed 1.0 s |
+| `make sandboxtest` | all checks pass (40, then 41 with the writable mount; 4 runs) |
+| First create on a new data disk (boot, dockerd, pull alpine) | 6.2 to 6.9 s |
+| Create, image present (`none`, `all`, allowlist with its rules) | 0.21 to 0.53 s |
+| Exec of `true` through MCP or the CLI | 35 to 52 ms |
+| Checkpoint, small change | 0.17 to 0.27 s; with 3 MB changed 1.0 s |
 | Checkpoint size | 4 MB written: `added_mb` 3.8 |
-| Rollback | 0.30 to 0.36 s |
+| Rollback | 0.25 to 0.36 s |
 | Fork from a checkpoint / from the current state | 0.19 to 0.40 s / 0.36 to 0.69 s |
-| Remove | 0.11 to 0.14 s |
+| Remove | 0.09 to 0.14 s |
 | TTL 10 s, creating client gone | removed after 10.3 to 10.5 s |
-| Guest memory per idle sandbox (shim, tini, sleep) | 7.0 to 7.6 MB |
-| Host footprint, 5 sandboxes after the suite's pulls and checkpoints | 480 to 483 MB (dockerd idle alone: 280 to 306, docker.md) |
+| Guest memory per idle sandbox (shim, tini, sleep) | 7.0 to 7.8 MB |
+| Host footprint, 5 sandboxes after the suite's pulls and checkpoints | 444 to 483 MB (dockerd idle alone: 280 to 306, docker.md) |
