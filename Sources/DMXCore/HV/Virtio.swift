@@ -7,6 +7,9 @@ struct GuestRAM: @unchecked Sendable {
     let base: UnsafeMutableRawPointer
     let guestBase: UInt64
     let size: UInt64
+    /// Told how much guest memory devices touch through this process's mapping, which makes
+    /// those pages count twice in the footprint until it drops the mapping (`HostMappings`).
+    var hostMappings: HostMappings? = nil
 
     func pointer(_ address: UInt64, _ length: Int) -> UnsafeMutableRawPointer? {
         guard address >= guestBase, length >= 0,
@@ -38,6 +41,9 @@ struct VirtqueueChain {
 
     var writableCapacity: Int { writable.reduce(0) { $0 + $1.count } }
 
+    /// Bytes of guest memory the device went through: everything it could read, and what it wrote.
+    func touched(written: Int) -> Int { readable.reduce(written) { $0 + $1.count } }
+
     /// Copies as much of `data` as fits into the writable buffers; returns the byte count.
     func write(_ data: Data) -> Int {
         var offset = 0
@@ -61,11 +67,14 @@ final class Virtqueue: @unchecked Sendable {
     private var nextAvail: UInt16 = 0
     private var nextUsed: UInt16 = 0
     private let ram: GuestRAM
+    /// Whether the device reads or writes the buffers it gets (see `VirtioDevice.accessesBuffers`).
+    private let accessesBuffers: Bool
 
-    init(maxSize: UInt16, ram: GuestRAM) {
+    init(maxSize: UInt16, ram: GuestRAM, accessesBuffers: Bool = true) {
         self.maxSize = maxSize
         self.size = maxSize
         self.ram = ram
+        self.accessesBuffers = accessesBuffers
     }
 
     func reset() {
@@ -108,6 +117,7 @@ final class Virtqueue: @unchecked Sendable {
         nextUsed &+= 1
         atomicMemoryFence(ordering: .releasing)
         ram.store(deviceArea + 2, nextUsed)
+        if accessesBuffers { ram.hostMappings?.touched(chain.touched(written: written)) }
     }
 
     /// Hands several chains back with one index update, so the driver sees all of them or none:
@@ -121,6 +131,7 @@ final class Virtqueue: @unchecked Sendable {
         }
         atomicMemoryFence(ordering: .releasing)
         ram.store(deviceArea + 2, nextUsed)
+        if accessesBuffers { ram.hostMappings?.touched(chains.reduce(0) { $0 + $1.chain.touched(written: $1.written) }) }
     }
 }
 
@@ -137,9 +148,13 @@ protocol VirtioDevice: AnyObject, Sendable {
     /// The driver added buffers to `queue`. Runs on a vCPU thread, so hand slow work off.
     func notify(queue: Int)
     func reset()
+    /// Whether the device reads or writes the buffers the driver hands it. False for the
+    /// balloon, which only takes their addresses: its free page reports name gigabytes.
+    var accessesBuffers: Bool { get }
 }
 
 extension VirtioDevice {
+    var accessesBuffers: Bool { true }
     func readConfig(offset: Int, size: Int) -> UInt64 { 0 }
     func writeConfig(offset: Int, size: Int, value: UInt64) {}
 }
@@ -165,7 +180,7 @@ final class VirtioMMIO: MMIODevice, @unchecked Sendable {
     init(device: VirtioDevice, ram: GuestRAM, irq: @escaping (Bool) -> Void) {
         self.device = device
         self.irq = irq
-        queues = device.queueSizes.map { Virtqueue(maxSize: $0, ram: ram) }
+        queues = device.queueSizes.map { Virtqueue(maxSize: $0, ram: ram, accessesBuffers: device.accessesBuffers) }
     }
 
     /// Tells the driver that used buffers are waiting (interrupt status bit 0).

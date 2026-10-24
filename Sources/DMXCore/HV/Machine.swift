@@ -29,6 +29,9 @@ public final class Machine: @unchecked Sendable {
 
     private let ram: UnsafeMutableRawPointer
     private let ramSize: UInt64
+    /// Drops this process's mappings of guest RAM after devices touch it, so those pages are
+    /// not counted twice in the footprint.
+    private let hostMappings: HostMappings
     private let uart: PL011
     private let console: VirtioConsole
     let vsock = VirtioVsock()
@@ -82,6 +85,7 @@ public final class Machine: @unchecked Sendable {
             throw DMXError("vm_error", "cannot reserve \(formatSize(ramSize)) of guest memory")
         }
         ram = memory
+        hostMappings = HostMappings(base: memory, size: Int(ramSize))
         try check(hv_vm_map(ram, HVLayout.ramBase, Int(ramSize),
                             hv_memory_flags_t(HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC)), "hv_vm_map")
 
@@ -99,7 +103,7 @@ public final class Machine: @unchecked Sendable {
         }
         bus.append((HVLayout.uart, HVLayout.uartSize, uart))
         self.console = VirtioConsole(output: console)
-        let ram = GuestRAM(base: ram, guestBase: HVLayout.ramBase, size: ramSize)
+        let ram = GuestRAM(base: ram, guestBase: HVLayout.ramBase, size: ramSize, hostMappings: hostMappings)
         addVirtio(self.console, ram: ram)
         addVirtio(VirtioRNG(), ram: ram)
         addVirtio(vsock, ram: ram)
@@ -145,6 +149,7 @@ public final class Machine: @unchecked Sendable {
     /// Ends the VM in Hypervisor.framework so this process can create another. Guest RAM stays
     /// mapped in the process until deinit, for device code still holding addresses into it.
     private func destroyVM() {
+        hostMappings.stop()
         hv_vm_unmap(HVLayout.ramBase, Int(ramSize))
         hv_vm_destroy()
     }
@@ -170,9 +175,11 @@ public final class Machine: @unchecked Sendable {
         guard end > start else { return }
         let host = ram.advanced(by: Int(start - HVLayout.ramBase))
         let size = Int(end - start)
-        hv_vm_unmap(start, size)
-        madvise(host, size, MADV_FREE_REUSABLE)
-        hv_vm_map(host, start, size, hv_memory_flags_t(HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC))
+        hostMappings.exclusive {
+            hv_vm_unmap(start, size)
+            madvise(host, size, MADV_FREE_REUSABLE)
+            hv_vm_map(host, start, size, hv_memory_flags_t(HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC))
+        }
     }
 
     /// Guest RAM lives in this process, so its footprint is the VM's cost, dmx included.
@@ -271,6 +278,9 @@ public final class Machine: @unchecked Sendable {
         let fdt = deviceTree(initrd: initrdAddr..<(initrdAddr + UInt64(initramfs.count)))
         guard fdt.count < 2 << 20 else { throw DMXError("vm_error", "device tree too large") }
         copy(fdt, to: fdtAddr)
+        // The guest reads all three at boot and is charged for the pages then; without this they
+        // would count twice until the first device traffic: 18 MB of the idle footprint.
+        hostMappings.remapNow()
         kernel = Data()
         initramfs = Data()
         return (kernelAddr, fdtAddr)
