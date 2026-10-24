@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Exercise the dmx daemon end to end on the real VM, in a throwaway DMX_HOME.
 
-The guest files come from ~/.dmx/guest (symlinked), so run `make guest` first. Starts no
+The guest files come from $DMX_HOME/guest (default ~/.dmx/guest, symlinked), so run
+`make guest` first. Starts no
 launchd job; `dmx install` is tested by hand (it writes ~/Library/LaunchAgents). Prints one
 JSON object and exits non-zero if any check failed.
 
@@ -22,7 +23,8 @@ import time
 from pathlib import Path
 
 DMX = Path(sys.argv[1] if len(sys.argv) > 1 else ".build/release/dmx").resolve()
-GUEST = Path.home() / ".dmx" / "guest"
+# The guest of the DMX_HOME this script was started with (default ~/.dmx).
+GUEST = Path(os.environ.get("DMX_HOME") or Path.home() / ".dmx") / "guest"
 
 checks = []
 

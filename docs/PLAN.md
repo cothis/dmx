@@ -262,6 +262,8 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ### Phase 10: Release
 
+- [x] `make install`: copies dmx to `~/.local/bin` (`PREFIX` to change), no sudo, and repoints the
+      launchd agent if it is installed. Building from source still needs Xcode, Python and Rust.
 - [ ] CI on GitHub Actions: build and unit tests (hosted macOS runners may not allow nested virtualization; VM tests stay local until proven otherwise).
 - [ ] Guest artifacts published as GitHub Releases, downloaded and verified by `dmx`, so users do not need Python.
 - [ ] Homebrew tap; Developer ID signing and notarization when distributing binaries.
@@ -361,3 +363,4 @@ measurement with `dmx status --json` and `make daemontest`. Phase 4's second "do
 - 2026-10-24: One memory zone in the guest kernel; idle 111 MB at 8G.
 - 2026-10-24: Kept kernel text protected in the linear map (no `rodata=noalias`); idle 115 MB at 8G.
 - 2026-10-24: Phase 5 done. `dmx daemon` boots the VM on first use and stops it when idle; `dmx exec`, `shell`, `start`, `stop`, `status`, `config`, `install` (launchd socket activation). Ctrl-C now reaches guest processes.
+- 2026-10-24: `make install`. Phase 4 memory work and phases 6 and 9 started in parallel worktrees.
