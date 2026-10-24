@@ -28,7 +28,8 @@ One daemon runs per `DMX_HOME` (it holds a lock on `daemon.lock`). It logs to
   [Port forwarding](#port-forwarding). A daemon the CLI started (not launchd) also stays once a
   Docker client used it, to keep answering on docker.sock, until `dmx stop`.
 - A running Docker container counts as using the VM, and so does an open connection on
-  docker.sock.
+  docker.sock. Sandboxes are containers; the daemon removes each when its TTL runs out
+  ([sandbox.md](sandbox.md#lifetime-and-the-ttl)).
 - SIGTERM or SIGINT (also `dmx uninstall`, which unloads the launchd job) powers the guest off
   through the agent, with a 10 s limit, and exits.
 
