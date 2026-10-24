@@ -47,7 +47,7 @@ struct DMX: AsyncParsableCommand {
         abstract: "A container engine for macOS that stays out of your memory.",
         version: version,
         subcommands: [Doctor.self, Status.self, Start.self, Stop.self, Exec.self, Shell.self, Port.self,
-                      ConfigCommand.self, Install.self, Uninstall.self, Daemon.self, MCP.self, Boot.self]
+                      ConfigCommand.self, SandboxCommand.self, Install.self, Uninstall.self, Daemon.self, MCP.self, Boot.self]
     )
 }
 

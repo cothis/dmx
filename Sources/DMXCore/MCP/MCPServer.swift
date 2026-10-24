@@ -135,7 +135,7 @@ public final class MCPServer: Sendable {
         case "ping":
             result = [:]
         case "tools/list":
-            result = ["tools": .array(mcpTools.map(\.definition)), "ttlMs": 300_000, "cacheScope": "public"]
+            result = ["tools": .array(allMCPTools.map(\.definition)), "ttlMs": 300_000, "cacheScope": "public"]
         case "tools/call":
             result = try await callTool(params)
         default:
@@ -165,7 +165,7 @@ public final class MCPServer: Sendable {
 
     private func callTool(_ params: JSONValue?) async throws -> JSONValue {
         guard let name = params?["name"]?.string else { throw RPCError(-32602, "tools/call needs a tool name") }
-        guard let tool = mcpTools.first(where: { $0.name == name }) else {
+        guard let tool = allMCPTools.first(where: { $0.name == name }) else {
             throw RPCError(-32602, "Unknown tool: \(name)")
         }
         let arguments: [String: JSONValue]
