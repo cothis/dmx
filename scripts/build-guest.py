@@ -57,15 +57,14 @@ MKFS_DIR = "usr/libexec/dmx-mkfs"
 
 # x86_64 programs run through QEMU user mode, which /init registers with binfmt_misc. Alpine's
 # qemu-x86_64 is a static PIE, so it needs no libraries. Signature checked against the Alpine keys
-# in the minirootfs when pinned. The initramfs carries it xz'd (1.0 MB; 3.6 MB unpacked); /init
-# unpacks it onto the data disk when the copy there is missing or another version, then deletes
-# QEMU_DIR. qemu then costs guest RAM only while an x86 program runs; the copy in the initramfs
-# costs ~2 MB of idle footprint (freed boot pages that free page reporting misses).
+# in the minirootfs when pinned. It comes xz'd (1.0 MB; 3.6 MB unpacked) at the end of docker.img,
+# not in the initramfs, where it cost ~2 MB of idle footprint (freed boot pages that free page
+# reporting misses). /init unpacks it from there onto the data disk when the copy there is
+# missing or another version, so qemu costs guest RAM only while an x86 program runs.
 SOURCES["qemu-x86_64"] = {
     "url": f"{ALPINE}/community/aarch64/qemu-x86_64-11.0.3-r0.apk",
     "sha256": "3ccc698b81da078425115d531c23d328e9dd1c094fb1ac4dc9417d1687f4363f",
 }
-QEMU_DIR = "usr/libexec/dmx-qemu"
 
 # Docker in the guest (docs/docker.md): dockerd, containerd, runc and what they run. Not in the
 # initramfs (~150 MB would sit in guest RAM): they go into docker.img, a read-only disk that
@@ -94,9 +93,10 @@ DOCKER_SKIP = ("usr/share/", "etc/containerd/", "etc/ethertypes", "etc/ssl1.1", 
 # kept on the data disk with the rest; guest/docker puts them at /lib/modules.
 DOCKER_MODULE_DIRS = ("kernel/net/netfilter/", "kernel/net/ipv4/netfilter/", "kernel/net/ipv6/netfilter/", "kernel/net/bridge/")
 DOCKER_MODULES = ["veth", "bridge", "br_netfilter", "macvlan", "ipvlan", "vxlan", "dummy", "tun", "af_packet"]
-# docker.img: a 4 KB header ("dmx-docker 1", the sha256 and length of the payload, one per line),
-# then the payload, a gzip'd tar, padded to 4 KB blocks for the block device.
-DOCKER_IMAGE_MAGIC = b"dmx-docker 1\n"
+# docker.img: a 4 KB header, one field per line: "dmx-docker 2", the sha256 and length of the
+# payload, the build key, then the sha256 of qemu-x86_64 and the offset and length of its xz;
+# then the payload, a gzip'd tar, and qemu-x86_64.xz, each padded to 4 KB blocks.
+DOCKER_IMAGE_MAGIC = b"dmx-docker 2\n"
 
 KERNEL_RELEASE = "6.18.58-0-virt"
 # The kernel the guest runs: Alpine's source and config with 16K pages, from scripts/build-kernel.py.
@@ -274,34 +274,31 @@ def add_mkfs(cpio: Cpio, cache: Path):
         cpio.file(f"{MKFS_DIR}/{Path(path).name}", data, perm)
 
 
-def add_qemu(cpio: Cpio, cache: Path) -> str:
-    """qemu-x86_64 from its pinned apk as QEMU_DIR/qemu-x86_64.xz, and its sha256 in
-    QEMU_DIR/sha256, which /init compares with the copy on the data disk. A 1 MB dictionary
-    (instead of preset 9's 64 MB) keeps what busybox unxz allocates small and costs 1 KB more.
-    Returns the sha256."""
+def qemu_xz(cache: Path) -> tuple:
+    """qemu-x86_64 from its pinned apk, xz'd, and the binary's sha256, which /init compares with
+    the copy on the data disk. A 1 MB dictionary (instead of preset 9's 64 MB) keeps what busybox
+    unxz allocates small and costs 1 KB more."""
     with tarfile.open(fetch("qemu-x86_64", cache), "r:gz", ignore_zeros=True) as tar:
         binary = tar.extractfile("usr/bin/qemu-x86_64").read()
     packed = lzma.compress(binary, format=lzma.FORMAT_XZ, check=lzma.CHECK_CRC32,
                            filters=[{"id": lzma.FILTER_LZMA2, "preset": 9 | lzma.PRESET_EXTREME, "dict_size": 1 << 20}])
-    digest = hashlib.sha256(binary).hexdigest()
-    cpio.parents(QEMU_DIR + "/sha256")
-    cpio.file(f"{QEMU_DIR}/qemu-x86_64.xz", packed)
-    cpio.file(f"{QEMU_DIR}/sha256", (digest + "\n").encode())
-    return digest
+    return packed, hashlib.sha256(binary).hexdigest()
 
 
 def docker_image(cache: Path, out: Path, open_kernel, kernel_sha: str, moddir: str, modules: set) -> dict:
     """Writes out/docker.img (see DOCKER_IMAGE_MAGIC) unless the one there has the same inputs.
     The payload unpacks to usr/ (dockerd and the rest, at the paths they were built for), etc/ssl
-    and lib/modules/<release>/ (DOCKER_MODULES and MODULES, with the kernel's module index)."""
+    and lib/modules/<release>/ (DOCKER_MODULES and MODULES, with the kernel's module index).
+    qemu-x86_64.xz follows it, for /init."""
     key = hashlib.sha256(json.dumps([sorted(v[2] for v in DOCKER_PACKAGES.values()), sorted(modules), kernel_sha,
+                                     SOURCES["qemu-x86_64"]["sha256"],
                                      hashlib.sha256(Path(__file__).read_bytes()).hexdigest()]).encode()).hexdigest()
     path = out / "docker.img"
     if path.exists():
         with open(path, "rb") as f:
             header = f.read(4096).split(b"\0")[0].decode(errors="replace").splitlines()
-        if len(header) == 4 and header[3] == key:
-            return {"bytes": path.stat().st_size, "sha256": header[1], "reused": True}
+        if len(header) == 7 and header[0] + "\n" == DOCKER_IMAGE_MAGIC.decode() and header[3] == key:
+            return {"bytes": path.stat().st_size, "sha256": header[1], "qemu_sha256": header[4], "reused": True}
 
     def entry(src: tarfile.TarInfo, name: str) -> tarfile.TarInfo:
         ti = tarfile.TarInfo(name)
@@ -341,13 +338,17 @@ def docker_image(cache: Path, out: Path, open_kernel, kernel_sha: str, moddir: s
                     tar.addfile(entry(m, m.name), kt.extractfile(m))
     payload = gzip.compress(buf.getvalue(), compresslevel=6, mtime=EPOCH)
     digest = hashlib.sha256(payload).hexdigest()
-    header = DOCKER_IMAGE_MAGIC + f"{digest}\n{len(payload)}\n{key}\n".encode()
+    qemu, qemu_sha = qemu_xz(cache)
+    qemu_offset = 4096 + len(payload) + (-len(payload) % 4096)
+    header = DOCKER_IMAGE_MAGIC + f"{digest}\n{len(payload)}\n{key}\n{qemu_sha}\n{qemu_offset}\n{len(qemu)}\n".encode()
     image = header.ljust(4096, b"\0") + payload
     image += b"\0" * (-len(image) % 4096)
+    assert len(image) == qemu_offset
+    image += qemu + b"\0" * (-len(qemu) % 4096)
     tmp = path.with_suffix(".part")
     tmp.write_bytes(image)
     tmp.rename(path)
-    return {"bytes": len(image), "sha256": digest, "unpacked_bytes": len(buf.getvalue()), "reused": False}
+    return {"bytes": len(image), "sha256": digest, "qemu_sha256": qemu_sha, "unpacked_bytes": len(buf.getvalue()), "reused": False}
 
 
 def module_closure(dep_text: str, builtin_text: str, release: str, modules=MODULES, dirs=()) -> set:
@@ -426,7 +427,6 @@ def main():
     cpio.file("sbin/dmx-agent", agent, 0o755)
     cpio.file("sbin/dmx-docker", (root / "guest" / "docker").read_bytes(), 0o755)
     add_mkfs(cpio, args.cache)
-    qemu = add_qemu(cpio, args.cache)
     docker = None
     if args.kernel == "dmx":
         docker_modules = {moddir + p for p in module_closure(dep, builtin, release, MODULES + DOCKER_MODULES, DOCKER_MODULE_DIRS)}
@@ -444,11 +444,11 @@ def main():
             "Image": hashlib.sha256(image).hexdigest(),
             "initramfs.gz": hashlib.sha256(initramfs).hexdigest(),
             "dmx-agent": hashlib.sha256(agent).hexdigest(),
-            "qemu-x86_64": qemu,
         },
     }
     if docker:
         manifest["docker"] = {"payload_sha256": docker["sha256"], "image_bytes": docker["bytes"]}
+        manifest["files"]["qemu-x86_64"] = docker["qemu_sha256"]
     (args.out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(json.dumps({"ok": True, "out": str(args.out), "image_bytes": len(image), "initramfs_bytes": len(initramfs), "modules": len(want),
                       "docker": docker}))

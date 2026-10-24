@@ -53,7 +53,7 @@ command to run.
 | `quit` | none | `{}`, then the daemon powers the VM off and exits (used by `dmx install`) |
 | `exec` | the agent's `exec` params | `pid`, then the connection carries the process's streams |
 | `simulate_pressure` | `level`: `normal`, `warning`, `critical`, or null for the host's real level again | status. For tests: the memory controller acts as if macOS reported that level. Does not count as using the VM. |
-| `port_add` | `host_port`, `guest_port`, `host_address` (default `127.0.0.1`) | the forward, see below |
+| `port_add` | `host_port`, `guest_port`, `host_address` (default `127.0.0.1`), `protocol` (`tcp`, the default, or `udp`) | the forward, see below |
 | `port_rm` | `host_port`, `host_address` (default: every address) | `forwards`: those removed |
 | `port_ls` | none | `forwards` |
 
@@ -112,7 +112,12 @@ with its status (128 + signal if it was killed); `-t` gives it a pty sized like 
 port, by default on 127.0.0.1 only; `0.0.0.0` lets other machines in. Each accepted connection
 gets its own vsock stream to the agent, whose [`connect`](agent-protocol.md#connect) opens a TCP
 connection to the guest port on the guest's loopback, then the daemon copies bytes both ways. No
-privileged helper is involved, and the guest needs no network device. TCP and IPv4 only.
+privileged helper is involved, and the guest needs no network device. IPv4 only.
+
+`dmx port add 5353:53/udp` forwards a UDP port: the daemon binds the host port, and each peer
+that sends to it gets its own vsock stream, on which the agent relays datagrams to the guest port
+and replies back ([`connect`](agent-protocol.md#connect) with `udp`). A peer's stream closes after
+60 s without datagrams; until then it counts as an open connection.
 
 - Forwards are kept in `~/.dmx/ports.json` until `dmx port rm`. Every daemon listens on them
   when it starts: launchd starts one on the next connection to the control socket (`dmx port ls`
@@ -132,9 +137,9 @@ privileged helper is involved, and the guest needs no network device. TCP and IP
 Ports that running containers publish are forwarded too, while they run, and are not saved; see
 [docker.md](docker.md#published-ports).
 
-A forward in `port_ls` or `port_add`: `source` (`docker` for a container's port, absent otherwise), `host_address`, `host_port`, `guest_port`, `listening`
+A forward in `port_ls` or `port_add`: `source` (`docker` for a container's port, absent otherwise), `host_address`, `host_port`, `guest_port`, `protocol`, `listening`
 (false with `error` when the port could not be listened on, for example taken after a restart),
-`connections` (open now) and `total_connections` (since the daemon started).
+`connections` (open now; UDP peers with an open stream) and `total_connections` (since the daemon started).
 
 Errors: `bad_port_spec`, `port_forwarded` (that host port is forwarded already), `port_in_use`
 (another program listens there), `port_unavailable` (the address cannot be bound),

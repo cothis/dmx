@@ -84,6 +84,11 @@ docker CLI ──▶ ~/.dmx/docker.sock ──▶ dmx daemon ──vsock──�
   virtio-fs device for one read. The netfilter, bridge and network driver modules Docker loads
   (236 with af_packet, 1.5 MB) come in the same tar, with the kernel's module index; the initramfs gained only the
   3 KB start script (`/sbin/dmx-docker`, from `guest/docker`).
+- **qemu-x86_64** (`docker run --platform linux/amd64`, and x86 programs in `dmx exec`) comes xz'd
+  (1 MB) after the tar in docker.img; the header gives its sha256, offset and length. `/init`
+  unpacks it onto the data disk (`/var/lib/dmx/qemu`) when the copy there is another version and
+  registers it with binfmt_misc at every boot, before anything runs, so x86 support does not wait
+  for Docker. It used to be in the initramfs, where it cost ~2 MB of idle footprint.
 - **Started on first use.** Nothing of Docker runs until a client connects to docker.sock after a
   boot. The daemon then calls the agent's `docker_start`, which runs `guest/docker`: unpack if
   needed, bind the module tree over /lib/modules (the kernel's own module loader runs modprobe in
@@ -139,17 +144,37 @@ dockerd cannot start, the client gets an HTTP 503 whose message the CLI prints
   attached), and so does every running container: `containers` in `dmx status` is their number,
   and the VM stops for being idle only `idle_timeout` after the last one exits and the last client
   disconnects. Without containers, an idle VM stops as before, and dockerd with it; the next
-  Docker client boots it again (images stay on the data disk). Containers with a restart policy
-  come back when dockerd next starts, that is, on the next Docker client, not at boot.
+  Docker client boots it again (images stay on the data disk).
 - The daemon learns about containers from dockerd's event stream (`start` and `die`, then a
   listing of running containers); that connection does not count as use.
 
+## Restart policies
+
+Containers with `--restart always`, `unless-stopped` or `on-failure` come back when the VM boots,
+as they do when Docker Desktop starts, without waiting for a Docker client. After every boot the
+daemon asks the agent (`docker_autostart`), which reads dockerd's own records
+(`/var/lib/docker/containers/*/hostconfig.json` and `config.v2.json`) and starts dockerd only if a
+container would come back: one that was started before, was not stopped with `docker stop`, and
+whose policy is `always` or `unless-stopped`, or `on-failure` after a non-zero exit. dockerd then
+restarts them itself; their published ports are forwarded and they keep the VM running. A VM
+whose containers have no restart policy, or were stopped by hand, starts no dockerd at boot and
+costs what it did before: the check reads one directory that does not exist yet.
+
+- A container stopped with `docker stop` does not bring Docker up at boot. dockerd still starts
+  an `always` container again whenever dockerd itself starts (as on Linux after a daemon
+  restart), so it comes back with the next Docker client after the VM was stopped. On Docker
+  Desktop the VM keeps running, so this differs only after an idle stop or `dmx stop`.
+- What boots the VM is unchanged: a dmx command, a Docker client, or a connection to a forwarded
+  port. dmx does not start at login; Docker Desktop does if "Start Docker Desktop when you sign
+  in" is on. With `dmx install` the daemon starts on the first connection, but the VM, and so
+  the restartable containers, wait for one.
+
 ## Published ports
 
-Ports a running container publishes are forwarded from the Mac, like Docker Desktop does, through
-the same machinery as `dmx port` ([daemon protocol](daemon-protocol.md#port-forwarding)): each
-connection becomes a vsock stream to the agent, which connects to the port on the guest's
-loopback, where docker-proxy listens.
+Ports a running container publishes, TCP and UDP, are forwarded from the Mac, like Docker
+Desktop does, through the same machinery as `dmx port` ([daemon protocol](daemon-protocol.md#port-forwarding)):
+each TCP connection, and each UDP peer, becomes a vsock stream to the agent, which connects to
+the port on the guest's loopback, where docker-proxy listens.
 
 - The host address is what the container asked for, as on Docker Desktop: `-p 8080:80` listens on
   0.0.0.0 (every interface; macOS may ask whether dmx may accept incoming connections),
@@ -157,10 +182,26 @@ loopback, where docker-proxy listens.
   too; only IPv4 is forwarded. Other addresses are not forwarded.
 - They appear in `dmx port ls` with `source: docker`, are never written to `ports.json`, and go
   away when the container stops or the VM does.
-- A port that is taken on the Mac (by another program, or by a `dmx port` forward) is logged in
-  the daemon log and not forwarded; the container still runs. Docker Desktop fails `docker run`
-  in that case.
-- TCP only. UDP ports are published inside the guest but not forwarded.
+- The host ports are taken before the container starts: the daemon reads requests on
+  docker.sock, and for `POST /containers/{id}/start` (and `restart`) it looks up the container's
+  port bindings and listens on them before passing the request on. A port another program (or a
+  `dmx port` forward) has fails the start with Docker Desktop's error, and the container stays
+  created (a `--rm` one is removed, as dockerd does after a failed start), as on Docker Desktop:
+  `Error response from daemon: Ports are not available: exposing port TCP 0.0.0.0:8080 -> 0.0.0.0:0: listen tcp 0.0.0.0:8080: bind: address already in use`.
+  `docker compose up` fails the same way. Taking the port first also means it answers as soon as
+  `docker run -d` returns. Ports dockerd picks itself (`-P`, a host port range) are forwarded
+  once the container runs; one taken on the Mac then is only logged.
+- Everything else on docker.sock passes byte for byte: request bodies are followed by their
+  `Content-Length` or chunked framing only to find the next request, and a request that upgrades
+  the connection (attach, exec, BuildKit sessions) turns it into a plain copy
+  (`Daemon/DockerProxy.swift`). Replies are copied as they come; only the status line of a
+  start's reply is looked at, to end the reservation.
+- UDP: each peer (address and port) that sends to a published UDP port gets its own vsock stream,
+  carrying datagrams framed with a 2-byte length ([agent protocol](agent-protocol.md#connect));
+  the agent sends them from its own socket, and replies go back to the peer from the published
+  port. A peer's stream closes after 60 s without datagrams (docker-proxy keeps its own 90 s);
+  while open it counts as using the VM. Datagrams are dropped rather than queued when the guest
+  cannot take them, as on a network.
 
 ## Bind mounts
 
@@ -217,3 +258,14 @@ Timings are several times slower than on a quiet Mac; compare them only with eac
 | `docker compose up -d` (2 services, volume, port, bind mount) | 3.8 to 21 s |
 | Bind mount (`/tmp`, virtio-fs), 256 MB | read + md5 in a container 15.9 s incl. start; write with fsync 30 MB/s in a container, 108 MB/s from `dmx exec` at the same time: host load bound |
 | Published port, 256 MB over HTTP from a container (busybox httpd reading a bind mount) | 5.8 to 12 s |
+
+Later the same day, at host load 5 to 14:
+
+| What | Result |
+|---|---|
+| `make dockertest` | 47 of 47 checks pass (UDP, taken ports, restart policies, amd64 added) |
+| Initramfs | 2.06 MB (was 3.10 with qemu-x86_64 in it); docker.img 53 MB with qemu-x86_64.xz (1 MB) at its end |
+| Idle footprint, Docker not used, later boot, 8G (3 boots each, alternating) | 92 to 94 MB, qemu in the initramfs 91 to 95: no difference left after the idle sweep. Selftest 108 to 110 both ways. |
+| UDP published port (busybox `udpsvd` echo in a container) | first reply 0.14 to 0.19 s after `docker run -d` started; 2000 round trips 190 to 300 µs each; 50 and 200 new peers at once all answered on their first datagram (a Python echo; `udpsvd` itself drops some) |
+| Restart policy at boot | `dmx stop`, `dmx start`: the `unless-stopped` container answers on its port 1.0 to 1.2 s after `dmx start` returns (dockerd up in 170 to 190 ms) |
+| Through the docker.sock proxy | 50 MB stdin through `docker run -i` 1.4 s and through `docker exec -i` and back 1.1 s, checksums match; a 20 MB build context intact |

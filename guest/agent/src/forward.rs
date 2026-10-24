@@ -1,12 +1,15 @@
 //! `connect`: open a TCP connection or a Unix socket connection in the guest, for a host port
 //! forward or the Docker socket. After the `ok` reply the vsock connection carries the stream's
-//! raw bytes both ways, with no framing.
+//! raw bytes both ways, with no framing. With `udp`, it carries datagrams to and from a UDP port
+//! instead, each framed as a big-endian u16 length and the bytes.
 
 use crate::vsock::Stream;
 use serde::Deserialize;
 use std::io::{self, Read, Write};
-use std::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpStream};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, Shutdown, SocketAddr, TcpStream, UdpSocket};
+use std::os::fd::AsRawFd;
 use std::os::unix::net::UnixStream;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -18,6 +21,9 @@ pub struct Params {
     pub host: Option<IpAddr>,
     /// A Unix socket to connect to instead of a TCP port.
     pub path: Option<String>,
+    /// `port` is a UDP port: the stream carries framed datagrams (see `run_udp`).
+    #[serde(default)]
+    pub udp: bool,
 }
 
 /// The guest end of a forwarded connection.
@@ -77,8 +83,13 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 const BUF: usize = 32 << 10;
 /// Stack of the second copying thread: the buffer plus a little (the default is 2 MiB).
 const STACK: usize = BUF + (64 << 10);
+/// The largest UDP payload over IPv4.
+const DATAGRAM: usize = 65507;
 
 pub fn run(id: u64, p: Params, conn: Stream, out: Arc<Mutex<Stream>>) {
+    if p.udp {
+        return run_udp(id, p, conn, out);
+    }
     let target = match open(&p) {
         Ok(t) => t,
         Err(e) if p.path.is_some() == p.port.is_some() => return crate::reply_err(&out, id, "bad_request", e),
@@ -112,6 +123,67 @@ pub fn run(id: u64, p: Params, conn: Stream, out: Arc<Mutex<Stream>>) {
     if !up.join().unwrap_or(false) {
         conn.shutdown();
     }
+}
+
+/// One host peer's datagrams to a guest UDP port, and the replies, for a forwarded UDP port. The
+/// host keeps one stream per peer and closes it after a quiet minute. The UDP socket here is
+/// connected to the target, so only its replies come back. Nothing is retried: a datagram the
+/// target refuses is lost, as on a network.
+fn run_udp(id: u64, p: Params, conn: Stream, out: Arc<Mutex<Stream>>) {
+    let Some(port) = p.port.filter(|_| p.path.is_none()) else {
+        return crate::reply_err(&out, id, "bad_request", "udp needs a port and no path".into());
+    };
+    let addr = SocketAddr::new(p.host.unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST)), port);
+    let any = if addr.is_ipv4() { IpAddr::V4(Ipv4Addr::UNSPECIFIED) } else { IpAddr::V6(Ipv6Addr::UNSPECIFIED) };
+    let socket = match UdpSocket::bind(SocketAddr::new(any, 0)).and_then(|s| s.connect(addr).map(|_| s)) {
+        Ok(s) => s,
+        Err(e) => return crate::reply_err(&out, id, "connect_failed", format!("udp {addr}: {e}")),
+    };
+    crate::reply_ok(&out, id, serde_json::json!({}));
+    drop(out);
+
+    let (conn, socket) = (Arc::new(conn), Arc::new(socket));
+    let closed = Arc::new(AtomicBool::new(false));
+    let up = {
+        let (conn, socket, closed) = (conn.clone(), socket.clone(), closed.clone());
+        std::thread::Builder::new().stack_size(STACK).spawn(move || {
+            let mut buf = vec![0u8; DATAGRAM];
+            let mut from = &*conn;
+            let mut len = [0u8; 2];
+            while from.read_exact(&mut len).is_ok() {
+                let n = (u16::from_be_bytes(len) as usize).min(DATAGRAM);
+                if from.read_exact(&mut buf[..n]).is_err() {
+                    break;
+                }
+                // Refused (nothing listens yet) or no buffer space: dropped, like on a network.
+                let _ = socket.send(&buf[..n]);
+            }
+            // Wakes the receiving loop: recv returns 0 once the socket is shut down.
+            closed.store(true, Ordering::SeqCst);
+            unsafe { libc::shutdown(socket.as_raw_fd(), libc::SHUT_RDWR) };
+        })
+    };
+    let Ok(up) = up else {
+        conn.shutdown();
+        return;
+    };
+    let mut buf = vec![0u8; 2 + DATAGRAM];
+    loop {
+        match socket.recv(&mut buf[2..]) {
+            Ok(0) if closed.load(Ordering::SeqCst) => break,
+            Ok(n) => {
+                buf[..2].copy_from_slice(&(n as u16).to_be_bytes());
+                if (&*conn).write_all(&buf[..2 + n]).is_err() {
+                    break;
+                }
+            }
+            // ICMP port unreachable for an earlier datagram, reported here.
+            Err(e) if e.kind() == io::ErrorKind::ConnectionRefused || e.kind() == io::ErrorKind::Interrupted => {}
+            Err(_) => break,
+        }
+    }
+    conn.shutdown();
+    let _ = up.join();
 }
 
 /// Each forwarded connection holds two descriptors in the agent; the guest's default soft limit of

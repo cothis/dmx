@@ -279,6 +279,7 @@ public final class Daemon {
                 watch(machine)
                 memory.attach(machine: machine, agent: agent)
                 scheduleIdleCheck()
+                docker.vmBooted()
                 return agent
             } catch {
                 log("boot failed: \((error as? DMXError)?.message ?? "\(error)")")

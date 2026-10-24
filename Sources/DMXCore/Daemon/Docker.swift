@@ -6,8 +6,11 @@ import Foundation
 /// agent `connect`. An open connection uses the VM like a forwarded port does.
 ///
 /// While dockerd runs, the daemon follows its container events: running containers keep the VM
-/// from stopping for being idle (`containers` in `dmx status`), and the TCP ports they publish
-/// are forwarded from the host as Docker Desktop does (`PortForwards.setDockerForwards`).
+/// from stopping for being idle (`containers` in `dmx status`), and the TCP and UDP ports they
+/// publish are forwarded from the host as Docker Desktop does (`PortForwards.setDockerForwards`).
+/// Those ports are taken on the host before a container starts (`DockerProxy`), so a taken port
+/// fails `docker run` as on Docker Desktop. If a container would come back by its restart policy,
+/// dockerd starts with the VM rather than on the next Docker client (`vmBooted`).
 @MainActor
 final class DockerBridge {
     static let guestSocket = "/var/run/docker.sock"
@@ -25,6 +28,8 @@ final class DockerBridge {
     /// dockerd has answered since the VM booted.
     private var up = false
     private var starting: Task<Void, Error>?
+    /// The agent dockerd was started through, for listings outside the events stream.
+    private var client: AgentClient?
     private var watcher: Task<Void, Never>?
     /// The events stream, shut down to end the watcher when the VM stops.
     private var events: FrameConnection?
@@ -85,6 +90,7 @@ final class DockerBridge {
         epoch += 1
         up = false
         starting = nil
+        client = nil
         syncing = false
         watcher?.cancel()
         watcher = nil
@@ -126,8 +132,102 @@ final class DockerBridge {
             refuse(client, failure)
             return
         }
-        await splice(client, stream.fd)
+        let proxy = DockerProxy(client: client, server: stream.fd) { [weak self] container in
+            await self?.reservePorts(container) ?? .pass(answered: nil)
+        }
+        await proxy.run()
         stream.close()
+    }
+
+    /// Before dockerd starts (or restarts) a container: listens on the host ports it publishes,
+    /// or refuses the start with Docker Desktop's message when one is taken. The reservation ends
+    /// when dockerd answers the start; the container listing that follows keeps the ports if the
+    /// container runs. Ports dockerd picks itself (`-P`, a range) are forwarded once it runs.
+    private func reservePorts(_ container: String) async -> DockerProxy.Verdict {
+        let wanted: [PortForward]
+        let autoRemove: Bool
+        do {
+            guard let agent else { return .pass(answered: nil) }
+            let stream = try await agent().connect(path: Self.guestSocket)
+            defer { stream.close() }
+            let body = try await DockerHTTP.get(stream.fd, "/containers/\(container)/json")
+            let inspected = try JSONSerialization.jsonObject(with: body) as? [String: Any] ?? [:]
+            wanted = Self.bindings(inspected)
+            autoRemove = (inspected["HostConfig"] as? [String: Any])?["AutoRemove"] as? Bool ?? false
+        } catch {
+            // dockerd answers the start itself, a missing container included.
+            return .pass(answered: nil)
+        }
+        guard !wanted.isEmpty else { return .pass(answered: nil) }
+        let reserved: [PortForward]
+        do {
+            reserved = try ports.reserve(wanted)
+        } catch {
+            let failure = error as? DMXError ?? DMXError("port_unavailable", "\(error)")
+            let forward = wanted.first { failure.message.contains($0.hostEndpoint) } ?? wanted[0]
+            let inUse = failure.code == "port_in_use"
+            let reason = inUse ? "bind: address already in use" : failure.message
+            let owner = "lsof -nP -i\(forward.proto.uppercased()):\(forward.hostPort)" + (forward.proto == "tcp" ? " -sTCP:LISTEN" : "")
+            let hint = inUse ? "publish another host port, or find the owner with `\(owner)`" : failure.hint
+            let message = "Ports are not available: exposing port \(forward.proto.uppercased()) \(forward.hostAddress):\(forward.hostPort)"
+                + " -> 0.0.0.0:0: listen \(forward.proto) \(forward.hostAddress):\(forward.hostPort): \(reason)"
+                + (hint.map { " (dmx: \($0))" } ?? "")
+            log("docker: refused to start \(container): \(message)")
+            // dockerd removes a `--rm` container whose start failed, and `docker run --rm` waits
+            // for that before it exits.
+            if autoRemove, let agent, let stream = try? await agent().connect(path: Self.guestSocket) {
+                _ = try? await DockerHTTP.get(stream.fd, "/containers/\(container)?force=1&v=1", method: "DELETE")
+                stream.close()
+            }
+            return .refuse(message)
+        }
+        return .pass { [weak self] _ in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.ports.release(reserved)
+                    if self.up, let client = self.client { self.syncSoon(client, self.epoch) } else { self.ports.setDockerForwards([]) }
+                }
+            }
+        }
+    }
+
+    /// The host ports a container asks for in its HostConfig, before it runs: those on every
+    /// interface or loopback with a fixed port. Host networking publishes nothing.
+    nonisolated static func bindings(_ container: [String: Any]) -> [PortForward] {
+        guard let host = container["HostConfig"] as? [String: Any] else { return [] }
+        let mode = host["NetworkMode"] as? String ?? ""
+        guard mode != "host", !mode.hasPrefix("container:") else { return [] }
+        var wanted: [PortForward] = []
+        for (port, list) in host["PortBindings"] as? [String: Any] ?? [:] {
+            let proto = port.split(separator: "/").dropFirst().first.map(String.init) ?? "tcp"
+            guard proto == "tcp" || proto == "udp" else { continue }
+            for binding in list as? [[String: Any]] ?? [] {
+                let ip = binding["HostIp"] as? String ?? ""
+                let address = ip.isEmpty ? "0.0.0.0" : ip
+                guard address == "0.0.0.0" || address == "127.0.0.1", let number = Int(binding["HostPort"] as? String ?? ""),
+                      (1...65535).contains(number) else { continue }
+                let forward = PortForward(hostAddress: address, hostPort: number, guestPort: number, proto: proto)
+                if !wanted.contains(forward) { wanted.append(forward) }
+            }
+        }
+        return wanted.sorted { ($0.hostPort, $0.proto, $0.hostAddress) < ($1.hostPort, $1.proto, $1.hostAddress) }
+    }
+
+    /// The VM booted. If a container would come back by its restart policy (and was not stopped
+    /// with `docker stop`), start dockerd now, as Docker Desktop has it running from the start;
+    /// otherwise Docker waits for its first client as before, and costs nothing.
+    func vmBooted() {
+        guard let agent else { return }
+        let epoch = epoch
+        Task { @MainActor in
+            do {
+                try await ensureDocker(try await agent(), onlyRestartable: true)
+            } catch {
+                guard epoch == self.epoch else { return }
+                log("docker: at boot: \((error as? DMXError)?.message ?? "\(error)")")
+            }
+        }
     }
 
     /// A connection to dockerd, booting the VM and starting dockerd first if needed. If dockerd
@@ -155,31 +255,48 @@ final class DockerBridge {
 
     // MARK: dockerd
 
-    private func ensureDocker(_ agent: AgentClient) async throws {
-        if up { return }
-        if let starting { return try await starting.value }
-        let epoch = self.epoch
-        let task = Task { @MainActor in
-            let begun = ContinuousClock.now
-            // Its own connection: the first start may take seconds, and the control connection
-            // serves the memory controller meanwhile.
-            let connection = try await agent.open()
-            defer { connection.close() }
-            struct Started: Decodable { let started: Bool }
-            let result: Started
-            do {
-                result = try await connection.call("docker_start", NoParams())
-            } catch let error as DMXError {
-                throw DMXError("docker_failed", error.message, hint: "see the log: `dmx exec -- tail -50 \(Self.guestLog)`")
+    /// Starts dockerd unless it answers. With `onlyRestartable`, only if a container would come
+    /// back by its restart policy; a client arriving meanwhile waits, then starts it if that did not.
+    private func ensureDocker(_ agent: AgentClient, onlyRestartable: Bool = false) async throws {
+        while !up {
+            if let starting {
+                try await starting.value
+                if onlyRestartable { return }
+                continue
             }
-            guard epoch == self.epoch else { throw DMXError("vm_stopped", "the VM stopped while dockerd started", hint: "retry") }
-            log(result.started ? "dockerd up in \(milliseconds(ContinuousClock.now - begun)) ms" : "dockerd answers")
-            up = true
-            follow(agent)
+            let epoch = self.epoch
+            starting = Task { @MainActor in
+                defer { if epoch == self.epoch { starting = nil } }
+                let begun = ContinuousClock.now
+                // Its own connection: the first start may take seconds, and the control connection
+                // serves the memory controller meanwhile.
+                let connection = try await agent.open()
+                defer { connection.close() }
+                struct Started: Decodable { let started: Bool; let running: Bool?; let restartable: Int? }
+                let result: Started
+                do {
+                    result = try await connection.call(onlyRestartable ? "docker_autostart" : "docker_start", NoParams())
+                } catch let error as DMXError where onlyRestartable {
+                    // A client waiting on this start starts dockerd itself; an older guest has
+                    // no `docker_autostart` and keeps Docker for its first client.
+                    if error.code != "agent_unknown_method" { log("docker: at boot: \(error.message)") }
+                    return
+                } catch let error as DMXError {
+                    throw DMXError("docker_failed", error.message, hint: "see the log: `dmx exec -- tail -50 \(Self.guestLog)`")
+                }
+                guard epoch == self.epoch else { throw DMXError("vm_stopped", "the VM stopped while dockerd started", hint: "retry") }
+                guard result.running ?? true else { return }
+                let restarting = result.restartable.map { " for \($0) container\($0 == 1 ? "" : "s") with a restart policy" } ?? ""
+                log(result.started ? "dockerd up in \(milliseconds(ContinuousClock.now - begun)) ms\(restarting)" : "dockerd answers")
+                up = true
+                client = agent
+                follow(agent)
+            }
+            if onlyRestartable {
+                try await starting?.value
+                return
+            }
         }
-        starting = task
-        defer { if epoch == self.epoch { starting = nil } }
-        try await task.value
     }
 
     /// Follows container starts and deaths until dockerd or the VM goes away: subscribes to
@@ -256,18 +373,19 @@ final class DockerBridge {
         }
     }
 
-    /// The host forwards for the TCP ports running containers publish. Docker Desktop listens
-    /// where the container asked: `-p 8080:80` on every interface (0.0.0.0), `-p 127.0.0.1:8080:80`
-    /// on loopback only. In the guest, docker-proxy listens on the same port, so the agent
-    /// connects to it on loopback. IPv6 bindings (`::`) repeat the IPv4 ones; UDP is not forwarded.
+    /// The host forwards for the TCP and UDP ports running containers publish. Docker Desktop
+    /// listens where the container asked: `-p 8080:80` on every interface (0.0.0.0),
+    /// `-p 127.0.0.1:8080:80` on loopback only. In the guest, docker-proxy listens on the same
+    /// port, so the agent connects to it on loopback. IPv6 bindings (`::`) repeat the IPv4 ones.
     nonisolated static func published(_ containers: [[String: Any]]) -> [PortForward] {
         var wanted: [PortForward] = []
         for container in containers {
             for port in container["Ports"] as? [[String: Any]] ?? [] {
-                guard port["Type"] as? String == "tcp", let number = port["PublicPort"] as? Int else { continue }
+                guard let proto = port["Type"] as? String, proto == "tcp" || proto == "udp",
+                      let number = port["PublicPort"] as? Int else { continue }
                 let address = port["IP"] as? String ?? "0.0.0.0"
                 guard address == "0.0.0.0" || address == "127.0.0.1" else { continue }
-                let forward = PortForward(hostAddress: address, hostPort: number, guestPort: number)
+                let forward = PortForward(hostAddress: address, hostPort: number, guestPort: number, proto: proto)
                 if !wanted.contains(forward) { wanted.append(forward) }
             }
         }
@@ -278,8 +396,8 @@ final class DockerBridge {
 /// Just enough HTTP to ask dockerd for its containers and events: HTTP/1.0, so the reply is not
 /// chunked and ends when the connection closes. Blocking reads run on their own thread.
 enum DockerHTTP {
-    static func send(_ fd: Int32, _ path: String) async throws {
-        let request = Data("GET \(path) HTTP/1.0\r\nHost: docker\r\n\r\n".utf8)
+    static func send(_ fd: Int32, _ path: String, method: String = "GET") async throws {
+        let request = Data("\(method) \(path) HTTP/1.0\r\nHost: docker\r\n\r\n".utf8)
         try await onThread {
             try request.withUnsafeBytes { buf in
                 var offset = 0
@@ -293,9 +411,9 @@ enum DockerHTTP {
         }
     }
 
-    /// The body of a successful GET.
-    static func get(_ fd: Int32, _ path: String) async throws -> Data {
-        try await send(fd, path)
+    /// The body of a successful GET (or another method's 2xx reply).
+    static func get(_ fd: Int32, _ path: String, method: String = "GET") async throws -> Data {
+        try await send(fd, path, method: method)
         let reply = try await onThread { () throws -> Data in
             var data = Data()
             var buffer = [UInt8](repeating: 0, count: 64 << 10)
@@ -312,7 +430,7 @@ enum DockerHTTP {
             throw DMXError("docker_failed", "dockerd sent no HTTP reply to \(path)")
         }
         let status = String(decoding: reply[..<end.lowerBound], as: UTF8.self).prefix { $0 != "\r" }
-        guard status.split(separator: " ").dropFirst().first == "200" else {
+        guard status.split(separator: " ").dropFirst().first?.hasPrefix("2") == true else {
             throw DMXError("docker_failed", "dockerd answered \(path) with \(status)")
         }
         return reply[end.upperBound...]
