@@ -34,6 +34,26 @@ SOURCES = {
         "sha256": "b46c51ddf572d85b2ba7b9adfaa64f4c38fc490c93d97a20ffd2418d51284085",
     },
 }
+# mke2fs, to format the data disk on first boot (busybox has no ext4 mkfs), and the libraries it
+# links. Signatures checked against the Alpine keys in the minirootfs when these were pinned.
+MKFS_PACKAGES = {
+    "e2fsprogs": ("e2fsprogs-1.47.4-r0.apk", "52fd401e79ce6b0ff7648733ba4de3135083cd0132543534e72106e7ea767a00"),
+    "e2fsprogs-libs": ("e2fsprogs-libs-1.47.4-r0.apk", "52124971ae397d599aadd79263fcd68fc9e271922ccf8185b124f35fe24c60c8"),
+    "libcom_err": ("libcom_err-1.47.4-r0.apk", "a75b5955ff57046e33fc2842cfe466dc77d8e68305d5c86c6646b38a069490a2"),
+    "libblkid": ("libblkid-2.42.3-r1.apk", "9d0f24976c575c53c12526b6e078edf34c980c153bc8e5f1c1053cbece5b8cfa"),
+    "libuuid": ("libuuid-2.42.3-r1.apk", "9ce20c7ffe2ccaa7c321893c10564abbca13c3f2edb82f60a35f1f68e004f86c"),
+    "libeconf": ("libeconf-0.8.3-r0.apk", "cf0899d49ded0a6891e3cdf1b37887f2ecd77293afe1d8f3cb8937763c83f183"),
+}
+for _name, (_file, _sha) in MKFS_PACKAGES.items():
+    SOURCES[_name] = {"url": f"{ALPINE}/main/aarch64/{_file}", "sha256": _sha}
+# Only these files, all in one directory that /init deletes once the disk is mounted, so they
+# cost guest RAM only during boot.
+MKFS_FILES = {
+    "sbin/mke2fs", "etc/mke2fs.conf", "usr/lib/libext2fs.so.2", "usr/lib/libe2p.so.2", "usr/lib/libcom_err.so.2",
+    "usr/lib/libblkid.so.1", "usr/lib/libuuid.so.1", "usr/lib/libeconf.so.0",
+}
+MKFS_DIR = "usr/libexec/dmx-mkfs"
+
 KERNEL_RELEASE = "6.18.58-0-virt"
 # The kernel the guest runs: Alpine's source and config with 16K pages, from scripts/build-kernel.py.
 # The Alpine kernel above is used only to boot the VM that builds it (`--kernel alpine`).
@@ -189,6 +209,25 @@ def package_files(tar: tarfile.TarFile, packages: set) -> set:
     return files
 
 
+def add_mkfs(cpio: Cpio, cache: Path):
+    """MKFS_FILES from the pinned apks, flattened into MKFS_DIR. Symlinks to versioned
+    libraries are resolved, so each file is there once under the name the loader looks for."""
+    found = {}
+    for name in MKFS_PACKAGES:
+        with tarfile.open(fetch(name, cache), "r:gz", ignore_zeros=True) as tar:
+            members = {m.name: m for m in tar.getmembers()}
+            for path in MKFS_FILES & members.keys():
+                m = members[path]
+                while m.issym():
+                    m = members[str(Path(path).parent / m.linkname)]
+                found[path] = (tar.extractfile(m).read(), m.mode & 0o777)
+    if missing := MKFS_FILES - found.keys():
+        sys.exit(f"not in the e2fsprogs packages: {sorted(missing)}")
+    cpio.parents(MKFS_DIR + "/mke2fs")
+    for path, (data, perm) in sorted(found.items()):
+        cpio.file(f"{MKFS_DIR}/{Path(path).name}", data, perm)
+
+
 def module_closure(dep_text: str, builtin_text: str, release: str) -> set:
     builtin = {Path(p).name.split(".ko")[0].replace("-", "_") for p in builtin_text.split()}
     deps = {}
@@ -262,6 +301,7 @@ def main():
     cpio.chardev("dev/console", 5, 1)
     cpio.file("init", (root / "guest" / "init").read_bytes(), 0o755)
     cpio.file("sbin/dmx-agent", agent, 0o755)
+    add_mkfs(cpio, args.cache)
 
     initramfs = gzip.compress(cpio.finish(), mtime=EPOCH)
     (args.out / "Image").write_bytes(image)

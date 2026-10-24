@@ -26,4 +26,6 @@ public struct Paths: Sendable {
     public var daemonLog: URL { logs.appendingPathComponent("daemon.log") }
     /// The guest console of the VM the daemon runs, rewritten on every boot.
     public var consoleLog: URL { logs.appendingPathComponent("console.log") }
+    /// The guest's data disk (/var/lib), a sparse raw image.
+    public var dataDisk: URL { home.appendingPathComponent("data.img") }
 }

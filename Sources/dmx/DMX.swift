@@ -129,6 +129,9 @@ struct Boot: AsyncParsableCommand {
                 if let r = result.reclaim {
                     text += "\n  reclaim: 1 GB freed in the guest, \(r.afterFreeMb) -> \(r.afterReclaimMb) MB" + (r.returnedMs.map { " in \($0) ms" } ?? ", not within 10 s")
                 }
+                if let d = result.disk {
+                    text += "\n  disk: 128 MB written in \(d.writeMs) ms and deleted, host file \(d.allocatedAfterWriteMb) -> \(d.allocatedAfterDeleteMb) MB" + (d.returnedMs.map { " in \($0) ms" } ?? ", not within 10 s")
+                }
                 if let ms = result.shutdownMs { text += "\n  shutdown: \(ms) ms" }
                 for check in result.checks { text += "\n  \(check.ok ? "ok  " : "FAIL") \(check.name): \(check.detail)" }
                 for problem in result.problems { text += "\n  problem: \(problem)" }

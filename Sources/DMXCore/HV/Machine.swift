@@ -33,6 +33,7 @@ public final class Machine: @unchecked Sendable {
     private let console: VirtioConsole
     let vsock = VirtioVsock()
     private var balloon: VirtioBalloon!
+    private var disk: VirtioBlock?
     /// Every MMIO device by guest address, UART first.
     private var bus: [(base: UInt64, size: UInt64, device: MMIODevice)] = []
     private var virtioSlots = 0
@@ -61,6 +62,8 @@ public final class Machine: @unchecked Sendable {
         resolved.maxMemory = max(spec.maxMemory, 256 << 20) & ~UInt64((2 << 20) - 1)
         self.spec = resolved
         ramSize = resolved.maxMemory
+        // Before the VM exists, so a disk in use fails without leaving a VM behind.
+        disk = try spec.dataDisk.map(VirtioBlock.init)
 
         guard hvSupported else {
             throw DMXError("virtualization_unsupported", "this Mac does not support Hypervisor.framework")
@@ -98,6 +101,7 @@ public final class Machine: @unchecked Sendable {
         addVirtio(vsock, ram: ram)
         balloon = VirtioBalloon(ram: ram) { [unowned self] address, length in self.release(address, length) }
         addVirtio(balloon, ram: ram)
+        if let disk { addVirtio(disk, ram: ram) }
     }
 
     private func addVirtio(_ device: VirtioDevice, ram: GuestRAM) {
@@ -203,6 +207,7 @@ public final class Machine: @unchecked Sendable {
         // Often called on a vCPU thread (PSCI SYSTEM_OFF), so wait for the threads elsewhere.
         threads.notify(queue: .global()) { [self] in
             destroyVM()
+            disk?.close()  // so the next VM can open the image
             lock.lock()
             stopped = result
             let pending = waiters

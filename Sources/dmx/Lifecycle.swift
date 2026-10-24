@@ -170,7 +170,7 @@ struct ConfigCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "config",
         abstract: "Read or change settings in ~/.dmx/config.json.",
-        discussion: "Settings: cpus, memory (ceiling, e.g. 8G), idle_timeout (e.g. 5m). They apply the next time the VM boots.",
+        discussion: "Settings: cpus, memory (ceiling, e.g. 8G), idle_timeout (e.g. 5m), disk_size (default 64G; used when ~/.dmx/data.img is created, an existing disk keeps its size). They apply the next time the VM boots.",
         subcommands: [Get.self, Set.self, Unset.self]
     )
 
@@ -243,6 +243,7 @@ func configReport(_ paths: Paths, only key: String?) throws -> (ConfigReport, St
         switch k {
         case "cpus": config.cpus != nil
         case "memory": config.memory != nil
+        case "disk_size": config.diskSize != nil
         default: config.idleTimeout != nil
         }
     }
@@ -275,6 +276,9 @@ func describe(_ s: DaemonStatus) -> String {
     }
     if let host = s.hostFootprintMb {
         lines.append("  memory: host footprint \(host) MB" + (s.guestUsedMb.map { ", guest uses \($0) MB" } ?? ""))
+    }
+    if let disk = s.disk {
+        lines.append("  disk: \(disk.path), \(formatSize(UInt64(disk.sizeMb) << 20)) max, \(disk.allocatedMb) MB used on the host")
     }
     if let clients = s.clients, let execs = s.execs, s.state != "not_running" {
         lines.append("  clients: \(clients), execs: \(execs)")

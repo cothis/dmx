@@ -6,6 +6,8 @@ public struct MachineSpec: Sendable {
     public var cpus: Int
     public var maxMemory: UInt64
     public var kernelArgs: [String]
+    /// The data disk, `/dev/vda` in the guest, mounted at /var/lib. None when nil.
+    public var dataDisk: DataDisk?
 
     public init(cpus: Int? = nil, maxMemory: UInt64? = nil, kernelArgs: [String] = []) {
         let info = ProcessInfo.processInfo
