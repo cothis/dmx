@@ -281,7 +281,14 @@ final class VirtioVsock: VirtioDevice, @unchecked Sendable {
                 if h.flags & 2 != 0 { c.guestClosedSend = true }
                 flushInbox(c)
             case .rst:
-                drop(c, error: DMXError("agent_unreachable", "vsock connect to port \(c.key.peer): refused by the guest"))
+                guard c.connecting == nil else {
+                    drop(c, error: DMXError("agent_unreachable", "vsock connect to port \(c.key.peer): refused by the guest"))
+                    break
+                }
+                // The guest may reset right after its SHUTDOWN while the host socket is still
+                // full; what it sent before is ours already, so deliver it, then close.
+                c.guestClosed = true
+                flushInbox(c)
             default:
                 break  // credit update: handled above
             }
