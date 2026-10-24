@@ -25,7 +25,11 @@ final class VirtioNet: VirtioDevice, @unchecked Sendable {
     let deviceID: UInt32 = 1
     let features: UInt64 = VirtioNet.csum | VirtioNet.guestCsum | VirtioNet.mtuFeature
         | VirtioNet.macFeature | VirtioNet.mergeableRx
-    let queueSizes: [UInt16] = [256, 256]  // receiveq (to the guest), transmitq (from it)
+    /// receiveq (to the guest), transmitq (from it). The guest keeps the receive ring full, and
+    /// sizes its buffers by the average frame it received: after a bulk transfer each takes a
+    /// whole 32 KB page fragment and stays posted while idle. 256 of them held 8 MB of guest
+    /// memory for good; 64 hold 2 MB, with the same host to guest throughput.
+    let queueSizes: [UInt16] = [64, 256]
 
     let queue = DispatchQueue(label: "dmx.net")
     private(set) var net: UserNet!

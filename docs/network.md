@@ -76,6 +76,11 @@ The device:
   does not preallocate 64 KB per ring slot. All buffers of a frame are published to the used ring
   with one index update; publishing them one by one let the guest see a partial frame and drop
   it (about 500 drops per 500 MB before the fix).
+- **64-entry receive ring**: Linux sizes each receive buffer by the average frame it got, so after
+  a bulk transfer every posted buffer takes a whole 32 KB page fragment, and they stay posted
+  while the guest is idle: 8 MB of guest memory with 256 entries, 2 MB with 64 (kpageflags:
+  +220 vs +47 order-1 pages after 3 × 500 MB). Host to guest throughput did not drop (500 MB
+  in a median 0.37 s with 256, 0.28 s with 64, 12 runs each, interleaved).
 - **Checksums skipped both ways** (`CSUM`, `GUEST_CSUM`; frames to the guest carry
   `DATA_VALID`): the NAT ends every flow, so no one would check them. IP header checksums are
   still computed. If containers ever forward these frames somewhere that checks, compute them
@@ -96,7 +101,7 @@ The device:
 | 394 MB from the internet over HTTP | 32.1 s in the guest, 32.07 s with curl on the host |
 | DNS (`dmx exec -- nslookup`) | 70 to 100 ms per call, `dmx exec` included |
 | ping host / gateway | 0.2 to 0.3 ms |
-| Footprint after traffic | +15 to 17 MB after 3 × 394 MB from the internet, flat after that; dmx's own malloc 3 to 5 MB. The rest is guest memory freed in blocks below the free page reporting order (512 KB), left fragmented by network buffers. |
+| Footprint after traffic | +15 to 17 MB after 3 × 394 MB from the internet, flat after that; dmx's own malloc 3 to 5 MB. The rest is guest memory freed in blocks below the free page reporting order (512 KB), left fragmented by network buffers. Since the idle sweep (2026-10-24), what stays is mostly the posted receive buffers: guest used +8 to 9 MB and footprint +11 to 12 MB after 3 × 500 MB with a 256-entry ring, +3 to 4 and +5 to 6 MB with 64. |
 
 HTTPS: busybox `wget` needs `ssl_client`, OpenSSL and the CA bundle, which the initramfs drops.
 Keeping them (all in the pinned minirootfs) makes HTTPS work with certificate checking, at

@@ -185,9 +185,15 @@ public final class Machine: @unchecked Sendable {
     public func setBalloonTarget(_ bytes: UInt64) { balloon.setTarget(bytes) }
 
     /// Gives a guest-physical range back to macOS. The guest promised not to touch it until it
-    /// reuses the pages, which then fault in again as zeros. `MADV_FREE_REUSABLE` drops the pages
-    /// from our footprint; it only takes hold on pages the guest dirtied if the stage-2 mapping is
-    /// torn down around it.
+    /// reuses the pages, which then fault in again as zeros. Either madvise below only takes hold
+    /// on pages the guest dirtied if the stage-2 mapping is torn down around it (with it in place,
+    /// `MADV_ZERO` zeroes the pages where they are).
+    ///
+    /// `MADV_ZERO` frees the pages, so pages the guest writes again are new and counted like any.
+    /// `MADV_FREE_REUSABLE` only marks them reusable: until macOS reclaimed them, the guest wrote
+    /// into the same pages through stage 2 and the footprint never counted them again (512 MB
+    /// released and rewritten: 2 MB of footprint; the third and fourth 1 GB refill of the VM came
+    /// in 45 to 220 MB short). It stays as the fallback for a range `MADV_ZERO` refuses.
     func release(_ address: UInt64, _ length: UInt64) {
         let page = UInt64(getpagesize())
         let start = alignUp(max(address, HVLayout.ramBase), page)
@@ -197,7 +203,7 @@ public final class Machine: @unchecked Sendable {
         let size = Int(end - start)
         hostMappings.exclusive {
             hv_vm_unmap(start, size)
-            madvise(host, size, MADV_FREE_REUSABLE)
+            if madvise(host, size, MADV_ZERO) != 0 { madvise(host, size, MADV_FREE_REUSABLE) }
             hv_vm_map(host, start, size, hv_memory_flags_t(HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC))
         }
     }
