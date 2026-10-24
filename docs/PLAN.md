@@ -246,7 +246,13 @@ Result: verified with launchd and without; see Findings for timings and memory.
       use. Half close both ways (vsock now answers host EOF with SHUTDOWN, not RST). Callable from
       code for phase 7. Found on the way: two exec data-loss bugs (agent sent `exit` before output
       stuck behind a slow host; the relay discarded a finished peer's output when a write failed).
-- [ ] Our virtio-fs device (a FUSE server on the host) sharing the user's home (or configured paths) at the same path in the guest, so bind mounts keep their paths. Measure throughput against native.
+- [x] Our virtio-fs device (`HV/VirtioFS.swift`, FUSE server `HV/FUSEServer.swift`): `shares` config
+      (default `~` read-write; `path:ro`, `none`) mounted at the same path by `/init`. Containment:
+      every lookup is relative to the share root's descriptor with `O_NOFOLLOW_ANY`, host symlinks
+      are returned as links, never followed; read-only enforced on the host; setuid/setgid dropped,
+      chown a no-op. Host user ↔ guest root, others nobody. 1 s attribute cache (like virtiofsd
+      cache=auto) plus a re-lookup when opening a file the host changed. `make test` covers hostile
+      requests. Left: Unix sockets in a share, xattrs, ACLs, DAX, stored ownership.
 
 Done when: the guest can `wget` from the internet, a guest web server is reachable on `localhost`, and a host directory is readable/writable in the guest.
 
@@ -296,7 +302,10 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-Phase 6 is being merged from parallel worktrees (virtio-fs merging, data disk in progress). Then phase 7 (Docker). Phase 4's last open item is the memmap that scales with
+Phase 6: the data disk is still in progress in a parallel worktree. Open from the merged work:
+the 2x footprint of pages the host writes into guest RAM (virtio-fs reads), freed guest blocks
+under 512 KB that free page reporting skips (after connection bursts and small-file work), and
+the maintainer decisions listed in the progress log. Then phase 7 (Docker). Phase 4's last open item is the memmap that scales with
 the ceiling, and its "done when" second half (a 2 GB container's memory back within 10 s) waits
 for containers. Idle detection must count container activity once Docker runs.
 
@@ -369,6 +378,9 @@ for containers. Idle detection must count container activity once Docker runs.
 | 2026-10-24 | Guest network (user space NAT), load 7 to 20 | Idle selftest 115 to 118 MB (114 to 117 before). 500 MB host → guest over HTTP 0.25 to 0.5 s (1 to 2 GB/s; 16 s before publishing each frame's rx buffers at once, the guest dropped partial frames). 500 MB guest → host 0.9 to 1.4 s. 394 MB from the Alpine CDN: 32.1 s in the guest, 32.07 s with curl on the host. DNS through exec 70 to 100 ms; ping gateway 0.2 to 0.3 ms. Footprint +15 to 17 MB after traffic, then flat: freed guest blocks under 512 KB that reporting skips; dmx's own heap 2.8 MB after 1 GB. |
 | 2026-10-24 | Port forwarding, load 8 to 17 | Guest → host 500 MB at 1.0 to 1.1 GB/s; host → guest into busybox `nc` 252 MiB/s; 4 parallel 250 MB 1.18 GB/s. 1000 GETs at 100 concurrent in 0.39 s; 500 slow requests at once all OK. A connection with the VM stopped boots it: 0.22 to 0.36 s until the guest answers. Footprint 116 → 150 to 152 MB after 500 MB each way (guest pages); +76 MB after a burst of 500 connections: freed guest blocks of 32 to 256 KB, under the 512 KB reporting order. |
 | 2026-10-24 | Exec data loss with a slow reader | `dmx exec -- head -c 8000000 /dev/zero` into a slow reader lost 205,900 bytes and exited 0: the agent sent `exit` while an output pump was still blocked on the host. 0 of 20 after the fix. "Connection closed before the process exited" in 1 of 5 to 10 daemontest cold-start rounds: the relay shut both sockets when the client's last stdin write failed, discarding the guest's output. 0 of 960 after. |
+| 2026-10-24 | Device interrupts waited out the 1 ms WFI cap | `VCPU.wake()` was never called, so a vCPU in WFI noticed a device interrupt only at the cap. Raising a line now wakes the vCPU it is routed to: over virtio-fs `find` 1.69 → 0.28 s, reading 9,200 files 75 → 10 s. The selftest's 1 GB reclaim now returns in ~0.4 s. |
+| 2026-10-24 | virtio-fs throughput, load 7 to 18 | 1 GB write with fsync 0.81 to 0.91 GB/s (host ~1 GB/s without fsync); read 1.4 to 1.5 GB/s (host 2.3 warm); O_DIRECT read 3.1 GB/s. 9,200 kernel source files (106 MB), share / guest tmpfs / host: untar 20 to 23 / 0.6 / 10 s; find 0.32 / 0.03 / 0.07; ls -lR 0.33 / 0.03 / 0.16; read all 5.8 / 0.5 / 0.36; rm -rf 4.1 / 0.07 / 1.4. Server time 20 to 70 µs per request; the rest is round trips. |
+| 2026-10-24 | virtio-fs memory | Idle with a share 113 to 121 MB (116 to 121 without, noise). dmx's heap ~11 MB after repeated traffic. Reading 1 GB through the guest page cache costs 2 GB of footprint, all returned when the guest drops its cache; the same with writes and a bounce buffer, so pages the host writes into guest RAM seem to count twice. Unexplained; virtio-blk will likely show it too. |
 | 2026-10-24 | `dmx mcp` (stdio MCP), load 5 to 6 | `make mcptest` 5.3 to 6.3 s, 30 of 30 checks. Cold `dmx_exec uname -a` with no daemon 215 to 376 ms end to end; warm 0 to 2 ms. 200 MB of stdout capped to 8 KiB in 0.65 to 1.41 s; `dmx mcp` RSS 8 to 9 MB, 10 MB at peak. A 2 s timeout returns in 2.01 to 2.13 s with the guest processes gone. `tools/list` is 4.6 KB (3.8 KB without `outputSchema`). |
 | 2026-10-24 | Truncated exec output after a boot | `dmx stop`, an exec, then 200 MB of stdout: 5 to 6 of 40 runs ended with "daemon closed the connection mid-frame" (load 9 to 15); logging the shutdown path hid it. The guest sometimes sends RST right after its SHUTDOWN, and the host dropped the connection with up to 200 KB from the guest still unwritten to the full host socket. Now an RST on an open stream delivers what the guest sent, then closes: 0 of 50. Found by the `dmx mcp` tests. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
@@ -400,3 +412,4 @@ for containers. Idle detection must count container activity once Docker runs.
 - 2026-10-24: Memory controller merged: idle page cache trims, zram on demand, balloon under host pressure. Phase 4 tasks done except the memmap.
 - 2026-10-24: Guest networking merged: virtio-net and a user space NAT; the guest reaches the internet over HTTP.
 - 2026-10-24: Port forwarding merged (`dmx port`), with two exec data-loss fixes.
+- 2026-10-24: virtio-fs merged: host directories at the same path in the guest. Device interrupts now wake their vCPU.
