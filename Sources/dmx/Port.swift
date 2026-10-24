@@ -4,7 +4,7 @@ import Foundation
 
 struct Port: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Forward host TCP ports to ports in the VM.",
+        abstract: "Forward host TCP and UDP ports to ports in the VM.",
         discussion: """
             Forwards are kept in ~/.dmx/ports.json and stay until removed, across daemon restarts.
             The daemon keeps listening while the VM is stopped and boots it on the first connection;
@@ -16,10 +16,10 @@ struct Port: AsyncParsableCommand {
     struct Add: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             abstract: "Forward a host port to a guest port.",
-            discussion: "Listens on 127.0.0.1 unless HOST_IP is given (0.0.0.0 lets other machines in). Example: dmx port add 8080:80"
+            discussion: "Listens on 127.0.0.1 unless HOST_IP is given (0.0.0.0 lets other machines in). Examples: dmx port add 8080:80, dmx port add 5353:53/udp"
         )
         @OptionGroup var global: GlobalOptions
-        @Argument(help: "[HOST_IP:]HOST_PORT[:GUEST_PORT]; the guest port defaults to the host port.") var spec: String
+        @Argument(help: "[HOST_IP:]HOST_PORT[:GUEST_PORT][/udp]; the guest port defaults to the host port.") var spec: String
 
         @MainActor
         func run() async throws {
@@ -42,7 +42,9 @@ struct Port: AsyncParsableCommand {
         @MainActor
         func run() async throws {
             try await report(global) {
-                let parts = spec.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
+                // A protocol suffix is ignored: every forward on the port goes.
+                let parts = spec.split(separator: "/", omittingEmptySubsequences: false)[0]
+                    .split(separator: ":", omittingEmptySubsequences: false).map(String.init)
                 guard (1...2).contains(parts.count), let port = Int(parts.last!) else {
                     throw DMXError("bad_port_spec", "cannot read \"\(spec)\" as [HOST_IP:]HOST_PORT", hint: "run `dmx port ls` to see the forwards")
                 }
@@ -83,7 +85,8 @@ private func withDaemon<T>(_ body: (DaemonClient) async throws -> T) async throw
 }
 
 private func describe(_ f: PortForwardStatus) -> String {
-    var line = "\(f.hostAddress):\(f.hostPort) -> guest \(f.guestPort)" + (f.source.map { " (\($0))" } ?? "")
+    let proto = f.proto == "tcp" ? "" : "/\(f.proto)"
+    var line = "\(f.hostAddress):\(f.hostPort)\(proto) -> guest \(f.guestPort)\(proto)" + (f.source.map { " (\($0))" } ?? "")
     if !f.listening { line += " (not listening: \(f.error ?? "unknown"))" }
     if f.connections > 0 { line += ", \(f.connections) open" }
     return line

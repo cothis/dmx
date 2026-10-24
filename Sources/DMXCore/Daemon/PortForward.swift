@@ -1,34 +1,50 @@
 import Foundation
 
-/// A host TCP port forwarded to a TCP port in the guest (`dmx port add`). The daemon listens on
-/// the host port; each connection gets its own vsock stream to dmx-agent, which connects to the
-/// guest port on loopback (see `connect` in docs/agent-protocol.md). No privileged helper and no
-/// guest networking beyond `lo` is involved.
+/// A host TCP or UDP port forwarded to the same kind of port in the guest (`dmx port add`). The
+/// daemon listens on the host port; each TCP connection, or each UDP peer, gets its own vsock
+/// stream to dmx-agent, which connects to the guest port on loopback (see `connect` in
+/// docs/agent-protocol.md). No privileged helper and no guest networking beyond `lo` is involved.
 public struct PortForward: Codable, Sendable, Equatable {
     /// The IPv4 address listened on. 127.0.0.1 unless given; 0.0.0.0 lets other machines in.
     public var hostAddress: String
     public var hostPort: Int
     public var guestPort: Int
+    /// `tcp` or `udp` (`protocol` on the wire).
+    public var proto: String
 
-    public init(hostAddress: String = "127.0.0.1", hostPort: Int, guestPort: Int) {
+    public init(hostAddress: String = "127.0.0.1", hostPort: Int, guestPort: Int, proto: String = "tcp") {
         self.hostAddress = hostAddress
         self.hostPort = hostPort
         self.guestPort = guestPort
+        self.proto = proto
     }
 
-    /// `host_address` is optional on the wire.
+    enum CodingKeys: String, CodingKey {
+        case hostAddress, hostPort, guestPort
+        case proto = "protocol"
+    }
+
+    /// `host_address` and `protocol` are optional on the wire.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         hostAddress = try c.decodeIfPresent(String.self, forKey: .hostAddress) ?? "127.0.0.1"
         hostPort = try c.decode(Int.self, forKey: .hostPort)
         guestPort = try c.decode(Int.self, forKey: .guestPort)
+        proto = try c.decodeIfPresent(String.self, forKey: .proto) ?? "tcp"
     }
 
-    /// Parses `[HOST_IP:]HOST_PORT[:GUEST_PORT]`, Docker's `-p` without the protocol. Without a
-    /// guest port, the guest port is the host port.
+    /// Parses `[HOST_IP:]HOST_PORT[:GUEST_PORT][/udp]`, Docker's `-p`. Without a guest port, the
+    /// guest port is the host port.
     public init(parsing spec: String) throws {
+        var spec = spec
+        proto = "tcp"
+        if let slash = spec.lastIndex(of: "/") {
+            proto = String(spec[spec.index(after: slash)...])
+            spec = String(spec[..<slash])
+        }
         let parts = spec.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
-        let bad = DMXError("bad_port_spec", "cannot read \"\(spec)\" as [HOST_IP:]HOST_PORT[:GUEST_PORT]", hint: "e.g. `dmx port add 8080:80`")
+        let bad = DMXError("bad_port_spec", "cannot read \"\(spec)\" as [HOST_IP:]HOST_PORT[:GUEST_PORT][/udp]",
+                           hint: "e.g. `dmx port add 8080:80` or `dmx port add 5353:53/udp`")
         let ports: [String]
         switch parts.count {
         case 1, 2: hostAddress = "127.0.0.1"; ports = parts
@@ -51,6 +67,9 @@ public struct PortForward: Codable, Sendable, Equatable {
         for (name, port) in [("host", hostPort), ("guest", guestPort)] where !(1...65535).contains(port) {
             throw DMXError("bad_port_spec", "\(name) port \(port) is not between 1 and 65535", hint: "e.g. `dmx port add 8080:80`")
         }
+        guard proto == "tcp" || proto == "udp" else {
+            throw DMXError("bad_port_spec", "protocol \"\(proto)\" is neither tcp nor udp", hint: "e.g. `dmx port add 5353:53/udp`")
+        }
         if hostAddress == "localhost" { hostAddress = "127.0.0.1" }
         var address = in_addr()
         guard inet_pton(AF_INET, hostAddress, &address) == 1 else {
@@ -58,11 +77,11 @@ public struct PortForward: Codable, Sendable, Equatable {
         }
     }
 
-    var hostEndpoint: String { "\(hostAddress):\(hostPort)" }
+    var hostEndpoint: String { "\(hostAddress):\(hostPort)" + (proto == "tcp" ? "" : "/\(proto)") }
 
     /// Whether two forwards would listen on the same host port (0.0.0.0 overlaps every address).
     func overlaps(_ other: PortForward) -> Bool {
-        hostPort == other.hostPort
+        hostPort == other.hostPort && proto == other.proto
             && (hostAddress == other.hostAddress || hostAddress == "0.0.0.0" || other.hostAddress == "0.0.0.0")
     }
 }
@@ -80,6 +99,13 @@ public struct PortForwardStatus: Codable, Sendable {
     public let totalConnections: Int
     /// `docker` for a port a container publishes (forwarded while it runs, never saved), else nil.
     public var source: String? = nil
+    /// `tcp` or `udp`. For UDP, `connections` counts the peers that sent within the last minute.
+    public var proto = "tcp"
+
+    enum CodingKeys: String, CodingKey {
+        case hostAddress, hostPort, guestPort, listening, error, connections, totalConnections, source
+        case proto = "protocol"
+    }
 }
 
 public struct PortList: Codable, Sendable {
@@ -143,12 +169,15 @@ final class PortForwards {
     /// Makes the forwards that follow Docker's published ports (Docker.swift) exactly `wanted`.
     /// They are not saved: they last while their containers run, which needs the VM. A port that
     /// overlaps a `dmx port` forward or cannot be listened on is logged and left out.
+    /// Ports reserved for a container that is starting (`reserve`) stay until released.
     func setDockerForwards(_ wanted: [PortForward]) {
-        for listener in listeners where listener.docker && !wanted.contains(listener.forward) {
+        let unwanted = { (l: Listener) in l.docker && !l.reserved && !wanted.contains(l.forward) }
+        for listener in listeners where unwanted(listener) {
             listener.close()
             log("stopped forwarding \(listener.forward.hostEndpoint) (docker)")
         }
-        listeners.removeAll { $0.docker && !wanted.contains($0.forward) }
+        listeners.removeAll(where: unwanted)
+        for listener in listeners where listener.reserved && wanted.contains(listener.forward) { listener.reserved = false }
         for forward in wanted where !listeners.contains(where: { $0.docker && $0.forward == forward }) {
             if let taken = listeners.first(where: { $0.forward.overlaps(forward) }) {
                 log("port \(forward.hostEndpoint) (docker): \(taken.forward.hostEndpoint) is forwarded already (`dmx port`)")
@@ -164,6 +193,40 @@ final class PortForwards {
             listeners.append(listener)
             log("forwarding \(forward.hostEndpoint) to guest port \(forward.guestPort) (docker)")
         }
+    }
+
+    /// Listens on the ports a container is about to publish, before dockerd starts it, so that a
+    /// port taken on the Mac fails the start as on Docker Desktop instead of being only logged,
+    /// and the port answers as soon as the start returns. Throws for the first port that cannot
+    /// be had, leaving none of them reserved. A port that a container's forward holds already is
+    /// left to dockerd, which refuses a second container on it in the guest. The ports stay
+    /// reserved until `release`; the container listing after that keeps or drops them.
+    func reserve(_ wanted: [PortForward]) throws -> [PortForward] {
+        var made: [Listener] = []
+        do {
+            for forward in wanted where !listeners.contains(where: { $0.docker && $0.forward.overlaps(forward) }) {
+                if let taken = listeners.first(where: { $0.forward.overlaps(forward) }) {
+                    throw DMXError("port_forwarded", "\(taken.forward.hostEndpoint) is forwarded to guest port \(taken.forward.guestPort) by `dmx port`",
+                                   hint: "run `dmx port rm \(taken.forward.hostAddress):\(taken.forward.hostPort)`, or publish another port")
+                }
+                let listener = Listener(forward, docker: true)
+                listener.reserved = true
+                try listen(listener)
+                listeners.append(listener)
+                made.append(listener)
+            }
+        } catch {
+            for listener in made { listener.close() }
+            listeners.removeAll { l in made.contains { $0 === l } }
+            throw error
+        }
+        for listener in made { log("forwarding \(listener.forward.hostEndpoint) to guest port \(listener.forward.guestPort) (docker, starting)") }
+        return made.map(\.forward)
+    }
+
+    /// The start that `reserve` was for has been answered: the next `setDockerForwards` decides.
+    func release(_ forwards: [PortForward]) {
+        for listener in listeners where listener.reserved && forwards.contains(listener.forward) { listener.reserved = false }
     }
 
     /// Listens on a new forward and saves it. Does not boot the VM.
@@ -222,6 +285,15 @@ final class PortForwards {
     // MARK: Connections
 
     private func listen(_ listener: Listener) throws {
+        if listener.forward.proto == "udp" {
+            let port = listener.forward.guestPort
+            listener.udp = try UDPRelay(listener.forward, connect: { [unowned self] in
+                guard let agent else { throw DMXError("daemon_exiting", "the daemon is shutting down") }
+                return try await agent().connect(port: port, udp: true)
+            }, using: { [unowned self] in using?($0) })
+            listener.error = nil
+            return
+        }
         let fd = try listenTCP(listener.forward)
         _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK)
         let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: .main)
@@ -306,10 +378,14 @@ private final class Listener {
     /// Follows a port a container publishes; not saved.
     let docker: Bool
     var source: DispatchSourceRead?
+    /// A UDP forward's socket and peers, instead of `source`.
+    var udp: UDPRelay?
     var error: String?
     var active = 0, total = 0
     /// Accepting is suspended for a moment after running out of descriptors.
     var paused = false
+    /// Listened on for a container that is starting (`PortForwards.reserve`).
+    var reserved = false
 
     init(_ forward: PortForward, docker: Bool = false) {
         self.forward = forward
@@ -321,12 +397,15 @@ private final class Listener {
         paused = false
         source?.cancel()
         source = nil
+        udp?.close()
+        udp = nil
     }
 
     var status: PortForwardStatus {
-        PortForwardStatus(hostAddress: forward.hostAddress, hostPort: forward.hostPort, guestPort: forward.guestPort,
-                          listening: source != nil, error: error, connections: active, totalConnections: total,
-                          source: docker ? "docker" : nil)
+        let counts = udp?.counts ?? (active: active, total: total)
+        return PortForwardStatus(hostAddress: forward.hostAddress, hostPort: forward.hostPort, guestPort: forward.guestPort,
+                                 listening: source != nil || udp != nil, error: error, connections: counts.active,
+                                 totalConnections: counts.total, source: docker ? "docker" : nil, proto: forward.proto)
     }
 }
 
@@ -392,14 +471,15 @@ private func accepts(_ address: sockaddr_in) -> Bool {
 extension AgentClient {
     /// Opens a TCP connection to `port` in the guest (on `host`, loopback by default), or to the
     /// Unix socket at `path`. From now on the returned connection carries the stream's bytes,
-    /// unframed; close it when done.
+    /// unframed; close it when done. With `udp`, it carries datagrams to and from UDP `port`,
+    /// each framed as a big-endian u16 length and the bytes (`UDPRelay`).
     @MainActor
-    func connect(port: Int? = nil, host: String? = nil, path: String? = nil) async throws -> FrameConnection {
-        struct Params: Encodable, Sendable { let port: Int?; let host: String?; let path: String? }
+    func connect(port: Int? = nil, host: String? = nil, path: String? = nil, udp: Bool = false) async throws -> FrameConnection {
+        struct Params: Encodable, Sendable { let port: Int?; let host: String?; let path: String?; let udp: Bool? }
         struct Connected: Decodable {}
         let connection = try await openRetrying()
         do {
-            let _: Connected = try await connection.call("connect", Params(port: port, host: host, path: path))
+            let _: Connected = try await connection.call("connect", Params(port: port, host: host, path: path, udp: udp ? true : nil))
         } catch {
             connection.close()
             throw error
