@@ -65,7 +65,8 @@ inherits SIGINT and SIGQUIT ignored from `/init`). With a tty the process runs i
 one it runs in its own process group. If the host closes the connection before the process
 exits, the agent kills the process group. After the process exits, output still arriving is
 forwarded until the streams have been quiet for 500 ms, so a background child holding a stream
-open does not delay `exit` forever.
+open does not delay `exit` forever. Output still waiting for a host that reads slowly is not
+quiet: it goes out before `exit`.
 
 Because an exec takes over its connection, the host opens one connection for control calls and
 a new one per exec (`AgentClient` does this).

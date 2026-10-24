@@ -9,7 +9,7 @@ use std::io::{Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -137,16 +137,22 @@ pub fn run(id: u64, p: Params, mut conn: Stream, out: Arc<Mutex<Stream>>) {
 
     let started = Instant::now();
     let last_output = Arc::new(AtomicU64::new(0));
+    // Pumps blocked writing to the host (which reads slower than the process wrote) are not quiet.
+    let writing = Arc::new(AtomicUsize::new(0));
     let (done_tx, done_rx) = mpsc::channel();
     let pumps = outputs.len();
     for (kind, mut src) in outputs {
-        let (out, last, done) = (out.clone(), last_output.clone(), done_tx.clone());
+        let (out, last, done, writing) = (out.clone(), last_output.clone(), done_tx.clone(), writing.clone());
         std::thread::spawn(move || {
             let mut buf = vec![0u8; 32 << 10];
             // A pty master reads EIO once the last slave closes; treat it like EOF.
             while let Ok(n @ 1..) = src.read(&mut buf) {
                 last.store(started.elapsed().as_millis() as u64, Ordering::Relaxed);
-                if frame::write(&mut *out.lock().unwrap(), kind, &buf[..n]).is_err() {
+                writing.fetch_add(1, Ordering::SeqCst);
+                let sent = frame::write(&mut *out.lock().unwrap(), kind, &buf[..n]);
+                last.store(started.elapsed().as_millis() as u64, Ordering::Relaxed);
+                writing.fetch_sub(1, Ordering::SeqCst);
+                if sent.is_err() {
                     break;
                 }
             }
@@ -186,7 +192,7 @@ pub fn run(id: u64, p: Params, mut conn: Stream, out: Arc<Mutex<Stream>>) {
             Ok(()) => finished += 1,
             Err(_) => {
                 let quiet = started.elapsed().as_millis() as u64 - last_output.load(Ordering::Relaxed);
-                if quiet >= DRAIN_QUIET.as_millis() as u64 {
+                if quiet >= DRAIN_QUIET.as_millis() as u64 && writing.load(Ordering::SeqCst) == 0 {
                     break;
                 }
             }
