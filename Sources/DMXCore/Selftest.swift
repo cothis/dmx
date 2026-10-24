@@ -141,6 +141,13 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
         check("disk_discard", d.returnedMs != nil,
               "128 MB written and deleted: host file \(d.allocatedBeforeMb) -> \(d.allocatedAfterWriteMb) -> \(d.allocatedAfterDeleteMb) MB \(d.returnedMs.map { "in \($0) ms" } ?? "(not within 10 s)")")
 
+        // An x86_64 program through binfmt_misc and qemu-x86_64 (/init). After the memory checks,
+        // so qemu's pages do not count as idle memory.
+        let x86 = try await agent.run(["sh", "-c", "cat >/run/x86-hello && chmod +x /run/x86-hello && /run/x86-hello; s=$?; rm -f /run/x86-hello; exit $s"],
+                                      stdin: x86Hello)
+        check("x86_64", x86.exit.code == 0 && text(x86.stdout) == "x86_64 ok\n",
+              "static x86_64 ELF: exit \(x86.exit.code.map(String.init) ?? "by signal"), \(text(x86.stdout + x86.stderr).prefix(80).debugDescription)")
+
         shutdownStarted = ContinuousClock.now
         try await agent.shutdown()
     } catch let error as DMXError {
@@ -252,6 +259,11 @@ private func serveOnce(_ body: Data) throws -> UInt16 {
     }
     return UInt16(bigEndian: address.sin_port)
 }
+
+/// A 163-byte static x86_64 Linux ELF: one PT_LOAD at 0x400000, then `write(1, "x86_64 ok\n", 10)`
+/// and `exit(0)` as raw syscalls. No libc, so it tests binfmt_misc and qemu, not a loader.
+private let x86Hello = Data(base64Encoded:
+    "f0VMRgIBAQAAAAAAAAAAAAIAPgABAAAAeABAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAEAAOAABAAAAAAAAAAEAAAAFAAAAAAAAAAAAAAAAAEAAAAAAAAAAQAAAAAAAowAAAAAAAACjAAAAAAAAAAAQAAAAAAAAuAEAAAC/AQAAAEiNNRAAAAC6CgAAAA8FuDwAAAAx/w8FeDg2XzY0IG9rCg==")!
 
 public struct DiskReport: Encodable, Sendable {
     /// The /var/lib line of the guest's /proc/mounts.

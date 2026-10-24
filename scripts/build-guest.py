@@ -15,6 +15,7 @@ import gzip
 import hashlib
 import io
 import json
+import lzma
 import os
 import struct
 import subprocess
@@ -54,6 +55,18 @@ MKFS_FILES = {
 }
 MKFS_DIR = "usr/libexec/dmx-mkfs"
 
+# x86_64 programs run through QEMU user mode, which /init registers with binfmt_misc. Alpine's
+# qemu-x86_64 is a static PIE, so it needs no libraries. Signature checked against the Alpine keys
+# in the minirootfs when pinned. The initramfs carries it xz'd (1.0 MB; 3.6 MB unpacked); /init
+# unpacks it onto the data disk when the copy there is missing or another version, then deletes
+# QEMU_DIR. qemu then costs guest RAM only while an x86 program runs; the copy in the initramfs
+# costs ~2 MB of idle footprint (freed boot pages that free page reporting misses).
+SOURCES["qemu-x86_64"] = {
+    "url": f"{ALPINE}/community/aarch64/qemu-x86_64-11.0.3-r0.apk",
+    "sha256": "3ccc698b81da078425115d531c23d328e9dd1c094fb1ac4dc9417d1687f4363f",
+}
+QEMU_DIR = "usr/libexec/dmx-qemu"
+
 KERNEL_RELEASE = "6.18.58-0-virt"
 # The kernel the guest runs: Alpine's source and config with 16K pages, from scripts/build-kernel.py.
 # The Alpine kernel above is used only to boot the VM that builds it (`--kernel alpine`).
@@ -75,6 +88,7 @@ MODULES = [
     "veth",
     "bridge",
     "nf_tables",
+    "binfmt_misc",
 ]
 
 # Minirootfs packages the dmx guest leaves out: apk and the TLS stack only it uses (~6 MB of
@@ -228,6 +242,22 @@ def add_mkfs(cpio: Cpio, cache: Path):
         cpio.file(f"{MKFS_DIR}/{Path(path).name}", data, perm)
 
 
+def add_qemu(cpio: Cpio, cache: Path) -> str:
+    """qemu-x86_64 from its pinned apk as QEMU_DIR/qemu-x86_64.xz, and its sha256 in
+    QEMU_DIR/sha256, which /init compares with the copy on the data disk. A 1 MB dictionary
+    (instead of preset 9's 64 MB) keeps what busybox unxz allocates small and costs 1 KB more.
+    Returns the sha256."""
+    with tarfile.open(fetch("qemu-x86_64", cache), "r:gz", ignore_zeros=True) as tar:
+        binary = tar.extractfile("usr/bin/qemu-x86_64").read()
+    packed = lzma.compress(binary, format=lzma.FORMAT_XZ, check=lzma.CHECK_CRC32,
+                           filters=[{"id": lzma.FILTER_LZMA2, "preset": 9 | lzma.PRESET_EXTREME, "dict_size": 1 << 20}])
+    digest = hashlib.sha256(binary).hexdigest()
+    cpio.parents(QEMU_DIR + "/sha256")
+    cpio.file(f"{QEMU_DIR}/qemu-x86_64.xz", packed)
+    cpio.file(f"{QEMU_DIR}/sha256", (digest + "\n").encode())
+    return digest
+
+
 def module_closure(dep_text: str, builtin_text: str, release: str) -> set:
     builtin = {Path(p).name.split(".ko")[0].replace("-", "_") for p in builtin_text.split()}
     deps = {}
@@ -302,6 +332,7 @@ def main():
     cpio.file("init", (root / "guest" / "init").read_bytes(), 0o755)
     cpio.file("sbin/dmx-agent", agent, 0o755)
     add_mkfs(cpio, args.cache)
+    qemu = add_qemu(cpio, args.cache)
 
     initramfs = gzip.compress(cpio.finish(), mtime=EPOCH)
     (args.out / "Image").write_bytes(image)
@@ -315,6 +346,7 @@ def main():
             "Image": hashlib.sha256(image).hexdigest(),
             "initramfs.gz": hashlib.sha256(initramfs).hexdigest(),
             "dmx-agent": hashlib.sha256(agent).hexdigest(),
+            "qemu-x86_64": qemu,
         },
     }
     (args.out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
