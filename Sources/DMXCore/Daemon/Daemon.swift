@@ -434,6 +434,21 @@ func seconds(_ d: Duration) -> Double {
     Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
 }
 
+/// `read` for a blocking socket, waiting in `poll` first. macOS can lose the wakeup of a read
+/// sleeping on a Unix socket when the peer shuts its sending side down (`shutdown(SHUT_WR)`):
+/// the socket is at end of stream, a new read returns 0 at once, but the sleeping one never
+/// returns. A socketpair with one thread reading and another writing and then shutting down
+/// hung within 5,000 to 80,000 rounds (macOS 26.6); waiting in `poll` or kqueue held for 4 million.
+/// The vsock streams are socketpairs that see such half closes whenever the guest's side ends
+/// first (dockerd answering an HTTP/1.0 request), and docker.sock clients see them from the
+/// daemon, so every blocking read of a socket goes through here.
+func readSocket(_ fd: Int32, _ buffer: UnsafeMutableRawPointer, _ count: Int) -> Int {
+    var ready = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+    while poll(&ready, 1, -1) < 0 && errno == EINTR {}
+    // Readable, at end of stream, or failed: the read says which.
+    return read(fd, buffer, count)
+}
+
 /// Copies bytes both ways between two connected sockets until either side is done, then shuts
 /// both down so the other direction ends too. A direction that ends because its destination
 /// stopped taking bytes shuts nothing down: what that side sent before going away (an exec's last
@@ -462,7 +477,7 @@ private func pump(from: Int32, to: Int32) -> Bool {
     let buffer = UnsafeMutableRawPointer.allocate(byteCount: size, alignment: 16)
     defer { buffer.deallocate() }
     while true {
-        let n = read(from, buffer, size)
+        let n = readSocket(from, buffer, size)
         if n < 0 && errno == EINTR { continue }
         if n <= 0 { return true }
         var offset = 0

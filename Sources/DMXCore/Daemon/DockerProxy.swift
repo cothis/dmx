@@ -71,7 +71,7 @@ final class DockerProxy: @unchecked Sendable {
         let buffer = UnsafeMutableRawPointer.allocate(byteCount: Self.bufferSize, alignment: 16)
         defer { buffer.deallocate() }
         while true {
-            let n = read(server, buffer, Self.bufferSize)
+            let n = readSocket(server, buffer, Self.bufferSize)
             if n < 0 && errno == EINTR { continue }
             if n == 0 {
                 shutdown(client, SHUT_WR)
@@ -294,7 +294,7 @@ private final class Reader {
     private func fill() -> Int {
         var chunk = [UInt8](repeating: 0, count: DockerProxy.bufferSize)
         while true {
-            let n = read(fd, &chunk, chunk.count)
+            let n = chunk.withUnsafeMutableBytes { readSocket(fd, $0.baseAddress!, $0.count) }
             if n < 0 && errno == EINTR { continue }
             if n > 0 { buffer.append(contentsOf: chunk[..<n]) }
             return n
@@ -356,7 +356,7 @@ private final class Reader {
         let chunk = UnsafeMutableRawPointer.allocate(byteCount: DockerProxy.bufferSize, alignment: 16)
         defer { chunk.deallocate() }
         while left > 0 {
-            let n = read(fd, chunk, min(left, DockerProxy.bufferSize))
+            let n = readSocket(fd, chunk, min(left, DockerProxy.bufferSize))
             if n < 0 && errno == EINTR { continue }
             if n == 0 { return .end }
             if n < 0 { return .failed }

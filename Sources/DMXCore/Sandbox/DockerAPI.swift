@@ -42,7 +42,7 @@ final class DockerStream: @unchecked Sendable {
     func read(max: Int = 64 << 10) throws -> Data {
         var buffer = Data(count: max)
         while true {
-            let n = buffer.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress, max) }
+            let n = buffer.withUnsafeMutableBytes { readSocket(fd, $0.baseAddress!, max) }
             if n < 0 && errno == EINTR { continue }
             if n < 0 {
                 if errno == ECONNRESET || errno == ENOTCONN { return Data() }

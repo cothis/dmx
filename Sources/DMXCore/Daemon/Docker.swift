@@ -418,7 +418,7 @@ enum DockerHTTP {
             var data = Data()
             var buffer = [UInt8](repeating: 0, count: 64 << 10)
             while data.count < 64 << 20 {
-                let n = read(fd, &buffer, buffer.count)
+                let n = buffer.withUnsafeMutableBytes { readSocket(fd, $0.baseAddress!, $0.count) }
                 if n < 0 && errno == EINTR { continue }
                 if n < 0 { throw DMXError("docker_failed", "read from dockerd: \(String(cString: strerror(errno)))") }
                 if n == 0 { break }
@@ -443,7 +443,7 @@ enum DockerHTTP {
             var inBody = false
             var tail: [UInt8] = []
             while true {
-                let n = read(fd, &buffer, buffer.count)
+                let n = buffer.withUnsafeMutableBytes { readSocket(fd, $0.baseAddress!, $0.count) }
                 if n < 0 && errno == EINTR { continue }
                 if n <= 0 { return }
                 for byte in buffer[..<n] {

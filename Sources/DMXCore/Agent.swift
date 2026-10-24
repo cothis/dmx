@@ -244,7 +244,7 @@ public final class FrameConnection: @unchecked Sendable {
         var data = Data(count: count)
         var offset = 0
         while offset < count {
-            let n = data.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress! + offset, count - offset) }
+            let n = data.withUnsafeMutableBytes { readSocket(fd, $0.baseAddress! + offset, count - offset) }
             if n < 0 {
                 if errno == EINTR { continue }
                 throw DMXError("\(peer)_disconnected", "read from \(peer): \(String(cString: strerror(errno)))")
