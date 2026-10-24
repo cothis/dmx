@@ -19,7 +19,7 @@ impl Listener {
             addr.svm_cid = libc::VMADDR_CID_ANY;
             let len = std::mem::size_of::<libc::sockaddr_vm>() as libc::socklen_t;
             if libc::bind(fd.as_raw_fd(), &addr as *const _ as *const libc::sockaddr, len) < 0
-                || libc::listen(fd.as_raw_fd(), 128) < 0
+                || libc::listen(fd.as_raw_fd(), 1024) < 0
             {
                 return Err(io::Error::last_os_error());
             }

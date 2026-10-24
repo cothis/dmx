@@ -355,7 +355,7 @@ extension AgentClient {
     func connect(port: Int, host: String? = nil) async throws -> FrameConnection {
         struct Params: Encodable, Sendable { let port: Int; let host: String? }
         struct Connected: Decodable {}
-        let connection = try await open()
+        let connection = try await openRetrying()
         do {
             let _: Connected = try await connection.call("connect", Params(port: port, host: host))
         } catch {
@@ -363,6 +363,22 @@ extension AgentClient {
             throw error
         }
         return connection
+    }
+
+    /// A burst of connections can fill the agent's accept queue, and the guest then refuses the
+    /// rest; the agent empties it within milliseconds, so try again for a moment.
+    @MainActor
+    private func openRetrying() async throws -> FrameConnection {
+        let deadline = ContinuousClock.now + .seconds(2)
+        var delay = Duration.milliseconds(5)
+        while true {
+            do {
+                return try await open()
+            } catch let error as DMXError where error.code == "agent_unreachable" && ContinuousClock.now < deadline {
+                try await Task.sleep(for: delay)
+                delay = min(delay * 2, .milliseconds(200))
+            }
+        }
     }
 }
 
