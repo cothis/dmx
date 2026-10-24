@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build install kernel guest selftest daemontest mcptest x86test dockertest test clean
+.PHONY: build install kernel guest selftest daemontest mcptest x86test dockertest test release clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -47,6 +47,12 @@ dockertest: build
 # Unit tests that need no VM (the virtio-fs server's path containment).
 test:
 	swift test
+
+# Assembles a GitHub Release in .build/dist/v$(VERSION) from the guest `make guest` built, and
+# pins that guest in Sources/DMXCore/GuestPin.swift. Uploads nothing (docs/release.md).
+release:
+	@test -n "$(VERSION)" || { echo "usage: make release VERSION=0.1.0"; exit 1; }
+	python3 -I scripts/release.py --version $(VERSION)
 
 clean:
 	rm -rf .build

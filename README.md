@@ -27,9 +27,23 @@ See [docs/PLAN.md](docs/PLAN.md) for the detailed plan.
 | 7 | Docker compatibility (dockerd in the guest first) | |
 | 8 | Own runtime, replacing dockerd piece by piece | |
 | 9 | `dmx mcp`, sandboxes, checkpoints | `dmx mcp` works; sandboxes next |
-| 10 | Release: CI, guest artifacts, Homebrew | |
+| 10 | Release: install script, guest downloads verified by dmx | groundwork done, no release yet |
 
 Measured on an M-series Mac (10 cores, 16 GB): the guest agent answers about 0.15 to 0.25 s after boot starts. The whole dmx process, guest RAM included, costs about 87 MB at idle with a 2 GB ceiling and 115 MB with 8 GB (the first Virtualization.framework build cost 170 and 356 MB), thanks to a 16K page guest kernel trimmed to what dmx needs, no SWIOTLB bounce buffer, and dmx's own VMM. With the VM stopped the daemon costs 4 MB, and an idle daemon exits. Virtualization.framework never hands memory the guest frees back to macOS (its balloon is a no-op on the host); on Hypervisor.framework guest RAM is memory dmx owns, so when the guest frees 1 GB, dmx gives it back to macOS within about 2 seconds.
+
+## Install
+
+Releases need no Xcode, Python, Rust or Homebrew: one script installs `dmx` into `~/.local/bin`
+(no sudo), and dmx downloads its Linux guest on first use, checked against the sha256 built into
+the binary. No release is published yet; until then, build from source below.
+
+```sh
+curl -fsSL https://github.com/cothis/dmx/releases/download/v0.1.0/install.sh | sh
+dmx install            # optional: launchd starts dmx on demand; adds a docker context
+dmx guest fetch        # optional: download the guest now instead of on the first boot
+```
+
+See [docs/release.md](docs/release.md) for what a release contains and how one is cut.
 
 ## Build
 
@@ -97,6 +111,7 @@ State lives in `~/.dmx` (override with `DMX_HOME`). The control socket is descri
 - `scripts/build-guest.py`: builds the guest from pinned, checksummed Alpine Linux packages and that kernel
 - `scripts/test-daemon.py`: end to end test of the daemon on the real VM (`make daemontest`)
 - `scripts/test-mcp.py`: `dmx mcp` driven over pipes on the real VM (`make mcptest`)
+- `scripts/release.py`, `scripts/install.sh`: a release directory (`make release`) and the script users install it with
 - `docs/PLAN.md`: full plan, decisions, progress and measurements
 
 ## License

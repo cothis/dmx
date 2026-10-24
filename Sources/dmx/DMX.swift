@@ -47,7 +47,7 @@ struct DMX: AsyncParsableCommand {
         abstract: "A container engine for macOS that stays out of your memory.",
         version: version,
         subcommands: [Doctor.self, Status.self, Start.self, Stop.self, Exec.self, Shell.self, Port.self,
-                      ConfigCommand.self, Install.self, Uninstall.self, Tools.self, Daemon.self, MCP.self, Boot.self]
+                      ConfigCommand.self, GuestCommand.self, Install.self, Uninstall.self, Tools.self, Daemon.self, MCP.self, Boot.self]
     )
 }
 
@@ -111,6 +111,15 @@ struct Boot: AsyncParsableCommand {
     func run() async throws {
         let spec = MachineSpec(cpus: cpus, maxMemory: try memory.map(parseSize), kernelArgs: kernelArgs,
                                shares: try Share.parseList(shares.joined(separator: ",")))
+        do {
+            let quiet = global.json
+            try await GuestStore(paths: Paths()).ensure { message in
+                if !quiet { FileHandle.standardError.write(Data("dmx: \(message)\n".utf8)) }
+            }
+        } catch let error as DMXError {
+            try await report(global) { () -> (Bool, String, Bool) in throw error }
+            return
+        }
         if !command.isEmpty {
             let status: Int32
             do {

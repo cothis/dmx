@@ -253,6 +253,8 @@ public final class Daemon {
                 var spec = try config.spec
                 spec.kernelArgs.append("quiet")
                 spec.dataDisk = DataDisk(url: paths.dataDisk, size: try config.diskSizeBytes)
+                // A missing guest, or one from an older release, is downloaded first (GuestStore).
+                try await GuestStore(paths: paths).ensure(log: log)
                 if FileManager.default.fileExists(atPath: paths.dockerImage.path) {
                     spec.extraDisks = [DataDisk(url: paths.dockerImage, size: 0, readOnly: true, id: "dmx-docker")]
                 }

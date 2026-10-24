@@ -510,7 +510,7 @@ func connectAgent(timeout: Duration, isStopped: () -> Bool,
             let client = AgentClient(control: try await open(), open: open)
             let hello = try await client.hello()
             guard hello.protocol == agentProtocol else {
-                throw DMXError("agent_version", "agent speaks protocol \(hello.protocol), this dmx speaks \(agentProtocol)", hint: "run `make guest` to rebuild the guest with a matching agent")
+                throw DMXError("agent_version", "agent speaks protocol \(hello.protocol), this dmx speaks \(agentProtocol)", hint: "run `dmx guest fetch --force` for the guest this dmx was released with, or `make guest` to rebuild it from source")
             }
             return client
         } catch let error as DMXError where error.code == "agent_version" || error.code == "vm_error" {
