@@ -57,6 +57,7 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | No GitHub CI, no Homebrew dependency (2026-10-24) | Maintainer's choice: GitHub is only for distribution (source and releases). Checks run locally before a release (`make build`, `swift test`, selftest, daemontest, dockertest). dmx ships its own pinned Docker CLI tools instead of relying on Homebrew. |
 | dmx ships the docker CLI, Compose, Buildx and the keychain credential helper (2026-10-24) | Docker Desktop does, and users should not need Homebrew. Pinned upstream darwin-arm64 builds (the static CLI is trust-on-first-download: Docker publishes no checksum for it). Plugins through `cliPluginsExtraDirs`; no shell rc files edited. All Apache-2.0. |
 | Sandboxes are containers in the one VM (2026-10-24) | No state of dmx's own to clean up (labels), egress rules inside each sandbox's namespace cover every protocol. Isolation is Docker's: a guest kernel exploit reaches the whole guest and its shares; per-sandbox VMs are a possible later step for hostile code. |
+| Guest memory beyond 1 GB is hotplugged with virtio-mem (2026-10-24) | The memmap (struct page) costs ~4.7 MB of footprint per GB of ceiling whether used or not. Plugging on demand makes the ceiling free until used; the balloon still squeezes under host pressure. |
 | CLI only, no GUI | The work that matters is invisible (memory, sockets). Agents use CLIs. |
 | Kernel hardening over a few MB (2026-10-24) | Maintainer's choice: `rodata=noalias` would save 4 MB at 8G (page tables of a page-by-page linear map) but leaves the linear alias of kernel text writable, so the default stays `rodata=full`. |
 | Memory savings are always on | Balloon, idle stop and cache trimming are defaults, not options. The user's standing preference: improvements are not toggles. |
@@ -175,9 +176,12 @@ This is the core feature. Measure before and after every change and log numbers 
       `AsyncThrowingStream`. Now a `ByteQueue` that reuses consumed space, and exec output is
       read from the socket only as the caller consumes it, so the guest waits on vsock credit.
       500 MB out: peak 157 MB (idle 145). 500 MB in: peak 151 MB.
-- [ ] Memmap scales with the ceiling (32 MB at 8G, 16 KB pages × 64 bytes). Only plugging memory
-      as needed avoids it (virtio-mem, or ACPI-less memory hotplug with our own device). Measure
-      against the alternative of a lower default ceiling.
+- [x] Memmap scales with the ceiling: the guest boots with 1 GB and our virtio-mem device
+      (`HV/VirtioMem.swift`, policy `HV/MemoryPlugPolicy.swift`) plugs the rest of the ceiling in
+      32 MB blocks as needed, from the balloon's stats queue: keep 1 GB available plus 0.5 s of
+      current growth, unplug after 30 s with more than 1.5 GB available. The guest onlines plugged
+      memory as movable (`memhp_default_state=online`, `online_policy=auto-movable`). Idle footprint
+      ~80 MB at any ceiling. `CONFIG_VIRTIO_MEM` becomes built in on the next `make kernel`.
 - [x] Each vCPU costs ~2.3 MB of guest memory at idle (1 vCPU 125 MB, 10: 147 at 8G before the
       kernel trim). `slub_max_order=1` (default now) took 10 vCPUs to 141 MB. Taking 9 vCPUs
       offline at idle gives back only 2 to 5 MB (121 → 116 to 119 MB with the trimmed kernel):
@@ -362,9 +366,10 @@ only dmx's tools (43 checks).
 ## Next up
 
 Phase 7 is done. Open items, roughly in order of value:
-- Memory: reusable pages the guest re-dirties go uncounted (Findings, "Reusable pages"); the
-  memmap that scales with the ceiling; ~10 MB left after network traffic; qemu's copy in the
-  initramfs (+2 MB idle) should move into `docker.img`.
+- Memory: reusable pages the guest re-dirties go uncounted (Findings, "Reusable pages"); ~10 MB
+  left after network traffic; qemu's copy in the initramfs (+2 MB idle) should move into
+  `docker.img` (agents `reuse` and `gaps` are on these). Plug state in `dmx status`; unplug
+  instead of balloon under critical host pressure.
 - Docker gaps: UDP published ports, failing on a taken host port, restart policies at boot.
 - Phase 10: guest artifacts as releases (GPL obligations noted there), an install script; no CI, no Homebrew.
 - Re-measure timings on a quiet host: most of today's numbers were taken at load 15 to 90.
@@ -456,6 +461,7 @@ Phase 7 is done. Open items, roughly in order of value:
 | 2026-10-24 | dmx's Docker tools, load 15 to 20 | Download 112 MB in 10 to 11 s, 137 MB on disk (docker 41, buildx 62, compose 29, credential helper 2.3); resumes with HTTP ranges; re-checking all present 0.17 to 0.3 s. BuildKit build (FROM alpine, RUN, COPY) 1.2 to 2.0 s, `--no-cache` 0.5 to 1.1 s; multi-stage with a cache mount 3.3 to 3.8 s; `compose build` 0.8 to 1.6 s. |
 | 2026-10-24 | Guest download | Release guest archive 61.7 MB; download, check and unpack from a local server 0.3 to 0.6 s. Hashing with `FileHandle.read` left ~130 MB in the daemon (autoreleased chunks, no pool drains); one 1 MB buffer now. Daemon after a download: 10 MB with the VM stopped (4 MB otherwise), until it exits idle. |
 | 2026-10-24 | Sandboxes, load 10 to 28 | First create on a new data disk (boot, dockerd, pull) 6.2 to 6.9 s; create with the image present 0.21 to 0.53 s; exec `true` 35 to 52 ms; checkpoint 0.17 to 0.27 s (1.0 s with 3 MB changed, +3.8 MB per 4 MB written); rollback 0.25 to 0.36 s; fork 0.19 to 0.69 s; remove 0.09 to 0.14 s; a 10 s TTL removes it after 10.3 to 10.5 s with the client gone. Guest memory per idle sandbox 7 to 8 MB. Allowlist sandboxes still resolve any name (Docker's resolver runs outside the sandbox). |
+| 2026-10-24 | virtio-mem, load 8 to 50 | Idle footprint by ceiling, all memory at boot → virtio-mem: 2G 79 → 80, 4G 88 → 80, 8G 107 → 79, 16G 145 → 83 MB; guest reserved 32/41/59/95 → 27.5 MB. Idle: 1 GB boot + 256 MB plugged. Burst of 4 × 512 MB into tmpfs in 0.5 to 0.7 s: no OOM, lowest MemAvailable 425 MB, 1.9 GB plugged 60 ms after the request (~32 ms/GB); back to 1.25 GB present 30 s after deleting, footprint 79 to 90 MB. 10 × 200 MB: a fixed 1 GB headroom gave 7 OOM kills (plugging needs memory for its memmap and CPU from a guest busy reclaiming, ~700 ms); the rate-based step none. Idle CPU 0.12 % of a core (0.08 % before). Coordinator's run after merging: selftest 81 MB, daemontest 83, x86test 81, dockertest idle without Docker 67, dockerd idle 274. |
 | 2026-10-24 | `dmx mcp` (stdio MCP), load 5 to 6 | `make mcptest` 5.3 to 6.3 s, 30 of 30 checks. Cold `dmx_exec uname -a` with no daemon 215 to 376 ms end to end; warm 0 to 2 ms. 200 MB of stdout capped to 8 KiB in 0.65 to 1.41 s; `dmx mcp` RSS 8 to 9 MB, 10 MB at peak. A 2 s timeout returns in 2.01 to 2.13 s with the guest processes gone. `tools/list` is 4.6 KB (3.8 KB without `outputSchema`). |
 | 2026-10-24 | Truncated exec output after a boot | `dmx stop`, an exec, then 200 MB of stdout: 5 to 6 of 40 runs ended with "daemon closed the connection mid-frame" (load 9 to 15); logging the shutdown path hid it. The guest sometimes sends RST right after its SHUTDOWN, and the host dropped the connection with up to 200 KB from the guest still unwritten to the full host socket. Now an RST on an open stream delivers what the guest sent, then closes: 0 of 50. Found by the `dmx mcp` tests. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
@@ -496,3 +502,4 @@ Phase 7 is done. Open items, roughly in order of value:
 - 2026-10-24: Maintainer: no GitHub CI and no Homebrew. Agents `cli`, `gaps`, `reuse`, `memmap`, `phase9`, `release` started.
 - 2026-10-24: `dmx tools` (docker CLI, Compose, Buildx without Homebrew; BuildKit builds) and release groundwork (guest download, `make release`, install.sh) merged.
 - 2026-10-24: Phase 9 done: sandboxes with policies and TTLs, checkpoints, fork, rollback and logs, in the CLI and over MCP.
+- 2026-10-24: virtio-mem merged: the guest boots with 1 GB and plugs the rest on demand; idle ~80 MB at any ceiling (8G was 107, 16G 145).
