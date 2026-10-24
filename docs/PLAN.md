@@ -49,6 +49,7 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | x86_64 images through QEMU user mode + binfmt, not Rosetta (2026-10-23) | Rosetta for Linux exists only inside Virtualization.framework. Most images are multi-arch; emulation is a fallback. |
 | One long lived VM, not one VM per container | One kernel's overhead instead of N. Revisit per-container VMs for sandboxes (phase 9). |
 | The daemon exits when idle; the CLI starts it if launchd does not (2026-10-24) | An idle dmx should cost nothing, not even a 4 MB daemon. `dmx install` is optional: without it `dmx exec` still just works, which matters for agents. One daemon per `DMX_HOME`, enforced by a lock file. |
+| Transparent huge pages off in the guest (2026-10-24) | With 16K pages a huge page is 32 MB. `madvise` (2026-10-23) still let qemu's 128 MB code buffer take 32 MB per x86 process (`sleep` 38 MB RSS, 5.4 MB without); nothing in dmx needs huge pages. Replaces the `madvise` choice. |
 | Guest network is a user space NAT inside dmx, not vmnet (2026-10-24) | vmnet needs root or `com.apple.vm.networking`, which Apple grants on request (verified: an ad-hoc process gets VMNET_FAILURE, the entitlement gets it killed). Guest flows map onto host sockets like passt: no TCP stack, no second process, bounded buffers, and traffic is dmx's own so VPNs and firewalls apply. Costs: IPv4 only, no ICMP errors; inbound goes through vsock port forwarding. |
 | Defaults and security follow Docker Desktop (2026-10-24) | Maintainer's rule: Docker must just work, and security choices match standard tools. So: host directories shared read-write at the same path (Docker Desktop shares /Users, /Volumes, /private, /tmp, /var/folders; phase 7 matches that list), containers reach host services through a host alias (`host.docker.internal` in phase 7, today `host.dmx.internal`), ports bind 127.0.0.1 unless asked, host user ↔ guest root on shares, `init_on_alloc` on as in stock kernels, no TLS tools in the base guest (dockerd does its own TLS). Port forwards persist and keep the 4 MB daemon up while they exist. MCP tools are `dmx_*`, argv-based, 8 KiB/120 s defaults. |
 | CLI only, no GUI | The work that matters is invisible (memory, sockets). Agents use CLIs. |
@@ -193,7 +194,7 @@ This is the core feature. Measure before and after every change and log numbers 
       deflate. `dmx status` shows a `memory` object; actions are logged with `memory:`.
 - [x] Guest policy: zram swap (lz4, a quarter of the ceiling) turned on by the agent the first time
       the guest is squeezed or passes half its ceiling (at boot it costs ~3.5 MB);
-      `vm.swappiness=100` and `vm.page-cluster=0` with it. Transparent huge pages only on `madvise`.
+      `vm.swappiness=100` and `vm.page-cluster=0` with it. Transparent huge pages off (`never`; was `madvise` until qemu's code buffer took 32 MB per x86 process).
       `init_on_alloc` stays on: on dmx's VMM inflating costs CPU (~1.5 s for 7.8 GB), not memory.
 - [x] Freed guest blocks under 512 KB (after connection bursts, small-file work): when idle, the
       controller lowers free page reporting to order 0 (16 KB) and has every slab cache free its
@@ -273,7 +274,12 @@ Done when: the guest can `wget` from the internet, a guest web server is reachab
 - [ ] `dmx install` creates and selects a `docker context` named `dmx`.
 - [ ] Published ports are forwarded automatically (watch Docker events).
 - [ ] Bind mounts of host paths work through virtio-fs.
-- [ ] x86_64 images through QEMU user mode registered with binfmt_misc (pinned build). Check which x86 programs mind 16K guest pages.
+- [x] x86_64 binaries through QEMU user mode: Alpine's static `qemu-x86_64` 11.0.3 (pinned, signature
+      checked) registered with binfmt_misc, flags `POCF` (Docker Desktop uses `CF`; `P` keeps
+      argv[0]). Carried compressed in the initramfs and unpacked onto the data disk on first boot
+      or a version change, so it uses guest RAM only while x86 code runs (+~2 MB idle; moves to
+      Docker's delivery later). 16K pages: msync, mincore, MADV_DONTNEED, MAP_FIXED|MAP_SHARED and
+      mprotect/munmap on single 4K pages misbehave (Findings). `make x86test`.
 - [ ] Test suite: `docker run hello-world`, `docker build`, a compose app with a volume and a port.
 
 Done when: the test suite passes with the stock `docker` CLI.
@@ -304,6 +310,10 @@ Done when: the test suite passes with the stock `docker` CLI.
       launchd agent if it is installed. Building from source still needs Xcode, Python and Rust.
 - [ ] CI on GitHub Actions: build and unit tests (hosted macOS runners may not allow nested virtualization; VM tests stay local until proven otherwise).
 - [ ] Guest artifacts published as GitHub Releases, downloaded and verified by `dmx`, so users do not need Python.
+      They contain GPL software (kernel, busybox, qemu-x86_64 "GPL-2.0-only AND LGPL-2.1-only"):
+      ship license texts and the corresponding source or a written offer (qemu: QEMU 11.0.3 +
+      Alpine aports 51049924607603c9d9b7132c187a7f31085d7a12). dmx stays Apache-2.0: these run as
+      separate programs in the guest.
 - [ ] Homebrew tap; Developer ID signing and notarization when distributing binaries.
 
 ### Later, maybe
@@ -395,6 +405,9 @@ the footprint) and `frag` (fragmented freed guest memory is not returned).
 | 2026-10-24 | Fragmented free memory and the idle sweep, load 25 to 85 | Before: 500 forwarded connections 119 → 163 MB (free blocks of order 0 to 4 hold ~33 MB, slab +7 MB); untar/rm of 9,200 files in tmpfs 122 → 151 MB; 500 MB wget 117 → 136 MB. `page_reporting_order` is writable at runtime (0644): writing 0 gave 163 → 128 MB in ~10 s, then shrinking slabs 133 → 115 MB. With the sweep: connections 161 → 112 MB, untar/rm 150 → 113 MB, wget 134 → 125 MB (idle 107 to 112). A sweep takes 40 to 1050 ms wall, under 0.1 s daemon CPU. Idle daemon CPU per 60 s: 0.05 to 0.06 s (0.06 to 0.07 before). Order 0 always on showed no cost while busy, but the host was too loaded to be sure; not adopted. |
 | 2026-10-24 | Guest soft lockup at host load 80 to 86 | Once, right after an untar/rm workload: `soft lockup - CPU#N stuck for 140s` in ksoftirqd/rcu_preempt on 6 vCPUs, daemon at ~40 % CPU. Not reproduced in 24 stress rounds. Suspected vCPU starvation on an overloaded host rather than the sweep; open. |
 | 2026-10-24 | daemontest at host load 40 to 61 | The 500 MB stdout check took over 60 s (6 MB/s; 90 to 240 MB/s on a quieter host) for old and new builds alike. Test timeouts are now 300 s and a timeout fails its check instead of the script. |
+| 2026-10-24 | x86_64 through qemu-x86_64, load 25 to 90 | Initramfs 2.03 → 3.09 MB. Idle +~2 MB (115 to 117 → 117 to 119), guest used unchanged; first-boot unpack leaves +4 to 8 MB of freed pages. x86 process RSS with THP madvise / never: `sleep` 38 / 5.4 MB, python3 43 to 47 / 15.7 MB, node 23.5 MB; x86 `true` 201 → 49 ms. Rough speed (loaded host): `true` 22 to 62 ms vs 1 to 6 native, sha256 1.8 to 4.5x native. Static, dynamic (chroot), python3 (ssl, sqlite, threads), node 24 (JIT, wasm) work. |
+| 2026-10-24 | x86 programs on 16K guest pages | x86 code sees 4096-byte pages. Works: brk, MAP_PRIVATE at 4K offsets (copied, not shared), MAP_SHARED at 4K offsets without MAP_FIXED. EINVAL on a 4K page inside a 16K page: msync (Python `mmap.flush()`), mincore, MADV_DONTNEED (page not zeroed), MAP_FIXED|MAP_SHARED misaligned to 16K. Not enforced: mprotect and munmap of a single 4K page (guard pages fail silently). Likely victims: stack guards, LMDB-style msync databases, the JVM's 4K polling page (untested). |
+| 2026-10-24 | binfmt `C` flag | As `nobody`, a setuid-root x86 binary with `QEMU_LOG_FILENAME=/root/x` creates a root-owned file: qemu honours `QEMU_*` while privileged. Docker Desktop's `CF` has the same exposure; kept to match it. |
 | 2026-10-24 | `dmx mcp` (stdio MCP), load 5 to 6 | `make mcptest` 5.3 to 6.3 s, 30 of 30 checks. Cold `dmx_exec uname -a` with no daemon 215 to 376 ms end to end; warm 0 to 2 ms. 200 MB of stdout capped to 8 KiB in 0.65 to 1.41 s; `dmx mcp` RSS 8 to 9 MB, 10 MB at peak. A 2 s timeout returns in 2.01 to 2.13 s with the guest processes gone. `tools/list` is 4.6 KB (3.8 KB without `outputSchema`). |
 | 2026-10-24 | Truncated exec output after a boot | `dmx stop`, an exec, then 200 MB of stdout: 5 to 6 of 40 runs ended with "daemon closed the connection mid-frame" (load 9 to 15); logging the shutdown path hid it. The guest sometimes sends RST right after its SHUTDOWN, and the host dropped the connection with up to 200 KB from the guest still unwritten to the full host socket. Now an RST on an open stream delivers what the guest sent, then closes: 0 of 50. Found by the `dmx mcp` tests. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
@@ -430,3 +443,4 @@ the footprint) and `frag` (fragmented freed guest memory is not returned).
 - 2026-10-24: Maintainer: "Docker must just work; security like standard programs." Open decisions settled to Docker Desktop behavior (Decisions). Agents `double` (2x footprint of host-written guest pages) and `frag` (fragmented freed guest memory) started.
 - 2026-10-24: Data disk merged; phase 6 done. Phase 7 (Docker) next.
 - 2026-10-24: Idle sweep merged: guest memory freed in small blocks goes back to macOS when idle.
+- 2026-10-24: x86_64 binaries run in the guest through qemu-x86_64 and binfmt_misc; THP off.
