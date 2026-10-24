@@ -49,6 +49,7 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | x86_64 images through QEMU user mode + binfmt, not Rosetta (2026-10-23) | Rosetta for Linux exists only inside Virtualization.framework. Most images are multi-arch; emulation is a fallback. |
 | One long lived VM, not one VM per container | One kernel's overhead instead of N. Revisit per-container VMs for sandboxes (phase 9). |
 | The daemon exits when idle; the CLI starts it if launchd does not (2026-10-24) | An idle dmx should cost nothing, not even a 4 MB daemon. `dmx install` is optional: without it `dmx exec` still just works, which matters for agents. One daemon per `DMX_HOME`, enforced by a lock file. |
+| Guest network is a user space NAT inside dmx, not vmnet (2026-10-24) | vmnet needs root or `com.apple.vm.networking`, which Apple grants on request (verified: an ad-hoc process gets VMNET_FAILURE, the entitlement gets it killed). Guest flows map onto host sockets like passt: no TCP stack, no second process, bounded buffers, and traffic is dmx's own so VPNs and firewalls apply. Costs: IPv4 only, no ICMP errors; inbound goes through vsock port forwarding. |
 | CLI only, no GUI | The work that matters is invisible (memory, sockets). Agents use CLIs. |
 | Kernel hardening over a few MB (2026-10-24) | Maintainer's choice: `rodata=noalias` would save 4 MB at 8G (page tables of a page-by-page linear map) but leaves the linear alias of kernel text writable, so the default stays `rodata=full`. |
 | Memory savings are always on | Balloon, idle stop and cache trimming are defaults, not options. The user's standing preference: improvements are not toggles. |
@@ -232,7 +233,12 @@ Result: verified with launchd and without; see Findings for timings and memory.
 ### Phase 6: Storage, network, file sharing
 
 - [ ] Data disk: sparse raw image `~/.dmx/data.img` on our virtio-blk, ext4 with discard, so deleted data shrinks the file (APFS sparse + TRIM). Mounted at `/var/lib` in the guest.
-- [ ] Network: our virtio-net with a user space NAT on the host (vmnet needs root or an entitlement Apple grants). Options: a slirp-like TCP/UDP proxy behind virtio-net, or socket calls forwarded over vsock (libkrun's TSI). DHCP in the guest (udhcpc), DNS, check outbound HTTPS.
+- [x] Network: our virtio-net (MTU 65520, mergeable rx buffers, no checksums) with a passt-like
+      user space NAT in dmx ([network.md](network.md)): guest TCP/UDP/ICMP echo flows mapped onto
+      host sockets, no TCP stack of our own; DNS on the gateway forwarded to the host's first
+      nameserver; static guest config 192.168.127.2, gateway .1, `host.dmx.internal` =
+      192.168.127.254 = host loopback. HTTP from the internet works. HTTPS in the guest needs
+      OpenSSL and the CA bundle (+12 MB idle), not adopted. Left: IPv6, ICMP errors, split DNS.
 - [ ] Port forwarding: host listener → vsock → guest port (no privileged helper).
 - [ ] Our virtio-fs device (a FUSE server on the host) sharing the user's home (or configured paths) at the same path in the guest, so bind mounts keep their paths. Measure throughput against native.
 
@@ -284,8 +290,8 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-Phase 6 is being merged from parallel worktrees (network merged next, then port forwarding, data
-disk, virtio-fs). Then phase 7 (Docker). Phase 4's last open item is the memmap that scales with
+Phase 6 is being merged from parallel worktrees (port forwarding, data disk and virtio-fs are
+still in progress). Then phase 7 (Docker). Phase 4's last open item is the memmap that scales with
 the ceiling, and its "done when" second half (a 2 GB container's memory back within 10 s) waits
 for containers. Idle detection must count container activity once Docker runs.
 
@@ -354,6 +360,8 @@ for containers. Idle detection must count container activity once Docker runs.
 | 2026-10-24 | Balloon and `init_on_alloc` on dmx's VMM | Inflating 7.8 GB with init_on_alloc on: ~1.5 s CPU, ~2 s wall, peak +2 MB, nothing lasting (each 1 MB batch is released as it arrives); off: ~0.3 s CPU. The VZ rule "never inflate with init_on_alloc" does not apply here. |
 | 2026-10-24 | zram swap at idle | 2 GB disksize costs 3.7 MB of guest memory (table and swap maps), +1 to 3 MB footprint: turned on on demand. |
 | 2026-10-24 | Footprint under real host pressure | At critical one reading was 217 MB while the guest held 1.6 GB: macOS swapped guest pages out and `ri_phys_footprint` drops them. Compare footprints only at normal or simulated pressure. |
+| 2026-10-24 | vmnet without root (macOS 26.6.1, ad-hoc signed) | `vmnet_start_interface` shared and host mode: VMNET_FAILURE (1001); macOS 26 `vmnet_network_create`: 1002; adding `com.apple.vm.networking` to an ad-hoc signature: killed at launch. |
+| 2026-10-24 | Guest network (user space NAT), load 7 to 20 | Idle selftest 115 to 118 MB (114 to 117 before). 500 MB host → guest over HTTP 0.25 to 0.5 s (1 to 2 GB/s; 16 s before publishing each frame's rx buffers at once, the guest dropped partial frames). 500 MB guest → host 0.9 to 1.4 s. 394 MB from the Alpine CDN: 32.1 s in the guest, 32.07 s with curl on the host. DNS through exec 70 to 100 ms; ping gateway 0.2 to 0.3 ms. Footprint +15 to 17 MB after traffic, then flat: freed guest blocks under 512 KB that reporting skips; dmx's own heap 2.8 MB after 1 GB. |
 | 2026-10-24 | `dmx mcp` (stdio MCP), load 5 to 6 | `make mcptest` 5.3 to 6.3 s, 30 of 30 checks. Cold `dmx_exec uname -a` with no daemon 215 to 376 ms end to end; warm 0 to 2 ms. 200 MB of stdout capped to 8 KiB in 0.65 to 1.41 s; `dmx mcp` RSS 8 to 9 MB, 10 MB at peak. A 2 s timeout returns in 2.01 to 2.13 s with the guest processes gone. `tools/list` is 4.6 KB (3.8 KB without `outputSchema`). |
 | 2026-10-24 | Truncated exec output after a boot | `dmx stop`, an exec, then 200 MB of stdout: 5 to 6 of 40 runs ended with "daemon closed the connection mid-frame" (load 9 to 15); logging the shutdown path hid it. The guest sometimes sends RST right after its SHUTDOWN, and the host dropped the connection with up to 200 KB from the guest still unwritten to the full host socket. Now an RST on an open stream delivers what the guest sent, then closes: 0 of 50. Found by the `dmx mcp` tests. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
@@ -383,3 +391,4 @@ for containers. Idle detection must count container activity once Docker runs.
 - 2026-10-24: `make install`. Phase 4 memory work and phases 6 and 9 started in parallel worktrees.
 - 2026-10-24: `dmx mcp` merged: AI clients run commands in the VM over MCP with capped output. Fixed truncated exec output after a vsock reset.
 - 2026-10-24: Memory controller merged: idle page cache trims, zram on demand, balloon under host pressure. Phase 4 tasks done except the memmap.
+- 2026-10-24: Guest networking merged: virtio-net and a user space NAT; the guest reaches the internet over HTTP.
