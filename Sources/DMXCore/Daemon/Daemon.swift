@@ -441,7 +441,7 @@ func seconds(_ d: Duration) -> Double {
 /// hung within 5,000 to 80,000 rounds (macOS 26.6); waiting in `poll` or kqueue held for 4 million.
 /// The vsock streams are socketpairs that see such half closes whenever the guest's side ends
 /// first (dockerd answering an HTTP/1.0 request), and docker.sock clients see them from the
-/// daemon, so every blocking read of a socket goes through here.
+/// daemon, so every blocking read of a socket goes through here. Reported to Apple as FB25307646.
 func readSocket(_ fd: Int32, _ buffer: UnsafeMutableRawPointer, _ count: Int) -> Int {
     var ready = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
     while poll(&ready, 1, -1) < 0 && errno == EINTR {}
