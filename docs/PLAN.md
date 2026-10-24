@@ -231,9 +231,13 @@ uses 2 GB exits, footprint falls back within 10 s. Numbers recorded in the log.
 Done when: after `dmx install`, connecting to the socket boots the VM, and an idle VM disappears and its processes exit.
 Result: verified with launchd and without; see Findings for timings and memory.
 
-### Phase 6: Storage, network, file sharing
+### Phase 6: Storage, network, file sharing (done)
 
-- [ ] Data disk: sparse raw image `~/.dmx/data.img` on our virtio-blk, ext4 with discard, so deleted data shrinks the file (APFS sparse + TRIM). Mounted at `/var/lib` in the guest.
+- [x] Data disk: `$DMX_HOME/data.img` (sparse, `disk_size` default 64G, applies at creation) on our
+      virtio-blk (`HV/VirtioBlock.swift`: `F_NOCACHE`, flush = `F_BARRIERFSYNC`, discard and
+      write-zeroes punch holes, requests off the vCPU thread, image locked against a second VM).
+      `/init` formats a blank disk with pinned e2fsprogs (deleted after mount), ext4 at /var/lib
+      with discard; the agent freezes it before power-off. Left: fsck at boot, resizing.
 - [x] Network: our virtio-net (MTU 65520, mergeable rx buffers, no checksums) with a passt-like
       user space NAT in dmx ([network.md](network.md)): guest TCP/UDP/ICMP echo flows mapped onto
       host sockets, no TCP stack of our own; DNS on the gateway forwarded to the host's first
@@ -303,12 +307,11 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-Phase 6: the data disk is still in progress in a parallel worktree. Open from the merged work:
-the 2x footprint of pages the host writes into guest RAM (virtio-fs reads), freed guest blocks
-under 512 KB that free page reporting skips (after connection bursts and small-file work), and
-the maintainer decisions listed in the progress log. Then phase 7 (Docker). Phase 4's last open item is the memmap that scales with
-the ceiling, and its "done when" second half (a 2 GB container's memory back within 10 s) waits
-for containers. Idle detection must count container activity once Docker runs.
+Phase 7, Docker: dockerd and containerd in the guest with their data on the data disk, the Docker
+socket forwarded to `~/.dmx/docker.sock`, a `docker context`, published ports through port
+forwarding, bind mounts through virtio-fs (shares matching Docker Desktop's list), and
+`host.docker.internal`. In parallel: `double` (pages the host writes into guest RAM count twice in
+the footprint) and `frag` (fragmented freed guest memory is not returned).
 
 ## Findings and measurements
 
@@ -382,6 +385,8 @@ for containers. Idle detection must count container activity once Docker runs.
 | 2026-10-24 | Device interrupts waited out the 1 ms WFI cap | `VCPU.wake()` was never called, so a vCPU in WFI noticed a device interrupt only at the cap. Raising a line now wakes the vCPU it is routed to: over virtio-fs `find` 1.69 → 0.28 s, reading 9,200 files 75 → 10 s. The selftest's 1 GB reclaim now returns in ~0.4 s. |
 | 2026-10-24 | virtio-fs throughput, load 7 to 18 | 1 GB write with fsync 0.81 to 0.91 GB/s (host ~1 GB/s without fsync); read 1.4 to 1.5 GB/s (host 2.3 warm); O_DIRECT read 3.1 GB/s. 9,200 kernel source files (106 MB), share / guest tmpfs / host: untar 20 to 23 / 0.6 / 10 s; find 0.32 / 0.03 / 0.07; ls -lR 0.33 / 0.03 / 0.16; read all 5.8 / 0.5 / 0.36; rm -rf 4.1 / 0.07 / 1.4. Server time 20 to 70 µs per request; the rest is round trips. |
 | 2026-10-24 | virtio-fs memory | Idle with a share 113 to 121 MB (116 to 121 without, noise). dmx's heap ~11 MB after repeated traffic. Reading 1 GB through the guest page cache costs 2 GB of footprint, all returned when the guest drops its cache; the same with writes and a bounce buffer, so pages the host writes into guest RAM seem to count twice. Unexplained; virtio-blk will likely show it too. |
+| 2026-10-24 | Data disk (virtio-blk), load 6 to 25 | Initramfs 1.63 → 2.02 MB (mke2fs, deleted after mount; shmem unchanged). Idle footprint ~115 MB, unchanged within ~1 MB (118 without `no_prefetch_block_bitmaps`). Write 2 GB 1.1 to 1.2 GB/s, read 2.1 to 2.2 GB/s. Through the host cache: 323 MB/s write and +2 GB footprint (host cache charged to dmx), hence `F_NOCACHE`. 2 GB deleted: host allocation 1.9 GB → 11 to 22 MB in 0.08 to 0.17 s. Online discard costs 1.28 vs 0.48 s per GB deleted; without it nothing comes back until fstrim. 4K write + fsync 2.8 to 6.6 ms with barrier flush, 9.8 to 16.7 ms with `F_FULLFSYNC`. SIGKILL mid-write ×3: journal replayed, e2fsck clean. First boot formats in 0.3 to 0.9 s. |
+| 2026-10-24 | Selftest under host load ~29 (several agents' VMs) | Agent up after 5 to 11 s instead of ~0.2 s; the 30 s and even 60 s selftest timeouts are hit, `--timeout 180` passes. Compare timings only on a quiet host. |
 | 2026-10-24 | `dmx mcp` (stdio MCP), load 5 to 6 | `make mcptest` 5.3 to 6.3 s, 30 of 30 checks. Cold `dmx_exec uname -a` with no daemon 215 to 376 ms end to end; warm 0 to 2 ms. 200 MB of stdout capped to 8 KiB in 0.65 to 1.41 s; `dmx mcp` RSS 8 to 9 MB, 10 MB at peak. A 2 s timeout returns in 2.01 to 2.13 s with the guest processes gone. `tools/list` is 4.6 KB (3.8 KB without `outputSchema`). |
 | 2026-10-24 | Truncated exec output after a boot | `dmx stop`, an exec, then 200 MB of stdout: 5 to 6 of 40 runs ended with "daemon closed the connection mid-frame" (load 9 to 15); logging the shutdown path hid it. The guest sometimes sends RST right after its SHUTDOWN, and the host dropped the connection with up to 200 KB from the guest still unwritten to the full host socket. Now an RST on an open stream delivers what the guest sent, then closes: 0 of 50. Found by the `dmx mcp` tests. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
@@ -415,3 +420,4 @@ for containers. Idle detection must count container activity once Docker runs.
 - 2026-10-24: Port forwarding merged (`dmx port`), with two exec data-loss fixes.
 - 2026-10-24: virtio-fs merged: host directories at the same path in the guest. Device interrupts now wake their vCPU.
 - 2026-10-24: Maintainer: "Docker must just work; security like standard programs." Open decisions settled to Docker Desktop behavior (Decisions). Agents `double` (2x footprint of host-written guest pages) and `frag` (fragmented freed guest memory) started.
+- 2026-10-24: Data disk merged; phase 6 done. Phase 7 (Docker) next.
