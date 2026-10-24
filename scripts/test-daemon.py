@@ -115,7 +115,7 @@ def daemon_call(method, params):
 
 
 def memory_checks(results):
-    """Idle trim, trims and the balloon under simulated host pressure, footprint coming back."""
+    """Idle trim, hotplug and balloon under simulated pressure, and capacity returning on demand."""
     def memory():
         s = status()
         return s.get("host_footprint_mb") or 0, s.get("memory") or {}
@@ -151,17 +151,61 @@ def memory_checks(results):
     swept = wait_for(lambda: (memory()[1].get("sweeps") or 0) >= 1, 10)
     check("memory_idle_sweep", swept, str(memory()[1]))
 
-    # Critical: zram swap goes on and the balloon caps the guest; normal deflates it.
+    # Grow well beyond boot RAM, then free it. Critical pressure must unplug immediately,
+    # rather than leave the memmap until the normal 30 s delay or pin it in the balloon.
+    r = dmx("exec", "--", "sh", "-c", "mkdir -p /mnt/pressure; mount -t tmpfs -o size=3G tmpfs /mnt/pressure; "
+            "dd if=/dev/zero of=/mnt/pressure/data bs=1M count=2048 2>/dev/null")
+    fp, m = memory()
+    grown = m.get("plug") or {}
+    check("memory_hotplug_growth", r.returncode == 0 and grown.get("plugged_mb", 0) >= 2048,
+          f"footprint {fp} MB, {grown}, {r.stderr!r}")
+    results["memory_grown_plug"] = grown
+    dmx("exec", "--", "rm", "/mnt/pressure/data")
     daemon_call("simulate_pressure", {"level": "critical"})
-    # With virtio-mem the guest holds only ~1.25 GB, so the balloon takes what is present above the
-    # cap (hundreds of MB), not most of the ceiling.
+    started = time.time()
+    unplugged = wait_for(lambda: (memory()[1].get("plug") or {}).get("plugged_mb", 1 << 20) <= 256, 15)
+    results["memory_critical_unplug_s"] = round(time.time() - started, 1)
+    fp, m = memory()
+    plug = m.get("plug") or {}
+    check("memory_unplug_on_critical", unplugged and plug.get("unplugs", 0) > grown.get("unplugs", 0), str(m))
+    # The balloon still squeezes the boot RAM that virtio-mem cannot remove.
     inflated = wait_for(lambda: (memory()[1].get("balloon_mb") or 0) >= 256, 15)
     fp, m = memory()
     results["memory_critical_footprint_mb"] = fp
     check("memory_balloon_on_critical", inflated and fp < idle + 64, f"footprint {fp} MB, {m}")
+
+    # The reduced headroom is not a hard memory cap: active allocations still plug more RAM.
+    # Random bytes stop zram compression from hiding the need for more physical memory.
+    r = dmx("exec", "--", "sh", "-c", "dd if=/dev/urandom of=/mnt/pressure/data bs=1M count=1536 2>/dev/null && wc -c </mnt/pressure/data")
+    fp, m = memory()
+    check("memory_growth_under_critical", r.returncode == 0 and r.stdout.strip() == b"1610612736"
+          and (m.get("plug") or {}).get("plugged_mb", 0) > plug.get("plugged_mb", 0), f"{r.stdout!r} {r.stderr!r} {m}")
+    dmx("exec", "--", "rm", "/mnt/pressure/data")
+    daemon_call("simulate_pressure", {"level": "warning"})
+    loosened = wait_for(lambda: memory()[1].get("balloon_mb") == 0
+                        and (memory()[1].get("plug") or {}).get("requested_mb", 0) >= 128, 15)
+    check("memory_warning_headroom_restored", loosened, str(memory()[1]))
     daemon_call("simulate_pressure", {"level": "normal"})
     deflated = wait_for(lambda: memory()[1].get("balloon_mb") == 0, 15)
     check("memory_balloon_deflated", deflated, str(memory()[1]))
+    dmx("exec", "--", "umount", "/mnt/pressure")
+    daemon_call("simulate_pressure", {"level": None})
+
+
+def fixed_memory_checks():
+    """A ceiling equal to boot RAM has no hotplug device: pressure must still use the balloon."""
+    dmx("config", "set", "memory", "1G")
+    dmx("stop")
+    dmx("start")
+    daemon_call("simulate_pressure", {"level": "normal"})
+    check("memory_without_hotplug", (status().get("memory") or {}).get("plug") is None, str(status()))
+    daemon_call("simulate_pressure", {"level": "critical"})
+    inflated = wait_for(lambda: (status().get("memory") or {}).get("balloon_mb", 0) >= 256, 15)
+    r = dmx("exec", "--", "echo", "alive")
+    check("memory_balloon_without_hotplug", inflated and r.stdout == b"alive\n", str(status()))
+    daemon_call("simulate_pressure", {"level": "normal"})
+    deflated = wait_for(lambda: (status().get("memory") or {}).get("balloon_mb") == 0, 15)
+    check("memory_normal_without_hotplug", deflated, str(status()))
     daemon_call("simulate_pressure", {"level": None})
 
 
@@ -412,6 +456,8 @@ try:
     r = dmx("exec", "--", "cat", "/var/lib/marker")
     check("restart_in_process", r.returncode == 0 and daemon_pids() == pid and s["state"] == "stopped", f"{s['state']} {pid}")
     check("disk_persists", r.stdout == b"kept\n" and (s.get("disk") or {}).get("size_mb") == 65536, f"{r.stdout!r} {s.get('disk')}")
+
+    fixed_memory_checks()
 
     # Idle: the VM stops after idle_timeout, then the daemon exits after 10 s.
     dmx("config", "set", "idle_timeout", "2s")

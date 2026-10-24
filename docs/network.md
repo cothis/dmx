@@ -105,5 +105,6 @@ The device:
 
 HTTPS: busybox `wget` needs `ssl_client`, OpenSSL and the CA bundle, which the initramfs drops.
 Keeping them (all in the pinned minirootfs) makes HTTPS work with certificate checking, at
-+2.8 MB of initramfs and about +12 MB of idle footprint (128 to 129 MB). Not done; programs that
-need TLS will come with their own images once containers run.
++2.8 MB of initramfs and about +12 MB of idle footprint (128 to 129 MB in that experiment).
+The base guest omits them; containers provide their own TLS libraries and certificates, and
+dockerd's delivery image includes the CA bundle for registry access.

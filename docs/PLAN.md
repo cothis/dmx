@@ -13,7 +13,7 @@ A container engine for macOS (Apple Silicon) with three properties:
    pin a fixed chunk (for example 8 GB) of a 16 GB Mac.
 2. **Docker compatible.** The `docker` CLI and Compose work unchanged against a dmx socket.
 3. **AI native.** Agents drive it as easily as people: `--json` on every command, structured
-   errors with a hint, no interactive prompts, and later an MCP mode plus sandbox features.
+   errors with a hint, no interactive prompts, MCP tools and disposable sandboxes.
 
 Non-goals for now: a GUI (a menu bar item may come much later), Intel Macs, Windows/Linux hosts.
 
@@ -23,7 +23,7 @@ Non-goals for now: a GUI (a menu bar item may come much later), Intel Macs, Wind
 dmx (CLI) ──▶ dmx daemon (launchd agent, socket activated)
                 ├─ Linux VM on dmx's own VMM (Hypervisor.framework, Swift in DMXCore)
                 │    guest RAM mapped by dmx; virtio-mmio: console, rng, vsock,
-                │    balloon with free page reporting, blk, net, fs
+                │    balloon with free page reporting, mem (hotplug), blk, net, fs
                 ├─ memory controller (free page reporting, idle stop, host pressure)
                 └─ ~/.dmx/docker.sock ◀── docker CLI / compose
                       │ vsock
@@ -43,7 +43,7 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | Decision | Why |
 |---|---|
 | Use a VM | macOS has no namespaces/cgroups/Linux syscall ABI. Syscall translation (WSL1 style) failed on compatibility and filesystem speed. |
-| Own VMM on Hypervisor.framework, not Virtualization.framework (2026-10-23) | VZ never returns guest memory while the VM runs: ballooned pages stay in the host footprint, there is no free page reporting, and restore backs the whole ceiling (see Findings). With guest RAM mapped by dmx itself, dmx can release freed pages (`hv_vm_unmap` + `madvise(MADV_FREE_REUSABLE)`). Costs: we write the virtio devices, and lose Rosetta. Phase 1 to 2 ran on VZ. |
+| Own VMM on Hypervisor.framework, not Virtualization.framework (2026-10-23) | VZ never returns guest memory while the VM runs: ballooned pages stay in the host footprint, there is no free page reporting, and restore backs the whole ceiling (see Findings). With guest RAM mapped by dmx itself, dmx can release freed pages (`hv_vm_unmap` + `madvise(MADV_ZERO)`, with a REUSABLE fallback). Costs: we write the virtio devices, and lose Rosetta. Phase 1 to 2 ran on VZ. |
 | The VMM is Swift, in DMXCore (2026-10-23) | One language and one binary for all host code; Hypervisor.framework is a C API Swift calls directly. Maintainer's choice over a Rust VMM process. |
 | macOS 15 or later (2026-10-23) | Hypervisor.framework has an in-kernel GICv3 (`hv_gic_create`) from macOS 15, so dmx does not emulate an interrupt controller. |
 | x86_64 images through QEMU user mode + binfmt, not Rosetta (2026-10-23) | Rosetta for Linux exists only inside Virtualization.framework. Most images are multi-arch; emulation is a fallback. |
@@ -53,11 +53,11 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | Drop dmx's own mappings of guest RAM after device traffic (2026-10-24) | macOS charges a page to `ri_phys_footprint` once per mapping; guest RAM is mapped by dmx and by stage 2, so pages a device filled counted twice (1 GB read = +2 GB). Remapping dmx's view onto itself (`mach_vm_remap` overwrite) after traffic leaves one mapping; devices fault pages back in. |
 | Transparent huge pages off in the guest (2026-10-24) | With 16K pages a huge page is 32 MB. `madvise` (2026-10-23) still let qemu's 128 MB code buffer take 32 MB per x86 process (`sleep` 38 MB RSS, 5.4 MB without); nothing in dmx needs huge pages. Replaces the `madvise` choice. |
 | Guest network is a user space NAT inside dmx, not vmnet (2026-10-24) | vmnet needs root or `com.apple.vm.networking`, which Apple grants on request (verified: an ad-hoc process gets VMNET_FAILURE, the entitlement gets it killed). Guest flows map onto host sockets like passt: no TCP stack, no second process, bounded buffers, and traffic is dmx's own so VPNs and firewalls apply. Costs: IPv4 only, no ICMP errors; inbound goes through vsock port forwarding. |
-| Defaults and security follow Docker Desktop (2026-10-24) | Maintainer's rule: Docker must just work, and security choices match standard tools. So: host directories shared read-write at the same path (Docker Desktop shares /Users, /Volumes, /private, /tmp, /var/folders; phase 7 matches that list), containers reach host services through a host alias (`host.docker.internal` in phase 7, today `host.dmx.internal`), ports bind 127.0.0.1 unless asked, host user ↔ guest root on shares, `init_on_alloc` on as in stock kernels, no TLS tools in the base guest (dockerd does its own TLS). Port forwards persist and keep the 4 MB daemon up while they exist. MCP tools are `dmx_*`, argv-based, 8 KiB/120 s defaults. |
+| Defaults and security follow Docker Desktop (2026-10-24) | Maintainer's rule: Docker must just work, and security choices match standard tools. So: host directories shared read-write at the same path (/Users, /Volumes, /private, /tmp, /var/folders), containers reach host services through `host.docker.internal` (`host.dmx.internal` also works), dmx port forwards bind 127.0.0.1 unless asked (Docker published ports follow their bindings), host user ↔ guest root on shares, `init_on_alloc` on as in stock kernels, no TLS tools in the base guest (dockerd does its own TLS). Port forwards persist and keep the 4 MB daemon up while they exist. MCP tools are `dmx_*`, argv-based, 8 KiB/120 s defaults. |
 | No GitHub CI, no Homebrew dependency (2026-10-24) | Maintainer's choice: GitHub is only for distribution (source and releases). Checks run locally before a release (`make build`, `swift test`, selftest, daemontest, dockertest). dmx ships its own pinned Docker CLI tools instead of relying on Homebrew. |
 | dmx ships the docker CLI, Compose, Buildx and the keychain credential helper (2026-10-24) | Docker Desktop does, and users should not need Homebrew. Pinned upstream darwin-arm64 builds (the static CLI is trust-on-first-download: Docker publishes no checksum for it). Plugins through `cliPluginsExtraDirs`; no shell rc files edited. All Apache-2.0. |
 | Sandboxes are containers in the one VM (2026-10-24) | No state of dmx's own to clean up (labels), egress rules inside each sandbox's namespace cover every protocol. Isolation is Docker's: a guest kernel exploit reaches the whole guest and its shares; per-sandbox VMs are a possible later step for hostile code. |
-| Guest memory beyond 1 GB is hotplugged with virtio-mem (2026-10-24) | The memmap (struct page) costs ~4.7 MB of footprint per GB of ceiling whether used or not. Plugging on demand makes the ceiling free until used; the balloon still squeezes under host pressure. |
+| Guest memory beyond 1 GB is hotplugged with virtio-mem (2026-10-24) | The memmap (struct page) costs ~4.7 MB of footprint per GB of ceiling whether used or not. Plugging on demand makes the ceiling free until used. Under host pressure, unplug spare RAM first; the balloon squeezes boot RAM and blocks that cannot be removed. |
 | CLI only, no GUI | The work that matters is invisible (memory, sockets). Agents use CLIs. |
 | Kernel hardening over a few MB (2026-10-24) | Maintainer's choice: `rodata=noalias` would save 4 MB at 8G (page tables of a page-by-page linear map) but leaves the linear alias of kernel text writable, so the default stays `rodata=full`. |
 | Memory savings are always on | Balloon, idle stop and cache trimming are defaults, not options. The user's standing preference: improvements are not toggles. |
@@ -136,7 +136,7 @@ Done when: the selftest passes on the new VMM, boot time and idle footprint are 
 VZ, and after the guest touches and frees 1 GB the host footprint falls back within 10 s.
 Result: agent up in ~0.3 s, idle 172 MB at 8G (VZ 181), 1 GB comes back in 0.5 to 2 s.
 
-### Phase 4: Memory
+### Phase 4: Memory (done)
 
 This is the core feature. Measure before and after every change and log numbers below.
 
@@ -197,10 +197,11 @@ This is the core feature. Measure before and after every change and log numbers 
 - [x] Memory controller in the daemon (`Daemon/MemoryController.swift`, [daemon-protocol.md](daemon-protocol.md)):
       host pressure from `DispatchSource.makeMemoryPressureSource`. Normal: after 30 s with no exec
       and the guest under 5 % of a CPU, trim clean page cache to 16 MB (`memory.reclaim` with
-      swappiness 0). Warning: trim at once, then after 5 s idle; after a critical spell the balloon
-      cap loosens to used + 1 GB. Critical: also push cold anonymous and tmpfs pages to zram and
-      inflate the balloon to cap the guest at used + 256 MB, re-checked every 2 s. Normal again:
-      deflate. `dmx status` shows a `memory` object; actions are logged with `memory:`.
+      swappiness 0). Warning: trim at once, then after 5 s idle. Critical: also push cold anonymous
+      and tmpfs pages to zram and reduce free headroom to 256 MB; unplug spare RAM before using
+      the balloon for boot RAM and blocks that cannot be removed. After critical, warning
+      restores 1 GB headroom; normal restores the usual policy and deflates the balloon.
+      `dmx status` shows a `memory` object; actions are logged with `memory:`.
 - [x] Guest policy: zram swap (lz4, a quarter of the ceiling) turned on by the agent the first time
       the guest is squeezed or passes half its ceiling (at boot it costs ~3.5 MB);
       `vm.swappiness=100` and `vm.page-cluster=0` with it. Transparent huge pages off (`never`; was `madvise` until qemu's code buffer took 32 MB per x86 process).
@@ -212,6 +213,14 @@ This is the core feature. Measure before and after every change and log numbers 
       (probably virtio-net rx buffers).
 - [x] Host pressure drives the controller above. `memory_pressure -S` needs root, so tests use the
       daemon's `simulate_pressure` method.
+- [x] Expose virtio-mem state in `dmx status` (text and JSON, also MCP): `memory.plug` has boot,
+      requested and plugged MB and plug/unplug request counts. Requested/plugged cover only the
+      added region; present RAM is boot + plugged, independent of the configured ceiling.
+- [x] Coordinate hotplug and pressure: remove spare RAM immediately at critical (no 30 s delay),
+      leaving 256 MB plus growth-rate headroom. Keep the balloon deflated during unplug progress;
+      after 5 s without progress, use it for blocks that remain. Boot-only guests retain the
+      balloon fallback. `make daemontest` verifies growth, removal, allocations under critical,
+      warning/normal recovery and the no-hotplug fallback on the real VM.
 
 Done when: idle VM host footprint is under 150 MB at an 8 GB ceiling, and after a container that
 uses 2 GB exits, footprint falls back within 10 s. Numbers recorded in the log.
@@ -276,6 +285,12 @@ Result: verified with launchd and without; see Findings for timings and memory.
 
 Done when: the guest can `wget` from the internet, a guest web server is reachable on `localhost`, and a host directory is readable/writable in the guest.
 
+Follow-ups beyond the completed acceptance criteria:
+
+- [ ] Storage: fsck at boot and data disk resizing.
+- [ ] Network: IPv6, ICMP errors and split DNS.
+- [ ] File sharing: Unix sockets, xattrs, ACLs, DAX and stored ownership.
+
 ### Phase 7: Docker compatibility (done)
 
 - [x] dockerd 29.9.2, containerd 2.3.7, runc 1.4.3, tini, iptables (nf_tables), libseccomp and the CA
@@ -298,19 +313,20 @@ Done when: the guest can `wget` from the internet, a guest web server is reachab
       `gateway.docker.internal` answered by the NAT's DNS; `host-gateway` is the Mac.
 - [x] x86_64 binaries through QEMU user mode: Alpine's static `qemu-x86_64` 11.0.3 (pinned, signature
       checked) registered with binfmt_misc, flags `POCF` (Docker Desktop uses `CF`; `P` keeps
-      argv[0]). Carried compressed in the initramfs and unpacked onto the data disk on first boot
-      or a version change, so it uses guest RAM only while x86 code runs (+~2 MB idle; moves to
-      Docker's delivery later). Now carried at the end of docker.img instead (initramfs 3.1 → 2.1 MB). 16K pages: msync, mincore, MADV_DONTNEED, MAP_FIXED|MAP_SHARED and
+      argv[0]). Carried at the end of docker.img and unpacked onto the data disk on first boot
+      or a version change, so qemu uses guest RAM only while x86 code runs (initramfs 3.1 → 2.1 MB).
+      16K pages: msync, mincore, MADV_DONTNEED, MAP_FIXED|MAP_SHARED and
       mprotect/munmap on single 4K pages misbehave (Findings). `make x86test`.
-- [x] `make dockertest` (`scripts/test-docker.py`, 33 checks): hello-world, `run -it`, build, compose
-      with a volume, a published port and a bind mount, idle stop with Docker, the context.
+- [x] `make dockertest` (`scripts/test-docker.py`, 57 checks in the current run): hello-world, `run -it`, BuildKit,
+      compose with a volume, published TCP/UDP ports and a bind mount, taken-port errors, restart
+      policies, amd64, idle stop with Docker and the context, using only dmx's bundled tools.
 
 Done when: the test suite passes with the stock `docker` CLI.
-Result: passes with Homebrew's docker 29.9.1 and Compose 5.6.0. Containers with a restart policy
+Result: passes with dmx's docker 29.9.2, Compose 5.6.1 and Buildx 0.38.1. Containers with a restart policy
 come back at boot (agent `docker_autostart` reads dockerd's records; no dockerd otherwise); dmx
-does not start at login, so after a Mac reboot they wait for the VM to boot. Earlier: `docker build` uses the legacy
-builder unless `docker-buildx` is installed. Now: BuildKit through dmx's Buildx; `make dockertest` uses
-only dmx's tools (43 checks).
+does not start at login, so after a Mac reboot they wait for the VM to boot. `docker build` uses
+BuildKit through dmx's Buildx; the deprecated legacy builder remains available through Docker's
+`DOCKER_BUILDKIT=0` setting.
 
 ### Phase 8: Own runtime
 
@@ -325,7 +341,7 @@ only dmx's tools (43 checks).
       (`server/discover`, per-request `_meta`) and the `initialize` revisions 2024-11-05 to
       2025-11-25. Tools `dmx_exec`, `dmx_status`, `dmx_start`, `dmx_stop`, `dmx_config_get`,
       `dmx_config_set`. One daemon connection per call, so idle stop still works. `make mcptest`.
-      Still to come: logs and sandbox tools.
+      Sandbox and logs tools are implemented below.
 - [x] Sandboxes ([sandbox.md](sandbox.md)): containers in the guest with a policy: network none / all /
       IPv4 allowlist (iptables in the sandbox's own network namespace, `NET_RAW` dropped), host paths
       read-only unless granted and only under the shares, cpu/memory/pids limits, TTL enforced by
@@ -353,6 +369,12 @@ only dmx's tools (43 checks).
 - [x] `make release VERSION=x` (`scripts/release.py`, [release.md](release.md)): binary tarball, guest
       archive, SHA256SUMS, kernel config, third-party list with licenses, `install.sh` with the
       version and sha256 baked in (installs to `~/.local/bin`, no sudo, no Homebrew).
+- [ ] Popular-image compatibility matrix on arm64 and amd64, especially applications with 4K
+      page assumptions (JVM, mmap-backed databases and guard pages). `make x86test` covers
+      Python, Node and syscall probes but is not that full image matrix.
+- [ ] Controlled comparison with Docker Desktop, OrbStack and Colima on a quiet Mac; record
+      versions, equivalent settings, idle/busy footprints and timings. Re-measure dmx's earlier
+      load-15-to-90 results rather than presenting them as a comparison.
 - [ ] First public release. Before it: versioning (SemVer `v0.1.0`?), GPL source (written offer
       vs attaching ~300 MB of sources), Developer ID signing (browser downloads are quarantined).
 - [ ] Guest artifacts published as GitHub Releases, downloaded and verified by `dmx`, so users do not need Python.
@@ -368,13 +390,21 @@ only dmx's tools (43 checks).
 
 ## Next up
 
-Phase 7 is done. Open items, roughly in order of value:
-- Memory: plug state in `dmx status`; unplug (virtio-mem) instead of only the balloon under
-  critical host pressure.
-- Before a public release: compatibility of popular images with 16K pages, a comparison with
-  Docker Desktop, OrbStack and Colima on a quiet Mac, Developer ID signing.
-- Phase 10: guest artifacts as releases (GPL obligations noted there), an install script; no CI, no Homebrew.
-- Re-measure timings on a quiet host: most of today's numbers were taken at load 15 to 90.
+Phases 1–7 and 9 meet their acceptance criteria. Phase 4's status and pressure follow-ups are
+complete. Next, work through phase 10's pre-release validation:
+
+1. Run and record the popular-image compatibility matrix, including the known x86 4K/16K
+   syscall limits; investigate the previously unreproduced guest soft lockup if it recurs.
+2. Measure dmx and the comparison engines on a quiet Mac with matched settings. Existing
+   measurements are dated local evidence, many from host load 15 to 90, not a benchmark.
+3. Resolve maintainer decisions (version/tag scheme, GPL source delivery, Developer ID/signing)
+   in [release.md](release.md), then cut and publish the first GitHub Release and guest assets.
+   The install script, release packager and verified guest downloader are already implemented;
+   no CI and no Homebrew.
+
+Phase 8 (own runtime) remains unstarted; Docker currently uses dockerd/containerd/runc. Storage,
+network and sharing extensions are explicitly tracked under phase 6. None is silently marked
+complete by the finished acceptance suites.
 
 ## Findings and measurements
 
@@ -447,7 +477,7 @@ Phase 7 is done. Open items, roughly in order of value:
 | 2026-10-24 | Exec data loss with a slow reader | `dmx exec -- head -c 8000000 /dev/zero` into a slow reader lost 205,900 bytes and exited 0: the agent sent `exit` while an output pump was still blocked on the host. 0 of 20 after the fix. "Connection closed before the process exited" in 1 of 5 to 10 daemontest cold-start rounds: the relay shut both sockets when the client's last stdin write failed, discarding the guest's output. 0 of 960 after. |
 | 2026-10-24 | Device interrupts waited out the 1 ms WFI cap | `VCPU.wake()` was never called, so a vCPU in WFI noticed a device interrupt only at the cap. Raising a line now wakes the vCPU it is routed to: over virtio-fs `find` 1.69 → 0.28 s, reading 9,200 files 75 → 10 s. The selftest's 1 GB reclaim now returns in ~0.4 s. |
 | 2026-10-24 | virtio-fs throughput, load 7 to 18 | 1 GB write with fsync 0.81 to 0.91 GB/s (host ~1 GB/s without fsync); read 1.4 to 1.5 GB/s (host 2.3 warm); O_DIRECT read 3.1 GB/s. 9,200 kernel source files (106 MB), share / guest tmpfs / host: untar 20 to 23 / 0.6 / 10 s; find 0.32 / 0.03 / 0.07; ls -lR 0.33 / 0.03 / 0.16; read all 5.8 / 0.5 / 0.36; rm -rf 4.1 / 0.07 / 1.4. Server time 20 to 70 µs per request; the rest is round trips. |
-| 2026-10-24 | virtio-fs memory | Idle with a share 113 to 121 MB (116 to 121 without, noise). dmx's heap ~11 MB after repeated traffic. Reading 1 GB through the guest page cache costs 2 GB of footprint, all returned when the guest drops its cache; the same with writes and a bounce buffer, so pages the host writes into guest RAM seem to count twice. Unexplained; virtio-blk will likely show it too. |
+| 2026-10-24 | virtio-fs memory (before the mapping fix) | Idle with a share 113 to 121 MB (116 to 121 without, noise). dmx's heap ~11 MB after repeated traffic. Reading 1 GB through the guest page cache cost 2 GB of footprint, all returned when the guest dropped its cache; writes showed the same. Resolved by dropping dmx's duplicate mappings (the later "Pages counted twice" measurement). |
 | 2026-10-24 | Data disk (virtio-blk), load 6 to 25 | Initramfs 1.63 → 2.02 MB (mke2fs, deleted after mount; shmem unchanged). Idle footprint ~115 MB, unchanged within ~1 MB (118 without `no_prefetch_block_bitmaps`). Write 2 GB 1.1 to 1.2 GB/s, read 2.1 to 2.2 GB/s. Through the host cache: 323 MB/s write and +2 GB footprint (host cache charged to dmx), hence `F_NOCACHE`. 2 GB deleted: host allocation 1.9 GB → 11 to 22 MB in 0.08 to 0.17 s. Online discard costs 1.28 vs 0.48 s per GB deleted; without it nothing comes back until fstrim. 4K write + fsync 2.8 to 6.6 ms with barrier flush, 9.8 to 16.7 ms with `F_FULLFSYNC`. SIGKILL mid-write ×3: journal replayed, e2fsck clean. First boot formats in 0.3 to 0.9 s. |
 | 2026-10-24 | Selftest under host load ~29 (several agents' VMs) | Agent up after 5 to 11 s instead of ~0.2 s; the 30 s and even 60 s selftest timeouts are hit, `--timeout 180` passes. Compare timings only on a quiet host. |
 | 2026-10-24 | Fragmented free memory and the idle sweep, load 25 to 85 | Before: 500 forwarded connections 119 → 163 MB (free blocks of order 0 to 4 hold ~33 MB, slab +7 MB); untar/rm of 9,200 files in tmpfs 122 → 151 MB; 500 MB wget 117 → 136 MB. `page_reporting_order` is writable at runtime (0644): writing 0 gave 163 → 128 MB in ~10 s, then shrinking slabs 133 → 115 MB. With the sweep: connections 161 → 112 MB, untar/rm 150 → 113 MB, wget 134 → 125 MB (idle 107 to 112). A sweep takes 40 to 1050 ms wall, under 0.1 s daemon CPU. Idle daemon CPU per 60 s: 0.05 to 0.06 s (0.06 to 0.07 before). Order 0 always on showed no cost while busy, but the host was too loaded to be sure; not adopted. |
@@ -457,7 +487,7 @@ Phase 7 is done. Open items, roughly in order of value:
 | 2026-10-24 | x86 programs on 16K guest pages | x86 code sees 4096-byte pages. Works: brk, MAP_PRIVATE at 4K offsets (copied, not shared), MAP_SHARED at 4K offsets without MAP_FIXED. EINVAL on a 4K page inside a 16K page: msync (Python `mmap.flush()`), mincore, MADV_DONTNEED (page not zeroed), MAP_FIXED|MAP_SHARED misaligned to 16K. Not enforced: mprotect and munmap of a single 4K page (guard pages fail silently). Likely victims: stack guards, LMDB-style msync databases, the JVM's 4K polling page (untested). |
 | 2026-10-24 | binfmt `C` flag | As `nobody`, a setuid-root x86 binary with `QEMU_LOG_FILENAME=/root/x` creates a root-owned file: qemu honours `QEMU_*` while privileged. Docker Desktop's `CF` has the same exposure; kept to match it. |
 | 2026-10-24 | Pages counted twice | Standalone test: 512 MB touched by host and guest = 1026 MB footprint whichever side goes first; a second mapping in one process without a VM (`mach_vm_remap` alias) does the same; the VM object held 512 MB. Dropping either mapping halves it. Fix: 1 GB virtio-fs read +2046 → +1024 MB; selftest idle 115 to 117 → 97 to 99 MB (the host's copies of kernel and initramfs had counted twice); idle footprint now equals the guest's own count (reserved + used). ~30 remaps per GB, 0.3 to 3 ms each. Side effect: a page only a device filled and the guest never touched is uncounted until touched (small with init_on_alloc on). |
-| 2026-10-24 | Reusable pages re-dirtied by the guest | After `MADV_FREE_REUSABLE` and a full guest rewrite, footprint stayed 2 MB with 512 MB dirty, counted only once macOS paged them out. Real VM: a 500 MB refill came in ~50 MB short. Fix idea: keep released ranges out of stage 2 and `MADV_FREE_REUSE` them on the guest's fault. Open. |
+| 2026-10-24 | Reusable pages re-dirtied by the guest (before MADV_ZERO) | After `MADV_FREE_REUSABLE` and a full guest rewrite, footprint stayed 2 MB with 512 MB dirty, counted only once macOS paged them out. Real VM: a 500 MB refill came in ~50 MB short. Resolved with `MADV_ZERO`; see "Reused pages after free page reporting" below for the final fix and the fault-driven alternative. |
 | 2026-10-24 | Docker (stock CLI 29.9.1, Compose 5.6.0), load 16 to 50 | Idle without Docker 99 MB (with the double-count fix). dockerd + containerd idle: guest +52 MB (RSS 37 + 25); footprint 305 MB right after start, 210 MB after the idle trim and sweep (guest used 91, cache 45). One `busybox sleep` container: guest +10 to 12 MB. First Docker use (unpack + start) 10 to 35 s; dockerd start on a later boot 1.5 to 4.7 s. hello-world with pull 6.6 to 27 s, warm 2.0 to 3.2 s, cold from a stopped VM 7.5 s; pull alpine 5.3 to 8.9 s; small build 3 to 24 s; compose up 2 to 21 s. Bind mount write with fsync 30 MB/s in a container. |
 | 2026-10-24 | Interrupted first-boot format | The daemon gave up on a boot after 30 s; on a loaded Mac that cut `mke2fs` short, and since `/init` formatted only an all-zero first MB, the disk was never formatted again. Now it formats a disk without an ext4 superblock (mke2fs writes it last) and the daemon waits 120 s; checked with a disk whose first MB is random. |
 | 2026-10-24 | dmx's Docker tools, load 15 to 20 | Download 112 MB in 10 to 11 s, 137 MB on disk (docker 41, buildx 62, compose 29, credential helper 2.3); resumes with HTTP ranges; re-checking all present 0.17 to 0.3 s. BuildKit build (FROM alpine, RUN, COPY) 1.2 to 2.0 s, `--no-cache` 0.5 to 1.1 s; multi-stage with a cache mount 3.3 to 3.8 s; `compose build` 0.8 to 1.6 s. |
@@ -470,6 +500,9 @@ Phase 7 is done. Open items, roughly in order of value:
 | 2026-10-24 | macOS loses the EOF wakeup of a blocking read on a socketpair | A thread blocked in `read()` on one end of a Unix socketpair can sleep forever after the other end writes and then `shutdown(SHUT_WR)`, though a non-blocking peek returns 0 at once (C repro: hangs within 2,000 to 80,000 rounds on macOS 26.6.1; `poll()` first: 4 million rounds, no hang; `close()` instead of shutdown never hung). vsock streams are such socketpairs, and the docker.sock proxy made blocking reads common: sandboxtest failed 2 of 3 runs (stuck inspections held starts, a stuck listing froze the container count). Every blocking socket read now waits in `poll()` first (`readSocket`): 6,000 hammer cycles (~25,000 connections) without a hang, sandboxtest 5 of 5 and 3 of 3 after merging. Coordinator re-ran the C repro: blocking read hung after ~51,600 and ~56,300 rounds (data + shutdown) and ~4,600 (shutdown only); poll first, 2,000,000 rounds clean. Reported to Apple as FB25307646 (2026-10-24, with the repro). |
 | 2026-10-24 | `dmx mcp` (stdio MCP), load 5 to 6 | `make mcptest` 5.3 to 6.3 s, 30 of 30 checks. Cold `dmx_exec uname -a` with no daemon 215 to 376 ms end to end; warm 0 to 2 ms. 200 MB of stdout capped to 8 KiB in 0.65 to 1.41 s; `dmx mcp` RSS 8 to 9 MB, 10 MB at peak. A 2 s timeout returns in 2.01 to 2.13 s with the guest processes gone. `tools/list` is 4.6 KB (3.8 KB without `outputSchema`). |
 | 2026-10-24 | Truncated exec output after a boot | `dmx stop`, an exec, then 200 MB of stdout: 5 to 6 of 40 runs ended with "daemon closed the connection mid-frame" (load 9 to 15); logging the shutdown path hid it. The guest sometimes sends RST right after its SHUTDOWN, and the host dropped the connection with up to 200 KB from the guest still unwritten to the full host socket. Now an RST on an open stream delivers what the guest sent, then closes: 0 of 50. Found by the `dmx mcp` tests. |
+| 2026-10-24 | Pressure unplug and status, host load ~5, 8G ceiling, 10 vCPU | Selftest before/after: idle 80/81 MB, 1 GB freed returned in 2115/1065 ms (single runs, not a timing claim). Same separate 2 GB tmpfs fill/free scenario: before, MemTotal stayed 5096 MB with a 4778 MB balloon and 94 MB host footprint at 2 s of simulated critical; after, MemTotal fell from 6376 to 1000 MB, hotplug 5376 → 0 MB, balloon 698 MB, footprint 76 MB at 2 s (88/67 MB at 20 s). Initial hotplug sizes differ because growth-rate lookahead follows each run; idle was 76 MB in both. Daemontest separately removed 4480 MB of hotplug RAM in 0.9 s, allocated 1536 MB of incompressible tmpfs under critical without OOM, restored warning/normal headroom, and passed the 1G no-hotplug balloon fallback. 40/40 daemon checks; 32 unit tests, including rejecting late pressure callbacks after VM teardown. Pressure was simulated, not real macOS memory exhaustion. |
+| 2026-10-24 | Regression suites after pressure/status changes | Selftest 21/21, daemon 40/40, MCP 30/30, Docker 57/57, sandbox 41/41, x86 13/13, unit tests 32/32. Docker settled footprints: 65 MB unused, 273 MB dockerd idle, 305 MB one container. The x86 suite still observes the known 4K msync, guard-page and MADV_DONTNEED failures as expected probe results; passing it does not close the popular-image compatibility matrix. |
+| 2026-10-24 | Final lifecycle verification | After guarding queued pressure/stat callbacks at VM teardown, `make build && make guest && make selftest` and `make daemontest` passed again: idle 81 MB in both, 1 GB returned in 2198 ms, 2944 MB hotplug removed in 1.2 s, critical footprint 88 MB. Growth-rate lookahead varies the transient hotplug size between runs. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -512,3 +545,4 @@ Phase 7 is done. Open items, roughly in order of value:
 - 2026-10-24: Docker gaps closed (UDP ports, taken-port errors, restart policies at boot, qemu in docker.img); reused guest pages counted again (`MADV_ZERO`); smaller rx ring. daemontest updated for virtio-mem.
 - 2026-10-24: Flaky sandboxtest fixed: a macOS socketpair bug lost EOF wakeups of blocking reads; all socket reads poll first. A sandbox exec no longer lets its stdin writer outlive the stream.
 - 2026-10-24: The socketpair EOF-wakeup bug reported to Apple (FB25307646).
+- 2026-10-24: Phase 4 follow-ups done: status exposes hotplug RAM, critical pressure unplugs spare RAM before balloon fallback, and allocations still grow RAM under pressure. Refreshed README, the daemon protocol and stale PLAN entries; tracked phase 6 extensions and phase 10 image/benchmark validation explicitly.

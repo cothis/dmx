@@ -70,8 +70,16 @@ boot). `dmx status` prints `state: not_running` when no daemon answers.
 `memory` fields: `host_pressure` (`normal`, `warning`, `critical`: macOS's level, as the controller
 sees it), `pressure_simulated`, `balloon_mb` and `balloon_target_mb` (what the guest gave back on
 request, and what was asked), `guest_cache_mb` (clean page cache), `guest_swap_mb` (zram in use),
-`reported_mb` (returned by free page reporting since boot), `trims`, and `last_trim` (`reason`,
-`seconds_ago`, `freed_mb`, `ms`). VM fields are null while the VM is stopped.
+`plug` (below), `reported_mb` (returned by free page reporting since boot), `trims`, `sweeps`, and `last_trim` (`reason`,
+`seconds_ago`, `freed_mb`, `ms`). VM-specific optional fields are omitted while the VM is stopped.
+
+`memory.plug` describes virtio-mem: `boot_mb` is permanent boot RAM, `plugged_mb` is RAM
+currently added above it, `requested_mb` is the target for that added region, and `plugs` /
+`unplugs` count guest device requests since boot. Present RAM is `boot_mb + plugged_mb`, not
+the configured ceiling; the target is `boot_mb + requested_mb`, rounded to 128 MB blocks.
+The guest can take time to remove occupied or pinned blocks. `plug` is absent without a
+virtio-mem device (for example a 1G ceiling) or while stopped; older daemons omit it too.
+The human-readable status shows present RAM, boot and plugged portions, and the target.
 
 ## Memory controller
 
@@ -87,13 +95,22 @@ Free page reporting returns what the guest frees by itself, within about 2 s. Th
   reporting goes back to 512 KB blocks. `dmx status` counts these in `memory.sweeps`;
 - on macOS memory pressure (`DispatchSource.makeMemoryPressureSource`, and the level read with
   `kern.memorystatus_vm_pressure_level`): at warning, trims at once and after 5 s of idle; at
-  critical, also pushes cold anonymous and tmpfs pages into zram and inflates the balloon to cap the
-  guest at what it uses plus 256 MB, following its use. After critical the cap loosens to 1 GB at
-  warning; at normal the balloon deflates;
+  critical, also pushes cold anonymous and tmpfs pages into zram and reduces free headroom to
+  256 MB. virtio-mem removes spare RAM immediately, without its normal 30 s delay, so the
+  removed blocks' memmap also goes back to macOS. The balloon stays deflated while unplugging
+  progresses, then squeezes boot RAM and any blocks that cannot be removed (after 5 s without
+  progress). A guest without virtio-mem uses the balloon alone. Allocations still plug more RAM
+  on demand, with growth-rate headroom; the configured ceiling remains the limit. After critical,
+  headroom loosens to 1 GB at warning; at normal the balloon deflates and normal policy returns;
 - turns zram swap on (agent `swap_on`) the first time the guest is squeezed or uses more than half
   its ceiling, not at boot (it costs ~3.5 MB of guest memory).
 
 Each action is logged to the daemon log with a `memory:` prefix.
+
+The hotplug policy reads the balloon's kernel stats queue independently of the agent. Normally
+it keeps 1 GB available plus 0.5 s of recent allocation growth, and removes excess RAM after
+30 s above 1.5 GB available. It polls active guests at 100 ms intervals, quiet ones at most
+every 10 s; under pressure it requests stats at least once per second.
 
 ## exec
 

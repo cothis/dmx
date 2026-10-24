@@ -287,6 +287,9 @@ func describe(_ s: DaemonStatus) -> String {
         lines.append("  memory: host footprint \(host) MB" + (s.guestUsedMb.map { ", guest uses \($0) MB" } ?? ""))
     }
     if let m = s.memory {
+        if let plug = m.plug {
+            lines.append("  ram: \(plug.bootMb + plug.pluggedMb) MB present (\(plug.bootMb) boot + \(plug.pluggedMb) plugged), target \(plug.bootMb + plug.requestedMb) MB")
+        }
         var parts = ["host pressure \(m.hostPressure)" + (m.pressureSimulated ? " (simulated)" : "")]
         if let balloon = m.balloonMb, balloon > 0 || (m.balloonTargetMb ?? 0) > 0 {
             parts.append("balloon \(balloon) of \(m.balloonTargetMb ?? 0) MB")

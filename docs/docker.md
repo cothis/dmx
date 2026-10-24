@@ -269,3 +269,10 @@ Later the same day, at host load 5 to 14:
 | UDP published port (busybox `udpsvd` echo in a container) | first reply 0.14 to 0.19 s after `docker run -d` started; 2000 round trips 190 to 300 µs each; 50 and 200 new peers at once all answered on their first datagram (a Python echo; `udpsvd` itself drops some) |
 | Restart policy at boot | `dmx stop`, `dmx start`: the `unless-stopped` container answers on its port 1.0 to 1.2 s after `dmx start` returns (dockerd up in 170 to 190 ms) |
 | Through the docker.sock proxy | 50 MB stdin through `docker run -i` 1.4 s and through `docker exec -i` and back 1.1 s, checksums match; a 20 MB build context intact |
+
+After virtio-mem and the pressure/status follow-up (2026-10-24, host load about 5), the current
+suite passed **57 of 57 checks**, including dmx's bundled CLI tools, BuildKit, Compose,
+TCP/UDP publishing, taken ports, restart policies and an amd64 image. Its settled host
+footprints were 65 MB before Docker, 273 MB with dockerd idle, and 305 MB with one container;
+first Docker use took 1.34 s. These are separate local runs after several memory fixes, not a
+controlled comparison with the earlier measurements or another container engine.

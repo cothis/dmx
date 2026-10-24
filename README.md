@@ -2,7 +2,7 @@
 
 A container engine for macOS that stays out of your memory, built to be driven by AI agents as easily as by people.
 
-> Early development. Today `dmx` runs its Linux VM on its own VMM (Hypervisor.framework) inside a daemon that boots it on first use (in about 0.25 s) and stops it when idle, runs commands and shells in it through a guest agent, and measures what the VM costs the host. Memory the guest frees goes back to macOS within seconds. Storage, networking and Docker compatibility come next.
+> Early development; no public release yet. `dmx` runs Docker, Compose and BuildKit in its own Linux VM on Hypervisor.framework, with storage, networking and host file sharing. An on-demand daemon boots the VM and stops it when idle. Memory the guest frees goes back to macOS within seconds, and virtio-mem adds RAM as needed. Agents can use MCP tools and disposable sandboxes with checkpoints, resource limits and TTLs.
 
 ## Why
 
@@ -21,15 +21,17 @@ See [docs/PLAN.md](docs/PLAN.md) for the detailed plan.
 | 1 | Boot a Linux VM with Virtualization.framework, debug console | done |
 | 2 | Guest agent (Rust) and vsock control channel | done |
 | 3 | Own VMM on Hypervisor.framework, so freed guest memory goes back to macOS | done |
-| 4 | Memory: footprint tracking, smaller baseline, memory controller | idle target met; controller next |
+| 4 | Memory: footprint tracking, smaller baseline, memory controller, on-demand RAM | done |
 | 5 | Daemon, launchd socket activation, idle stop | done |
-| 6 | Data disk, networking, port forwarding, file sharing | |
-| 7 | Docker compatibility (dockerd in the guest first) | |
-| 8 | Own runtime, replacing dockerd piece by piece | |
-| 9 | `dmx mcp`, sandboxes, checkpoints | `dmx mcp` works; sandboxes next |
+| 6 | Data disk, networking, port forwarding, file sharing | done; extensions remain |
+| 7 | Docker compatibility (dockerd in the guest first) | done; 16K page compatibility needs a broader image matrix |
+| 8 | Own runtime, replacing dockerd piece by piece | not started |
+| 9 | `dmx mcp`, sandboxes, checkpoints and logs | done |
 | 10 | Release: install script, guest downloads verified by dmx | groundwork done, no release yet |
 
-Measured on an M-series Mac (10 cores, 16 GB): the guest agent answers about 0.15 to 0.25 s after boot starts. The whole dmx process, guest RAM included, costs about 87 MB at idle with a 2 GB ceiling and 115 MB with 8 GB (the first Virtualization.framework build cost 170 and 356 MB), thanks to a 16K page guest kernel trimmed to what dmx needs, no SWIOTLB bounce buffer, and dmx's own VMM. With the VM stopped the daemon costs 4 MB, and an idle daemon exits. Virtualization.framework never hands memory the guest frees back to macOS (its balloon is a no-op on the host); on Hypervisor.framework guest RAM is memory dmx owns, so when the guest frees 1 GB, dmx gives it back to macOS within about 2 seconds.
+Measured on an M-series Mac (10 cores, 16 GB): idle host footprint is about 80 MB across 2G to 16G ceilings because the guest boots with 1 GB and adds the rest through virtio-mem as needed. The whole dmx process is counted, guest RAM included; Docker adds memory only after it starts. The first Virtualization.framework build cost 170 MB at 2G and 356 MB at 8G. With the VM stopped the daemon costs about 4 MB, and an idle daemon exits. Free page reporting returns memory within seconds; under host pressure dmx trims caches, removes spare hotplug RAM and uses a balloon for the memory that remains. These are local measurements, not a controlled comparison with other container engines; see [the dated measurements](docs/PLAN.md#findings-and-measurements).
+
+Known gaps include some x86 applications' 4K page assumptions on the 16K guest kernel, IPv6 and split DNS, data disk resizing and boot-time fsck, and extended file-sharing metadata. See [Next up](docs/PLAN.md#next-up) for release validation and the remaining runtime work.
 
 ## Install
 
@@ -51,7 +53,7 @@ Requires macOS 15+ on Apple Silicon, Xcode (Swift 6), Python 3, and Rust via rus
 guest target: `rustup target add aarch64-unknown-linux-musl` (it links with the bundled `rust-lld`).
 
 ```sh
-make build     # swift build + ad-hoc sign with the virtualization entitlement
+make build     # swift build + ad-hoc sign with the hypervisor entitlement
 make kernel    # build the 16K page guest kernel inside a dmx VM (slow; once per kernel version)
 make guest     # fetch pinned Alpine Linux artifacts, build ~/.dmx/guest/{Image,initramfs.gz}
 make install   # copy dmx to ~/.local/bin (PREFIX=... to change)
@@ -59,6 +61,9 @@ make install   # copy dmx to ~/.local/bin (PREFIX=... to change)
 .build/release/dmx boot --selftest --json
 make daemontest                  # the daemon end to end, in a throwaway DMX_HOME
 make mcptest                     # dmx mcp driven like an MCP client
+make dockertest                  # Docker, Compose and BuildKit, using dmx's bundled tools
+make sandboxtest                 # sandbox policies, checkpoints, logs and TTLs
+make x86test                     # x86_64 binaries through QEMU and binfmt_misc
 ```
 
 ## Use
@@ -77,8 +82,8 @@ dmx boot                         # debugging: a VM in the foreground with its co
 
 ### From an AI agent (MCP)
 
-`dmx mcp` is a stdio MCP server with the tools `dmx_exec`, `dmx_status`, `dmx_start`, `dmx_stop`,
-`dmx_config_get` and `dmx_config_set`. Command output is capped per stream (head and tail, 8 KiB
+`dmx mcp` is a stdio MCP server with VM and config tools, `dmx_exec`, `dmx_sandbox_*` for
+disposable environments and checkpoints, and `dmx_logs`. Command output is capped per stream (head and tail, 8 KiB
 by default) so a large log does not flood the agent's context. Register it with Claude Code:
 
 ```sh
@@ -100,10 +105,11 @@ State lives in `~/.dmx` (override with `DMX_HOME`). The control socket is descri
 
 ## Layout
 
-- `Sources/DMXCore`: VM, console, doctor and selftest logic, shared by the CLI and the future MCP mode
+- `Sources/DMXCore`: VM, console, doctor and selftest logic, shared by the CLI, daemon and MCP server
 - `Sources/DMXCore/Daemon`: the daemon, its client, exec through it, and the launchd agent
 - `Sources/DMXCore/MCP`: `dmx mcp`, the MCP server on stdio, and exec with capped output
-- `Sources/DMXCore/HV`: the VMM: vCPUs, device tree, GIC setup, PL011, virtio-mmio devices (console, rng, vsock, balloon with free page reporting, blk for the data disk, net, fs)
+- `Sources/DMXCore/HV`: the VMM: vCPUs, device tree, GIC setup, PL011, virtio-mmio devices (console, rng, vsock, balloon with free page reporting, mem for on-demand RAM, blk for the data disk, net, fs)
+- `Sources/DMXCore/Sandbox`: sandbox policies, lifecycle, checkpoints, fork, rollback, TTL and logs
 - `Sources/dmx`: the command line
 - `guest/init`: PID 1 inside the VM
 - `guest/agent`: `dmx-agent`, the Rust guest agent on vsock ([protocol](docs/agent-protocol.md))

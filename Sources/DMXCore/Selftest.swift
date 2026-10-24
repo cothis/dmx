@@ -196,7 +196,7 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
     )
 }
 
-public struct MemoryPlugReport: Encodable, Sendable {
+public struct MemoryPlugReport: Codable, Sendable {
     public let bootMb: Int
     public let pluggedMb: Int
     public let requestedMb: Int

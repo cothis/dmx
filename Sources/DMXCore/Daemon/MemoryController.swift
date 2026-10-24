@@ -14,7 +14,8 @@ import Foundation
 ///   again, single pages it keeps reusing.
 /// - Host pressure warning: the same trim at once, and after 5 s of idle instead of 30.
 /// - Host pressure critical: the guest also pushes cold anonymous and tmpfs pages into zram, and the
-///   balloon caps it at what it uses plus 256 MB, following its use as it changes. Back at warning
+///   hotplug policy removes spare memory with 256 MB headroom, following its use as it changes.
+///   The balloon covers boot memory and blocks that cannot be unplugged. Back at warning
 ///   the cap loosens to 1 GB (macOS often swings between the two, and inflating again costs CPU:
 ///   the guest zeroes every page it hands over, ~1.5 s of CPU per 8 GB); back at normal the balloon
 ///   deflates. With DEFLATE_ON_OOM the guest takes balloon pages back rather than OOM-kill, so a
@@ -63,6 +64,8 @@ final class MemoryController {
     private var lastActivity = ContinuousClock.now
     private var trims = 0
     private var swapOn = false
+    /// Keep the reduced headroom at warning after critical even when unplugging needed no balloon.
+    private var squeezed = false
     private var lastTrim: (reason: String, at: ContinuousClock.Instant, freedMb: Int, ms: Int)?
     /// Set by an idle sweep until the guest is used again: when, and the reporting order to go
     /// back to (nil if the guest did not take the change).
@@ -92,6 +95,7 @@ final class MemoryController {
         self.agent = agent
         level = .normal
         swapOn = false
+        squeezed = false
         trims = 0
         lastTrim = nil
         swept = nil
@@ -124,6 +128,7 @@ final class MemoryController {
         return MemoryStatus(
             hostPressure: pressure.rawValue, pressureSimulated: simulated != nil,
             balloonMb: balloon.map { Int($0.actual >> 20) }, balloonTargetMb: balloon.map { Int($0.target >> 20) },
+            plug: machine?.memoryPlugState.map(MemoryPlugReport.init),
             guestCacheMb: guest.map { Int($0.cache >> 20) },
             guestSwapMb: guest.map { Int(($0.swapTotal - min($0.swapFree, $0.swapTotal)) >> 20) },
             reportedMb: machine.map { Int($0.freePageReports.bytes >> 20) },
@@ -194,13 +199,17 @@ final class MemoryController {
             if let order = swept.restore { await setReportingOrder(agent, order, reason: "in use") }
         }
 
-        // The balloon from critical pressure until normal: a cap that follows what the guest uses.
+        // Reduce present memory first; balloon pages would obstruct unplugging. Without a
+        // hotplug device (small ceilings), keep the balloon-only fallback.
+        if current == .critical { squeezed = true }
+        if current == .normal { squeezed = false }
         let now = machine.balloonSize.target
         let headroom: UInt64? = switch current {
         case .critical: Self.criticalHeadroom
-        case .warning where now > 0: Self.warningHeadroom
+        case .warning where squeezed: Self.warningHeadroom
         default: nil
         }
+        if machine.setMemoryPressureHeadroom(headroom) { return }
         let target = headroom.map { memory.total > memory.used + $0 ? memory.total - memory.used - $0 : 0 } ?? 0
         let delta = target > now ? target - now : now - target
         if delta >= Self.balloonStep || (target == 0 && now != 0) {
@@ -275,6 +284,8 @@ public struct MemoryStatus: Codable, Sendable {
     /// The balloon: what the guest gave back on request, and what was asked. nil while stopped.
     public let balloonMb: Int?
     public let balloonTargetMb: Int?
+    /// Boot RAM, hotplug region requested/present, and request counts. nil without virtio-mem.
+    public let plug: MemoryPlugReport?
     /// Clean page cache the guest holds, and swap (zram) in use.
     public let guestCacheMb: Int?
     public let guestSwapMb: Int?

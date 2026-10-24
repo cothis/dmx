@@ -376,6 +376,15 @@ public final class Machine: @unchecked Sendable {
         memoryPlug?.setRequested(bytes > bootSize ? bytes - bootSize : 0)
     }
 
+    /// Coordinates unplugging and the balloon under host pressure. Returns false when the
+    /// whole ceiling is boot memory, so the caller must use the balloon alone.
+    @discardableResult
+    public func setMemoryPressureHeadroom(_ bytes: UInt64?) -> Bool {
+        guard let memoryPlugPolicy else { return false }
+        memoryPlugPolicy.setPressureHeadroom(bytes)
+        return true
+    }
+
     private func deviceTree(initrd: Range<UInt64>) -> Data {
         let gicPhandle: UInt32 = 1, clockPhandle: UInt32 = 2
         let level: UInt32 = 4  // IRQ_TYPE_LEVEL_HIGH
