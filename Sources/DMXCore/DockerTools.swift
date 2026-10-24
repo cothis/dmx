@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 /// The docker CLI, the Compose and Buildx plugins and the keychain credential helper, as Docker
@@ -95,7 +94,7 @@ public enum DockerTools {
         var installed: [Installed] = []
         for tool in tools {
             let dest = destination(tool, paths)
-            if (try? sha256(of: dest)) == tool.installedSHA256 {
+            if (try? sha256Hex(of: dest)) == tool.installedSHA256 {
                 installed.append(Installed(name: tool.name, version: tool.version, path: dest.path, state: "present"))
                 continue
             }
@@ -133,7 +132,7 @@ public enum DockerTools {
         let installed = tools.map { tool in
             let dest = destination(tool, paths)
             let state: String
-            switch try? sha256(of: dest) {
+            switch try? sha256Hex(of: dest) {
             case nil: state = "missing"
             case tool.installedSHA256: state = "present"
             default: state = "changed"
@@ -261,7 +260,7 @@ public enum DockerTools {
                 if !error.retry { attempt = 4 }
             }
         }
-        guard (try? sha256(of: part)) == tool.sha256 else {
+        guard (try? sha256Hex(of: part)) == tool.sha256 else {
             try? fm.removeItem(at: part)
             throw DMXError("checksum_mismatch", "\(tool.url.absoluteString) does not have the sha256 dmx pins for \(tool.name) \(tool.version); deleted it",
                            hint: "run `dmx tools install` again; if this repeats, the file changed upstream: do not use it, report it to dmx")
@@ -284,7 +283,7 @@ public enum DockerTools {
                 try fm.createDirectory(at: unpacked, withIntermediateDirectories: true)
                 try untar(part, member: member.path, into: unpacked)
                 source = unpacked.appendingPathComponent(member.path)
-                guard (try? sha256(of: source)) == member.sha256 else {
+                guard (try? sha256Hex(of: source)) == member.sha256 else {
                     try? fm.removeItem(at: part)
                     throw DMXError("checksum_mismatch", "\(member.path) in \(tool.url.lastPathComponent) does not have the sha256 dmx pins; deleted it",
                                    hint: "run `dmx tools install` again; if this repeats, report it to dmx")
@@ -321,14 +320,6 @@ public enum DockerTools {
             throw DMXError("install_failed", "cannot unpack \(member) from \(archive.path): \(String(decoding: data, as: UTF8.self))",
                            hint: "run `dmx tools install` again")
         }
-    }
-
-    static func sha256(of file: URL) throws -> String {
-        let handle = try FileHandle(forReadingFrom: file)
-        defer { try? handle.close() }
-        var hash = SHA256()
-        while let chunk = try handle.read(upToCount: 1 << 20), !chunk.isEmpty { hash.update(data: chunk) }
-        return hash.finalize().map { String(format: "%02x", $0) }.joined()
     }
 }
 

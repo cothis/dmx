@@ -36,11 +36,11 @@ import Testing
             let tgz = src.appendingPathComponent("docker.tgz")
             let tgzSize = try fm.attributesOfItem(atPath: tgz.path)[.size] as! Int
             tools = [
-                DockerTools.Tool(name: "docker", version: "1", url: tgz, sha256: try DockerTools.sha256(of: tgz), size: tgzSize,
-                                 member: ("docker/docker", try DockerTools.sha256(of: src.appendingPathComponent("docker/docker"))),
+                DockerTools.Tool(name: "docker", version: "1", url: tgz, sha256: try sha256Hex(of: tgz), size: tgzSize,
+                                 member: ("docker/docker", try sha256Hex(of: src.appendingPathComponent("docker/docker"))),
                                  file: "docker", plugin: false),
                 DockerTools.Tool(name: "compose", version: "2", url: src.appendingPathComponent("compose-bin"),
-                                 sha256: try DockerTools.sha256(of: src.appendingPathComponent("compose-bin")), size: plugin.count,
+                                 sha256: try sha256Hex(of: src.appendingPathComponent("compose-bin")), size: plugin.count,
                                  member: nil, file: "docker-compose", plugin: true),
             ]
             let home = root.appendingPathComponent("home")

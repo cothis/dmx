@@ -55,6 +55,7 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | Guest network is a user space NAT inside dmx, not vmnet (2026-10-24) | vmnet needs root or `com.apple.vm.networking`, which Apple grants on request (verified: an ad-hoc process gets VMNET_FAILURE, the entitlement gets it killed). Guest flows map onto host sockets like passt: no TCP stack, no second process, bounded buffers, and traffic is dmx's own so VPNs and firewalls apply. Costs: IPv4 only, no ICMP errors; inbound goes through vsock port forwarding. |
 | Defaults and security follow Docker Desktop (2026-10-24) | Maintainer's rule: Docker must just work, and security choices match standard tools. So: host directories shared read-write at the same path (Docker Desktop shares /Users, /Volumes, /private, /tmp, /var/folders; phase 7 matches that list), containers reach host services through a host alias (`host.docker.internal` in phase 7, today `host.dmx.internal`), ports bind 127.0.0.1 unless asked, host user ↔ guest root on shares, `init_on_alloc` on as in stock kernels, no TLS tools in the base guest (dockerd does its own TLS). Port forwards persist and keep the 4 MB daemon up while they exist. MCP tools are `dmx_*`, argv-based, 8 KiB/120 s defaults. |
 | No GitHub CI, no Homebrew dependency (2026-10-24) | Maintainer's choice: GitHub is only for distribution (source and releases). Checks run locally before a release (`make build`, `swift test`, selftest, daemontest, dockertest). dmx ships its own pinned Docker CLI tools instead of relying on Homebrew. |
+| dmx ships the docker CLI, Compose, Buildx and the keychain credential helper (2026-10-24) | Docker Desktop does, and users should not need Homebrew. Pinned upstream darwin-arm64 builds (the static CLI is trust-on-first-download: Docker publishes no checksum for it). Plugins through `cliPluginsExtraDirs`; no shell rc files edited. All Apache-2.0. |
 | CLI only, no GUI | The work that matters is invisible (memory, sockets). Agents use CLIs. |
 | Kernel hardening over a few MB (2026-10-24) | Maintainer's choice: `rodata=noalias` would save 4 MB at 8G (page tables of a page-by-page linear map) but leaves the linear alias of kernel text writable, so the default stays `rodata=full`. |
 | Memory savings are always on | Balloon, idle stop and cache trimming are defaults, not options. The user's standing preference: improvements are not toggles. |
@@ -300,7 +301,8 @@ Done when: the guest can `wget` from the internet, a guest web server is reachab
 Done when: the test suite passes with the stock `docker` CLI.
 Result: passes with Homebrew's docker 29.9.1 and Compose 5.6.0. Left: restart policies bring
 containers back on the next Docker client rather than at boot; `docker build` uses the legacy
-builder unless `docker-buildx` is installed.
+builder unless `docker-buildx` is installed. Now: BuildKit through dmx's Buildx; `make dockertest` uses
+only dmx's tools (43 checks).
 
 ### Phase 8: Own runtime
 
@@ -326,6 +328,19 @@ builder unless `docker-buildx` is installed.
 
 - [x] `make install`: copies dmx to `~/.local/bin` (`PREFIX` to change), no sudo, and repoints the
       launchd agent if it is installed. Building from source still needs Xcode, Python and Rust.
+- [x] `dmx tools install` (also part of `dmx install`): the docker CLI 29.9.2, Compose 5.6.1, Buildx
+      0.38.1 and the keychain credential helper from upstream, pinned by sha256, in `~/.dmx/bin` and
+      `~/.dmx/cli-plugins` (through `cliPluginsExtraDirs`, as Docker Desktop does), `docker` linked
+      into `~/.local/bin` when that is on PATH. `docker build` uses BuildKit. No Homebrew.
+- [x] Guest downloaded and verified by dmx (`GuestStore`): `dmx-guest-<v>.tar.gz` from
+      `<base>/<tag>/` (`DMX_RELEASE_URL`, default the GitHub releases) when the guest is missing or
+      from another release, checked against sha256s compiled in (`GuestPin.swift`). A local
+      `make guest` build is left alone. `dmx guest [fetch]`; doctor reports the guest's origin.
+- [x] `make release VERSION=x` (`scripts/release.py`, [release.md](release.md)): binary tarball, guest
+      archive, SHA256SUMS, kernel config, third-party list with licenses, `install.sh` with the
+      version and sha256 baked in (installs to `~/.local/bin`, no sudo, no Homebrew).
+- [ ] First public release. Before it: versioning (SemVer `v0.1.0`?), GPL source (written offer
+      vs attaching ~300 MB of sources), Developer ID signing (browser downloads are quarantined).
 - [ ] Guest artifacts published as GitHub Releases, downloaded and verified by `dmx`, so users do not need Python.
       They contain GPL software (kernel, busybox, qemu-x86_64 "GPL-2.0-only AND LGPL-2.1-only"):
       ship license texts and the corresponding source or a written offer (qemu: QEMU 11.0.3 +
@@ -432,6 +447,8 @@ Phase 7 is done. Open items, roughly in order of value:
 | 2026-10-24 | Reusable pages re-dirtied by the guest | After `MADV_FREE_REUSABLE` and a full guest rewrite, footprint stayed 2 MB with 512 MB dirty, counted only once macOS paged them out. Real VM: a 500 MB refill came in ~50 MB short. Fix idea: keep released ranges out of stage 2 and `MADV_FREE_REUSE` them on the guest's fault. Open. |
 | 2026-10-24 | Docker (stock CLI 29.9.1, Compose 5.6.0), load 16 to 50 | Idle without Docker 99 MB (with the double-count fix). dockerd + containerd idle: guest +52 MB (RSS 37 + 25); footprint 305 MB right after start, 210 MB after the idle trim and sweep (guest used 91, cache 45). One `busybox sleep` container: guest +10 to 12 MB. First Docker use (unpack + start) 10 to 35 s; dockerd start on a later boot 1.5 to 4.7 s. hello-world with pull 6.6 to 27 s, warm 2.0 to 3.2 s, cold from a stopped VM 7.5 s; pull alpine 5.3 to 8.9 s; small build 3 to 24 s; compose up 2 to 21 s. Bind mount write with fsync 30 MB/s in a container. |
 | 2026-10-24 | Interrupted first-boot format | The daemon gave up on a boot after 30 s; on a loaded Mac that cut `mke2fs` short, and since `/init` formatted only an all-zero first MB, the disk was never formatted again. Now it formats a disk without an ext4 superblock (mke2fs writes it last) and the daemon waits 120 s; checked with a disk whose first MB is random. |
+| 2026-10-24 | dmx's Docker tools, load 15 to 20 | Download 112 MB in 10 to 11 s, 137 MB on disk (docker 41, buildx 62, compose 29, credential helper 2.3); resumes with HTTP ranges; re-checking all present 0.17 to 0.3 s. BuildKit build (FROM alpine, RUN, COPY) 1.2 to 2.0 s, `--no-cache` 0.5 to 1.1 s; multi-stage with a cache mount 3.3 to 3.8 s; `compose build` 0.8 to 1.6 s. |
+| 2026-10-24 | Guest download | Release guest archive 61.7 MB; download, check and unpack from a local server 0.3 to 0.6 s. Hashing with `FileHandle.read` left ~130 MB in the daemon (autoreleased chunks, no pool drains); one 1 MB buffer now. Daemon after a download: 10 MB with the VM stopped (4 MB otherwise), until it exits idle. |
 | 2026-10-24 | `dmx mcp` (stdio MCP), load 5 to 6 | `make mcptest` 5.3 to 6.3 s, 30 of 30 checks. Cold `dmx_exec uname -a` with no daemon 215 to 376 ms end to end; warm 0 to 2 ms. 200 MB of stdout capped to 8 KiB in 0.65 to 1.41 s; `dmx mcp` RSS 8 to 9 MB, 10 MB at peak. A 2 s timeout returns in 2.01 to 2.13 s with the guest processes gone. `tools/list` is 4.6 KB (3.8 KB without `outputSchema`). |
 | 2026-10-24 | Truncated exec output after a boot | `dmx stop`, an exec, then 200 MB of stdout: 5 to 6 of 40 runs ended with "daemon closed the connection mid-frame" (load 9 to 15); logging the shutdown path hid it. The guest sometimes sends RST right after its SHUTDOWN, and the host dropped the connection with up to 200 KB from the guest still unwritten to the full host socket. Now an RST on an open stream delivers what the guest sent, then closes: 0 of 50. Found by the `dmx mcp` tests. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
@@ -470,3 +487,4 @@ Phase 7 is done. Open items, roughly in order of value:
 - 2026-10-24: x86_64 binaries run in the guest through qemu-x86_64 and binfmt_misc; THP off.
 - 2026-10-24: Phase 7 done: the stock docker CLI and Compose work against `~/.dmx/docker.sock` (`make dockertest`). Pages devices touch are no longer counted twice (idle 99 MB). An interrupted first-boot format is redone.
 - 2026-10-24: Maintainer: no GitHub CI and no Homebrew. Agents `cli`, `gaps`, `reuse`, `memmap`, `phase9`, `release` started.
+- 2026-10-24: `dmx tools` (docker CLI, Compose, Buildx without Homebrew; BuildKit builds) and release groundwork (guest download, `make release`, install.sh) merged.
