@@ -80,7 +80,7 @@ DOCKER_SKIP = ("usr/share/", "etc/containerd/", "etc/ethertypes", "etc/ssl1.1", 
 # Kernel modules Docker networking loads (bridge, veth, iptables over nf_tables, network drivers),
 # kept on the data disk with the rest; guest/docker puts them at /lib/modules.
 DOCKER_MODULE_DIRS = ("kernel/net/netfilter/", "kernel/net/ipv4/netfilter/", "kernel/net/ipv6/netfilter/", "kernel/net/bridge/")
-DOCKER_MODULES = ["veth", "bridge", "br_netfilter", "macvlan", "ipvlan", "vxlan", "dummy", "tun"]
+DOCKER_MODULES = ["veth", "bridge", "br_netfilter", "macvlan", "ipvlan", "vxlan", "dummy", "tun", "af_packet"]
 # docker.img: a 4 KB header ("dmx-docker 1", the sha256 and length of the payload, one per line),
 # then the payload, a gzip'd tar, padded to 4 KB blocks for the block device.
 DOCKER_IMAGE_MAGIC = b"dmx-docker 1\n"

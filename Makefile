@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build install kernel guest selftest daemontest mcptest test clean
+.PHONY: build install kernel guest selftest daemontest mcptest dockertest test clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -33,6 +33,11 @@ daemontest: build
 # `dmx mcp` driven over pipes like an MCP client: tools, output limits, timeouts (about 6 s).
 mcptest: build
 	python3 -I scripts/test-mcp.py $(BIN)
+
+# The stock docker CLI and Compose against dmx, in a throwaway DMX_HOME (needs the internet and
+# `brew install docker docker-compose`; a few minutes).
+dockertest: build
+	python3 -I scripts/test-docker.py $(BIN)
 
 # Unit tests that need no VM (the virtio-fs server's path containment).
 test:

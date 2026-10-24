@@ -83,7 +83,7 @@ private func withDaemon<T>(_ body: (DaemonClient) async throws -> T) async throw
 }
 
 private func describe(_ f: PortForwardStatus) -> String {
-    var line = "\(f.hostAddress):\(f.hostPort) -> guest \(f.guestPort)"
+    var line = "\(f.hostAddress):\(f.hostPort) -> guest \(f.guestPort)" + (f.source.map { " (\($0))" } ?? "")
     if !f.listening { line += " (not listening: \(f.error ?? "unknown"))" }
     if f.connections > 0 { line += ", \(f.connections) open" }
     return line
