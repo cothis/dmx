@@ -10,6 +10,7 @@ JSON object and exits non-zero if any check failed.
 """
 
 import hashlib
+import http.server
 import json
 import os
 import pty
@@ -19,6 +20,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -129,6 +131,28 @@ try:
     results["stdout_500mb_mb_per_s"] = int(500 / seconds)
     check("stdout_500mb", len(r.stdout) == 500000000, str(len(r.stdout)))
     results["footprint_after_streams_mb"] = status().get("host_footprint_mb")
+
+    # Network: 64 MB over HTTP from a server on the host's loopback (192.168.127.254 in the guest).
+    body = os.urandom(64 << 20)
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    started = time.time()
+    r = dmx("exec", "--", "sh", "-c", f"wget -q -O - http://192.168.127.254:{server.server_address[1]}/ | md5sum")
+    results["net_64mb_mb_per_s"] = int(64 / (time.time() - started))
+    server.shutdown()
+    check("net_http_64mb", r.stdout.split()[:1] == [hashlib.md5(body).hexdigest().encode()], repr(r.stdout[:40] + r.stderr[:80]))
+    results["footprint_after_net_mb"] = status().get("host_footprint_mb")
 
     r = dmx("exec", "--", "nosuch")
     check("missing_binary", r.returncode == 1 and b"nosuch" in r.stderr, repr(r.stderr))

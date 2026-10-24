@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 public struct SelftestCheck: Encodable, Sendable {
@@ -88,7 +89,7 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
         // Bound drivers, whether built in or loaded as modules: /sys/bus/virtio/drivers/<driver>/virtioN.
         let bound = text(try await agent.run(["find", "/sys/bus/virtio/drivers", "-mindepth", "2", "-maxdepth", "2", "-name", "virtio*"]).stdout)
             .split(separator: "\n").map { $0.split(separator: "/").dropLast().last.map(String.init) ?? "" }
-        for driver in ["virtio_console", "virtio_rng", "virtio_balloon", "vmw_vsock_virtio_transport"] {
+        for driver in ["virtio_console", "virtio_rng", "virtio_balloon", "vmw_vsock_virtio_transport", "virtio_net"] {
             check("driver.\(driver)", bound.contains(driver), bound.contains(driver) ? "bound" : "no device bound")
         }
 
@@ -113,6 +114,18 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
             check("reclaim", r.returnedMs != nil,
                   "1 GB touched and freed: \(r.afterFreeMb) MB -> \(r.afterReclaimMb) MB \(r.returnedMs.map { "in \($0) ms" } ?? "(not within 10 s)"), \(r.reports) reports")
         }
+
+        // Network, offline: ICMP to the gateway, and 4 MB over HTTP from the host's loopback
+        // (192.168.127.254 in the guest) through the user space NAT. After the footprint
+        // measurements, so network buffers do not count in them.
+        let ping = try await agent.run(["ping", "-c", "1", "-W", "2", "192.168.127.1"])
+        check("net_icmp", ping.exit.code == 0, "ping the gateway: exit \(ping.exit.code.map(String.init) ?? "by signal")")
+        var body = Data(count: 4 << 20)
+        body.withUnsafeMutableBytes { arc4random_buf($0.baseAddress!, $0.count) }
+        let port = try serveOnce(body)
+        let get = try await agent.run(["sh", "-c", "wget -q -O - http://192.168.127.254:\(port)/ | sha256sum"])
+        let want = SHA256.hash(data: body).map { String(format: "%02x", $0) }.joined()
+        check("net_tcp", text(get.stdout).hasPrefix(want), "4 MB over HTTP from the host: \(text(get.stdout + get.stderr).prefix(80).debugDescription)")
 
         shutdownStarted = ContinuousClock.now
         try await agent.shutdown()
@@ -183,6 +196,46 @@ private func measureReclaim(machine: Machine, agent: AgentClient, idle: HostFoot
     let stats = machine.freePageReports
     return ReclaimReport(idleMb: idle.footprintMb, afterFreeMb: afterFill.footprintMb, afterReclaimMb: last.footprintMb,
                          returnedMs: returnedMs, reports: stats.reports, reportedMb: Int(stats.bytes >> 20))
+}
+
+/// Answers one HTTP request on 127.0.0.1 with `body`, from a background thread; returns the port.
+/// Gives up after 30 s without a connection.
+private func serveOnce(_ body: Data) throws -> UInt16 {
+    let fd = socket(AF_INET, SOCK_STREAM, 0)
+    var address = sockaddr_in()
+    address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+    address.sin_family = sa_family_t(AF_INET)
+    address.sin_addr.s_addr = UInt32(0x7f00_0001).bigEndian
+    var length = socklen_t(MemoryLayout<sockaddr_in>.size)
+    let bound = withUnsafeMutablePointer(to: &address) {
+        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+            bind(fd, $0, length) == 0 && listen(fd, 1) == 0 && getsockname(fd, $0, &length) == 0
+        }
+    }
+    guard fd >= 0, bound else {
+        if fd >= 0 { close(fd) }
+        throw DMXError("selftest_failed", "cannot listen on 127.0.0.1: \(String(cString: strerror(errno)))")
+    }
+    let response = Data("HTTP/1.0 200 OK\r\nContent-Length: \(body.count)\r\n\r\n".utf8) + body
+    Thread.detachNewThread {
+        defer { close(fd) }
+        var ready = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+        guard poll(&ready, 1, 30_000) == 1 else { return }
+        let client = accept(fd, nil, nil)
+        guard client >= 0 else { return }
+        defer { close(client) }
+        var request = [UInt8](repeating: 0, count: 4096)
+        _ = read(client, &request, request.count)
+        var sent = 0
+        response.withUnsafeBytes { bytes in
+            while sent < bytes.count {
+                let n = write(client, bytes.baseAddress! + sent, bytes.count - sent)
+                if n <= 0 { return }
+                sent += n
+            }
+        }
+    }
+    return UInt16(bigEndian: address.sin_port)
 }
 
 func milliseconds(_ d: Duration) -> Int {

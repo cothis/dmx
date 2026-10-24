@@ -109,6 +109,19 @@ final class Virtqueue: @unchecked Sendable {
         atomicMemoryFence(ordering: .releasing)
         ram.store(deviceArea + 2, nextUsed)
     }
+
+    /// Hands several chains back with one index update, so the driver sees all of them or none:
+    /// a frame spread over mergeable receive buffers must not show up in part.
+    func push(_ chains: [(chain: VirtqueueChain, written: Int)]) {
+        for (chain, written) in chains {
+            let slot = deviceArea + 4 + 8 * UInt64(nextUsed % size)
+            ram.store(slot, UInt32(chain.head))
+            ram.store(slot + 4, UInt32(written))
+            nextUsed &+= 1
+        }
+        atomicMemoryFence(ordering: .releasing)
+        ram.store(deviceArea + 2, nextUsed)
+    }
 }
 
 /// What a virtio device implements; the MMIO transport does the rest.
