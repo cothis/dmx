@@ -25,6 +25,7 @@ public struct SelftestReport: Encodable, Sendable {
     /// Host memory of the VM process, read after dropping caches, before shutdown.
     public let host: HostFootprint?
     public let reclaim: ReclaimReport?
+    public let disk: DiskReport?
     public let checks: [SelftestCheck]
     public let problems: [String]
     /// Raw console output, included only when the run failed.
@@ -36,6 +37,11 @@ public struct SelftestReport: Encodable, Sendable {
 public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo: Bool) async throws -> SelftestReport {
     var spec = spec
     if !echo { spec.kernelArgs.append("quiet") }
+    // A throwaway data disk: the guest formats, mounts and trims it, and data.img stays untouched.
+    let scratchDisk = paths.home.appendingPathComponent("selftest-\(getpid()).img")
+    try? FileManager.default.removeItem(at: scratchDisk)
+    defer { try? FileManager.default.removeItem(at: scratchDisk) }
+    spec.dataDisk = DataDisk(url: scratchDisk, size: Config.defaultDiskSize)
 
     let capture = ConsoleCapture(echo: echo)
     let machine = try Machine(spec: spec, paths: paths, console: capture.pipe.fileHandleForWriting)
@@ -55,6 +61,7 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
     var hello: AgentHello?, uname: String?, offsetMs: Double?, stats: AgentStats?
     var host: HostFootprint?
     var reclaim: ReclaimReport?
+    var disk: DiskReport?
     var bootMs: Int?, shutdownStarted: ContinuousClock.Instant?
     func check(_ name: String, _ ok: Bool, _ detail: String) {
         checks.append(SelftestCheck(name: name, ok: ok, detail: detail))
@@ -89,7 +96,7 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
         // Bound drivers, whether built in or loaded as modules: /sys/bus/virtio/drivers/<driver>/virtioN.
         let bound = text(try await agent.run(["find", "/sys/bus/virtio/drivers", "-mindepth", "2", "-maxdepth", "2", "-name", "virtio*"]).stdout)
             .split(separator: "\n").map { $0.split(separator: "/").dropLast().last.map(String.init) ?? "" }
-        for driver in ["virtio_console", "virtio_rng", "virtio_balloon", "vmw_vsock_virtio_transport", "virtio_net"] {
+        for driver in ["virtio_console", "virtio_rng", "virtio_balloon", "vmw_vsock_virtio_transport", "virtio_net", "virtio_blk"] {
             check("driver.\(driver)", bound.contains(driver), bound.contains(driver) ? "bound" : "no device bound")
         }
 
@@ -127,6 +134,13 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
         let want = SHA256.hash(data: body).map { String(format: "%02x", $0) }.joined()
         check("net_tcp", text(get.stdout).hasPrefix(want), "4 MB over HTTP from the host: \(text(get.stdout + get.stderr).prefix(80).debugDescription)")
 
+        // After the memory checks, so the page cache this fills does not count as idle memory.
+        let d = try await measureDisk(agent: agent, image: scratchDisk)
+        disk = d
+        check("disk_mount", d.mount.hasPrefix("/dev/vda /var/lib ext4 ") && d.mount.contains("discard"), d.mount)
+        check("disk_discard", d.returnedMs != nil,
+              "128 MB written and deleted: host file \(d.allocatedBeforeMb) -> \(d.allocatedAfterWriteMb) -> \(d.allocatedAfterDeleteMb) MB \(d.returnedMs.map { "in \($0) ms" } ?? "(not within 10 s)")")
+
         shutdownStarted = ContinuousClock.now
         try await agent.shutdown()
     } catch let error as DMXError {
@@ -157,6 +171,7 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
         stats: stats,
         host: host,
         reclaim: reclaim,
+        disk: disk,
         checks: checks,
         problems: problems,
         console: ok ? nil : lines
@@ -236,6 +251,47 @@ private func serveOnce(_ body: Data) throws -> UInt16 {
         }
     }
     return UInt16(bigEndian: address.sin_port)
+}
+
+public struct DiskReport: Encodable, Sendable {
+    /// The /var/lib line of the guest's /proc/mounts.
+    public let mount: String
+    /// Host blocks of the image before, after 128 MB were written and synced, and after the
+    /// file was deleted and the discards came through.
+    public let allocatedBeforeMb: Int
+    public let allocatedAfterWriteMb: Int
+    public let allocatedAfterDeleteMb: Int
+    public let writeMs: Int
+    /// From the delete (with sync) until the image shrank back near where it was, if it did.
+    public let returnedMs: Int?
+}
+
+/// Writes 128 MB to /var/lib, deletes it, and waits up to 10 s for ext4's discards to punch the
+/// blocks out of the image on the host.
+@MainActor
+private func measureDisk(agent: AgentClient, image: URL) async throws -> DiskReport {
+    func allocated() -> Int { DataDisk.usage(image)?.allocatedMb ?? -1 }
+    let mounts = String(decoding: try await agent.run(["cat", "/proc/mounts"]).stdout, as: UTF8.self)
+    let mount = mounts.split(separator: "\n").first { $0.split(separator: " ").dropFirst().first == "/var/lib" }.map(String.init) ?? "not mounted"
+    let before = allocated()
+    let started = ContinuousClock.now
+    _ = try await agent.run(["sh", "-c", "head -c 134217728 /dev/zero > /var/lib/selftest-fill && sync"])
+    let writeMs = milliseconds(ContinuousClock.now - started)
+    let afterWrite = allocated()
+    _ = try await agent.run(["sh", "-c", "rm /var/lib/selftest-fill && sync"])
+    let deleted = ContinuousClock.now
+    var returnedMs: Int?
+    var last = afterWrite
+    while ContinuousClock.now - deleted < .seconds(10) {
+        last = allocated()
+        if last <= before + 16 {
+            returnedMs = milliseconds(ContinuousClock.now - deleted)
+            break
+        }
+        try await Task.sleep(for: .milliseconds(100))
+    }
+    return DiskReport(mount: mount, allocatedBeforeMb: before, allocatedAfterWriteMb: afterWrite, allocatedAfterDeleteMb: last,
+                      writeMs: writeMs, returnedMs: returnedMs)
 }
 
 func milliseconds(_ d: Duration) -> Int {

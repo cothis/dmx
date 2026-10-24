@@ -38,12 +38,15 @@ public struct DaemonStatus: Codable, Sendable {
     public let consoleLog: String
     /// The memory controller: host pressure, balloon, trims (see MemoryController). nil when no daemon answered.
     public var memory: MemoryStatus? = nil
+    /// The data disk image on the host; nil until the first boot creates it.
+    public var disk: DiskUsage? = nil
 
     public static func notRunning(_ paths: Paths, config: Config) -> DaemonStatus {
         DaemonStatus(state: "not_running", pid: nil, version: nil, launchd: nil, uptimeS: nil, cpus: nil,
                      maxMemory: nil, guestUsedMb: nil, hostFootprintMb: nil, hostPeakFootprintMb: nil,
                      clients: nil, execs: nil, containers: nil, idleTimeoutS: config.idleTimeoutSeconds,
-                     idleStopInS: nil, socket: paths.controlSocket.path, consoleLog: paths.consoleLog.path)
+                     idleStopInS: nil, socket: paths.controlSocket.path, consoleLog: paths.consoleLog.path,
+                     disk: DataDisk.usage(paths.dataDisk))
     }
 }
 

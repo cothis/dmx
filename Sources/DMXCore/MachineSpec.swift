@@ -8,6 +8,8 @@ public struct MachineSpec: Sendable {
     public var kernelArgs: [String]
     /// Host directories the guest mounts at the same path (virtio-fs).
     public var shares: [Share]
+    /// The data disk, `/dev/vda` in the guest, mounted at /var/lib. None when nil.
+    public var dataDisk: DataDisk?
 
     public init(cpus: Int? = nil, maxMemory: UInt64? = nil, kernelArgs: [String] = [], shares: [Share] = []) {
         let info = ProcessInfo.processInfo

@@ -209,7 +209,7 @@ public final class Daemon {
             guestUsedMb: used, hostFootprintMb: host?.footprintMb, hostPeakFootprintMb: host?.peakFootprintMb,
             clients: others, execs: execs, containers: nil, idleTimeoutS: idleTimeout, idleStopInS: idleStopIn,
             socket: paths.controlSocket.path, consoleLog: paths.consoleLog.path,
-            memory: memory.status(guest: guest))
+            memory: memory.status(guest: guest), disk: DataDisk.usage(paths.dataDisk))
     }
 
     // MARK: VM lifecycle
@@ -242,6 +242,7 @@ public final class Daemon {
                 idleTimeout = config.idleTimeoutSeconds
                 var spec = try config.spec
                 spec.kernelArgs.append("quiet")
+                spec.dataDisk = DataDisk(url: paths.dataDisk, size: try config.diskSizeBytes)
                 FileManager.default.createFile(atPath: paths.consoleLog.path, contents: nil)
                 let console = try FileHandle(forWritingTo: paths.consoleLog)
                 let machine = try Machine(spec: spec, paths: paths, console: console)

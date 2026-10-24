@@ -233,11 +233,29 @@ pub fn time_sync(p: TimeSyncParams) -> io::Result<TimeSyncResult> {
 
 /// Flushes filesystems and powers the VM off. Does not return on success.
 pub fn power_off() -> io::Error {
-    unsafe {
-        libc::sync();
-        libc::reboot(libc::RB_POWER_OFF);
-    }
+    unsafe { libc::sync() };
+    freeze_data_disk();
+    unsafe { libc::reboot(libc::RB_POWER_OFF) };
     io::Error::last_os_error()
+}
+
+/// Freezes the data disk at /var/lib: ext4 writes everything back and marks its journal clean,
+/// as an unmount would, but files processes still hold open do not stop it. The next boot then
+/// mounts it without replaying the journal.
+fn freeze_data_disk() {
+    use std::os::unix::fs::MetadataExt;
+    use std::os::unix::io::AsRawFd;
+    const FIFREEZE: libc::c_int = 0xC004_5877u32 as libc::c_int; // _IOWR('X', 119, int)
+    // Only a mount point: freezing the root file system instead would stall everything.
+    let (Ok(lib), Ok(var)) = (fs::metadata("/var/lib"), fs::metadata("/var")) else { return };
+    if lib.dev() == var.dev() {
+        return;
+    }
+    if let Ok(dir) = fs::File::open("/var/lib") {
+        if unsafe { libc::ioctl(dir.as_raw_fd(), FIFREEZE as _, 0) } < 0 {
+            eprintln!("dmx-agent: freeze /var/lib: {}", io::Error::last_os_error());
+        }
+    }
 }
 
 pub fn kernel_release() -> String {

@@ -392,12 +392,16 @@ try:
     check("concurrent_cold_start", all(o == f"{i}\n".encode() for i, o in enumerate(outs)) and len(daemon_pids()) == 1,
           f"{len(daemon_pids())} daemons")
 
-    # Stop then start again in the same daemon process.
+    # Stop then start again in the same daemon process. The data disk keeps what was written.
+    r = dmx("exec", "--", "sh", "-c", "grep ' /var/lib ' /proc/mounts; echo kept > /var/lib/marker")
+    check("disk_mounted", r.stdout.startswith(b"/dev/vda /var/lib ext4 "), repr(r.stdout))
     pid = daemon_pids()
     s = json.loads(dmx("stop", "--json").stdout)
     results["footprint_stopped_mb"] = s.get("host_footprint_mb")
-    r = dmx("exec", "--", "true")
+    results["disk"] = s.get("disk")
+    r = dmx("exec", "--", "cat", "/var/lib/marker")
     check("restart_in_process", r.returncode == 0 and daemon_pids() == pid and s["state"] == "stopped", f"{s['state']} {pid}")
+    check("disk_persists", r.stdout == b"kept\n" and (s.get("disk") or {}).get("size_mb") == 65536, f"{r.stdout!r} {s.get('disk')}")
 
     # Idle: the VM stops after idle_timeout, then the daemon exits after 10 s.
     dmx("config", "set", "idle_timeout", "2s")

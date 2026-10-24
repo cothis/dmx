@@ -42,7 +42,7 @@ The host turns them into `DMXError` codes prefixed with `agent_`.
 | `reclaim` | `bytes`, `swappiness` (0 to 200; 0 takes only file cache, absent uses `vm.swappiness`) | `free_before`, `free_after` (MemFree), `complete` (false when the kernel found less than `bytes`). Writes the root cgroup's `memory.reclaim`. |
 | `swap_on` | none | `size` (bytes), `enabled_now` (false if it was on). zram0 with lz4, a quarter of MemTotal, priority 100; sets `vm.swappiness` 100 and `vm.page-cluster` 0. |
 | `time_sync` | `unix_ns` (host clock) | `offset_ns`: guest minus host before the change |
-| `shutdown` | none | `{}`, then the guest syncs and powers off |
+| `shutdown` | none | `{}`, then the guest syncs, freezes the data disk at `/var/lib` (its journal is left clean) and powers off |
 | `exec` | see below | `pid`, then the connection becomes the process's streams |
 | `connect` | see below | `{}`, then the connection becomes a TCP stream's raw bytes |
 

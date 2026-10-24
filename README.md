@@ -54,7 +54,7 @@ dmx exec -- uname -a             # boots the VM (and the daemon) if needed; exit
 dmx shell                        # interactive shell in the VM
 dmx status --json                # state, uptime, guest memory, host footprint
 dmx stop                         # power off now instead of waiting for the idle timeout
-dmx config set idle_timeout 10m  # also: cpus, memory (the ceiling, e.g. 8G)
+dmx config set idle_timeout 10m  # also: cpus, memory (the ceiling, e.g. 8G), disk_size
 dmx install                      # optional: launchd starts the daemon on the first connection
 dmx boot                         # debugging: a VM in the foreground with its console, Ctrl-] powers off
 ```
@@ -72,6 +72,8 @@ claude mcp add dmx -- dmx mcp
 See [docs/mcp.md](docs/mcp.md) for other clients and the tool reference.
 
 The VM stops after 5 minutes with nothing using it, and the daemon exits 10 s later.
+The guest's `/var/lib` is a data disk, `~/.dmx/data.img`: a sparse file of 64G (`disk_size`, set
+before the first boot) that takes only what the guest stores, and shrinks again when it deletes.
 State lives in `~/.dmx` (override with `DMX_HOME`). The control socket is described in
 [docs/daemon-protocol.md](docs/daemon-protocol.md).
 
@@ -80,7 +82,7 @@ State lives in `~/.dmx` (override with `DMX_HOME`). The control socket is descri
 - `Sources/DMXCore`: VM, console, doctor and selftest logic, shared by the CLI and the future MCP mode
 - `Sources/DMXCore/Daemon`: the daemon, its client, exec through it, and the launchd agent
 - `Sources/DMXCore/MCP`: `dmx mcp`, the MCP server on stdio, and exec with capped output
-- `Sources/DMXCore/HV`: the VMM: vCPUs, device tree, GIC setup, PL011, virtio-mmio devices (console, rng, vsock, balloon with free page reporting)
+- `Sources/DMXCore/HV`: the VMM: vCPUs, device tree, GIC setup, PL011, virtio-mmio devices (console, rng, vsock, balloon with free page reporting, blk for the data disk, net, fs)
 - `Sources/dmx`: the command line
 - `guest/init`: PID 1 inside the VM
 - `guest/agent`: `dmx-agent`, the Rust guest agent on vsock ([protocol](docs/agent-protocol.md))

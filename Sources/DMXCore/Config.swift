@@ -13,8 +13,12 @@ public struct Config: Codable, Sendable, Equatable {
     /// home directory. An empty list shares nothing.
     public var shares: [String]?
 
+    /// Size of the data disk when it is created, e.g. "64G": a ceiling, the image is sparse.
+    public var diskSize: String?
+
     public static let defaultIdleTimeout = 300
-    public static let keys = ["cpus", "memory", "idle_timeout", "shares"]
+    public static let defaultDiskSize: UInt64 = 64 << 30
+    public static let keys = ["cpus", "memory", "idle_timeout", "shares", "disk_size"]
 
     public init() {}
 
@@ -47,6 +51,10 @@ public struct Config: Codable, Sendable, Equatable {
         get throws { try shares.map { try Share.parseList($0.joined(separator: ",")) } ?? Share.defaults }
     }
 
+    public var diskSizeBytes: UInt64 {
+        get throws { try diskSize.map(parseSize) ?? Self.defaultDiskSize }
+    }
+
     /// Every key with the value in effect: the configured one, or the default.
     public var effective: [String: String] {
         let spec = MachineSpec(cpus: cpus, maxMemory: try? memory.map(parseSize))
@@ -55,6 +63,7 @@ public struct Config: Codable, Sendable, Equatable {
             "memory": memory ?? formatSize(spec.maxMemory),
             "idle_timeout": formatDuration(idleTimeoutSeconds),
             "shares": (try? shareList).map { $0.isEmpty ? "none" : $0.map(\.text).joined(separator: ",") } ?? "invalid",
+            "disk_size": diskSize ?? formatSize(Self.defaultDiskSize),
         ]
     }
 
@@ -80,6 +89,13 @@ public struct Config: Codable, Sendable, Equatable {
         case "shares":
             guard let value else { shares = nil; return }
             shares = try Share.parseList(value).map(\.text)
+        case "disk_size":
+            // Applies when the image is created; an existing data.img keeps its size.
+            guard let value else { diskSize = nil; return }
+            guard try parseSize(value) >= 1 << 30 else {
+                throw DMXError("bad_config_value", "disk_size must be at least 1G, not \"\(value)\"")
+            }
+            diskSize = value.uppercased()
         default:
             throw DMXError("unknown_config_key", "no setting named \"\(key)\"", hint: "settings are \(Self.keys.joined(separator: ", ")); run `dmx config get`")
         }

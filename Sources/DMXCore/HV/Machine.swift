@@ -36,6 +36,7 @@ public final class Machine: @unchecked Sendable {
     private let net = VirtioNet()
     /// One virtio-fs device per share (`spec.shares`).
     private let fileSystems: [VirtioFS]
+    private var disk: VirtioBlock?
     /// Every MMIO device by guest address, UART first.
     private var bus: [(base: UInt64, size: UInt64, device: MMIODevice)] = []
     private var virtioSlots = 0
@@ -68,6 +69,8 @@ public final class Machine: @unchecked Sendable {
         fileSystems = try resolved.shares.enumerated().map { index, share in
             VirtioFS(tag: "dmx\(index)", server: try FUSEServer(path: share.path, readOnly: share.readOnly))
         }
+        // Before the VM exists, so a disk in use fails without leaving a VM behind.
+        disk = try spec.dataDisk.map(VirtioBlock.init)
 
         guard hvSupported else {
             throw DMXError("virtualization_unsupported", "this Mac does not support Hypervisor.framework")
@@ -107,6 +110,7 @@ public final class Machine: @unchecked Sendable {
         addVirtio(balloon, ram: ram)
         addVirtio(net, ram: ram)
         for fs in fileSystems { addVirtio(fs, ram: ram) }
+        if let disk { addVirtio(disk, ram: ram) }
     }
 
     private func addVirtio(_ device: VirtioDevice, ram: GuestRAM) {
@@ -234,6 +238,7 @@ public final class Machine: @unchecked Sendable {
         threads.notify(queue: .global()) { [self] in
             for fs in fileSystems { fs.stop() }
             destroyVM()
+            disk?.close()  // so the next VM can open the image
             lock.lock()
             stopped = result
             let pending = waiters

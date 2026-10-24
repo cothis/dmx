@@ -1,5 +1,5 @@
 #!/bin/sh
-# dmx guest init (PID 1). Runs straight from the initramfs; there is no disk yet.
+# dmx guest init (PID 1). Runs straight from the initramfs; the data disk is mounted at /var/lib.
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 
 mount -t proc proc /proc
@@ -18,6 +18,23 @@ builtin=/lib/modules/$(uname -r)/modules.builtin
 for m in virtio_mmio virtio_balloon vmw_vsock_virtio_transport virtio_rng virtio_net; do
 	sed s/-/_/g "$builtin" 2>/dev/null | grep -q "/$m.ko$" || modprobe "$m" || echo "dmx-init: modprobe $m failed" >&2
 done
+
+# Data disk: /dev/vda is the host's data.img, a sparse file. A blank disk (first boot) is
+# formatted as ext4; only one whose first MB is all zeros, so a file system that fails to mount
+# is never wiped. mke2fs writes with direct I/O (-D), keeping its metadata out of the page cache,
+# and makes a 128 MB journal instead of 512 MB: journal blocks stay allocated on the host once
+# written. Mounted with discard: ext4 punches the blocks it frees out of the host file. Block
+# bitmaps are read when needed rather than all at mount (~2 MB of guest RAM).
+# mke2fs is needed for nothing else, so its directory goes (~1 MB of guest RAM).
+mkfs=/usr/libexec/dmx-mkfs
+if [ -b /dev/vda ]; then
+	if cmp -s -n 1048576 /dev/vda /dev/zero; then
+		MKE2FS_CONFIG=$mkfs/mke2fs.conf LD_LIBRARY_PATH=$mkfs $mkfs/mke2fs -q -D -t ext4 -L dmx-data -J size=128 /dev/vda ||
+			echo "dmx-init: cannot format /dev/vda" >&2
+	fi
+	mount -t ext4 -o discard,no_prefetch_block_bitmaps /dev/vda /var/lib || echo "dmx-init: cannot mount /dev/vda on /var/lib" >&2
+fi
+rm -rf "$mkfs"
 
 # Network: eth0 is dmx's virtio-net, behind a user space NAT in the dmx process (docs/network.md).
 # Static, so it is up before the agent starts. These addresses are fixed in UserNet.swift:
