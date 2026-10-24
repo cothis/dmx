@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build kernel guest selftest clean
+.PHONY: build kernel guest selftest daemontest clean
 
 # Hypervisor.framework refuses to run without this entitlement; ad-hoc signing is enough locally.
 build:
@@ -16,6 +16,10 @@ guest:
 
 selftest: build
 	$(BIN) boot --selftest --json
+
+# The daemon, its socket and exec paths, idle stop, in a throwaway DMX_HOME (about 45 s).
+daemontest: build
+	python3 -I scripts/test-daemon.py $(BIN)
 
 clean:
 	rm -rf .build

@@ -42,12 +42,18 @@ public func runInGuest(paths: Paths, spec: MachineSpec, argv: [String], timeout:
 }
 
 /// Copies stdin to the guest process on a background thread, then signals EOF.
-private func pipeStdin(to session: ExecSession) {
+func pipeStdin(to session: ExecSession) {
     Thread.detachNewThread {
         var buffer = [UInt8](repeating: 0, count: 1 << 20)
         while true {
             let n = read(STDIN_FILENO, &buffer, buffer.count)
             if n < 0 && errno == EINTR { continue }
+            // A terminal's stdin may share a non-blocking file description with stdout.
+            if n < 0 && errno == EAGAIN {
+                var fd = pollfd(fd: STDIN_FILENO, events: Int16(POLLIN), revents: 0)
+                _ = poll(&fd, 1, -1)
+                continue
+            }
             if n <= 0 { break }
             do { try session.write(Data(buffer[0..<n])) } catch { return }
         }

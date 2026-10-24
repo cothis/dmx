@@ -18,7 +18,7 @@ enum HVLayout {
 
 /// One Linux VM on dmx's own VMM over Hypervisor.framework. Guest RAM is an anonymous mapping
 /// in this process, so dmx decides when freed guest memory goes back to macOS. A process can
-/// hold only one such VM at a time.
+/// hold only one such VM at a time; once `waitUntilStopped()` returns, it can create the next.
 public final class Machine: @unchecked Sendable {
     public enum Exit: Sendable {
         case guestStopped
@@ -39,7 +39,10 @@ public final class Machine: @unchecked Sendable {
     private let lock = NSLock()
     private var vcpus: [VCPU] = []
     private var exit: Exit?
+    /// Set once every vCPU thread has returned, so the VM can be torn down and a new one made.
+    private var stopped: Exit?
     private var waiters: [CheckedContinuation<Exit, Never>] = []
+    private let threads = DispatchGroup()
     /// File contents until they are copied into guest RAM, then released.
     private var kernel: Data, initramfs: Data
     private var redistributorBase: UInt64 = 0
@@ -107,8 +110,17 @@ public final class Machine: @unchecked Sendable {
     }
 
     deinit {
-        hv_vm_unmap(HVLayout.ramBase, Int(ramSize))
+        lock.lock()
+        let live = stopped == nil
+        lock.unlock()
+        if live { destroyVM() }
         munmap(ram, Int(ramSize))
+    }
+
+    /// Ends the VM in Hypervisor.framework so this process can create another. Guest RAM stays
+    /// mapped in the process until deinit, for device code still holding addresses into it.
+    private func destroyVM() {
+        hv_vm_unmap(HVLayout.ramBase, Int(ramSize))
         hv_vm_destroy()
     }
 
@@ -146,7 +158,11 @@ public final class Machine: @unchecked Sendable {
         for index in 0..<spec.cpus {
             let vcpu = VCPU(index: index, machine: self)
             vcpus.append(vcpu)
-            let thread = Thread { vcpu.main(ready: ready) }
+            threads.enter()
+            let thread = Thread { [threads] in
+                vcpu.main(ready: ready)
+                threads.leave()
+            }
             thread.name = "dmx.vcpu.\(index)"
             thread.stackSize = 1 << 20
             thread.start()
@@ -163,12 +179,13 @@ public final class Machine: @unchecked Sendable {
 
     public func stop() async { stop(.guestStopped) }
 
+    /// Returns once the guest has stopped and every vCPU thread has ended.
     public func waitUntilStopped() async -> Exit {
         await withCheckedContinuation { continuation in
             lock.lock()
-            if let exit {
+            if let stopped {
                 lock.unlock()
-                continuation.resume(returning: exit)
+                continuation.resume(returning: stopped)
             } else {
                 waiters.append(continuation)
                 lock.unlock()
@@ -180,12 +197,19 @@ public final class Machine: @unchecked Sendable {
         lock.lock()
         guard exit == nil else { lock.unlock(); return }
         exit = result
-        let pending = waiters
-        waiters.removeAll()
         lock.unlock()
         for vcpu in vcpus { vcpu.halt() }
         vsock.closeAll()
-        for waiter in pending { waiter.resume(returning: result) }
+        // Often called on a vCPU thread (PSCI SYSTEM_OFF), so wait for the threads elsewhere.
+        threads.notify(queue: .global()) { [self] in
+            destroyVM()
+            lock.lock()
+            stopped = result
+            let pending = waiters
+            waiters.removeAll()
+            lock.unlock()
+            for waiter in pending { waiter.resume(returning: result) }
+        }
     }
 
     var stopping: Bool {

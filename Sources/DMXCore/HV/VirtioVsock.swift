@@ -2,7 +2,7 @@ import Foundation
 
 /// virtio-vsock (device 19, virtio 1.x section 5.10), stream sockets only. The host end of each
 /// connection is one end of a Unix socketpair, so code that speaks over a socket descriptor
-/// (`AgentConnection`) works unchanged. All state lives on one serial queue.
+/// (`FrameConnection`) works unchanged. All state lives on one serial queue.
 final class VirtioVsock: VirtioDevice, @unchecked Sendable {
     static let hostCID: UInt64 = 2
     static let guestCID: UInt64 = 3

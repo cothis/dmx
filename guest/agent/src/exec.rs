@@ -65,6 +65,22 @@ pub fn run(id: u64, p: Params, mut conn: Stream, out: Arc<Mutex<Stream>>) {
         cmd.current_dir(cwd);
     }
 
+    // The agent runs in a background subshell of /init, which starts it with SIGINT and SIGQUIT
+    // ignored, and dispositions set to SIG_IGN survive exec. Give the process default ones.
+    unsafe {
+        cmd.pre_exec(|| {
+            for sig in 1..libc::SIGRTMIN() {
+                if sig != libc::SIGKILL && sig != libc::SIGSTOP {
+                    libc::signal(sig, libc::SIG_DFL);
+                }
+            }
+            let mut empty: libc::sigset_t = std::mem::zeroed();
+            libc::sigemptyset(&mut empty);
+            libc::sigprocmask(libc::SIG_SETMASK, &empty, std::ptr::null_mut());
+            Ok(())
+        });
+    }
+
     // Where stdin frames go, and the streams to forward as stdout/stderr frames.
     let mut stdin: Option<Box<dyn Write + Send>> = None;
     let mut outputs: Vec<(u8, Box<dyn Read + Send>)> = Vec::new();

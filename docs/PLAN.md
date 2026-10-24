@@ -48,6 +48,7 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | macOS 15 or later (2026-10-23) | Hypervisor.framework has an in-kernel GICv3 (`hv_gic_create`) from macOS 15, so dmx does not emulate an interrupt controller. |
 | x86_64 images through QEMU user mode + binfmt, not Rosetta (2026-10-23) | Rosetta for Linux exists only inside Virtualization.framework. Most images are multi-arch; emulation is a fallback. |
 | One long lived VM, not one VM per container | One kernel's overhead instead of N. Revisit per-container VMs for sandboxes (phase 9). |
+| The daemon exits when idle; the CLI starts it if launchd does not (2026-10-24) | An idle dmx should cost nothing, not even a 4 MB daemon. `dmx install` is optional: without it `dmx exec` still just works, which matters for agents. One daemon per `DMX_HOME`, enforced by a lock file. |
 | CLI only, no GUI | The work that matters is invisible (memory, sockets). Agents use CLIs. |
 | Kernel hardening over a few MB (2026-10-24) | Maintainer's choice: `rodata=noalias` would save 4 MB at 8G (page tables of a page-by-page linear map) but leaves the linear alias of kernel text writable, so the default stays `rodata=full`. |
 | Memory savings are always on | Balloon, idle stop and cache trimming are defaults, not options. The user's standing preference: improvements are not toggles. |
@@ -194,16 +195,35 @@ This is the core feature. Measure before and after every change and log numbers 
 Done when: idle VM host footprint is under 150 MB at an 8 GB ceiling, and after a container that
 uses 2 GB exits, footprint falls back within 10 s. Numbers recorded in the log.
 
-### Phase 5: Daemon and lifecycle
+### Phase 5: Daemon and lifecycle (done)
 
-- [ ] `dmx daemon`: owns the VM, control socket `~/.dmx/dmx.sock` (JSON requests, same codes as CLI errors).
-- [ ] launchd user agent with socket activation (`dmx install` / `dmx uninstall`), so nothing runs until a client connects.
-- [ ] `dmx start`, `dmx stop`, `dmx status --json` (state, uptime, cpus, ceiling, guest used, host footprint, containers).
-- [ ] Idle stop: no containers and no clients for N minutes → shut down; the next connection boots. (On VZ, restoring a saved state backed the whole ceiling. Snapshots on our own VMM can map the saved memory lazily; measure before adopting.)
-- [ ] `dmx shell` and `dmx exec` through the daemon and agent.
-- [ ] `dmx config get/set` (max-memory, cpus, idle timeout) stored in `~/.dmx/config.json`.
+- [x] `dmx daemon` (`Sources/DMXCore/Daemon`): owns the VM, control socket `~/.dmx/dmx.sock`
+      speaking the agent protocol's framing ([daemon-protocol.md](daemon-protocol.md)), errors with
+      the CLI's codes. An exec is relayed byte for byte between the client and the agent. One
+      daemon per `DMX_HOME` (flock); without launchd, `start`/`exec`/`shell` spawn it detached
+      when nothing answers, so dmx works without installing anything. `Machine` now waits for its
+      vCPU threads and destroys the VM on stop, so one process can boot again after a stop.
+- [x] launchd user agent with socket activation (`dmx install` / `dmx uninstall`, label
+      `io.github.cothis.dmx`, `ThrottleInterval` 1, `ProcessType` Interactive). Install asks a
+      CLI-started daemon to quit first; uninstall's SIGTERM powers the guest off cleanly.
+- [x] `dmx start`, `dmx stop`, `dmx status --json` (state, uptime, cpus, ceiling, guest used, host
+      footprint, clients, execs, idle timeout and time left). `containers` is null until phase 7.
+- [x] Idle stop: no connection that used the VM for `idle_timeout` (default 5 min) → power off
+      through the agent; VM stopped and no client for 10 s → the daemon exits; the next
+      connection starts one. `status` calls do not count as use. No snapshots: a cold boot is
+      0.15 to 0.25 s, so restoring one has nothing to win.
+- [x] `dmx exec [-t] [-e K=V] [-w dir] -- cmd` and `dmx shell` through the daemon and agent:
+      stdin, exit status, pty with window size changes, SIGINT/SIGTERM/SIGHUP passed on, and a
+      killed client kills its guest process. Fixed on the way: every guest process started with
+      SIGINT and SIGQUIT ignored (inherited from `/init`'s background subshell), so Ctrl-C did
+      nothing; the agent now resets signal dispositions before exec.
+- [x] `dmx config get/set/unset` (cpus, memory, idle_timeout) stored in `~/.dmx/config.json`,
+      read at each boot.
+- [x] `make daemontest` (`scripts/test-daemon.py`): all of the above on the real VM in a
+      throwaway `DMX_HOME`, about 45 s.
 
 Done when: after `dmx install`, connecting to the socket boots the VM, and an idle VM disappears and its processes exit.
+Result: verified with launchd and without; see Findings for timings and memory.
 
 ### Phase 6: Storage, network, file sharing
 
@@ -252,9 +272,11 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-Phase 5, "`dmx daemon`": the remaining phase 4 tasks (memory controller, idle page cache
-trimming, host pressure) need it. Phase 4's idle target is met (115 to 116 MB at 8G, goal under 150);
-its second half (a 2 GB container's memory back within 10 s) is tested once containers run.
+Phase 4's remaining tasks, now that the daemon exists: the memory controller in the daemon
+(balloon under host pressure), guest policy (trim page cache when idle, zram, `vm.*` sysctls),
+and host pressure (`DispatchSource.makeMemoryPressureSource`). Each needs a before/after
+measurement with `dmx status --json` and `make daemontest`. Phase 4's second "done when" half
+(a 2 GB container's memory back within 10 s) waits for containers (phase 7).
 
 ## Findings and measurements
 
@@ -311,6 +333,10 @@ its second half (a 2 GB container's memory back within 10 s) is tested once cont
 | 2026-10-24 | Kernel without the lockdown LSM | `MODULE_SIG` off; modprobe no longer taints the kernel. Compiled in 7423 s at host load 30 to 76. Selftest with `rodata=noalias coherent_pool=64K`: 112 MB at 8G (3 runs), back to 113 to 118 MB after the 1 GB test. |
 | 2026-10-24 | Kernel without ZONE_DMA/ZONE_DMA32 (one Normal zone) | Compiled in 933 s at host load ~10 to 25. Per-CPU free lists 20 → 10, but they hold the same in total (776 pages, 12 MB): each list's high mark grows with its zone. Selftest 8G 111 to 112 MB (was 112), 2G 87; after the 1 GB test 113 MB in 0.3 s. Kept: nothing in dmx needs memory below 4 GB. |
 | 2026-10-24 | Back to `rodata=full` (maintainer's choice) | Selftest 8G 115 to 116 MB (was 111 to 112 with `rodata=noalias`), after the 1 GB test 116 to 118 MB in 0.3 s; agent up in 140 to 170 ms. |
+| 2026-10-24 | Daemon (8G, 10 vCPU, standalone and launchd) | Cold `dmx exec -- uname -r` with no daemon running: 0.22 to 0.29 s end to end (spawn or launchd start, boot, exec); warm exec 14 ms; VM up in 140 to 240 ms, stopped through the agent in 6 to 13 ms. Daemon footprint: VM running and idle 114 to 116 MB (same as the selftest), VM stopped 4 MB. 8 concurrent cold `dmx exec`: one daemon, the other 7 exit on the lock. |
+| 2026-10-24 | Streams through the daemon relay | 500 MB guest stdout into `wc -c`: 2.1 s (~240 MB/s); 300 MB stdin into `md5sum`: 0.95 s, checksum matches. Footprint after both 123 to 127 MB (idle 116), guest used unchanged: the same +11 MB of guest pages as streaming through `dmx boot --` (see the vsock rows); the daemon's own malloc 5.5 MB. |
+| 2026-10-24 | launchd socket activation | With `ThrottleInterval` 1 and the daemon lingering 10 s, relaunch on the next connection is immediate (`dmx status` 33 ms including the start). `launch_activate_socket` is missing from Swift's Darwin module; it is looked up with `dlsym`. |
+| 2026-10-24 | Signals in the guest | `/proc/<pid>/status` SigIgn 0x6 for every exec'd process: `/init` starts the agent in `( ... ) &`, and POSIX shells start background jobs with SIGINT and SIGQUIT ignored, which survives exec. Ctrl-C reached the pty but killed nothing. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -334,3 +360,4 @@ its second half (a 2 GB container's memory back within 10 s) is tested once cont
 - 2026-10-24: The unexplained 24 MB turned out to be guest pages `mincore` misses. Linear map in blocks and small atomic DMA pools: idle at 8G 120 → 112 MB.
 - 2026-10-24: One memory zone in the guest kernel; idle 111 MB at 8G.
 - 2026-10-24: Kept kernel text protected in the linear map (no `rodata=noalias`); idle 115 MB at 8G.
+- 2026-10-24: Phase 5 done. `dmx daemon` boots the VM on first use and stops it when idle; `dmx exec`, `shell`, `start`, `stop`, `status`, `config`, `install` (launchd socket activation). Ctrl-C now reaches guest processes.

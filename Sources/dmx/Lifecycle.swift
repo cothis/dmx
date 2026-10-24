@@ -1,0 +1,284 @@
+import ArgumentParser
+import DMXCore
+import Foundation
+
+struct Status: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(abstract: "Show whether the VM runs and what it costs.")
+
+    @OptionGroup var global: GlobalOptions
+
+    @MainActor
+    func run() async throws {
+        try await report(global) {
+            let status = try await daemonStatus(Paths())
+            return (status, describe(status), true)
+        }
+    }
+}
+
+struct Start: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        abstract: "Boot the VM now instead of on first use.",
+        discussion: "It stops again after the idle timeout (`dmx config get idle_timeout`) with nothing using it."
+    )
+
+    @OptionGroup var global: GlobalOptions
+
+    @MainActor
+    func run() async throws {
+        try await report(global) {
+            let client = try await DaemonClient.connect(paths: Paths(), start: true)!
+            defer { client.close() }
+            let status = try await client.start()
+            return (status, describe(status), true)
+        }
+    }
+}
+
+struct Stop: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(abstract: "Power the VM off; the daemon exits shortly after.")
+
+    @OptionGroup var global: GlobalOptions
+
+    @MainActor
+    func run() async throws {
+        try await report(global) {
+            let paths = Paths()
+            guard let client = try await DaemonClient.connect(paths: paths, start: false) else {
+                let status = try await daemonStatus(paths)
+                return (status, describe(status), true)
+            }
+            defer { client.close() }
+            let status = try await client.stop()
+            return (status, describe(status), true)
+        }
+    }
+}
+
+struct Exec: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        abstract: "Run a command in the VM, booting it if needed.",
+        discussion: """
+            stdin, stdout and stderr are attached and dmx exits with the command's status.
+            Output passes through untouched; --json changes only how dmx's own errors print.
+            Example: dmx exec -- uname -a
+            """
+    )
+
+    @OptionGroup var global: GlobalOptions
+
+    @Flag(name: .shortAndLong, help: "Give the command a terminal (for interactive programs).")
+    var tty = false
+
+    @Option(name: .shortAndLong, help: "Environment variable KEY=VALUE (repeatable).")
+    var env: [String] = []
+
+    @Option(name: .shortAndLong, help: "Working directory in the guest.")
+    var workdir: String?
+
+    @Argument(parsing: .captureForPassthrough, help: "The command and its arguments.")
+    var command: [String] = []
+
+    @MainActor
+    func run() async throws {
+        let argv = command.first == "--" ? Array(command.dropFirst()) : command
+        try await runExec(global, argv: argv, tty: tty, env: env, cwd: workdir)
+    }
+}
+
+struct Shell: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        abstract: "Open a shell in the VM, booting it if needed.",
+        discussion: "With a terminal on stdin and stdout the shell is interactive; otherwise it reads commands from stdin."
+    )
+
+    @OptionGroup var global: GlobalOptions
+
+    @MainActor
+    func run() async throws {
+        let tty = isatty(STDIN_FILENO) == 1 && isatty(STDOUT_FILENO) == 1
+        try await runExec(global, argv: tty ? ["/bin/sh", "-l"] : ["/bin/sh"], tty: tty, env: [], cwd: nil)
+    }
+}
+
+@MainActor
+func runExec(_ global: GlobalOptions, argv: [String], tty: Bool, env: [String], cwd: String?) async throws {
+    let status: Int32
+    do {
+        guard !argv.isEmpty else {
+            throw DMXError("missing_command", "no command given", hint: "put the command after --, e.g. `dmx exec -- uname -a`")
+        }
+        status = try await execThroughDaemon(paths: Paths(), argv: argv, tty: tty, env: env, cwd: cwd)
+    } catch let error as DMXError {
+        try await report(global) { () -> (Bool, String, Bool) in throw error }
+        return
+    }
+    throw ExitCode(status)
+}
+
+struct Install: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        abstract: "Let launchd start the daemon when a client connects, from now on and after login.",
+        discussion: "Without it, dmx commands start the daemon themselves. Run it again after moving the dmx binary."
+    )
+
+    @OptionGroup var global: GlobalOptions
+
+    @MainActor
+    func run() async throws {
+        try await report(global) {
+            let result = try await LaunchAgent.install(paths: Paths())
+            return (result, "installed \(result.label): \(result.plist)\n  socket \(result.socket), daemon pid \(result.daemonPid.map(String.init) ?? "-")", true)
+        }
+    }
+}
+
+struct Uninstall: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(abstract: "Remove the launchd agent; a running VM powers off.")
+
+    @OptionGroup var global: GlobalOptions
+
+    @MainActor
+    func run() async throws {
+        try await report(global) {
+            let result = try LaunchAgent.uninstall(paths: Paths())
+            return (result, "uninstalled \(result.label)", true)
+        }
+    }
+}
+
+struct Daemon: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        abstract: "Run the daemon in the foreground (launchd and the CLI start it; use this to debug).",
+        discussion: "It owns the VM and serves ~/.dmx/dmx.sock, and exits when the VM is stopped and no client is connected."
+    )
+
+    @OptionGroup var global: GlobalOptions
+
+    @MainActor
+    func run() async throws {
+        do {
+            let daemon = try DMXCore.Daemon(paths: Paths(), version: version)
+            await daemon.run()
+        } catch let error as DMXError {
+            try await report(global) { () -> (Bool, String, Bool) in throw error }
+        }
+    }
+}
+
+struct ConfigCommand: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "config",
+        abstract: "Read or change settings in ~/.dmx/config.json.",
+        discussion: "Settings: cpus, memory (ceiling, e.g. 8G), idle_timeout (e.g. 5m). They apply the next time the VM boots.",
+        subcommands: [Get.self, Set.self, Unset.self]
+    )
+
+    struct Get: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(abstract: "Show all settings, or one.")
+        @OptionGroup var global: GlobalOptions
+        @Argument(help: "A setting name.") var key: String?
+
+        @MainActor
+        func run() async throws {
+            try await report(global) { try configReport(Paths(), only: key) }
+        }
+    }
+
+    struct Set: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(abstract: "Change a setting.")
+        @OptionGroup var global: GlobalOptions
+        @Argument(help: "A setting name.") var key: String
+        @Argument(help: "Its new value.") var value: String
+
+        @MainActor
+        func run() async throws {
+            try await report(global) {
+                let paths = Paths()
+                var config = try DMXCore.Config.load(paths)
+                try config.set(key, value)
+                try config.save(paths)
+                return try configReport(paths, only: key)
+            }
+        }
+    }
+
+    struct Unset: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(abstract: "Put a setting back to its default.")
+        @OptionGroup var global: GlobalOptions
+        @Argument(help: "A setting name.") var key: String
+
+        @MainActor
+        func run() async throws {
+            try await report(global) {
+                let paths = Paths()
+                var config = try DMXCore.Config.load(paths)
+                try config.set(key, nil)
+                try config.save(paths)
+                return try configReport(paths, only: key)
+            }
+        }
+    }
+}
+
+struct ConfigReport: Encodable {
+    let ok = true
+    /// Every setting with the value in effect.
+    let settings: [String: String]
+    /// The settings given in the file; the others are defaults.
+    let configured: [String]
+    let file: String
+}
+
+func configReport(_ paths: Paths, only key: String?) throws -> (ConfigReport, String, Bool) {
+    let config = try DMXCore.Config.load(paths)
+    var settings = config.effective
+    if let key {
+        guard let value = settings[key] else {
+            throw DMXError("unknown_config_key", "no setting named \"\(key)\"", hint: "settings are \(DMXCore.Config.keys.joined(separator: ", "))")
+        }
+        settings = [key: value]
+    }
+    let configured = DMXCore.Config.keys.filter { k in
+        switch k {
+        case "cpus": config.cpus != nil
+        case "memory": config.memory != nil
+        default: config.idleTimeout != nil
+        }
+    }
+    let text = DMXCore.Config.keys.compactMap { k in
+        settings[k].map { "\(k) = \($0)\(configured.contains(k) ? "" : " (default)")" }
+    }.joined(separator: "\n")
+    return (ConfigReport(settings: settings, configured: configured, file: paths.config.path), text, true)
+}
+
+/// The daemon's status, or `not_running` without starting one (launchd starts it if installed).
+@MainActor
+func daemonStatus(_ paths: Paths) async throws -> DaemonStatus {
+    guard let client = try await DaemonClient.connect(paths: paths, start: false) else {
+        return DaemonStatus.notRunning(paths, config: (try? DMXCore.Config.load(paths)) ?? DMXCore.Config())
+    }
+    defer { client.close() }
+    return try await client.status()
+}
+
+func describe(_ s: DaemonStatus) -> String {
+    var lines: [String] = []
+    switch s.state {
+    case "not_running":
+        lines.append("stopped (no daemon running)")
+    default:
+        lines.append("\(s.state) (daemon pid \(s.pid.map(String.init) ?? "-"), \(s.launchd == true ? "launchd" : "started by dmx"))")
+    }
+    if let cpus = s.cpus, let max = s.maxMemory {
+        lines.append("  vm: \(cpus) cpus, \(max) max" + (s.uptimeS.map { ", up \(formatElapsed(Int($0)))" } ?? ""))
+    }
+    if let host = s.hostFootprintMb {
+        lines.append("  memory: host footprint \(host) MB" + (s.guestUsedMb.map { ", guest uses \($0) MB" } ?? ""))
+    }
+    if let clients = s.clients, let execs = s.execs, s.state != "not_running" {
+        lines.append("  clients: \(clients), execs: \(execs)")
+    }
+    lines.append("  idle timeout: \(formatDuration(s.idleTimeoutS))" + (s.idleStopInS.map { ", stops in \(formatElapsed($0)) if nothing uses it" } ?? ""))
+    return lines.joined(separator: "\n")
+}

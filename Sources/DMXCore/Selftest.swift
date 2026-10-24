@@ -185,7 +185,7 @@ private func measureReclaim(machine: Machine, agent: AgentClient, idle: HostFoot
                          returnedMs: returnedMs, reports: stats.reports, reportedMb: Int(stats.bytes >> 20))
 }
 
-private func milliseconds(_ d: Duration) -> Int {
+func milliseconds(_ d: Duration) -> Int {
     Int(d.components.seconds * 1000 + d.components.attoseconds / 1_000_000_000_000_000)
 }
 

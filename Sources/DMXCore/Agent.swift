@@ -56,7 +56,7 @@ public struct DropCachesResult: Codable, Sendable {
     public let availableAfter: UInt64
 }
 
-public struct ExecRequest: Encodable, Sendable {
+public struct ExecRequest: Codable, Sendable {
     public var argv: [String]
     public var env: [String] = []
     public var cwd: String?
@@ -67,6 +67,18 @@ public struct ExecRequest: Encodable, Sendable {
     public var cols = 80
 
     public init(argv: [String]) { self.argv = argv }
+
+    /// Every field but `argv` is optional on the wire, as the agent reads it.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        argv = try c.decode([String].self, forKey: .argv)
+        env = try c.decodeIfPresent([String].self, forKey: .env) ?? []
+        cwd = try c.decodeIfPresent(String.self, forKey: .cwd)
+        tty = try c.decodeIfPresent(Bool.self, forKey: .tty) ?? false
+        stdin = try c.decodeIfPresent(Bool.self, forKey: .stdin) ?? false
+        rows = try c.decodeIfPresent(Int.self, forKey: .rows) ?? 24
+        cols = try c.decodeIfPresent(Int.self, forKey: .cols) ?? 80
+    }
 }
 
 public struct ExecExit: Codable, Sendable {
@@ -86,17 +98,26 @@ public struct ExecOutput: Sendable {
     public let stderr: Data
 }
 
-/// One connection to dmx-agent. Requests on it are answered in order; an exec takes it over.
+/// One connection speaking the agent protocol's framing: to dmx-agent, or to the dmx daemon,
+/// which speaks the same protocol. Requests on it are answered in order; an exec takes it over.
 /// Blocking socket I/O runs on the connection's own queue, never on the caller's thread.
-public final class AgentConnection: @unchecked Sendable {
+public final class FrameConnection: @unchecked Sendable {
+    /// Who is on the other end. Agent error codes get an `agent_` prefix; the daemon's are
+    /// already dmx error codes and pass through unchanged.
+    public enum Peer: String, Sendable {
+        case agent, daemon
+    }
+
+    let peer: Peer
     private let closeConnection: @Sendable () -> Void
-    private let fd: Int32
-    private let queue = DispatchQueue(label: "dmx.agent.connection")
+    let fd: Int32
+    private let queue = DispatchQueue(label: "dmx.frame.connection")
     private let writeLock = NSLock()
     private var nextID: UInt64 = 1
 
     /// A connection on any stream socket; `close` releases it.
-    init(fd: Int32, close: @escaping @Sendable () -> Void) {
+    init(fd: Int32, peer: Peer = .agent, close: @escaping @Sendable () -> Void) {
+        self.peer = peer
         closeConnection = close
         self.fd = fd
         let flags = fcntl(fd, F_GETFL)
@@ -129,12 +150,12 @@ public final class AgentConnection: @unchecked Sendable {
         do {
             return try Self.decoder.decode(Reply<R>.self, from: data).result
         } catch {
-            throw DMXError("agent_protocol", "\(method): unexpected reply: \(error)")
+            throw DMXError("\(peer)_protocol", "\(method): unexpected reply: \(error)")
         }
     }
 
     /// Starts a process in the guest. This connection belongs to the session from now on.
-    func exec(_ request: ExecRequest) async throws -> ExecSession {
+    public func exec(_ request: ExecRequest) async throws -> ExecSession {
         let reply = try await onQueue { () throws -> Data in
             let id = self.nextID
             self.nextID += 1
@@ -143,7 +164,7 @@ public final class AgentConnection: @unchecked Sendable {
         }
         struct Started: Decodable { let pid: Int }
         guard let started = try? Self.decoder.decode(Reply<Started>.self, from: reply).result else {
-            throw DMXError("agent_protocol", "exec: unexpected reply")
+            throw DMXError("\(peer)_protocol", "exec: unexpected reply")
         }
         return ExecSession(connection: self, pid: started.pid)
     }
@@ -165,9 +186,17 @@ public final class AgentConnection: @unchecked Sendable {
                 case .stdin: break
                 }
             }
-            throw DMXError("agent_disconnected", "exec: connection closed before the process exited")
+            throw DMXError("\(self.peer)_disconnected", "exec: connection closed before the process exited")
         }
     }
+
+    /// The next frame from the peer, or nil at end of stream. For the serving side of a connection.
+    func receive() async throws -> (FrameKind, Data)? {
+        try await onQueue { try self.readFrame() }
+    }
+
+    /// Sends one JSON frame. For the serving side of a connection.
+    func send(_ value: some Encodable) throws { try writeJSON(value) }
 
     // MARK: Framing
 
@@ -192,7 +221,7 @@ public final class AgentConnection: @unchecked Sendable {
                 let n = Darwin.write(fd, buf.baseAddress! + offset, buf.count - offset)
                 if n < 0 {
                     if errno == EINTR { continue }
-                    throw DMXError("agent_disconnected", "write to agent: \(String(cString: strerror(errno)))")
+                    throw DMXError("\(peer)_disconnected", "write to \(peer): \(String(cString: strerror(errno)))")
                 }
                 offset += n
             }
@@ -206,11 +235,11 @@ public final class AgentConnection: @unchecked Sendable {
             let n = data.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress! + offset, count - offset) }
             if n < 0 {
                 if errno == EINTR { continue }
-                throw DMXError("agent_disconnected", "read from agent: \(String(cString: strerror(errno)))")
+                throw DMXError("\(peer)_disconnected", "read from \(peer): \(String(cString: strerror(errno)))")
             }
             if n == 0 {
                 if offset == 0 { return nil }
-                throw DMXError("agent_disconnected", "agent closed the connection mid-frame")
+                throw DMXError("\(peer)_disconnected", "\(peer) closed the connection mid-frame")
             }
             offset += n
         }
@@ -221,32 +250,35 @@ public final class AgentConnection: @unchecked Sendable {
         guard let header = try readExactly(4) else { return nil }
         let length = Int(header.withUnsafeBytes { UInt32(bigEndian: $0.loadUnaligned(as: UInt32.self)) })
         guard length >= 1, length <= 16 << 20 else {
-            throw DMXError("agent_protocol", "bad frame length \(length)")
+            throw DMXError("\(peer)_protocol", "bad frame length \(length)")
         }
         guard let body = try readExactly(length) else {
-            throw DMXError("agent_disconnected", "agent closed the connection mid-frame")
+            throw DMXError("\(peer)_disconnected", "\(peer) closed the connection mid-frame")
         }
         guard let kind = FrameKind(rawValue: body[body.startIndex]) else {
-            throw DMXError("agent_protocol", "unknown frame kind \(body[body.startIndex])")
+            throw DMXError("\(peer)_protocol", "unknown frame kind \(body[body.startIndex])")
         }
         return (kind, body.dropFirst())
     }
 
-    /// Reads the next JSON frame and turns an agent error into a DMXError.
+    /// Reads the next JSON frame and turns an error reply into a DMXError.
     private func readReply(method: String) throws -> Data {
         guard let (kind, payload) = try readFrame() else {
-            throw DMXError("agent_disconnected", "\(method): agent closed the connection")
+            throw DMXError("\(peer)_disconnected", "\(method): \(peer) closed the connection")
         }
-        guard kind == .json else { throw DMXError("agent_protocol", "\(method): expected a JSON frame") }
+        guard kind == .json else { throw DMXError("\(peer)_protocol", "\(method): expected a JSON frame") }
         let envelope: Envelope
         do {
             envelope = try Self.decoder.decode(Envelope.self, from: payload)
         } catch {
-            throw DMXError("agent_protocol", "\(method): unreadable reply: \(error)")
+            throw DMXError("\(peer)_protocol", "\(method): unreadable reply: \(error)")
         }
         if envelope.ok != true {
-            let failure = envelope.error ?? AgentFailure(code: "unknown", message: "no error given")
-            throw DMXError("agent_\(failure.code)", "\(method): \(failure.message)")
+            let failure = envelope.error ?? AgentFailure(code: "unknown", message: "no error given", hint: nil)
+            switch peer {
+            case .agent: throw DMXError("agent_\(failure.code)", "\(method): \(failure.message)", hint: failure.hint)
+            case .daemon: throw DMXError(failure.code, failure.message, hint: failure.hint)
+            }
         }
         return Data(payload)
     }
@@ -257,13 +289,13 @@ public final class AgentConnection: @unchecked Sendable {
         }
     }
 
-    private static let encoder: JSONEncoder = {
+    static let encoder: JSONEncoder = {
         let e = JSONEncoder()
         e.keyEncodingStrategy = .convertToSnakeCase
         return e
     }()
 
-    private static let decoder: JSONDecoder = {
+    static let decoder: JSONDecoder = {
         let d = JSONDecoder()
         d.keyDecodingStrategy = .convertFromSnakeCase
         return d
@@ -273,10 +305,10 @@ public final class AgentConnection: @unchecked Sendable {
 /// Talks to dmx-agent: control calls share one connection, each exec opens its own
 /// (the agent hands an exec's connection over to that process's streams).
 public final class AgentClient: Sendable {
-    private let control: AgentConnection
-    private let open: @MainActor @Sendable () async throws -> AgentConnection
+    private let control: FrameConnection
+    private let open: @MainActor @Sendable () async throws -> FrameConnection
 
-    init(control: AgentConnection, open: @escaping @MainActor @Sendable () async throws -> AgentConnection) {
+    init(control: FrameConnection, open: @escaping @MainActor @Sendable () async throws -> FrameConnection) {
         self.control = control
         self.open = open
     }
@@ -345,9 +377,9 @@ public final class AgentClient: Sendable {
 public final class ExecSession: Sendable {
     public let pid: Int
     public let events: ExecEvents
-    private let connection: AgentConnection
+    let connection: FrameConnection
 
-    init(connection: AgentConnection, pid: Int) {
+    init(connection: FrameConnection, pid: Int) {
         self.connection = connection
         self.pid = pid
         events = ExecEvents(connection: connection)
@@ -374,12 +406,12 @@ public final class ExecSession: Sendable {
 /// Iterate it once.
 public struct ExecEvents: AsyncSequence, Sendable {
     public typealias Element = ExecEvent
-    let connection: AgentConnection
+    let connection: FrameConnection
 
     public func makeAsyncIterator() -> Iterator { Iterator(connection: connection) }
 
     public struct Iterator: AsyncIteratorProtocol {
-        let connection: AgentConnection
+        let connection: FrameConnection
         var finished = false
 
         public mutating func next() async throws -> ExecEvent? {
@@ -407,6 +439,7 @@ private struct Request<P: Encodable>: Encodable {
 private struct AgentFailure: Decodable {
     let code: String
     let message: String
+    let hint: String?
 }
 
 private struct Envelope: Decodable {
@@ -423,7 +456,7 @@ private struct Reply<R: Decodable>: Decodable {
 /// `open` makes one connection to the agent's port; `isStopped` ends the wait early.
 @MainActor
 func connectAgent(timeout: Duration, isStopped: () -> Bool,
-                  open: @escaping @MainActor @Sendable () async throws -> AgentConnection) async throws -> AgentClient {
+                  open: @escaping @MainActor @Sendable () async throws -> FrameConnection) async throws -> AgentClient {
     let deadline = ContinuousClock.now + timeout
     var lastError = ""
     while ContinuousClock.now < deadline {
@@ -452,7 +485,7 @@ extension Machine {
     public func connectAgent(timeout: Duration) async throws -> AgentClient {
         try await DMXCore.connectAgent(timeout: timeout, isStopped: { stopping }) { [self] in
             let fd = try await vsock.connect(port: agentPort)
-            return AgentConnection(fd: fd) { _ = Darwin.close(fd) }
+            return FrameConnection(fd: fd) { _ = Darwin.close(fd) }
         }
     }
 }

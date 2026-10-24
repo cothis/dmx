@@ -57,7 +57,8 @@ After the `ok` reply the connection belongs to the process:
   `{"method": "resize", "params": {"rows": 50, "cols": 120}}` and
   `{"method": "signal", "params": {"signal": 15}}`.
 
-With a tty the process runs in a new session with the pty as its controlling terminal; without
+The process starts with default signal dispositions and an empty signal mask (the agent itself
+inherits SIGINT and SIGQUIT ignored from `/init`). With a tty the process runs in a new session with the pty as its controlling terminal; without
 one it runs in its own process group. If the host closes the connection before the process
 exits, the agent kills the process group. After the process exits, output still arriving is
 forwarded until the streams have been quiet for 500 ms, so a background child holding a stream
