@@ -195,6 +195,11 @@ This is the core feature. Measure before and after every change and log numbers 
       the guest is squeezed or passes half its ceiling (at boot it costs ~3.5 MB);
       `vm.swappiness=100` and `vm.page-cluster=0` with it. Transparent huge pages only on `madvise`.
       `init_on_alloc` stays on: on dmx's VMM inflating costs CPU (~1.5 s for 7.8 GB), not memory.
+- [x] Freed guest blocks under 512 KB (after connection bursts, small-file work): when idle, the
+      controller lowers free page reporting to order 0 (16 KB) and has every slab cache free its
+      empty slabs (agent `reporting_order`, `shrink_slabs`); order 5 comes back on the next use.
+      Footprint returns to idle + 1 to 6 MB; idle CPU unchanged. ~10 MB after network traffic stays
+      (probably virtio-net rx buffers).
 - [x] Host pressure drives the controller above. `memory_pressure -S` needs root, so tests use the
       daemon's `simulate_pressure` method.
 
@@ -387,6 +392,9 @@ the footprint) and `frag` (fragmented freed guest memory is not returned).
 | 2026-10-24 | virtio-fs memory | Idle with a share 113 to 121 MB (116 to 121 without, noise). dmx's heap ~11 MB after repeated traffic. Reading 1 GB through the guest page cache costs 2 GB of footprint, all returned when the guest drops its cache; the same with writes and a bounce buffer, so pages the host writes into guest RAM seem to count twice. Unexplained; virtio-blk will likely show it too. |
 | 2026-10-24 | Data disk (virtio-blk), load 6 to 25 | Initramfs 1.63 → 2.02 MB (mke2fs, deleted after mount; shmem unchanged). Idle footprint ~115 MB, unchanged within ~1 MB (118 without `no_prefetch_block_bitmaps`). Write 2 GB 1.1 to 1.2 GB/s, read 2.1 to 2.2 GB/s. Through the host cache: 323 MB/s write and +2 GB footprint (host cache charged to dmx), hence `F_NOCACHE`. 2 GB deleted: host allocation 1.9 GB → 11 to 22 MB in 0.08 to 0.17 s. Online discard costs 1.28 vs 0.48 s per GB deleted; without it nothing comes back until fstrim. 4K write + fsync 2.8 to 6.6 ms with barrier flush, 9.8 to 16.7 ms with `F_FULLFSYNC`. SIGKILL mid-write ×3: journal replayed, e2fsck clean. First boot formats in 0.3 to 0.9 s. |
 | 2026-10-24 | Selftest under host load ~29 (several agents' VMs) | Agent up after 5 to 11 s instead of ~0.2 s; the 30 s and even 60 s selftest timeouts are hit, `--timeout 180` passes. Compare timings only on a quiet host. |
+| 2026-10-24 | Fragmented free memory and the idle sweep, load 25 to 85 | Before: 500 forwarded connections 119 → 163 MB (free blocks of order 0 to 4 hold ~33 MB, slab +7 MB); untar/rm of 9,200 files in tmpfs 122 → 151 MB; 500 MB wget 117 → 136 MB. `page_reporting_order` is writable at runtime (0644): writing 0 gave 163 → 128 MB in ~10 s, then shrinking slabs 133 → 115 MB. With the sweep: connections 161 → 112 MB, untar/rm 150 → 113 MB, wget 134 → 125 MB (idle 107 to 112). A sweep takes 40 to 1050 ms wall, under 0.1 s daemon CPU. Idle daemon CPU per 60 s: 0.05 to 0.06 s (0.06 to 0.07 before). Order 0 always on showed no cost while busy, but the host was too loaded to be sure; not adopted. |
+| 2026-10-24 | Guest soft lockup at host load 80 to 86 | Once, right after an untar/rm workload: `soft lockup - CPU#N stuck for 140s` in ksoftirqd/rcu_preempt on 6 vCPUs, daemon at ~40 % CPU. Not reproduced in 24 stress rounds. Suspected vCPU starvation on an overloaded host rather than the sweep; open. |
+| 2026-10-24 | daemontest at host load 40 to 61 | The 500 MB stdout check took over 60 s (6 MB/s; 90 to 240 MB/s on a quieter host) for old and new builds alike. Test timeouts are now 300 s and a timeout fails its check instead of the script. |
 | 2026-10-24 | `dmx mcp` (stdio MCP), load 5 to 6 | `make mcptest` 5.3 to 6.3 s, 30 of 30 checks. Cold `dmx_exec uname -a` with no daemon 215 to 376 ms end to end; warm 0 to 2 ms. 200 MB of stdout capped to 8 KiB in 0.65 to 1.41 s; `dmx mcp` RSS 8 to 9 MB, 10 MB at peak. A 2 s timeout returns in 2.01 to 2.13 s with the guest processes gone. `tools/list` is 4.6 KB (3.8 KB without `outputSchema`). |
 | 2026-10-24 | Truncated exec output after a boot | `dmx stop`, an exec, then 200 MB of stdout: 5 to 6 of 40 runs ended with "daemon closed the connection mid-frame" (load 9 to 15); logging the shutdown path hid it. The guest sometimes sends RST right after its SHUTDOWN, and the host dropped the connection with up to 200 KB from the guest still unwritten to the full host socket. Now an RST on an open stream delivers what the guest sent, then closes: 0 of 50. Found by the `dmx mcp` tests. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
@@ -421,3 +429,4 @@ the footprint) and `frag` (fragmented freed guest memory is not returned).
 - 2026-10-24: virtio-fs merged: host directories at the same path in the guest. Device interrupts now wake their vCPU.
 - 2026-10-24: Maintainer: "Docker must just work; security like standard programs." Open decisions settled to Docker Desktop behavior (Decisions). Agents `double` (2x footprint of host-written guest pages) and `frag` (fragmented freed guest memory) started.
 - 2026-10-24: Data disk merged; phase 6 done. Phase 7 (Docker) next.
+- 2026-10-24: Idle sweep merged: guest memory freed in small blocks goes back to macOS when idle.

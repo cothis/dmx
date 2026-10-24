@@ -37,8 +37,13 @@ def check(name, ok, detail=""):
     checks.append({"name": name, "ok": bool(ok), "detail": detail})
 
 
-def dmx(*args, stdin=None, timeout=60):
-    return subprocess.run([str(DMX), *args], input=stdin, capture_output=True, timeout=timeout, env=ENV)
+def dmx(*args, stdin=None, timeout=300):
+    """Runs dmx; a timeout comes back as returncode -1 so the check fails instead of the script.
+    Generous because a loaded host (other VMs) can slow a 500 MB stream past a minute."""
+    try:
+        return subprocess.run([str(DMX), *args], input=stdin, capture_output=True, timeout=timeout, env=ENV)
+    except subprocess.TimeoutExpired as e:
+        return subprocess.CompletedProcess(e.cmd, -1, e.stdout or b"", (e.stderr or b"") + b"timed out")
 
 
 def status():

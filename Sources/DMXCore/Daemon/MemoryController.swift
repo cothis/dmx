@@ -281,7 +281,8 @@ public struct MemoryStatus: Codable, Sendable {
     public let reportedMb: Int?
     public let trims: Int
     /// Idle sweeps since the VM booted: free page reporting from 16 KB blocks, empty slabs freed.
-    public let sweeps: Int
+    /// Optional so a CLI can read the status of a daemon from before sweeps.
+    public let sweeps: Int?
     public let lastTrim: TrimRecord?
 }
 
