@@ -41,6 +41,8 @@ public final class Daemon {
     private var idleCheck: Task<Void, Never>?
     /// Idle trims, host pressure and the balloon (MemoryController.swift).
     private let memory = MemoryController()
+    /// Host ports forwarded to the guest (`dmx port`); see PortForward.swift.
+    private let ports: PortForwards
 
     /// Takes the control socket from launchd when launchd started us, otherwise binds it.
     public init(paths: Paths, version: String) throws {
@@ -56,6 +58,7 @@ public final class Daemon {
             launchd = false
         }
         idleTimeout = (try? Config.load(paths))?.idleTimeoutSeconds ?? Config.defaultIdleTimeout
+        ports = PortForwards(paths: paths)
     }
 
     /// Serves until the daemon decides to exit (idle, `quit`, SIGTERM or SIGINT).
@@ -76,6 +79,13 @@ public final class Daemon {
             }
             s.resume()
             signalSources.append(s)
+        }
+        // A forwarded connection uses the VM like an exec does: it boots it and holds off idle stop.
+        ports.start(agent: { [unowned self] in try await running() }) { [unowned self] open in
+            users += open ? 1 : -1
+            if users == 0 { idleSince = .now }
+            memory.noteActivity()
+            scheduleIdleCheck()
         }
         log("listening on \(paths.controlSocket.path) (\(launchd ? "launchd" : "standalone"), pid \(getpid()))")
         scheduleIdleCheck()
@@ -131,6 +141,8 @@ public final class Daemon {
                 case "stop":
                     await stopVM(reason: "stop requested")
                     try connection.send(DaemonReply(id: request.id, result: await status()))
+                case "port_add", "port_rm", "port_ls":
+                    try ports.serve(request.method, id: request.id, payload: payload, on: connection)
                 case "quit":
                     try connection.send(DaemonReply(id: request.id, result: NoParams()))
                     Task { await shutdown() }
@@ -337,7 +349,7 @@ public final class Daemon {
         switch state {
         case .running where users == 0:
             deadline = idleSince + .seconds(idleTimeout)
-        case .stopped where clients == 0:
+        case .stopped where clients == 0 && ports.isEmpty:
             deadline = quietSince + Self.linger
         default:
             return
@@ -348,7 +360,7 @@ public final class Daemon {
             switch state {
             case .running where users == 0:
                 await stopVM(reason: "idle for \(formatDuration(idleTimeout))")
-            case .stopped where clients == 0:
+            case .stopped where clients == 0 && ports.isEmpty:
                 await shutdown()
             default:
                 break
@@ -364,6 +376,7 @@ public final class Daemon {
         accepting?.cancel()
         accepting = nil
         idleCheck?.cancel()
+        ports.stop()
         await stopVM(reason: "daemon exiting")
         if !launchd {
             unlink(paths.controlSocket.path)

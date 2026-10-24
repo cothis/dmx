@@ -19,7 +19,7 @@ impl Listener {
             addr.svm_cid = libc::VMADDR_CID_ANY;
             let len = std::mem::size_of::<libc::sockaddr_vm>() as libc::socklen_t;
             if libc::bind(fd.as_raw_fd(), &addr as *const _ as *const libc::sockaddr, len) < 0
-                || libc::listen(fd.as_raw_fd(), 16) < 0
+                || libc::listen(fd.as_raw_fd(), 128) < 0
             {
                 return Err(io::Error::last_os_error());
             }
@@ -54,15 +54,37 @@ impl Stream {
     pub fn shutdown(&self) {
         unsafe { libc::shutdown(self.0.as_raw_fd(), libc::SHUT_RDWR) };
     }
+
+    /// Tells the peer we will send nothing more; it reads end of stream.
+    pub fn shutdown_write(&self) {
+        unsafe { libc::shutdown(self.0.as_raw_fd(), libc::SHUT_WR) };
+    }
 }
 
 impl Read for Stream {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        (&*self).read(buf)
+    }
+}
+
+impl Write for Stream {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        (&*self).write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Like `TcpStream`, a shared reference reads and writes, so two threads can share one socket.
+impl Read for &Stream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         crate::sys::retry(|| unsafe { libc::read(self.0.as_raw_fd(), buf.as_mut_ptr().cast(), buf.len()) })
     }
 }
 
-impl Write for Stream {
+impl Write for &Stream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         crate::sys::retry(|| unsafe { libc::write(self.0.as_raw_fd(), buf.as_ptr().cast(), buf.len()) })
     }

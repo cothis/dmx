@@ -4,7 +4,7 @@ import Foundation
 /// connection and each exec opens its own.
 public final class DaemonClient: Sendable {
     private let paths: Paths
-    private let control: FrameConnection
+    let control: FrameConnection
     public let hello: DaemonHello
 
     private init(paths: Paths, control: FrameConnection, hello: DaemonHello) {

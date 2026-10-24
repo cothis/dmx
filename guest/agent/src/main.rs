@@ -1,6 +1,7 @@
 //! dmx-agent: runs inside the dmx VM and answers the host over vsock.
 
 mod exec;
+mod forward;
 mod frame;
 mod sys;
 mod vsock;
@@ -28,6 +29,7 @@ fn main() {
         println!("dmx-agent {VERSION}");
         return;
     }
+    forward::raise_fd_limit();
     let listener = match vsock::Listener::bind(PORT) {
         Ok(l) => l,
         Err(e) => {
@@ -76,6 +78,13 @@ fn serve(conn: vsock::Stream) {
                             c.shutdown();
                         }
                     }
+                    Err(e) => reply_err(&out, id, "bad_request", e.to_string()),
+                }
+                return;
+            }
+            "connect" => {
+                match serde_json::from_value(req.params) {
+                    Ok(p) => forward::run(id, p, conn, out),
                     Err(e) => reply_err(&out, id, "bad_request", e.to_string()),
                 }
                 return;

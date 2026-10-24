@@ -91,7 +91,7 @@ final class MemoryController {
         agent = nil
     }
 
-    /// An exec started or ended: the guest is in use.
+    /// An exec or a forwarded connection started or ended: the guest is in use.
     func noteActivity() { lastActivity = .now }
 
     /// Acts as if the host's pressure were `level` (nil: the real level again). For tests.

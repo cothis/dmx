@@ -22,6 +22,8 @@ One daemon runs per `DMX_HOME` (it holds a lock on `daemon.lock`). It logs to
   Connections that only ask for `status` do not keep it running.
 - Once the VM is stopped and no client has been connected for 10 s, the daemon exits. (launchd
   delays relaunching a job that ran less than 10 s.) The next connection starts a new one.
+  While any port is forwarded it stays (4 MB with the VM stopped) to listen on the ports; see
+  [Port forwarding](#port-forwarding).
 - SIGTERM or SIGINT (also `dmx uninstall`, which unloads the launchd job) powers the guest off
   through the agent, with a 10 s limit, and exits.
 
@@ -45,6 +47,9 @@ command to run.
 | `quit` | none | `{}`, then the daemon powers the VM off and exits (used by `dmx install`) |
 | `exec` | the agent's `exec` params | `pid`, then the connection carries the process's streams |
 | `simulate_pressure` | `level`: `normal`, `warning`, `critical`, or null for the host's real level again | status. For tests: the memory controller acts as if macOS reported that level. Does not count as using the VM. |
+| `port_add` | `host_port`, `guest_port`, `host_address` (default `127.0.0.1`) | the forward, see below |
+| `port_rm` | `host_port`, `host_address` (default: every address) | `forwards`: those removed |
+| `port_ls` | none | `forwards` |
 
 `status` fields: `state` (`stopped`, `starting`, `running`, `stopping`), `pid` (the daemon, which
 is also the process guest memory is charged to), `version`, `launchd`, `uptime_s`, `cpus`,
@@ -86,3 +91,37 @@ agent connection and the agent kills the process group. Each exec needs its own 
 
 `dmx exec` passes SIGINT, SIGTERM and SIGHUP on to the process as `signal` messages and exits
 with its status (128 + signal if it was killed); `-t` gives it a pty sized like the terminal.
+
+## Port forwarding
+
+`dmx port add [HOST_IP:]HOST_PORT[:GUEST_PORT]` (`port_add`) makes the daemon listen on a host TCP
+port, by default on 127.0.0.1 only; `0.0.0.0` lets other machines in. Each accepted connection
+gets its own vsock stream to the agent, whose [`connect`](agent-protocol.md#connect) opens a TCP
+connection to the guest port on the guest's loopback, then the daemon copies bytes both ways. No
+privileged helper is involved, and the guest needs no network device. TCP and IPv4 only.
+
+- Forwards are kept in `~/.dmx/ports.json` until `dmx port rm`. Every daemon listens on them
+  when it starts: launchd starts one on the next connection to the control socket (`dmx port ls`
+  is enough), and so does any CLI command that starts a daemon.
+- The daemon listens with the VM stopped, and the first connection boots it (about 0.2 s before
+  the guest answers). A connection that is open counts as using the VM, like an exec, so the VM
+  stops for being idle `idle_timeout` after the last forwarded connection closed. While any
+  forward exists the daemon does not exit for being idle; `dmx stop` stops only the VM.
+- Bytes are copied with at most one 64 KB buffer per direction, held only while bytes are in
+  flight, and a side is read only once the other has taken what was read before: a slow reader
+  holds the sender back through TCP and vsock flow control. End of stream on one side becomes a
+  half close on the other; an error on either closes both.
+- If the guest port does not answer, the host connection is closed (or reset if the client had
+  sent data) and the daemon log says why.
+- Removing a forward stops listening; connections already open stay until either end closes them.
+
+A forward in `port_ls` or `port_add`: `host_address`, `host_port`, `guest_port`, `listening`
+(false with `error` when the port could not be listened on, for example taken after a restart),
+`connections` (open now) and `total_connections` (since the daemon started).
+
+Errors: `bad_port_spec`, `port_forwarded` (that host port is forwarded already), `port_in_use`
+(another program listens there), `port_unavailable` (the address cannot be bound),
+`port_not_forwarded` (for `port_rm`).
+
+In code, `DaemonClient.addPort(_:)`, `removePort(hostPort:hostAddress:)` and `ports()` make these
+calls; inside the daemon, `PortForwards.add(_:)` and `remove(hostPort:hostAddress:)` do the work.

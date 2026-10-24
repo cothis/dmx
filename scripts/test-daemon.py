@@ -155,6 +155,121 @@ def memory_checks(results):
     daemon_call("simulate_pressure", {"level": None})
 
 
+# Guest servers for the port forward check. The guest's busybox has no httpd; `nc -lk -e` serves
+# one connection per child, but with a listen backlog of 1, so connect one client at a time.
+GUEST_SERVERS = b"""
+mkdir -p /www
+cat > /www/http <<'EOF'
+#!/bin/sh
+read -r req
+while read -r line; do [ "${line%$(printf '\\r')}" = "" ] && break; done
+path=${req#GET }; path=${path%% *}
+case "$path" in
+/zero/*) printf 'HTTP/1.0 200 OK\\r\\n\\r\\n'; head -c "${path#/zero/}" /dev/zero ;;
+*) printf 'HTTP/1.0 200 OK\\r\\n\\r\\nhello from the guest\\n' ;;
+esac
+EOF
+chmod +x /www/http
+setsid nc -lk -p 80 -e /www/http </dev/null >/dev/null 2>&1 &
+setsid nc -lk -p 81 -e cat </dev/null >/dev/null 2>&1 &
+setsid nc -lk -p 82 -e wc -c </dev/null >/dev/null 2>&1 &
+sleep 0.3
+"""
+
+
+def http_get(port, path, timeout=60):
+    with socket.create_connection(("127.0.0.1", port), timeout=timeout) as c:
+        c.sendall(f"GET {path} HTTP/1.0\r\n\r\n".encode())
+        data = bytearray()
+        while chunk := c.recv(1 << 20):
+            data += chunk
+    return bytes(data.split(b"\r\n\r\n", 1)[-1])
+
+
+def reads_eof(c):
+    try:
+        return c.recv(100) == b""
+    except OSError:
+        return False
+
+
+def portfwd(results):
+    """`dmx port`: a forward to guest servers, many connections at once, closes both ways,
+    half close, errors, and a forward that boots the stopped VM and survives a daemon restart."""
+    def add(spec):
+        return json.loads(dmx("port", "add", spec, "--json").stdout)
+
+    added = [add(f"1878{p}:8{p}") for p in range(3)]
+    dmx("exec", "--", "sh", stdin=GUEST_SERVERS)
+    body = http_get(18780, "/")
+    check("portfwd_http", all(a.get("listening") for a in added) and body == b"hello from the guest\n", f"{body!r} {added[0]}")
+
+    started = time.time()
+    n = len(http_get(18780, "/zero/200000000"))
+    results["portfwd_guest_to_host_mb_per_s"] = int(200 / (time.time() - started))
+    started = time.time()
+    with socket.create_connection(("127.0.0.1", 18782)) as c:
+        for _ in range(200):
+            c.sendall(b"x" * (1 << 20))
+        c.shutdown(socket.SHUT_WR)  # half close: the guest still answers
+        reply = c.recv(100)
+    results["portfwd_host_to_guest_mb_per_s"] = int(200 / (time.time() - started))
+    results["portfwd_footprint_after_streams_mb"] = status().get("host_footprint_mb")
+    check("portfwd_streams", n == 200000000 and reply.strip() == str(200 << 20).encode(), f"{n} {reply!r}")
+
+    # 30 connections open at once, each echoed by its own `cat` in the guest.
+    conns = []
+    for i in range(30):
+        c = socket.create_connection(("127.0.0.1", 18781), timeout=10)
+        c.sendall(b"hi %d\n" % i)
+        conns.append((c, c.recv(100)))
+    echoed = all(r == b"hi %d\n" % i for i, (_, r) in enumerate(conns))
+    cats = dmx("exec", "--", "pgrep", "-x", "cat").stdout.split()
+    # The guest side closes: every client reads end of stream.
+    dmx("exec", "--", "pkill", "-x", "cat")
+    eof = all(reads_eof(c) for c, _ in conns)
+    for c, _ in conns:
+        c.close()
+    check("portfwd_concurrent_guest_close", echoed and len(cats) == 30 and eof, f"echoed {echoed}, {len(cats)} cats, eof {eof}")
+
+    # The host side closes: the guest's `cat` reads end of stream and exits.
+    c = socket.create_connection(("127.0.0.1", 18781), timeout=10)
+    c.sendall(b"x\n")
+    c.recv(10)
+    c.close()
+    gone = wait_for(lambda: not dmx("exec", "--", "pgrep", "-x", "cat").stdout, 5)
+    idle = wait_for(lambda: all(f["connections"] == 0 for f in json.loads(dmx("port", "ls", "--json").stdout)["forwards"]), 5)
+    check("portfwd_host_close", gone and idle, f"guest cat gone {gone}, no open connections {idle}")
+
+    taken = socket.socket()
+    taken.bind(("127.0.0.1", 18789))
+    taken.listen()
+    codes = [json.loads(dmx("port", *args, "--json").stdout).get("error", {}).get("code")
+             for args in (("add", "18780:80"), ("add", "18789:80"), ("rm", "18788"), ("add", "1:2:3:4"))]
+    taken.close()
+    check("portfwd_errors", codes == ["port_forwarded", "port_in_use", "port_not_forwarded", "bad_port_spec"], str(codes))
+
+    # Forwards keep the daemon (not the VM) up; a connection boots the VM. A new daemon listens again.
+    pid = daemon_pids()
+    dmx("stop")
+    time.sleep(1)
+    stopped = status()["state"]
+    with socket.create_connection(("127.0.0.1", 18780), timeout=30) as c:
+        c.sendall(b"GET / HTTP/1.0\r\n\r\n")
+        try:
+            c.recv(100)  # nothing listens in the new VM yet, so it closes
+        except OSError:
+            pass
+    booted = status()["state"]
+    os.kill(pid[0], signal.SIGTERM)
+    wait_for(lambda: not daemon_pids(), 15)
+    listening = [f["listening"] for f in json.loads(dmx("port", "ls", "--json").stdout)["forwards"]]
+    check("portfwd_boot_and_restart", stopped == "stopped" and daemon_pids() and booted == "running" and listening == [True] * 3,
+          f"after stop {stopped}, after connect {booted}, after restart {listening}")
+    for p in range(3):
+        dmx("port", "rm", f"1878{p}")
+
+
 # A short path: Unix socket paths are limited to 104 bytes.
 HOME = Path(tempfile.mkdtemp(prefix="dmx-test-", dir="/tmp"))
 ENV = {**os.environ, "DMX_HOME": str(HOME)}
@@ -247,6 +362,7 @@ try:
 
     # Memory controller (MemoryController.swift), with the host's pressure level simulated.
     memory_checks(results)
+    portfwd(results)
 
     # Concurrent cold starts end with one daemon.
     dmx("stop")
