@@ -239,7 +239,13 @@ Result: verified with launchd and without; see Findings for timings and memory.
       nameserver; static guest config 192.168.127.2, gateway .1, `host.dmx.internal` =
       192.168.127.254 = host loopback. HTTP from the internet works. HTTPS in the guest needs
       OpenSSL and the CA bundle (+12 MB idle), not adopted. Left: IPv6, ICMP errors, split DNS.
-- [ ] Port forwarding: host listener → vsock → guest port (no privileged helper).
+- [x] Port forwarding: `dmx port add/rm/ls` ([daemon-protocol.md](daemon-protocol.md)): a daemon
+      listener (127.0.0.1 unless given) → a vsock stream per connection → agent `connect` to the
+      guest's loopback. Saved in `$DMX_HOME/ports.json`; while forwards exist the daemon stays up
+      (4 MB with the VM stopped) and the first connection boots the VM; open connections count as
+      use. Half close both ways (vsock now answers host EOF with SHUTDOWN, not RST). Callable from
+      code for phase 7. Found on the way: two exec data-loss bugs (agent sent `exit` before output
+      stuck behind a slow host; the relay discarded a finished peer's output when a write failed).
 - [ ] Our virtio-fs device (a FUSE server on the host) sharing the user's home (or configured paths) at the same path in the guest, so bind mounts keep their paths. Measure throughput against native.
 
 Done when: the guest can `wget` from the internet, a guest web server is reachable on `localhost`, and a host directory is readable/writable in the guest.
@@ -290,8 +296,7 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-Phase 6 is being merged from parallel worktrees (port forwarding, data disk and virtio-fs are
-still in progress). Then phase 7 (Docker). Phase 4's last open item is the memmap that scales with
+Phase 6 is being merged from parallel worktrees (virtio-fs merging, data disk in progress). Then phase 7 (Docker). Phase 4's last open item is the memmap that scales with
 the ceiling, and its "done when" second half (a 2 GB container's memory back within 10 s) waits
 for containers. Idle detection must count container activity once Docker runs.
 
@@ -362,6 +367,8 @@ for containers. Idle detection must count container activity once Docker runs.
 | 2026-10-24 | Footprint under real host pressure | At critical one reading was 217 MB while the guest held 1.6 GB: macOS swapped guest pages out and `ri_phys_footprint` drops them. Compare footprints only at normal or simulated pressure. |
 | 2026-10-24 | vmnet without root (macOS 26.6.1, ad-hoc signed) | `vmnet_start_interface` shared and host mode: VMNET_FAILURE (1001); macOS 26 `vmnet_network_create`: 1002; adding `com.apple.vm.networking` to an ad-hoc signature: killed at launch. |
 | 2026-10-24 | Guest network (user space NAT), load 7 to 20 | Idle selftest 115 to 118 MB (114 to 117 before). 500 MB host → guest over HTTP 0.25 to 0.5 s (1 to 2 GB/s; 16 s before publishing each frame's rx buffers at once, the guest dropped partial frames). 500 MB guest → host 0.9 to 1.4 s. 394 MB from the Alpine CDN: 32.1 s in the guest, 32.07 s with curl on the host. DNS through exec 70 to 100 ms; ping gateway 0.2 to 0.3 ms. Footprint +15 to 17 MB after traffic, then flat: freed guest blocks under 512 KB that reporting skips; dmx's own heap 2.8 MB after 1 GB. |
+| 2026-10-24 | Port forwarding, load 8 to 17 | Guest → host 500 MB at 1.0 to 1.1 GB/s; host → guest into busybox `nc` 252 MiB/s; 4 parallel 250 MB 1.18 GB/s. 1000 GETs at 100 concurrent in 0.39 s; 500 slow requests at once all OK. A connection with the VM stopped boots it: 0.22 to 0.36 s until the guest answers. Footprint 116 → 150 to 152 MB after 500 MB each way (guest pages); +76 MB after a burst of 500 connections: freed guest blocks of 32 to 256 KB, under the 512 KB reporting order. |
+| 2026-10-24 | Exec data loss with a slow reader | `dmx exec -- head -c 8000000 /dev/zero` into a slow reader lost 205,900 bytes and exited 0: the agent sent `exit` while an output pump was still blocked on the host. 0 of 20 after the fix. "Connection closed before the process exited" in 1 of 5 to 10 daemontest cold-start rounds: the relay shut both sockets when the client's last stdin write failed, discarding the guest's output. 0 of 960 after. |
 | 2026-10-24 | `dmx mcp` (stdio MCP), load 5 to 6 | `make mcptest` 5.3 to 6.3 s, 30 of 30 checks. Cold `dmx_exec uname -a` with no daemon 215 to 376 ms end to end; warm 0 to 2 ms. 200 MB of stdout capped to 8 KiB in 0.65 to 1.41 s; `dmx mcp` RSS 8 to 9 MB, 10 MB at peak. A 2 s timeout returns in 2.01 to 2.13 s with the guest processes gone. `tools/list` is 4.6 KB (3.8 KB without `outputSchema`). |
 | 2026-10-24 | Truncated exec output after a boot | `dmx stop`, an exec, then 200 MB of stdout: 5 to 6 of 40 runs ended with "daemon closed the connection mid-frame" (load 9 to 15); logging the shutdown path hid it. The guest sometimes sends RST right after its SHUTDOWN, and the host dropped the connection with up to 200 KB from the guest still unwritten to the full host socket. Now an RST on an open stream delivers what the guest sent, then closes: 0 of 50. Found by the `dmx mcp` tests. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
@@ -392,3 +399,4 @@ for containers. Idle detection must count container activity once Docker runs.
 - 2026-10-24: `dmx mcp` merged: AI clients run commands in the VM over MCP with capped output. Fixed truncated exec output after a vsock reset.
 - 2026-10-24: Memory controller merged: idle page cache trims, zram on demand, balloon under host pressure. Phase 4 tasks done except the memmap.
 - 2026-10-24: Guest networking merged: virtio-net and a user space NAT; the guest reaches the internet over HTTP.
+- 2026-10-24: Port forwarding merged (`dmx port`), with two exec data-loss fixes.
