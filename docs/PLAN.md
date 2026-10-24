@@ -402,6 +402,10 @@ BuildKit through dmx's Buildx; the deprecated legacy builder remains available t
 
 ## Next up
 
+For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md). It records
+the last verified functional commit, exact Redis reproduction commands, memory acceptance
+results, attempted diagnostics, and the steps below without relying on temporary files.
+
 Phases 1–7 and 9 meet their acceptance criteria. Phase 4's status and pressure follow-ups are
 complete. Next, work through phase 10's pre-release validation:
 
@@ -566,3 +570,4 @@ complete by the finished acceptance suites.
 - 2026-10-24: The socketpair EOF-wakeup bug reported to Apple (FB25307646).
 - 2026-10-24: Phase 4 follow-ups done: status exposes hotplug RAM, critical pressure unplugs spare RAM before balloon fallback, and allocations still grow RAM under pressure. Refreshed README, the daemon protocol and stale PLAN entries; tracked phase 6 extensions and phase 10 image/benchmark validation explicitly.
 - 2026-10-25: Ran the 9×2 pinned image matrix; switched to 4K pages for Python/Java and real 4K mapping/guard semantics. Fixed slow page reporting and normal hotplug metadata return; 2 GB containers return within 10 s at both the 4G comparison profile and default 8G profile. Added raw evidence, a benchmark harness with checked Mach-time CPU accounting, and source-patch release notices. Redis amd64's default QEMU layout and unavailable comparison engines remain open; no public release made.
+- 2026-10-25: Added HANDOFF.md and linked it from Next up so a new session can continue directly with the pinned amd64 Redis reproduction, verified memory gates and remaining release work. Documentation only; no new runtime validation claimed.
