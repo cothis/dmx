@@ -45,6 +45,8 @@ public final class Daemon {
     private let ports: PortForwards
     /// `~/.dmx/docker.sock` and the containers behind it; see Docker.swift.
     private let docker: DockerBridge
+    /// Removes sandboxes at their TTL (Sandbox/SandboxReaper.swift).
+    private let sandboxReaper = SandboxReaper()
 
     /// Takes the control socket from launchd when launchd started us, otherwise binds it.
     public init(paths: Paths, version: String) throws {
@@ -94,6 +96,7 @@ public final class Daemon {
         ports.start(agent: { [unowned self] in try await running() }, using: using)
         docker.start(agent: { [unowned self] in try await running() }, using: using) { [unowned self] in
             if users == 0 && !docker.busy { idleSince = .now }
+            sandboxReaper.update(agent: docker.containers == nil ? nil : agent)
             scheduleIdleCheck()
         }
         log("listening on \(paths.controlSocket.path) (\(launchd ? "launchd" : "standalone"), pid \(getpid()))")

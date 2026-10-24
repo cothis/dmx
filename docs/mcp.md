@@ -1,7 +1,7 @@
 # dmx mcp
 
 `dmx mcp` is an [MCP](https://modelcontextprotocol.io) server on stdin and stdout. An AI client
-starts it as a subprocess; it lets the agent run commands in dmx's Linux VM and manage the VM.
+starts it as a subprocess; it lets the agent run commands in dmx's Linux VM, manage the VM, and use sandboxes.
 Code lives in `Sources/DMXCore/MCP`.
 
 It is not the daemon. Each tool call connects to the daemon's control socket
@@ -66,6 +66,14 @@ An unknown tool name is a JSON-RPC error (-32602).
 | `dmx_stop` | none | status, once the VM is off |
 | `dmx_config_get` | `key` | `settings` (values in effect), `configured` (keys set in the file), `file` |
 | `dmx_config_set` | `key`, `value` (null resets it) | the same, for that key; applies at the next boot |
+| `dmx_sandbox_create` | `name`, `image`, `network` (`"none"`, `"all"` or an array of hosts and CIDRs), `mounts` (`[{host, path, writable}]`), `cpus`, `memory`, `pids`, `ttl` (seconds or `"30m"`), `env`, `workdir`, `command` | the sandbox: `name`, `state`, `policy`, `allowed`, `expires_at`, `expires_in_s`, `checkpoints`, ... |
+| `dmx_sandbox_exec` | `name`, `argv` (required), `stdin`, `env`, `cwd`, `timeout`, `max_output_bytes` | as `dmx_exec` (`signal` is always null) |
+| `dmx_sandbox_list` | none | `sandboxes`; those past their TTL are removed first |
+| `dmx_sandbox_rm` | `name` | `name`, `container`, `checkpoints` removed |
+| `dmx_sandbox_checkpoint` | `name`, `checkpoint` (default `c<N>`) | `name`, `image`, `created_at`, `size_mb`, `added_mb`, `ms` |
+| `dmx_sandbox_rollback` | `name`, `checkpoint` (default the latest) | the sandbox |
+| `dmx_sandbox_fork` | `name`, `new_name`, `checkpoint` (default: the current state), `ttl` | the new sandbox |
+| `dmx_logs` | `target` (sandbox, or container name or id), `since`, `tail`, `timestamps`, `max_output_bytes` | `stdout`, `stderr` capped as for exec, their totals and omitted bytes, `summary` (`stdout_lines`, `stderr_lines`, `error_lines`, `errors`) |
 
 ### dmx_exec
 
@@ -87,9 +95,19 @@ SIGKILL, so children it started die too. The result has `timed_out: true`, `exit
 the output so far, and `isError: true`. `notifications/cancelled` does the same without a
 reply.
 
+### Sandboxes and logs
+
+`dmx_sandbox_*` give an agent disposable environments with a policy: by default no network, no
+host files, 2 CPUs, 1G and a 30 minute TTL, after which the daemon removes them even if the
+client is gone. Grant only what the task needs. Checkpoints save the filesystem (not processes),
+rollback restores one, fork starts a copy to try a second approach. `dmx_logs` reads a sandbox's
+or any container's logs with the exec caps, plus a summary of the whole log (line counts and the
+first and last lines that look like errors; a pattern match, no model). The policy model, what
+the isolation does and does not guarantee, and measurements are in [sandbox.md](sandbox.md).
+
 ## Testing
 
 `make mcptest` (`scripts/test-mcp.py`) starts `dmx mcp` in a throwaway `DMX_HOME`, drives it over
 pipes with both protocol eras, and checks every tool, the output cap and its memory, UTF-8
 cuts, timeout and cancellation (the guest processes are gone afterwards), errors, and exit on
-EOF.
+EOF. `make sandboxtest` (`scripts/test-sandbox.py`) does the same for the sandbox and logs tools.
