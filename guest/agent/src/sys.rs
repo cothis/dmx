@@ -129,6 +129,84 @@ pub fn drop_caches(p: DropCachesParams) -> io::Result<DropCachesResult> {
 }
 
 #[derive(Deserialize)]
+pub struct ReclaimParams {
+    /// How much to reclaim, in bytes.
+    pub bytes: u64,
+    /// 0 reclaims only file cache; absent uses vm.swappiness, so anonymous and tmpfs pages may
+    /// go to swap (zram) too.
+    pub swappiness: Option<u8>,
+}
+
+#[derive(Serialize)]
+pub struct ReclaimResult {
+    /// MemFree before and after: what the reclaim freed, not counting cache it already had to give.
+    pub free_before: u64,
+    pub free_after: u64,
+    /// False when the kernel found less than `bytes` to reclaim.
+    pub complete: bool,
+}
+
+/// Proactive reclaim through the root cgroup's memory.reclaim. Freed pages go back to the host
+/// through free page reporting.
+pub fn reclaim(p: ReclaimParams) -> io::Result<ReclaimResult> {
+    if p.swappiness.is_some_and(|s| s > 200) {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "swappiness must be 0 to 200"));
+    }
+    let before = memory()?.free;
+    let request = match p.swappiness {
+        Some(s) => format!("{} swappiness={s}", p.bytes),
+        None => p.bytes.to_string(),
+    };
+    let complete = match fs::write("/sys/fs/cgroup/memory.reclaim", request) {
+        Ok(()) => true,
+        Err(e) if e.raw_os_error() == Some(libc::EAGAIN) => false,
+        Err(e) => return Err(e),
+    };
+    Ok(ReclaimResult { free_before: before, free_after: memory()?.free, complete })
+}
+
+#[derive(Serialize)]
+pub struct SwapOnResult {
+    /// Swap size in bytes (uncompressed pages it can hold).
+    pub size: u64,
+    /// False when swap was already on.
+    pub enabled_now: bool,
+}
+
+/// Turns on compressed swap in RAM: zram0 with lz4, a quarter of the guest's memory, plus the
+/// sysctls that suit it. Not done at boot: the device's page table and the swap maps cost about
+/// 1.8 MB of guest memory per GB of swap at idle, and swap only matters once the guest is
+/// squeezed or nearly full, which is when the host asks for it.
+pub fn swap_on() -> io::Result<SwapOnResult> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _held = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let block = Path::new("/sys/block/zram0");
+    if fs::read_to_string("/proc/swaps")?.lines().any(|l| l.starts_with("/dev/zram0 ")) {
+        let size: u64 = fs::read_to_string(block.join("disksize"))?.trim().parse().unwrap_or(0);
+        return Ok(SwapOnResult { size, enabled_now: false });
+    }
+    let size = memory()?.total / 4 & !0xfffff;
+    fs::write(block.join("comp_algorithm"), "lz4")?;
+    fs::write(block.join("disksize"), size.to_string())?;
+    let made = std::process::Command::new("/sbin/mkswap")
+        .arg("/dev/zram0")
+        .stdout(std::process::Stdio::null())
+        .status()?;
+    if !made.success() {
+        return Err(io::Error::other(format!("mkswap /dev/zram0: {made}")));
+    }
+    const SWAP_FLAG_PREFER: libc::c_int = 0x8000;
+    if unsafe { libc::swapon(c"/dev/zram0".as_ptr(), SWAP_FLAG_PREFER | 100) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // zram reads are cheap and random: no swap readahead, and swapping out cold anonymous pages
+    // is no less likely than dropping file cache.
+    fs::write("/proc/sys/vm/page-cluster", "0")?;
+    fs::write("/proc/sys/vm/swappiness", "100")?;
+    Ok(SwapOnResult { size, enabled_now: true })
+}
+
+#[derive(Deserialize)]
 pub struct TimeSyncParams {
     pub unix_ns: i128,
 }

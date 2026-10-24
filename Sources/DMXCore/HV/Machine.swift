@@ -130,6 +130,10 @@ public final class Machine: @unchecked Sendable {
     /// Free page reports so far: how many, and how many bytes the guest handed back.
     public var freePageReports: (reports: Int, bytes: UInt64) { balloon.stats }
 
+    /// The balloon: how much guest memory the host asked back, and how much the guest gave.
+    public var balloonSize: (target: UInt64, actual: UInt64) { balloon.size }
+    public func setBalloonTarget(_ bytes: UInt64) { balloon.setTarget(bytes) }
+
     /// Gives a guest-physical range back to macOS. The guest promised not to touch it until it
     /// reuses the pages, which then fault in again as zeros. `MADV_FREE_REUSABLE` drops the pages
     /// from our footprint; it only takes hold on pages the guest dirtied if the stage-2 mapping is

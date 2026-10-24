@@ -36,6 +36,8 @@ public struct DaemonStatus: Codable, Sendable {
     public let idleStopInS: Int?
     public let socket: String
     public let consoleLog: String
+    /// The memory controller: host pressure, balloon, trims (see MemoryController). nil when no daemon answered.
+    public var memory: MemoryStatus? = nil
 
     public static func notRunning(_ paths: Paths, config: Config) -> DaemonStatus {
         DaemonStatus(state: "not_running", pid: nil, version: nil, launchd: nil, uptimeS: nil, cpus: nil,

@@ -32,11 +32,15 @@ public struct GuestMemory: Codable, Sendable {
     /// Memory the guest cannot reclaim without swapping: everything except free pages and
     /// droppable cache (shmem, which includes the unpacked initramfs, counts as used).
     /// Not `total - available`: MemAvailable also subtracts the kernel's watermark reserve,
-    /// which grows with the ceiling (about 88 MB at 8 GB) without being touched.
+    /// which grows with the ceiling (about 88 MB at 8 GB) without being touched. Balloon pages
+    /// count as allocated in /proc/meminfo but belong to the host, so they are left out.
     public var used: UInt64 {
-        let reclaimable = free + buffers + (cached > shmem ? cached - shmem : 0)
+        let reclaimable = free + buffers + (cached > shmem ? cached - shmem : 0) + (balloon ?? 0)
         return total > reclaimable ? total - reclaimable : 0
     }
+
+    /// Clean page cache the guest can drop: block device buffers and file pages, without shmem.
+    public var cache: UInt64 { buffers + (cached > shmem ? cached - shmem : 0) }
 }
 
 public struct GuestCgroup: Codable, Sendable {
@@ -49,6 +53,14 @@ public struct AgentStats: Codable, Sendable {
     public let uptimeS: Double
     public let load: [Double]
     public let cgroups: [GuestCgroup]
+}
+
+public struct ReclaimResult: Codable, Sendable {
+    /// Guest MemFree before and after.
+    public let freeBefore: UInt64
+    public let freeAfter: UInt64
+    /// False when the kernel could not reclaim all of it (`memory.reclaim` said EAGAIN).
+    public let complete: Bool
 }
 
 public struct DropCachesResult: Codable, Sendable {
@@ -324,6 +336,21 @@ public final class AgentClient: Sendable {
 
     public func dropCaches(level: Int = 3) async throws -> DropCachesResult {
         try await control.call("drop_caches", ["level": level])
+    }
+
+    /// Asks the guest kernel to reclaim `bytes` through the root cgroup's `memory.reclaim`.
+    /// `swappiness` 0 takes only file cache; nil lets the guest's swappiness decide, so anonymous
+    /// and tmpfs pages may go to zram too.
+    public func reclaim(bytes: UInt64, swappiness: Int? = nil) async throws -> ReclaimResult {
+        struct Params: Encodable, Sendable { let bytes: UInt64; let swappiness: Int? }
+        return try await control.call("reclaim", Params(bytes: bytes, swappiness: swappiness))
+    }
+
+    /// Turns on zram swap in the guest if it is not on yet; returns its size in bytes.
+    public func swapOn() async throws -> UInt64 {
+        struct Result: Decodable { let size: UInt64 }
+        let result: Result = try await control.call("swap_on", Empty())
+        return result.size
     }
 
     /// Sets the guest clock to the host clock and returns how far off it was, in nanoseconds.

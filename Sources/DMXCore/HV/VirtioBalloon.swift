@@ -2,8 +2,8 @@ import Foundation
 
 /// virtio-balloon (device 5, virtio 1.x section 5.5) with free page reporting. The guest reports
 /// blocks of free pages on the reporting queue; `release` hands them back to macOS. The balloon
-/// itself (inflate/deflate) is there so a memory controller can squeeze the guest later; pages
-/// it inflates are released the same way.
+/// itself (inflate/deflate) is how the daemon's memory controller squeezes the guest under host
+/// pressure (`setTarget`); pages it inflates are released the same way.
 final class VirtioBalloon: VirtioDevice, @unchecked Sendable {
     static let deflateOnOOM: UInt64 = 1 << 2
     static let reporting: UInt64 = 1 << 5
@@ -35,6 +35,23 @@ final class VirtioBalloon: VirtioDevice, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return (reports, reportedBytes)
+    }
+
+    /// The balloon size asked for and the size the guest reports, in bytes.
+    var size: (target: UInt64, actual: UInt64) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (UInt64(targetPages) << 12, UInt64(actualPages) << 12)
+    }
+
+    /// Asks the guest to grow or shrink its balloon to `bytes`. The guest takes free pages first
+    /// and reclaims for the rest; with DEFLATE_ON_OOM it gives pages back rather than OOM-kill.
+    func setTarget(_ bytes: UInt64) {
+        lock.lock()
+        targetPages = UInt32(min(bytes >> 12, UInt64(UInt32.max)))
+        let transport = self.transport
+        lock.unlock()
+        transport?.signalConfigChange()
     }
 
     func activate(_ transport: VirtioMMIO, features: UInt64) {

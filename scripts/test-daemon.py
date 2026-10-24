@@ -16,6 +16,8 @@ import pty
 import select
 import shutil
 import signal
+import socket
+import struct
 import subprocess
 import sys
 import tempfile
@@ -90,6 +92,67 @@ def through_pty(argv, script):
     return out.decode(errors="replace"), os.waitstatus_to_exitcode(code)
 
 
+def daemon_call(method, params):
+    """One request on the control socket, without the CLI (for methods it has no command for)."""
+    with socket.socket(socket.AF_UNIX) as s:
+        s.connect(str(HOME / "dmx.sock"))
+        body = json.dumps({"id": 1, "method": method, "params": params}).encode()
+        s.sendall(struct.pack(">I", len(body) + 1) + b"\0" + body)
+        data = b""
+        while len(data) < 4 or len(data) < 4 + struct.unpack(">I", data[:4])[0]:
+            chunk = s.recv(65536)
+            if not chunk:
+                break
+            data += chunk
+        return json.loads(data[5:])
+
+
+def memory_checks(results):
+    """Idle trim, trims and the balloon under simulated host pressure, footprint coming back."""
+    def memory():
+        s = status()
+        return s.get("host_footprint_mb") or 0, s.get("memory") or {}
+
+    # 512 MB of clean page cache: an empty zram block device read through, held open so the
+    # kernel keeps its cache after dd exits. Reading zeros from zram costs zram nothing.
+    fill = ("n=$(cat /sys/class/zram-control/hot_add); echo 1G >/sys/block/zram$n/disksize; "
+            "setsid sleep 1000 </dev/zram$n >/dev/null 2>&1 & dd if=/dev/zram$n of=/dev/null bs=1M count=512 2>/dev/null")
+    daemon_call("simulate_pressure", {"level": "normal"})
+    time.sleep(3)
+    idle, _ = memory()
+    dmx("exec", "--", "sh", "-c", fill)
+    full, m = memory()
+    check("memory_cache_filled", m.get("guest_cache_mb", 0) >= 500 and full >= idle + 400, f"footprint {idle} -> {full} MB, {m}")
+
+    # Warning: the guest trims at once.
+    daemon_call("simulate_pressure", {"level": "warning"})
+    started = time.time()
+    back = wait_for(lambda: memory()[0] < idle + 64, 15)
+    results["memory_warning_trim_s"] = round(time.time() - started, 1)
+    fp, m = memory()
+    check("memory_trim_on_warning", back and (m.get("last_trim") or {}).get("reason") == "host pressure warning",
+          f"footprint {fp} MB, {m}")
+
+    # Idle: under pressure the guest trims after 5 s without an exec (30 s without pressure).
+    dmx("exec", "--", "sh", "-c", fill)
+    started = time.time()
+    back = wait_for(lambda: memory()[0] < idle + 64, 20)
+    results["memory_idle_trim_s"] = round(time.time() - started, 1)
+    fp, m = memory()
+    check("memory_idle_trim", back and (m.get("last_trim") or {}).get("reason") == "idle", f"footprint {fp} MB, {m}")
+
+    # Critical: zram swap goes on and the balloon caps the guest; normal deflates it.
+    daemon_call("simulate_pressure", {"level": "critical"})
+    inflated = wait_for(lambda: (memory()[1].get("balloon_mb") or 0) > 1024, 15)
+    fp, m = memory()
+    results["memory_critical_footprint_mb"] = fp
+    check("memory_balloon_on_critical", inflated and fp < idle + 64, f"footprint {fp} MB, {m}")
+    daemon_call("simulate_pressure", {"level": "normal"})
+    deflated = wait_for(lambda: memory()[1].get("balloon_mb") == 0, 15)
+    check("memory_balloon_deflated", deflated, str(memory()[1]))
+    daemon_call("simulate_pressure", {"level": None})
+
+
 # A short path: Unix socket paths are limited to 104 bytes.
 HOME = Path(tempfile.mkdtemp(prefix="dmx-test-", dir="/tmp"))
 ENV = {**os.environ, "DMX_HOME": str(HOME)}
@@ -157,6 +220,9 @@ try:
         (0.3, b"exit 3\n"),
     ])
     check("shell_tty", code == 3 and "42" in out and "^C" in out and "after-2" in out, f"rc {code} {out[-200:]!r}")
+
+    # Memory controller (MemoryController.swift), with the host's pressure level simulated.
+    memory_checks(results)
 
     # Concurrent cold starts end with one daemon.
     dmx("stop")
