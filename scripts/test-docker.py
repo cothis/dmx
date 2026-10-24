@@ -4,8 +4,8 @@
 Needs `docker` (and the compose plugin, from Homebrew: `brew install docker docker-compose`),
 the guest with Docker in it (`make guest`), and the internet (images come from Docker Hub). The
 docker CLI talks to $DMX_HOME/docker.sock through DOCKER_HOST and keeps its settings in a
-throwaway DOCKER_CONFIG; ~/.docker is not touched. Host ports 20000-20099 are used. Prints one
-JSON object and exits non-zero if any check failed.
+throwaway DOCKER_CONFIG; ~/.docker is not touched. Host ports 20080-20090 and 21053-21082 are
+used. Prints one JSON object and exits non-zero if any check failed.
 
     python3 -I scripts/test-docker.py [path/to/dmx]
 """
@@ -129,6 +129,111 @@ def footprint(label, settle=35):
     results[f"guest_used_{label}_mb"] = s.get("guest_used_mb")
 
 
+def udp_echo(port, payload, tries=20):
+    """Sends a datagram to the Mac's port until one comes back; returns the reply or None."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.settimeout(1)
+        for _ in range(tries):
+            s.sendto(payload, ("127.0.0.1", port))
+            try:
+                return s.recv(65536)
+            except socket.timeout:
+                continue
+    return None
+
+
+def check_udp():
+    """A published UDP port: datagrams from the Mac reach the container and replies come back,
+    one stream per peer, as on Docker Desktop."""
+    try:
+        r = docker("run", "-d", "--name", "udp-echo", "-p", "127.0.0.1:21053:53/udp", "busybox",
+                   "udpsvd", "0", "53", "dd", "bs=65536")  # cat would read datagrams 4 KB at a time
+        check("udp_run", r.returncode == 0, r.stderr)
+        got = udp_echo(21053, b"ping over udp")
+        f = [x for x in forwards() if x["host_port"] == 21053]
+        check("udp_published", got == b"ping over udp" and f and f[0].get("protocol") == "udp", f"{got!r} {f}")
+        big = os.urandom(8192)  # macOS sends at most 9216 bytes (net.inet.udp.maxdgram)
+        check("udp_large_datagram", udp_echo(21053, big) == big)
+        check("udp_second_peer", udp_echo(21053, b"another peer") == b"another peer")
+    finally:
+        docker("rm", "-f", "udp-echo")
+    check("udp_unpublished", wait_for(lambda: not any(x["host_port"] == 21053 for x in forwards()), 10), forwards())
+
+
+TAKEN_COMPOSE = """\
+services:
+  web:
+    image: busybox
+    command: ["sleep", "600"]
+    ports: ["21081:80"]
+"""
+
+
+def check_port_taken():
+    """A host port another program listens on fails `docker run -p` and `docker compose up` with
+    Docker Desktop's error; once it is free, the port answers as soon as `docker run` returns."""
+    blocker = socket.socket()
+    blocker.bind(("127.0.0.1", 21081))
+    blocker.listen()
+    try:
+        r = docker("run", "-d", "--name", "taken", "-p", "21081:80", "busybox", "sleep", "600")
+        state = docker("inspect", "-f", "{{.State.Status}}", "taken").stdout.strip()
+        check("port_taken_run", r.returncode != 0 and b"Ports are not available" in r.stderr and b"21081" in r.stderr, r.stderr)
+        check("port_taken_not_running", state == b"created", state)
+        docker("rm", "-f", "taken")
+        # Attached with --rm: the CLI waits for the container to be removed, as dockerd does after
+        # a failed start.
+        r = docker("run", "--rm", "--name", "taken-rm", "-p", "127.0.0.1:21081:80", "busybox", "true", timeout=60)
+        gone = docker("inspect", "taken-rm").returncode != 0
+        check("port_taken_run_rm", r.returncode != 0 and b"Ports are not available" in r.stderr and gone, r.stderr)
+        app = HOME / "taken"
+        app.mkdir()
+        (app / "compose.yaml").write_text(TAKEN_COMPOSE)
+        r = docker("compose", "-p", "dmxtaken", "up", "-d", cwd=app)
+        check("port_taken_compose", r.returncode != 0 and b"Ports are not available" in r.stderr, r.stderr[-400:])
+        docker("compose", "-p", "dmxtaken", "down", cwd=app)
+    finally:
+        blocker.close()
+    try:
+        r = docker("run", "-d", "--name", "at-once", "-p", "127.0.0.1:21081:80", "busybox",
+                   "sh", "-c", "mkdir /www && echo at-once > /www/index.html && exec httpd -f -p 80 -h /www")
+        # httpd itself needs a moment after the start; the port was listened on before it.
+        ok = r.returncode == 0 and wait_for(lambda: http_get(21081) == b"at-once\n", 5)
+        check("port_free_again", ok, f"{r.stderr!r} {http_get(21081)!r}")
+    finally:
+        docker("rm", "-f", "at-once")
+
+
+def check_restart_policy():
+    """A container with a restart policy comes back when the VM boots, without a Docker client; one
+    stopped with `docker stop` does not bring dockerd up at boot."""
+    try:
+        r = docker("run", "-d", "--name", "keeper", "--restart", "unless-stopped", "-p", "127.0.0.1:21082:80", "busybox",
+                   "sh", "-c", "mkdir -p /www && echo kept > /www/index.html && exec httpd -f -p 80 -h /www")
+        check("restart_policy_run", r.returncode == 0, r.stderr)
+        dmx("stop")
+        dmx("start")
+        started = time.time()
+        back = wait_for(lambda: http_get(21082) == b"kept\n", 120, step=0.5)
+        results["restart_policy_back_ms"] = int((time.time() - started) * 1000)
+        s = status()
+        check("restart_policy_at_boot", back and s.get("containers") == 1, f"{http_get(21082)!r} {s.get('containers')}")
+        docker("stop", "keeper")
+        dmx("stop")
+        dmx("start")
+        time.sleep(5)
+        r = dmx("exec", "--", "sh", "-c", "pidof dockerd || echo none")
+        check("no_dockerd_after_docker_stop", r.stdout.strip() == b"none", r.stdout)
+    finally:
+        docker("rm", "-f", "keeper")
+
+
+def check_amd64():
+    """An amd64 image through qemu-x86_64, which now comes from docker.img."""
+    r = docker("run", "--rm", "--platform", "linux/amd64", "alpine", "uname", "-m")
+    check("amd64_image", r.stdout.strip() == b"x86_64", f"{r.stdout!r} {r.stderr[-300:]!r}")
+
+
 COMPOSE = """\
 services:
   web:
@@ -236,6 +341,9 @@ try:
     docker("rm", "-f", "web")
     gone = wait_for(lambda: not any(x["host_port"] in (20081, 20082) for x in forwards()), 10)
     check("unpublished", gone and not http_get(20081).startswith(b"published"), forwards())
+    check_udp()
+    check_port_taken()
+    check_amd64()
 
     # The host from containers: host.docker.internal is the Mac's 127.0.0.1, on the default
     # bridge and on a user-defined network (dockerd's embedded DNS), as with Docker Desktop.
@@ -283,6 +391,8 @@ try:
     check("compose_volume", first and kept == b"started\n", f"{first!r} {kept!r}")
     r = docker("compose", "-p", "dmxtest", "down", "-v", cwd=app)
     check("compose_down", r.returncode == 0 and docker("volume", "ls", "-q").stdout.strip() == b"", r.stderr[-300:])
+
+    check_restart_policy()
 
     # A running container keeps the VM up past idle_timeout; once it is gone the VM stops, and
     # the next Docker client boots it and dockerd again (cold start, images kept on the disk).

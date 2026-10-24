@@ -45,7 +45,8 @@ The host turns them into `DMXError` codes prefixed with `agent_`.
 | `shrink_slabs` | none | `free_before`, `free_after` (MemFree). Writes `1` to every `/sys/kernel/slab/<cache>/shrink`: per-CPU slabs are flushed and empty slabs freed; no object is evicted. |
 | `time_sync` | `unix_ns` (host clock) | `offset_ns`: guest minus host before the change |
 | `shutdown` | none | `{}`, then the guest stops dockerd if it runs (SIGTERM, at most 7 s, so containers stop cleanly), syncs, freezes the data disk at `/var/lib` (its journal is left clean) and powers off |
-| `docker_start` | none | `started` (false if dockerd answered already), `ms`. Runs `/sbin/dmx-docker` (`guest/docker`) unless `/var/run/docker.sock` answers and returns once it does (at most 120 s); concurrent calls wait for one start. See [docker.md](docker.md). |
+| `docker_start` | none | `started` (false if dockerd answered already), `ms`, `running` (true). Runs `/sbin/dmx-docker` (`guest/docker`) unless `/var/run/docker.sock` answers and returns once it does (at most 120 s); concurrent calls wait for one start. See [docker.md](docker.md). |
+| `docker_autostart` | none | as `docker_start`, plus `restartable` (the containers that would come back), but dockerd is started only if a container would come back by its restart policy and was not stopped with `docker stop`; otherwise `started` and `running` are false. The host calls it after every boot. See [docker.md](docker.md#restart-policies). |
 | `exec` | see below | `pid`, then the connection becomes the process's streams |
 | `connect` | see below | `{}`, then the connection becomes a TCP or Unix socket stream's raw bytes |
 
@@ -76,7 +77,8 @@ a new one per exec (`AgentClient` does this).
 
 ## connect
 
-Params: `port` and `host` (an IP address, default `127.0.0.1`), or `path`. The agent opens a TCP
+Params: `port` and `host` (an IP address, default `127.0.0.1`), or `path`; `udp` (default false)
+makes `port` a UDP port. The agent opens a TCP
 connection to `host:port` in the guest, which is how the daemon forwards a host port
 ([daemon protocol](daemon-protocol.md#port-forwarding)), or connects to the Unix socket at `path`,
 which is how it forwards the Docker socket. Giving both or neither is `bad_request`. A refused or unreachable port answers
@@ -87,6 +89,12 @@ as they are, both ways. End of stream on one side becomes a half close on the ot
 shuts down its sending side still reads the reply); an error on either side closes both. Each
 forwarded connection costs the agent two threads and two descriptors; the agent raises its
 descriptor limit to the hard limit (4096) at start, which processes it starts inherit.
+
+With `udp`, the agent binds a UDP socket of its own, connects it to `host:port`, and the stream
+carries datagrams both ways, each framed as a big-endian u16 length and the bytes (at most 65507).
+Datagrams the host sends go out from that socket; datagrams the target sends back come framed to
+the host. One stream serves one host peer; it ends when the host closes it (after a quiet minute,
+for a forwarded UDP port). A datagram the target refuses is dropped.
 
 ## Versioning
 
