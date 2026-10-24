@@ -35,7 +35,12 @@ public struct PortForward: Codable, Sendable, Equatable {
         case 3: hostAddress = parts[0]; ports = Array(parts[1...])
         default: throw bad
         }
-        guard let host = Int(ports[0]), let guest = Int(ports.last!) else { throw bad }
+        guard let host = Int(ports[0]), let guest = Int(ports.last!) else {
+            if parts.count == 2, Int(parts[1]) != nil {
+                throw DMXError("bad_port_spec", "\"\(spec)\" reads as HOST_PORT:GUEST_PORT", hint: "with an address, give both ports: `dmx port add \(spec):\(parts[1])`")
+            }
+            throw bad
+        }
         hostPort = host
         guestPort = guest
         try validate()
@@ -162,13 +167,14 @@ final class PortForwards {
         guard !matching.isEmpty else {
             throw DMXError("port_not_forwarded", "no forward on host port \(address.map { "\($0):" } ?? "")\(hostPort)", hint: "run `dmx port ls`")
         }
+        let removed = matching.map(\.status)
         listeners.removeAll { l in matching.contains { $0 === l } }
         for listener in matching {
             listener.close()
             log("stopped forwarding \(listener.forward.hostEndpoint)")
         }
         try save()
-        return matching.map(\.status)
+        return removed
     }
 
     func list() -> [PortForwardStatus] { listeners.map(\.status) }
