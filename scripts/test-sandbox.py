@@ -179,10 +179,12 @@ try:
           f"timed_out {s.get('timed_out')}, processes gone {gone}")
 
     # Egress: everything, and an allowlist of one host.
-    r, ms = timed(c.call, "dmx_sandbox_create", {"name": "all", "network": "all", "ttl": "10m"})
+    r, ms = timed(c.call, "dmx_sandbox_create", {"name": "all", "network": "all", "ttl": "10m", "mounts": [f"{ro}:/w:rw"]})
     results["create_ms"] = ms
     code, out, err, r2 = sx("all", ["wget", "-T", "10", "-q", "-O", "/dev/null", "http://example.com"])
     check("egress_all", ok(r) and code == 0, (r2, text(r)))
+    code, out, err, r2 = sx("all", ["sh", "-c", "echo from-sandbox > /w/written"])
+    check("mount_writable_string_form", code == 0 and (ro / "written").read_text() == "from-sandbox\n", r2)
     r = c.call("dmx_sandbox_create", {"name": "allow", "network": ["example.com"], "ttl": 600})
     s = r.get("structuredContent") or {}
     check("create_allowlist", ok(r) and s["policy"]["network"] == "allowlist" and s["allowed"], r)

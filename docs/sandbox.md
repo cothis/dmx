@@ -34,7 +34,8 @@ dmx process (the CLI, `dmx mcp`, the daemon) sees the same ones.
   run that instead; its output is what `logs` shows. The image's entrypoint is not used.
 - **Default image** `alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a`
   (the multi-arch index as of 2026-10-24): 4 MB to pull, a shell and busybox, pinned so a sandbox is the
-  same tomorrow. Any image works (`--image`, MCP `image`); it is pulled on first use.
+  same tomorrow. Any image works (`--image`, MCP `image`); it is pulled on first use, without
+  credentials (for a private registry, `docker pull` it first: an image dockerd has is used as is).
 - **Names** are 1 to 40 of `a-z 0-9 - _ .`; without one, `sb-` and six hex digits.
 
 ## Policy

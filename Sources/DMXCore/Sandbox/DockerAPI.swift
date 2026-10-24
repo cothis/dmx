@@ -94,7 +94,8 @@ struct DockerAPI: Sendable {
         guard result == 0 else {
             let code = errno
             Darwin.close(fd)
-            throw DMXError("daemon_unreachable", "connect \(url.path): \(String(cString: strerror(code)))")
+            throw DMXError("daemon_unreachable", "connect \(url.path): \(String(cString: strerror(code)))",
+                           hint: "run `dmx status`; after an upgrade, `dmx install` again so launchd holds docker.sock")
         }
         return DockerStream(fd: fd) { _ = Darwin.close(fd) }
     }

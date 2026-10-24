@@ -49,8 +49,8 @@ let sandboxTools: [MCPTool] = [
                 ],
                 "mounts": [
                     "type": "array",
-                    "description": "Host directories to show in the sandbox. Must be under dmx's shares (/Users, /Volumes, /private by default).",
-                    "items": [
+                    "description": "Host directories to show in the sandbox. Must be under dmx's shares (/Users, /Volumes, /private by default). Strings \"HOST[:PATH][:rw]\" work too.",
+                    "items": ["anyOf": [["type": "string"], [
                         "type": "object",
                         "properties": [
                             "host": ["type": "string", "description": "Absolute host path."],
@@ -59,7 +59,7 @@ let sandboxTools: [MCPTool] = [
                         ],
                         "required": ["host"],
                         "additionalProperties": false,
-                    ],
+                    ]]],
                 ],
                 "cpus": ["type": "number", "exclusiveMinimum": 0, "maximum": 64],
                 "memory": ["type": "string", "description": "Memory limit, e.g. \"512M\", \"2G\"."],
@@ -91,6 +91,7 @@ let sandboxTools: [MCPTool] = [
         }
         if case .array(let items)? = args.values["mounts"] {
             policy.mounts = try items.map { item in
+                if let text = item.string { return try SandboxMount.parse(text) }
                 guard let host = item["host"]?.string, item.object?.keys.allSatisfy({ ["host", "path", "writable"].contains($0) }) == true else {
                     throw args.error("each mount is {\"host\": path, \"path\": path in the sandbox, \"writable\": bool}")
                 }

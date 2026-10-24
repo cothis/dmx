@@ -117,7 +117,8 @@ struct SandboxCommand: AsyncParsableCommand {
             do {
                 let (code, timedOut) = try await task.value
                 if timedOut { FileHandle.standardError.write(Data("dmx: timed out after \(timeout ?? 0) s; killed\n".utf8)) }
-                throw ExitCode(code ?? 137)
+                // Killed: 124 for the timeout, as timeout(1) does, 130 for Ctrl-C.
+                throw ExitCode(code ?? (timedOut ? 124 : 130))
             } catch let error as DMXError {
                 try await report(global) { () -> (Bool, String, Bool) in throw error }
             }
