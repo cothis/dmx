@@ -34,17 +34,17 @@ that every workload or application version works.
 | Python 3.14-slim | SQLite WAL, reopen/query, shared mmap and full flush | pass | pass | shared library mapping fails |
 | Node 24-alpine | JIT loop, WebAssembly, worker thread and file I/O | pass | pass | pass |
 | nginx stable-alpine | HTTP body on container loopback, restart and read again | pass | pass | pass |
-| Redis 8-alpine | SET/GET, BGSAVE and AOF persistence across restart | pass | fails without workaround below | fails |
+| Redis 8-alpine | SET/GET, BGSAVE and AOF persistence across restart | pass | pass with dmx's qemu-x86_64 (failed with upstream's layout, below) | fails |
 | PostgreSQL 18-alpine | initdb, 10,000-row SQL transaction, checkpoint and restart persistence | pass | pass | pass |
 | Temurin 21-jdk-jammy | javac, JIT, thread, shared mapping and partial force | pass | pass | partial msync returns EINVAL |
 
-The 16K kernel passed 15/18 combinations; the 4K control passed 17/18. The same Redis amd64
-workload passed separately with `QEMU_GUEST_BASE=0x800000000000`. That workaround run is
-reported separately and does not turn the default matrix into an 18/18 pass.
-The bounded raw reports include image and guest artifact hashes:
+The 16K kernel passed 15/18 combinations; the 4K control passed 17/18 with Alpine's
+qemu-x86_64. With dmx's qemu-x86_64 (the guest-base default below) the default matrix passes
+18/18. The bounded raw reports include image and guest artifact hashes:
 [16K baseline](measurements/2026-10-25-images-16k.json),
 [4K control](measurements/2026-10-25-images-4k-control.json),
-[Redis workaround](measurements/2026-10-25-redis-workaround.json).
+[Redis with the earlier explicit workaround](measurements/2026-10-25-redis-workaround.json),
+[18/18 with dmx's qemu-x86_64](measurements/2026-10-25-images-guest-base.json).
 
 ## Why 4K guest pages
 
@@ -85,32 +85,37 @@ idle VM shutdown or host pressure.
 
 [Before normal unplug tuning](measurements/2026-10-25-default-unplug-before.json) and
 [after](measurements/2026-10-25-default-unplug-after.json) keep the full measurements. The
-latest default image run still has exactly the Redis amd64 failure:
-[17/18 report](measurements/2026-10-25-images-4k-final.json). Its separately labeled
-[workaround run](measurements/2026-10-25-redis-workaround-final.json) also waits for BGSAVE to
-complete before checking persistence after restart.
+default image run with Alpine's qemu-x86_64 had exactly the Redis amd64 failure:
+[17/18 report](measurements/2026-10-25-images-4k-final.json); the separately labeled
+[workaround run](measurements/2026-10-25-redis-workaround-final.json) passed.
 
-## Remaining amd64 Redis address-layout issue
+## amd64 address layout: fixed in dmx's qemu-x86_64
 
-The pinned Redis amd64 image's `redis-cli` exits with SIGSEGV under the default QEMU layout.
-The trace shows a derived address in the `0xffffffff...` range after high `0x0000ffff...`
-mappings. Setting the guest base to `0x800000000000` makes initialization and the complete
-Redis persistence workload pass. This is consistent with an upstream
-[Nix allocator/QEMU address-layout report](https://github.com/NixOS/nix/issues/16184), but
-does not establish that Redis has the identical root cause.
+The pinned Redis amd64 image's `redis-server` and `redis-cli` used to die with SIGSEGV under
+QEMU's default layout. The cause is in QEMU 11.0.3's linux-user setup: for a 64-bit guest without
+`-R`, `guest_addr_max` is `~0`, so `mmap_find_vma` accepts any host address. The dmx guest kernel
+has a 48-bit address space, and when a hint is taken Linux searches top-down from just below
+2^48. x86_64 programs then get `0x0000ffff...` addresses, above x86-64's 47-bit user space.
+Redis's jemalloc sign-extends pointers from bit 47 (they become `0xffffffff...`) and faults; an
+upstream [Nix report](https://github.com/NixOS/nix/issues/16184) shows the same with mimalloc
+under Docker Desktop's QEMU.
 
-For the tested image, the explicit workaround is:
+dmx now builds its own qemu-x86_64 (`make qemu`, [build-qemu.py](../scripts/build-qemu.py)): the
+same pinned QEMU 11.0.3 source, Alpine's patches and Alpine's static linux-user configuration,
+plus one patch. On an aarch64 host, when neither `-B` nor `QEMU_GUEST_BASE` is given, the x86_64
+guest base is 2^47, so every host address below 2^48 is a guest address below 2^47. It is
+a default in the interpreter that binfmt_misc runs: no container environment, wrapper or
+per-image setting, and `docker run`, `docker exec`, fork/exec and chroots without qemu in their
+file system all get it. `QEMU_GUEST_BASE=0` restores upstream behavior for diagnosis.
 
-```sh
-docker run --platform linux/amd64 -e QEMU_GUEST_BASE=0x800000000000 redis:8-alpine
+Checks on the real VM, 2026-10-25:
 
-# Reproduce the exact pinned workload with the workaround (clearly labeled in its JSON):
-python3 -I scripts/test-images.py --image redis --platform linux/amd64 \
-  --qemu-guest-base 0x800000000000
-```
-
-Containers and their exec processes need the environment setting; for a manual `docker exec`,
-also pass `-e QEMU_GUEST_BASE=0x800000000000`. A plain multi-architecture `redis` pull on this
-Mac selects arm64, which passed without the setting. The default amd64 failure remains a
-pre-release compatibility item; changing the default QEMU layout still needs a general fix
-and tests for other allocators, not just an image-specific environment injection.
+- Redis amd64 passes its full workload without any setting; the image matrix is 18/18
+  ([report](measurements/2026-10-25-images-guest-base.json)).
+- Before the change, all nine amd64 images passed with `QEMU_GUEST_BASE=0x800000000000` set on
+  every `run` and `exec`, so the new default breaks none of glibc malloc (Debian, Ubuntu,
+  Python, Temurin), musl's mallocng (Alpine, Node, nginx, PostgreSQL), V8 or the JVM.
+- `make x86test` maps with a taken hint and a 1 GiB reservation and requires every address
+  below 2^47; the same probe with `QEMU_GUEST_BASE=0` must see a higher address, so it detects
+  the old layout. It also runs Python allocation work with Alpine's jemalloc and mimalloc
+  preloaded.

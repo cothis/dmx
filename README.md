@@ -55,6 +55,7 @@ guest target: `rustup target add aarch64-unknown-linux-musl` (it links with the 
 ```sh
 make build     # swift build + ad-hoc sign with the hypervisor entitlement
 make kernel    # build the trimmed 4K page guest kernel inside a dmx VM (once per kernel version)
+make qemu      # build the guest's qemu-x86_64 inside a dmx VM (under a minute, once per version)
 make guest     # fetch pinned Alpine Linux artifacts, build ~/.dmx/guest/{Image,initramfs.gz}
 make install   # copy dmx to ~/.local/bin (PREFIX=... to change)
 .build/release/dmx doctor

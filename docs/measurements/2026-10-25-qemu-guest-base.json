@@ -1,0 +1,342 @@
+{
+  "what": "qemu-x86_64: Alpine 11.0.3-r0 (sha256 2af82086...) vs dmx build with the 2^47 guest base (e5e7c40c...), same host, make x86test, then the image matrix, gates and benchmark after the change",
+  "x86test_before_alpine_qemu": [
+    {
+      "ok": false,
+      "idle_footprint_mb": 87,
+      "x86_sleep_mb": {
+        "Rss": 5,
+        "Anonymous": 1,
+        "AnonHugePages": 0
+      },
+      "true_ms": {
+        "x86_static": 2,
+        "x86_dynamic": 4,
+        "native": 0
+      },
+      "python3_startup_ms": 126,
+      "node_startup_ms": 403,
+      "sha256_100mb_ms": {
+        "native": 310,
+        "x86": 1040,
+        "slowdown": 3.4
+      },
+      "footprint_after_x86_mb": 221,
+      "footprint_after_cleanup_mb": 122,
+      "pages": {
+        "page_size": "4096",
+        "user_space_47bit": "False",
+        "map_shared_4k_offset": "True",
+        "map_fixed_shared_4k": "True",
+        "mincore_4k": "True",
+        "munmap_4k": "True",
+        "msync_16k": "True",
+        "msync_4k": "True",
+        "prot_none_16k": "True",
+        "prot_none_4k": "True",
+        "dontneed_16k": "True",
+        "dontneed_4k": "True"
+      }
+    },
+    {
+      "ok": false,
+      "idle_footprint_mb": 86,
+      "x86_sleep_mb": {
+        "Rss": 5,
+        "Anonymous": 1,
+        "AnonHugePages": 0
+      },
+      "true_ms": {
+        "x86_static": 2,
+        "x86_dynamic": 3,
+        "native": 0
+      },
+      "python3_startup_ms": 126,
+      "node_startup_ms": 420,
+      "sha256_100mb_ms": {
+        "native": 340,
+        "x86": 1050,
+        "slowdown": 3.1
+      },
+      "footprint_after_x86_mb": 216,
+      "footprint_after_cleanup_mb": 123,
+      "pages": {
+        "page_size": "4096",
+        "user_space_47bit": "False",
+        "map_shared_4k_offset": "True",
+        "map_fixed_shared_4k": "True",
+        "mincore_4k": "True",
+        "munmap_4k": "True",
+        "msync_16k": "True",
+        "msync_4k": "True",
+        "prot_none_16k": "True",
+        "prot_none_4k": "True",
+        "dontneed_16k": "True",
+        "dontneed_4k": "True"
+      }
+    }
+  ],
+  "x86test_after_dmx_qemu": [
+    {
+      "ok": true,
+      "idle_footprint_mb": 89,
+      "x86_sleep_mb": {
+        "Rss": 5,
+        "Anonymous": 1,
+        "AnonHugePages": 0
+      },
+      "true_ms": {
+        "x86_static": 2,
+        "x86_dynamic": 4,
+        "native": 0
+      },
+      "python3_startup_ms": 123,
+      "node_startup_ms": 400,
+      "sha256_100mb_ms": {
+        "native": 310,
+        "x86": 1020,
+        "slowdown": 3.3
+      },
+      "footprint_after_x86_mb": 215,
+      "footprint_after_cleanup_mb": 117,
+      "pages": {
+        "page_size": "4096",
+        "user_space_47bit": "True",
+        "map_shared_4k_offset": "True",
+        "map_fixed_shared_4k": "True",
+        "mincore_4k": "True",
+        "munmap_4k": "True",
+        "msync_16k": "True",
+        "msync_4k": "True",
+        "prot_none_16k": "True",
+        "prot_none_4k": "True",
+        "dontneed_16k": "True",
+        "dontneed_4k": "True"
+      }
+    },
+    {
+      "ok": true,
+      "idle_footprint_mb": 93,
+      "x86_sleep_mb": {
+        "Rss": 5,
+        "Anonymous": 1,
+        "AnonHugePages": 0
+      },
+      "true_ms": {
+        "x86_static": 2,
+        "x86_dynamic": 3,
+        "native": 0
+      },
+      "python3_startup_ms": 120,
+      "node_startup_ms": 396,
+      "sha256_100mb_ms": {
+        "native": 330,
+        "x86": 1020,
+        "slowdown": 3.1
+      },
+      "footprint_after_x86_mb": 223,
+      "footprint_after_cleanup_mb": 121,
+      "pages": {
+        "page_size": "4096",
+        "user_space_47bit": "True",
+        "map_shared_4k_offset": "True",
+        "map_fixed_shared_4k": "True",
+        "mincore_4k": "True",
+        "munmap_4k": "True",
+        "msync_16k": "True",
+        "msync_4k": "True",
+        "prot_none_16k": "True",
+        "prot_none_4k": "True",
+        "dontneed_16k": "True",
+        "dontneed_4k": "True"
+      }
+    }
+  ],
+  "x86test_with_allocator_checks": {
+    "ok": true,
+    "idle_footprint_mb": 88,
+    "chroot_unpack_s": 0.7,
+    "pages": {
+      "page_size": "4096",
+      "user_space_47bit": "True",
+      "map_shared_4k_offset": "True",
+      "map_fixed_shared_4k": "True",
+      "mincore_4k": "True",
+      "munmap_4k": "True",
+      "msync_16k": "True",
+      "msync_4k": "True",
+      "prot_none_16k": "True",
+      "prot_none_4k": "True",
+      "dontneed_16k": "True",
+      "dontneed_4k": "True"
+    },
+    "allocators_upstream_layout": {
+      "jemalloc": 139,
+      "mimalloc": 0
+    },
+    "x86_sleep_mb": {
+      "Rss": 5,
+      "Anonymous": 1,
+      "AnonHugePages": 0
+    },
+    "true_ms": {
+      "x86_static": 2,
+      "x86_dynamic": 3,
+      "native": 0
+    },
+    "python3_startup_ms": 123,
+    "node_startup_ms": 406,
+    "sha256_100mb_ms": {
+      "native": 300,
+      "x86": 1030,
+      "slowdown": 3.4
+    },
+    "footprint_after_x86_mb": 230,
+    "footprint_after_cleanup_mb": 129,
+    "checks_passed": 16,
+    "checks": 16
+  },
+  "gates": {
+    "selftest": {
+      "ok": true,
+      "passed": 21,
+      "checks": 21
+    },
+    "daemontest": {
+      "ok": true,
+      "passed": 41,
+      "checks": 41
+    },
+    "dockertest": {
+      "ok": true,
+      "passed": 57,
+      "checks": 57
+    },
+    "mcptest": {
+      "ok": true,
+      "passed": 30,
+      "checks": 30
+    },
+    "sandboxtest": {
+      "ok": true,
+      "passed": 41,
+      "checks": 41
+    }
+  },
+  "selftest": {
+    "host": {
+      "footprint_mb": 92,
+      "peak_footprint_mb": 92,
+      "pid": 38633
+    },
+    "reclaim": {
+      "after_free_mb": 1119,
+      "after_reclaim_mb": 98,
+      "idle_mb": 92,
+      "reported_mb": 2749,
+      "reports": 26,
+      "returned_ms": 634
+    },
+    "boot_ms": 568,
+    "cpus": 10,
+    "max_memory": "8.0G"
+  },
+  "benchmark": {
+    "benchmark-4g": {
+      "ok": true,
+      "settings": {
+        "cpus": 2,
+        "ceiling_mb": 4096,
+        "container_cpus": 2,
+        "shares": "none"
+      },
+      "host_load_start": [
+        3.7958984375,
+        5.8759765625,
+        4.64453125
+      ],
+      "before_docker_mb": 73.39,
+      "idle_mb": 292.25,
+      "holding_2g_mb": 2367.92,
+      "return_after_2g": {
+        "baseline_mb": 269.52,
+        "after_mb": 311.05,
+        "elapsed_s": 1.68
+      },
+      "run_true_median_ms": 104.78,
+      "sha256_256m_ms": 894
+    },
+    "benchmark-4g-2": {
+      "ok": true,
+      "settings": {
+        "cpus": 2,
+        "ceiling_mb": 4096,
+        "container_cpus": 2,
+        "shares": "none"
+      },
+      "host_load_start": [
+        4.0869140625,
+        5.54296875,
+        4.72607421875
+      ],
+      "before_docker_mb": 79.31,
+      "idle_mb": 180.05,
+      "holding_2g_mb": 2373.1,
+      "return_after_2g": {
+        "baseline_mb": 273.05,
+        "after_mb": 336.99,
+        "elapsed_s": 6.49
+      },
+      "run_true_median_ms": 159.05,
+      "sha256_256m_ms": 1346
+    },
+    "benchmark-4g-3": {
+      "ok": true,
+      "settings": {
+        "cpus": 2,
+        "ceiling_mb": 4096,
+        "container_cpus": 2,
+        "shares": "none"
+      },
+      "host_load_start": [
+        4.3154296875,
+        5.3232421875,
+        4.69677734375
+      ],
+      "before_docker_mb": 79.06,
+      "idle_mb": 198.33,
+      "holding_2g_mb": 2367.38,
+      "return_after_2g": {
+        "baseline_mb": 273.14,
+        "after_mb": 336.06,
+        "elapsed_s": 1.61
+      },
+      "run_true_median_ms": 113.84,
+      "sha256_256m_ms": 934
+    },
+    "benchmark-8g": {
+      "ok": true,
+      "settings": {
+        "cpus": 10,
+        "ceiling_mb": 8192,
+        "container_cpus": 2,
+        "shares": "none"
+      },
+      "host_load_start": [
+        4.3056640625,
+        5.6923828125,
+        4.65234375
+      ],
+      "before_docker_mb": 92.06,
+      "idle_mb": 200.08,
+      "holding_2g_mb": 2424.8,
+      "return_after_2g": {
+        "baseline_mb": 294.81,
+        "after_mb": 235.55,
+        "elapsed_s": 6.63
+      },
+      "run_true_median_ms": 119.71,
+      "sha256_256m_ms": 926
+    }
+  }
+}

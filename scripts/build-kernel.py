@@ -219,30 +219,34 @@ def fetch(url: str, sha256: str) -> Path:
 
 
 def apk_url(filename: str) -> str:
-    return f"{guest.ALPINE}/main/aarch64/{filename}"
+    """A pin is "<file>.apk" from main or "<repo>/<file>.apk"."""
+    repo, _, name = filename.rpartition("/")
+    return f"{guest.ALPINE}/{repo or 'main'}/aarch64/{name}"
 
 
-def lock():
-    """Resolve TOOLCHAIN_ROOTS against the current APKINDEX and print pins."""
-    with urllib.request.urlopen(apk_url("APKINDEX.tar.gz")) as r:
-        index = tarfile.open(fileobj=io.BytesIO(r.read()), mode="r:gz").extractfile("APKINDEX").read().decode()
+def lock(roots=TOOLCHAIN_ROOTS, var="TOOLCHAIN"):
+    """Resolve roots against the current main and community APKINDEX and print pins."""
     pkgs, provides = {}, {}
-    for record in index.split("\n\n"):
-        fields = {}
-        for line in record.splitlines():
-            key, _, value = line.partition(":")
-            fields.setdefault(key, value)
-        if "P" not in fields:
-            continue
-        pkgs[fields["P"]] = fields
-        for p in fields.get("p", "").split():
-            provides.setdefault(re.split(r"[<>=~]", p)[0], fields["P"])
+    for repo in ("main", "community"):
+        with urllib.request.urlopen(apk_url(f"{repo}/APKINDEX.tar.gz")) as r:
+            index = tarfile.open(fileobj=io.BytesIO(r.read()), mode="r:gz").extractfile("APKINDEX").read().decode()
+        for record in index.split("\n\n"):
+            fields = {}
+            for line in record.splitlines():
+                key, _, value = line.partition(":")
+                fields.setdefault(key, value)
+            if "P" not in fields or fields["P"] in pkgs:
+                continue
+            fields["repo"] = repo
+            pkgs[fields["P"]] = fields
+            for p in fields.get("p", "").split():
+                provides.setdefault(re.split(r"[<>=~]", p)[0], fields["P"])
 
     with tarfile.open(guest.fetch("minirootfs", CACHE), "r:gz") as tar:
         db = tar.extractfile("./lib/apk/db/installed").read().decode()
     installed = dict(re.findall(r"^P:(.+)\nV:(.+)$", db, re.M))
 
-    want, todo = {}, list(TOOLCHAIN_ROOTS)
+    want, todo = {}, list(roots)
     while todo:
         dep = todo.pop()
         if dep.startswith("!"):
@@ -256,13 +260,14 @@ def lock():
         want[name] = pkgs[name]
         todo.extend(pkgs[name].get("D", "").split())
 
-    print("TOOLCHAIN = {")
-    for name in sorted(want):
-        filename = f"{name}-{want[name]['V']}.apk"
-        with urllib.request.urlopen(apk_url(filename)) as r:
+    print(f"{var} = {{")
+    for pkg in sorted(want):
+        filename = f"{pkg}-{want[pkg]['V']}.apk"
+        pin = filename if want[pkg]["repo"] == "main" else f"community/{filename}"
+        with urllib.request.urlopen(apk_url(pin)) as r:
             data = r.read()
         (CACHE / filename).write_bytes(data)
-        print(f'    "{filename}": "{hashlib.sha256(data).hexdigest()}",')
+        print(f'    "{pin}": "{hashlib.sha256(data).hexdigest()}",')
     print("}")
 
 

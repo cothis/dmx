@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build install kernel guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest benchmark test release clean
+.PHONY: build install kernel qemu guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest benchmark test release clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -19,6 +19,11 @@ install: build
 # Builds the trimmed 4K page guest kernel inside a dmx VM (several minutes). `make guest` needs it.
 kernel: build
 	python3 -I scripts/build-kernel.py
+
+# Builds qemu-x86_64 (pinned QEMU source, Alpine's patches, a guest-base fix) inside a dmx VM.
+# `make guest` needs it.
+qemu: build
+	python3 -I scripts/build-qemu.py
 
 guest:
 	python3 -I scripts/build-guest.py

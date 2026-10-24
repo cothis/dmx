@@ -84,7 +84,10 @@ docker CLI ──▶ ~/.dmx/docker.sock ──▶ dmx daemon ──vsock──�
   virtio-fs device for one read. The netfilter, bridge and network driver modules Docker loads
   (236 with af_packet, 1.5 MB) come in the same tar, with the kernel's module index; the initramfs gained only the
   3 KB start script (`/sbin/dmx-docker`, from `guest/docker`).
-- **qemu-x86_64** (`docker run --platform linux/amd64`, and x86 programs in `dmx exec`) comes xz'd
+- **qemu-x86_64** (`docker run --platform linux/amd64`, and x86 programs in `dmx exec`) is built by
+  `make qemu` from pinned QEMU 11.0.3 source like Alpine's static build, with one dmx patch: the
+  x86_64 guest base defaults to 2^47 so programs never see addresses above x86-64's 47-bit user
+  space ([compatibility.md](compatibility.md#amd64-address-layout-fixed-in-dmxs-qemu-x86_64)). It comes xz'd
   (1 MB) after the tar in docker.img; the header gives its sha256, offset and length. `/init`
   unpacks it onto the data disk (`/var/lib/dmx/qemu`) when the copy there is another version and
   registers it with binfmt_misc at every boot, before anything runs, so x86 support does not wait
@@ -238,8 +241,8 @@ and the DNS answers.
 
 `make imagetest` runs nine digest-pinned official images on arm64 and amd64, with actual SQL,
 HTTP, JIT, mmap and persistence workloads. The 4K guest resolves the previous Python loader
-and Java partial-msync failures. All native rows pass; the default amd64 Redis row remains a
-failure with a separately verified QEMU environment workaround. See [compatibility.md](compatibility.md)
+and Java partial-msync failures; dmx's qemu-x86_64 keeps x86_64 addresses below 2^47, which
+fixed the amd64 Redis (jemalloc) crash. All 18 rows pass. See [compatibility.md](compatibility.md)
 for exact inputs and the full matrix, and [benchmark.md](benchmark.md) for the measurement protocol.
 
 ## Measurements (2026-10-24, 8G, 10 vCPU, host load 25 to 50 from other agents' VMs)

@@ -300,7 +300,8 @@ def main():
     parser.add_argument("--pin", action="store_true", help="resolve metadata and update pins; runs no images")
     parser.add_argument("--image", choices=IMAGES, action="append")
     parser.add_argument("--platform", choices=PLATFORMS, action="append")
-    parser.add_argument("--qemu-guest-base", help="diagnose a QEMU address-layout workaround; never used in a default run")
+    parser.add_argument("--qemu-guest-base", help="set QEMU_GUEST_BASE in amd64 run/exec for diagnosis (0 restores upstream "
+                        "QEMU's layout); never used in a default run")
     parser.add_argument("--state-dir", type=Path, help="keep isolated state/layers for reruns; use a short path under /tmp")
     args = parser.parse_args()
     if args.pin:

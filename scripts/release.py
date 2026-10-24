@@ -37,6 +37,9 @@ _spec.loader.exec_module(guest)
 _spec = importlib.util.spec_from_file_location("build_kernel", ROOT / "scripts" / "build-kernel.py")
 kernel_build = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(kernel_build)
+_spec = importlib.util.spec_from_file_location("build_qemu", ROOT / "scripts" / "build-qemu.py")
+qemu_build = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(qemu_build)
 
 REPO = "https://github.com/cothis/dmx"
 PIN_FILE = ROOT / "Sources" / "DMXCore" / "GuestPin.swift"
@@ -54,6 +57,7 @@ LICENSE_TEXTS = {
     "BSD-3-Clause": "5a93d5831e1297ab10fe643e1a631e83be392896da14ee2951285a79012df69d",
     "GPL-2.0-only": "aaf135472f81c5b4a0dca9367e5bb5e9750032b5bebe5442b36e4c0a47430df3",
     "GPL-2.0-or-later": "aaf135472f81c5b4a0dca9367e5bb5e9750032b5bebe5442b36e4c0a47430df3",
+    "GPL-3.0-or-later": "fb981668c18a279e285fc4d83fba1e836cc84dd4daa73c9697d3cfd2d8aca6e0",
     "LGPL-2.0-or-later": "86dc99d7e5060915ab1dfc1378b7dd351c62088bfa74067e8aa1868c6fdba7d8",
     "LGPL-2.1-only": "5749785c8bdefafcb5d798270ed0a967036fe2ca63dcedade1627565dfef81d2",
     "LGPL-2.1-or-later": "5749785c8bdefafcb5d798270ed0a967036fe2ca63dcedade1627565dfef81d2",
@@ -105,7 +109,7 @@ def inventory(cache: Path, kernel_tar: Path) -> list:
             fields.setdefault(key, value)
         if "P" in fields and fields["P"] not in guest.DROP_PACKAGES:
             alpine(fields["P"], fields["V"], fields["L"], fields["o"], fields["c"], fields.get("U", ""), "main")
-    # Packages build-guest.py takes files from (mke2fs, qemu-x86_64, Docker). The Alpine kernel
+    # Packages build-guest.py takes files from (mke2fs, Docker). The Alpine kernel
     # only boots the VM that builds the dmx kernel; it is not shipped.
     for name, src in guest.SOURCES.items():
         if name in ("minirootfs", "kernel"):
@@ -121,6 +125,20 @@ def inventory(cache: Path, kernel_tar: Path) -> list:
                  f"config is kernel-{guest.DMX_KERNEL_RELEASE}.config in this release",
         "from": "dmx",
     })
+    items.append({
+        "name": "qemu-x86_64", "version": guest.DMX_QEMU.removeprefix("qemu-x86_64-"), "license": "GPL-2.0-only AND LGPL-2.1-only",
+        "upstream": "https://qemu.org/", "source": qemu_build.SOURCE["url"], "source_sha256": qemu_build.SOURCE["sha256"],
+        "notes": f"qemu.org source with Alpine's patches (aports {qemu_build.APORTS_COMMIT}, community/qemu) and the guest-base "
+                 f"patch, built as in {guest.DMX_QEMU}.build.py ({REPO})",
+        "from": "dmx",
+    })
+    # Libraries linked into the static qemu-x86_64, from the toolchain packages it was built with.
+    for pin in qemu_build.TOOLCHAIN:
+        info = apk_info(kernel_build.fetch(kernel_build.apk_url(pin), qemu_build.TOOLCHAIN[pin]))
+        if info["pkgname"] in qemu_build.STATIC_LINKED:
+            repo = pin.rpartition("/")[0] or "main"
+            alpine(f"{info['pkgname']} (in qemu-x86_64)", info["pkgver"], info["license"], info["origin"], info["commit"],
+                   info.get("url", ""), repo)
     items.append({"name": "dmx-agent, /init, dmx-docker", "version": "this release", "license": "Apache-2.0",
                   "upstream": REPO, "source": f"{REPO} (guest/)", "from": "dmx"})
     for crate in agent_crates():
@@ -275,6 +293,8 @@ def main():
         f"is the aports directory at the listed commit plus the upstream files it names (mirrored at "
         f"{ALPINE_DISTFILES}). The kernel uses kernel.org source with the free-page-reporting "
         f"budget patch in kernel-{guest.DMX_KERNEL_RELEASE}.build.py and the config in this release. "
+        f"qemu-x86_64 is qemu.org source with Alpine's patches and a guest-base patch, built by "
+        f"{guest.DMX_QEMU}.build.py, which pins every input. "
         f"Source is also available on request for three years: see NOTES.md of the release.",
         items)
 
@@ -314,6 +334,7 @@ def main():
     with tarfile.open(kernel_tar) as tar:
         (out / f"kernel-{guest.DMX_KERNEL_RELEASE}.config").write_bytes(tar.extractfile("boot/config").read())
     (out / f"kernel-{guest.DMX_KERNEL_RELEASE}.build.py").write_bytes((ROOT / "scripts/build-kernel.py").read_bytes())
+    (out / f"{guest.DMX_QEMU}.build.py").write_bytes((ROOT / "scripts/build-qemu.py").read_bytes())
     (out / "third-party.json").write_text(json.dumps({"guest": items, "dmx": swift}, indent=2) + "\n")
     (out / "NOTES.md").write_text(release_notes(args.version, archive_name, binary_name, items))
     assets = sorted(p for p in out.iterdir() if p.is_file() and p.name != "SHA256SUMS" and not p.name.endswith(".sha256"))
@@ -348,6 +369,7 @@ into dmx; `dmx guest fetch` does it ahead of time.
 - `install.sh`: installs dmx into ~/.local/bin after checking the tarball's sha256
 - `kernel-{guest.DMX_KERNEL_RELEASE}.config`: the configuration the guest kernel was built with
 - `kernel-{guest.DMX_KERNEL_RELEASE}.build.py`: pinned inputs and the exact kernel source patch
+- `{guest.DMX_QEMU}.build.py`: pinned inputs, patches and configure line of qemu-x86_64
 - `third-party.json`: every package in the guest and the binary, with license and source
 - `SHA256SUMS`, `*.sha256`: checksums
 
@@ -357,7 +379,8 @@ dmx is Apache-2.0; its source is this tag. The guest contains programs under the
 among them {", ".join(gpl)}. The Alpine Linux 3.24 packages are unmodified
 (corresponding source: the Alpine aports directory at the commit listed in THIRD_PARTY.md and the
 upstream files it names). The kernel uses kernel.org Linux source with the reporting-budget
-patch in the build script and the config above.
+patch in the build script and the config above. qemu-x86_64 uses qemu.org source with Alpine's
+patches and the guest-base patch in its build script above.
 For three years from this release, the maintainer provides the complete corresponding source of
 these programs on request (open an issue at {REPO}/issues), for no more than the cost of
 distribution.

@@ -3,7 +3,8 @@
 
 Real Alpine 3.24 x86_64 programs, pinned by sha256: a static busybox, the dynamically linked
 busybox of the x86_64 minirootfs with its musl loader (in a chroot, as in a container, so qemu
-is not in its file system), python3 and node (V8, a JIT) installed into that chroot. Also times
+is not in its file system), python3 and node (V8, a JIT) installed into that chroot, python3 with
+jemalloc and mimalloc preloaded, and addresses below x86-64's 47-bit user space. Also times
 an x86 `true` and a 100 MB sha256sum against the native ones. Runs a daemon in a throwaway
 DMX_HOME using $DMX_HOME/guest (default ~/.dmx/guest); downloads land in $DMX_HOME/cache/x86_64.
 Prints one JSON object and exits non-zero if any check failed.
@@ -71,9 +72,16 @@ PACKAGES = {
     "sqlite-libs-3.53.4-r0.apk": "a8a216e53d22faa3f04d2e3650c1991af66f8d0b42fadff5afcdb9afb60b19e5",
     "xz-libs-5.8.4-r0.apk": "ab362dd515ead04c31a6c302163248da7aa4813e283c971e6dd3f789b453a1d9",
     "zstd-libs-1.5.7-r2.apk": "23c6065b0049b2406441564bcf0032515a43f78e80d76fcb85535a3803ef5d4e",
+    # Allocators reported to crash under upstream QEMU's layout (Redis: jemalloc; Nix: mimalloc).
+    "jemalloc-5.3.0-r6.apk": "e070f30274a4048dabeffc7bd038df7467e18ff7ada2d1ff75f0da7158739e33",
+    "community/mimalloc2-2.2.7-r0.apk": "78ead288ec6c0056ea973da9b74faa86b77c3d3dd62e93e1ac44e120249eb960",
 }
 for _file, _sha in PACKAGES.items():
-    guest.SOURCES[_file] = {"url": f"{X86}/{_file}", "sha256": _sha}
+    _repo, _, _name = _file.rpartition("/")
+    guest.SOURCES[_file] = {"url": f"{guest.ALPINE}/{_repo or 'main'}/x86_64/{_name}", "sha256": _sha}
+ALLOCATORS = {"jemalloc": "/usr/lib/libjemalloc.so.2", "mimalloc": "/usr/lib/libmimalloc.so.2"}
+# Small, large (mmap'd) and freed blocks, then a check of what is left.
+ALLOC_WORK = "x = [bytes([i % 251]) * (i * 4099 % 3000000) for i in range(400)]; del x[::2]; print(sum(len(b) for b in x) > 0)"
 
 # In the guest, on the data disk (a chroot in tmpfs would hold ~100 MB of guest RAM).
 DIR = "/var/lib/x86-test"
@@ -157,7 +165,11 @@ u = c.mmap(None, 32768, 3, 0x22, -1, 0)
 ctypes.memset(u, 1, 32768)
 unmapped = c.munmap(u + 4096, 4096) == 0 and faults(u + 4096)
 vec = (ctypes.c_ubyte * 1)()
+# A hint at a taken address makes Linux search top-down, near the top of the host's 48-bit space.
+taken = c.mmap(p, 4096, 3, 0x22, -1, 0)
+big = c.mmap(None, 1 << 30, 0, 0x4022, -1, 0)
 print("page_size=%d" % mmap.PAGESIZE,
+      "user_space_47bit=%s" % all(a and a + 4096 <= 1 << 47 for a in (s, p, u, taken, big)),
       "map_shared_4k_offset=%s" % (os.pread(fd, 2, 4096) == b"ok"),
       "map_fixed_shared_4k=%s" % (fixed == s + 4096),
       "mincore_4k=%s" % (c.mincore(s + 4096, 4096, vec) == 0),
@@ -229,8 +241,20 @@ try:
     probe = dict(f.split("=") for f in r.stdout.decode().split() if "=" in f)
     results["pages"] = probe
     check("pages_4k", r.returncode == 0 and probe.get("page_size") == "4096" and
-          all(probe.get(k) == "True" for k in ["map_shared_4k_offset", "map_fixed_shared_4k", "mincore_4k", "munmap_4k", "msync_16k", "msync_4k",
+          all(probe.get(k) == "True" for k in ["user_space_47bit", "map_shared_4k_offset", "map_fixed_shared_4k", "mincore_4k", "munmap_4k", "msync_16k", "msync_4k",
                                                 "prot_none_16k", "prot_none_4k", "dontneed_16k", "dontneed_4k"]), out(r))
+
+    for name, lib in ALLOCATORS.items():
+        r = sh(f"ulimit -c 0; {run} env LD_PRELOAD={lib} python3 -c '{ALLOC_WORK}'")
+        check(f"allocator_{name}", r.returncode == 0 and r.stdout == b"True\n", out(r))
+
+    # The control: without dmx's default guest base, qemu hands out addresses above x86-64's
+    # 47-bit user space, which crashed Redis's jemalloc. Shows the probe above can tell.
+    r = sh(f"ulimit -c 0; {run} env QEMU_GUEST_BASE=0 python3 /tmp/probe.py")
+    check("user_space_47bit_control", "user_space_47bit=False" in r.stdout.decode(), out(r))
+    results["allocators_upstream_layout"] = {
+        name: sh(f"ulimit -c 0; {run} env QEMU_GUEST_BASE=0 LD_PRELOAD={lib} python3 -c '{ALLOC_WORK}'").returncode
+        for name, lib in ALLOCATORS.items()}
 
     # Each x86 process is qemu: its own translated code and copies of file pages it could not
     # map, on top of the program. qemu madvises its 128 MB code buffer for huge pages, which

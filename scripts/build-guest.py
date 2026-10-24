@@ -55,16 +55,11 @@ MKFS_FILES = {
 }
 MKFS_DIR = "usr/libexec/dmx-mkfs"
 
-# x86_64 programs run through QEMU user mode, which /init registers with binfmt_misc. Alpine's
-# qemu-x86_64 is a static PIE, so it needs no libraries. Signature checked against the Alpine keys
-# in the minirootfs when pinned. It comes xz'd (1.0 MB; 3.6 MB unpacked) at the end of docker.img,
-# not in the initramfs, where it cost ~2 MB of idle footprint (freed boot pages that free page
-# reporting misses). /init unpacks it from there onto the data disk when the copy there is
-# missing or another version, so qemu costs guest RAM only while an x86 program runs.
-SOURCES["qemu-x86_64"] = {
-    "url": f"{ALPINE}/community/aarch64/qemu-x86_64-11.0.3-r0.apk",
-    "sha256": "3ccc698b81da078425115d531c23d328e9dd1c094fb1ac4dc9417d1687f4363f",
-}
+# x86_64 programs run through QEMU user mode, which /init registers with binfmt_misc. DMX_QEMU is
+# a static PIE, so it needs no libraries. It comes xz'd (~1 MB; 3.6 MB unpacked) at the end of
+# docker.img, not in the initramfs, where it cost ~2 MB of idle footprint (freed boot pages that
+# free page reporting misses). /init unpacks it from there onto the data disk when the copy there
+# is missing or another version, so qemu costs guest RAM only while an x86 program runs.
 
 # Docker in the guest (docs/docker.md): dockerd, containerd, runc and what they run. Not in the
 # initramfs (~150 MB would sit in guest RAM): they go into docker.img, a read-only disk that
@@ -102,6 +97,8 @@ KERNEL_RELEASE = "6.18.58-0-virt"
 # The kernel the guest runs: trimmed 4K config and reporting patch, from scripts/build-kernel.py.
 # The Alpine kernel above is used only to boot the VM that builds it (`--kernel alpine`).
 DMX_KERNEL_RELEASE = "6.18.58-dmx-4k"
+# qemu-x86_64 for x86_64 containers, from scripts/build-qemu.py (`make qemu`).
+DMX_QEMU = "qemu-x86_64-11.0.3-dmx1"
 
 # Modules the guest may load. Dependencies are added from modules.dep; the ones the kernel has
 # built in are skipped.
@@ -274,12 +271,18 @@ def add_mkfs(cpio: Cpio, cache: Path):
         cpio.file(f"{MKFS_DIR}/{Path(path).name}", data, perm)
 
 
+def qemu_binary(cache: Path) -> bytes:
+    path = cache / DMX_QEMU
+    if not path.exists():
+        sys.exit(f"{path} not found; run `make qemu` to build it")
+    return path.read_bytes()
+
+
 def qemu_xz(cache: Path) -> tuple:
-    """qemu-x86_64 from its pinned apk, xz'd, and the binary's sha256, which /init compares with
-    the copy on the data disk. A 1 MB dictionary (instead of preset 9's 64 MB) keeps what busybox
-    unxz allocates small and costs 1 KB more."""
-    with tarfile.open(fetch("qemu-x86_64", cache), "r:gz", ignore_zeros=True) as tar:
-        binary = tar.extractfile("usr/bin/qemu-x86_64").read()
+    """DMX_QEMU, xz'd, and the binary's sha256, which /init compares with the copy on the data
+    disk. A 1 MB dictionary (instead of preset 9's 64 MB) keeps what busybox unxz allocates small
+    and costs 1 KB more."""
+    binary = qemu_binary(cache)
     packed = lzma.compress(binary, format=lzma.FORMAT_XZ, check=lzma.CHECK_CRC32,
                            filters=[{"id": lzma.FILTER_LZMA2, "preset": 9 | lzma.PRESET_EXTREME, "dict_size": 1 << 20}])
     return packed, hashlib.sha256(binary).hexdigest()
@@ -291,7 +294,7 @@ def docker_image(cache: Path, out: Path, open_kernel, kernel_sha: str, moddir: s
     and lib/modules/<release>/ (DOCKER_MODULES and MODULES, with the kernel's module index).
     qemu-x86_64.xz follows it, for /init."""
     key = hashlib.sha256(json.dumps([sorted(v[2] for v in DOCKER_PACKAGES.values()), sorted(modules), kernel_sha,
-                                     SOURCES["qemu-x86_64"]["sha256"],
+                                     hashlib.sha256(qemu_binary(cache)).hexdigest(),
                                      hashlib.sha256(Path(__file__).read_bytes()).hexdigest()]).encode()).hexdigest()
     path = out / "docker.img"
     if path.exists():

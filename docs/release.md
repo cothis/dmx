@@ -36,7 +36,7 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
 
 ## Cutting a release
 
-1. Build the guest from a clean checkout: `make kernel` if the kernel changed, then `make guest`.
+1. Build the guest from a clean checkout: `make kernel` and `make qemu` if they changed, then `make guest`.
 2. Set `version` in `Sources/dmx/DMX.swift` (the tag is `v<version>`).
 3. Run the local checks. There is no CI: these need the real VM, which hosted runners cannot
    provide (no nested virtualization).
@@ -75,6 +75,7 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
 | `install.sh` | `scripts/install.sh` with the version and the tarball's sha256 written in |
 | `kernel-<release>.config` | the exact config of the guest kernel |
 | `kernel-<release>.build.py` | the build recipe, pinned inputs and exact reporting-budget source patch |
+| `qemu-x86_64-<version>.build.py` | qemu-x86_64's recipe: pinned source, Alpine patches, guest-base patch, configure line |
 | `third-party.json` | every package in the guest and the binary: version, license, upstream, source |
 | `NOTES.md` | release text: install line, assets, source offer |
 | `SHA256SUMS` | all of the above |
@@ -94,16 +95,22 @@ still carries obligations. What `release.py` does for them:
   proc-macro crates). In `THIRD_PARTY.md` (inside the guest archive, so it lands in
   `~/.dmx/guest`) and `third-party.json`. Today that is 25 Alpine packages under GPL-2.0,
   LGPL-2.0/2.1, MIT, BSD, Apache-2.0 and MPL-2.0 (busybox, musl, e2fsprogs, util-linux libraries,
-  qemu-x86_64, iptables, libnftnl, libmnl, libseccomp, docker, containerd, runc, tini, CA bundle...).
+  iptables, libnftnl, libmnl, libseccomp, docker, containerd, runc, tini, CA bundle...), dmx's
+  qemu-x86_64 and the Alpine static libraries linked into it (`STATIC_LINKED` in build-qemu.py).
 - **License texts.** One per SPDX id in the inventory, from SPDX's license list at a fixed commit,
   each pinned by sha256, in `LICENSES/`. A new id stops the release until its text is pinned.
 - **Source.** GPL-2.0 section 3 requires, with the binaries, either the complete corresponding
   source (3a) or a written offer valid for three years to provide it (3b); LGPL-2.1 section 6 is
-  similar. The source of every GPL/LGPL program in the guest is public; dmx's kernel change is recorded below:
+  similar. The source of every GPL/LGPL program in the guest is public; dmx's kernel and QEMU changes are recorded below:
   - Alpine packages: the aports directory at the commit in `THIRD_PARTY.md` (APKBUILD, patches,
     configs) plus the upstream tarballs it names, which Alpine mirrors at
-    `https://distfiles.alpinelinux.org/distfiles/v3.24/`. qemu-x86_64 is QEMU 11.0.3 with aports
-    `51049924607603c9d9b7132c187a7f31085d7a12`.
+    `https://distfiles.alpinelinux.org/distfiles/v3.24/`.
+  - qemu-x86_64: `qemu-11.0.3.tar.xz` from qemu.org with Alpine's patches from aports
+    `51049924607603c9d9b7132c187a7f31085d7a12` (`community/qemu`), all pinned by sha256 in
+    `scripts/build-qemu.py`, which also holds the guest-base patch and the configure line and is
+    shipped as `qemu-x86_64-<version>.build.py`. As with the kernel, the modified source must be
+    included when delivering its corresponding source; the static glib, libintl, pcre2, musl and
+    GCC runtime libraries in it are the Alpine packages listed in `THIRD_PARTY.md`.
   - The kernel: `linux-<version>.tar.xz` from kernel.org (sha256 in `scripts/build-kernel.py`),
     with `kernel-<release>.config` and `scripts/build-kernel.py`. The build script contains the
     exact `mm/page_reporting.c` free-list budget patch and refuses a source that does not match;
