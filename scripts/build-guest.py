@@ -99,9 +99,9 @@ DOCKER_MODULES = ["veth", "bridge", "br_netfilter", "macvlan", "ipvlan", "vxlan"
 DOCKER_IMAGE_MAGIC = b"dmx-docker 2\n"
 
 KERNEL_RELEASE = "6.18.58-0-virt"
-# The kernel the guest runs: Alpine's source and config with 16K pages, from scripts/build-kernel.py.
+# The kernel the guest runs: trimmed 4K config and reporting patch, from scripts/build-kernel.py.
 # The Alpine kernel above is used only to boot the VM that builds it (`--kernel alpine`).
-DMX_KERNEL_RELEASE = "6.18.58-dmx"
+DMX_KERNEL_RELEASE = "6.18.58-dmx-4k"
 
 # Modules the guest may load. Dependencies are added from modules.dep; the ones the kernel has
 # built in are skipped.

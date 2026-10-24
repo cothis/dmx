@@ -57,7 +57,8 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | No GitHub CI, no Homebrew dependency (2026-10-24) | Maintainer's choice: GitHub is only for distribution (source and releases). Checks run locally before a release (`make build`, `swift test`, selftest, daemontest, dockertest). dmx ships its own pinned Docker CLI tools instead of relying on Homebrew. |
 | dmx ships the docker CLI, Compose, Buildx and the keychain credential helper (2026-10-24) | Docker Desktop does, and users should not need Homebrew. Pinned upstream darwin-arm64 builds (the static CLI is trust-on-first-download: Docker publishes no checksum for it). Plugins through `cliPluginsExtraDirs`; no shell rc files edited. All Apache-2.0. |
 | Sandboxes are containers in the one VM (2026-10-24) | No state of dmx's own to clean up (labels), egress rules inside each sandbox's namespace cover every protocol. Isolation is Docker's: a guest kernel exploit reaches the whole guest and its shares; per-sandbox VMs are a possible later step for hostile code. |
-| Guest memory beyond 1 GB is hotplugged with virtio-mem (2026-10-24) | The memmap (struct page) costs ~4.7 MB of footprint per GB of ceiling whether used or not. Plugging on demand makes the ceiling free until used. Under host pressure, unplug spare RAM first; the balloon squeezes boot RAM and blocks that cannot be removed. |
+| Guest memory beyond 1 GB is hotplugged with virtio-mem (2026-10-24) | The memmap (struct page) costs ~16 MB/GB with 4K pages (about 4.7 MB/GB with the earlier 16K kernel) even for unused RAM known to Linux. Plugging on demand makes the ceiling free until used. Under host pressure, unplug spare RAM first; the balloon squeezes boot RAM and blocks that cannot be removed. |
+| 4K Linux pages for x86 compatibility (2026-10-25) | The image matrix exposed Python shared-library mapping and Java partial msync failures on the previous 16K kernel. A 4K control resolved them for the same image digests and QEMU. At 2 CPUs/4G, idle rose from 64–66 to 77–78 MB; virtio-mem limits the memmap cost to present RAM. Default kernel is now 6.18.58-dmx-4k. A bounded whole-free-list reporting pass replaces the upstream 1/16 budget, which took 8–10 s to return 1 GB on 4K; reporting remains idle when no pages are freed. Redis amd64 still has a separate QEMU address-layout issue (compatibility.md). |
 | CLI only, no GUI | The work that matters is invisible (memory, sockets). Agents use CLIs. |
 | Kernel hardening over a few MB (2026-10-24) | Maintainer's choice: `rodata=noalias` would save 4 MB at 8G (page tables of a page-by-page linear map) but leaves the linear alias of kernel text writable, so the default stays `rodata=full`. |
 | Memory savings are always on | Balloon, idle stop and cache trimming are defaults, not options. The user's standing preference: improvements are not toggles. |
@@ -153,8 +154,9 @@ This is the core feature. Measure before and after every change and log numbers 
          is now a default kernel arg (8G: 356 → 291 MB). What scales now is the memmap,
          16 MB/GB (128 MB at 8 GB). `init_on_alloc=0` and `rodata=on` change nothing at idle;
          no page poisoning, KASAN or page_owner in the Alpine config.
-      2. [x] A 16K page kernel: `make kernel` (`scripts/build-kernel.py`) builds kernel.org
-         6.18.58 with Alpine's virt config, 16K pages, 48-bit VA, no debug info/BTF/module
+      2. [x] A custom kernel: initially 16K pages; now 4K for image compatibility (2026-10-25 decision).
+         `make kernel` (`scripts/build-kernel.py`) builds kernel.org
+         6.18.58 with Alpine's trimmed virt config, 48-bit VA, no debug info/BTF/module
          signing/GCC plugins, inside a dmx VM booted from the stock Alpine kernel, with a pinned
          offline toolchain (34 Alpine apks). `make guest` uses it. 8G: 291 → 181 MB.
       3. [x] Early balloon inflation: not needed for the baseline. Pages the guest never touches
@@ -179,9 +181,12 @@ This is the core feature. Measure before and after every change and log numbers 
 - [x] Memmap scales with the ceiling: the guest boots with 1 GB and our virtio-mem device
       (`HV/VirtioMem.swift`, policy `HV/MemoryPlugPolicy.swift`) plugs the rest of the ceiling in
       32 MB blocks as needed, from the balloon's stats queue: keep 1 GB available plus 0.5 s of
-      current growth, unplug after 30 s with more than 1.5 GB available. The guest onlines plugged
+      current growth, unplug after 5 s with more than 1.5 GB available (was 30 s before 4K
+      memmap costs made it miss the 10 s return goal); poll at least once per second during that
+      countdown. The guest onlines plugged
       memory as movable (`memhp_default_state=online`, `online_policy=auto-movable`). Idle footprint
-      ~80 MB at any ceiling. `CONFIG_VIRTIO_MEM` becomes built in on the next `make kernel`.
+      ~80 MB on the earlier 16K kernel at any ceiling. `CONFIG_VIRTIO_MEM` is built in on the
+      current 4K kernel; it no longer needs a module.
 - [x] Each vCPU costs ~2.3 MB of guest memory at idle (1 vCPU 125 MB, 10: 147 at 8G before the
       kernel trim). `slub_max_order=1` (default now) took 10 vCPUs to 141 MB. Taking 9 vCPUs
       offline at idle gives back only 2 to 5 MB (121 → 116 to 119 MB with the trimmed kernel):
@@ -203,12 +208,14 @@ This is the core feature. Measure before and after every change and log numbers 
       restores 1 GB headroom; normal restores the usual policy and deflates the balloon.
       `dmx status` shows a `memory` object; actions are logged with `memory:`.
 - [x] Guest policy: zram swap (lz4, a quarter of the ceiling) turned on by the agent the first time
-      the guest is squeezed or passes half its ceiling (at boot it costs ~3.5 MB);
+      the guest is squeezed or passes half its ceiling (its empty metadata costs memory;
+      the earlier 16K measurement was ~3.5 MB for 2G swap);
       `vm.swappiness=100` and `vm.page-cluster=0` with it. Transparent huge pages off (`never`; was `madvise` until qemu's code buffer took 32 MB per x86 process).
       `init_on_alloc` stays on: on dmx's VMM inflating costs CPU (~1.5 s for 7.8 GB), not memory.
 - [x] Freed guest blocks under 512 KB (after connection bursts, small-file work): when idle, the
-      controller lowers free page reporting to order 0 (16 KB) and has every slab cache free its
-      empty slabs (agent `reporting_order`, `shrink_slabs`); order 5 comes back on the next use.
+      controller lowers free page reporting to 16 KB (order 2 at 4K, order 0 at 16K) and has every
+      slab cache free its empty slabs (agent `reporting_order`, `shrink_slabs`); 512 KB reporting
+      returns on the next use (order 7 at 4K, order 5 at 16K).
       Footprint returns to idle + 1 to 6 MB; idle CPU unchanged. ~10 MB after network traffic stays
       (probably virtio-net rx buffers).
 - [x] Host pressure drives the controller above. `memory_pressure -S` needs root, so tests use the
@@ -216,7 +223,7 @@ This is the core feature. Measure before and after every change and log numbers 
 - [x] Expose virtio-mem state in `dmx status` (text and JSON, also MCP): `memory.plug` has boot,
       requested and plugged MB and plug/unplug request counts. Requested/plugged cover only the
       added region; present RAM is boot + plugged, independent of the configured ceiling.
-- [x] Coordinate hotplug and pressure: remove spare RAM immediately at critical (no 30 s delay),
+- [x] Coordinate hotplug and pressure: remove spare RAM immediately at critical (no normal delay),
       leaving 256 MB plus growth-rate headroom. Keep the balloon deflated during unplug progress;
       after 5 s without progress, use it for blocks that remain. Boot-only guests retain the
       balloon fallback. `make daemontest` verifies growth, removal, allocations under critical,
@@ -315,8 +322,10 @@ Follow-ups beyond the completed acceptance criteria:
       checked) registered with binfmt_misc, flags `POCF` (Docker Desktop uses `CF`; `P` keeps
       argv[0]). Carried at the end of docker.img and unpacked onto the data disk on first boot
       or a version change, so qemu uses guest RAM only while x86 code runs (initramfs 3.1 → 2.1 MB).
-      16K pages: msync, mincore, MADV_DONTNEED, MAP_FIXED|MAP_SHARED and
-      mprotect/munmap on single 4K pages misbehave (Findings). `make x86test`.
+      The current 4K kernel restores partial-page mappings, msync, zeroing and guard-page
+      semantics; `make x86test` now requires the 4K probes to pass. The 16K limitations remain
+      in Findings as historical measurements. Some allocators still need a QEMU address-layout
+      fix; see [compatibility.md](compatibility.md).
 - [x] `make dockertest` (`scripts/test-docker.py`, 57 checks in the current run): hello-world, `run -it`, BuildKit,
       compose with a volume, published TCP/UDP ports and a bind mount, taken-port errors, restart
       policies, amd64, idle stop with Docker and the context, using only dmx's bundled tools.
@@ -369,9 +378,12 @@ BuildKit through dmx's Buildx; the deprecated legacy builder remains available t
 - [x] `make release VERSION=x` (`scripts/release.py`, [release.md](release.md)): binary tarball, guest
       archive, SHA256SUMS, kernel config, third-party list with licenses, `install.sh` with the
       version and sha256 baked in (installs to `~/.local/bin`, no sudo, no Homebrew).
-- [ ] Popular-image compatibility matrix on arm64 and amd64, especially applications with 4K
-      page assumptions (JVM, mmap-backed databases and guard pages). `make x86test` covers
-      Python, Node and syscall probes but is not that full image matrix.
+- [x] Digest-pinned popular-image matrix on arm64/amd64 ([compatibility.md](compatibility.md),
+      `make imagetest`): nine images, real SQL/WAL, HTTP, persistence, Java/JIT and mmap work.
+      16K control 15/18; 4K control 17/18. Python and Java failures resolved by 4K pages.
+- [ ] Resolve the remaining default-layout amd64 Redis allocator failure. It still fails the
+      default image matrix; the full workload passes with `QEMU_GUEST_BASE=0x800000000000`.
+      This explicit workaround is diagnostic evidence, not a default fix or an 18/18 pass.
 - [ ] Controlled comparison with Docker Desktop, OrbStack and Colima on a quiet Mac; record
       versions, equivalent settings, idle/busy footprints and timings. Re-measure dmx's earlier
       load-15-to-90 results rather than presenting them as a comparison.
@@ -393,10 +405,13 @@ BuildKit through dmx's Buildx; the deprecated legacy builder remains available t
 Phases 1–7 and 9 meet their acceptance criteria. Phase 4's status and pressure follow-ups are
 complete. Next, work through phase 10's pre-release validation:
 
-1. Run and record the popular-image compatibility matrix, including the known x86 4K/16K
-   syscall limits; investigate the previously unreproduced guest soft lockup if it recurs.
-2. Measure dmx and the comparison engines on a quiet Mac with matched settings. Existing
-   measurements are dated local evidence, many from host load 15 to 90, not a benchmark.
+1. Fix the remaining default QEMU address-layout failure in the pinned amd64 Redis image;
+   validate the layout against other allocators too. Python loader, partial msync and 4K guard
+   probes are addressed by the 4K guest. Keep the failed default row visible in `make imagetest`.
+2. Measure dmx and the comparison engines on a quiet Mac with matched settings, using
+   [benchmark.md](benchmark.md) and `scripts/benchmark.py`. Docker Desktop, OrbStack and Colima
+   are not installed here; the comparison is still open. Existing local measurements are not
+   a cross-engine benchmark. Investigate the old unreproduced guest soft lockup if it recurs.
 3. Resolve maintainer decisions (version/tag scheme, GPL source delivery, Developer ID/signing)
    in [release.md](release.md), then cut and publish the first GitHub Release and guest assets.
    The install script, release packager and verified guest downloader are already implemented;
@@ -503,6 +518,10 @@ complete by the finished acceptance suites.
 | 2026-10-24 | Pressure unplug and status, host load ~5, 8G ceiling, 10 vCPU | Selftest before/after: idle 80/81 MB, 1 GB freed returned in 2115/1065 ms (single runs, not a timing claim). Same separate 2 GB tmpfs fill/free scenario: before, MemTotal stayed 5096 MB with a 4778 MB balloon and 94 MB host footprint at 2 s of simulated critical; after, MemTotal fell from 6376 to 1000 MB, hotplug 5376 → 0 MB, balloon 698 MB, footprint 76 MB at 2 s (88/67 MB at 20 s). Initial hotplug sizes differ because growth-rate lookahead follows each run; idle was 76 MB in both. Daemontest separately removed 4480 MB of hotplug RAM in 0.9 s, allocated 1536 MB of incompressible tmpfs under critical without OOM, restored warning/normal headroom, and passed the 1G no-hotplug balloon fallback. 40/40 daemon checks; 32 unit tests, including rejecting late pressure callbacks after VM teardown. Pressure was simulated, not real macOS memory exhaustion. |
 | 2026-10-24 | Regression suites after pressure/status changes | Selftest 21/21, daemon 40/40, MCP 30/30, Docker 57/57, sandbox 41/41, x86 13/13, unit tests 32/32. Docker settled footprints: 65 MB unused, 273 MB dockerd idle, 305 MB one container. The x86 suite still observes the known 4K msync, guard-page and MADV_DONTNEED failures as expected probe results; passing it does not close the popular-image compatibility matrix. |
 | 2026-10-24 | Final lifecycle verification | After guarding queued pressure/stat callbacks at VM teardown, `make build && make guest && make selftest` and `make daemontest` passed again: idle 81 MB in both, 1 GB returned in 2198 ms, 2944 MB hotplug removed in 1.2 s, critical footprint 88 MB. Growth-rate lookahead varies the transient hotplug size between runs. |
+| 2026-10-25 | Image matrix and 4K default | Nine digest-pinned images × arm64/amd64. Previous 16K: 15/18; current 4K: 17/18 (all 9 native images). Python's libpython mapping and Java's partial msync now work. Redis amd64 still fails with default QEMU layout; its full BGSAVE/AOF/restart workload passes with QEMU_GUEST_BASE=0x800000000000, recorded separately. Pin hashes, guest hashes and raw results are in compatibility.md and docs/measurements. No default failures are skipped. |
+| 2026-10-25 | Reporting budget, matched 2-CPU/4G profiles | Three runs each: 16K idle 64–66 MB / 1 GB return 411–2156 ms; 4K with upstream 1/16 budget 77–78 MB / 8289–9998 ms; 4K with a whole bounded free-list pass 78 MB / 317–2114 ms. The source retains its 2 s scheduling delay but no longer spreads the initial list over sixteen passes. Current kernel 6.18.58-dmx-4k built in 737 s (compile 719); artifact sha256 afd14657b5ec43272dc2fdb9919cda7956bfd602645e09be1ef1864604cbc9e4. Recipe/source-patch notices now accompany release assets. |
+| 2026-10-25 | 2 GB container return, including 4K memmap | Data reporting alone left the default 10-CPU/8G profile 78.86 MB above baseline after 10.08 s: normal unplug still waited 30 s. Normal surplus now waits 5 s and gets stats at least once per second during that countdown; already-pending unplug does not restart it. Same profile: held 2425.77 MB → 236.60 MB vs pre-workload 300.60 MB in 6.14 s. 2-CPU/4G profile: held 2368.69 → 328.78 MB vs 272.08 MB, within the +64 MB goal in 1.50 s. Host pressure was normal (1) throughout. Daemontest independently returned RAM and footprint in 7.0 s at normal, unplugged after critical in 0.8 s. This is local acceptance evidence, not a cross-engine benchmark. |
+| 2026-10-25 | Final 4K validation | Selftest 21/21 (default 8G, 10 CPU idle 89–90 MB); daemon 41/41 including the new normal-unplug deadline; Docker 57/57; MCP 30/30; sandbox 41/41; x86 13/13 with all ten 4K syscall probes true; unit tests 33/33. Daemon and Docker repeated after the 5 s policy change. Final image run has no module-verification, BUG or soft-lockup messages. The default image matrix remains 17/18 until Redis's QEMU layout is fixed. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -546,3 +565,4 @@ complete by the finished acceptance suites.
 - 2026-10-24: Flaky sandboxtest fixed: a macOS socketpair bug lost EOF wakeups of blocking reads; all socket reads poll first. A sandbox exec no longer lets its stdin writer outlive the stream.
 - 2026-10-24: The socketpair EOF-wakeup bug reported to Apple (FB25307646).
 - 2026-10-24: Phase 4 follow-ups done: status exposes hotplug RAM, critical pressure unplugs spare RAM before balloon fallback, and allocations still grow RAM under pressure. Refreshed README, the daemon protocol and stale PLAN entries; tracked phase 6 extensions and phase 10 image/benchmark validation explicitly.
+- 2026-10-25: Ran the 9×2 pinned image matrix; switched to 4K pages for Python/Java and real 4K mapping/guard semantics. Fixed slow page reporting and normal hotplug metadata return; 2 GB containers return within 10 s at both the 4G comparison profile and default 8G profile. Added raw evidence, a benchmark harness with checked Mach-time CPU accounting, and source-patch release notices. Redis amd64's default QEMU layout and unavailable comparison engines remain open; no public release made.

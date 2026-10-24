@@ -355,7 +355,7 @@ public final class AgentClient: Sendable {
     }
 
     /// Sets the smallest block of free pages that free page reporting hands back, as a page order
-    /// (0: one 16 KB page); returns the order it replaced.
+    /// (0: one guest page); returns the order it replaced.
     public func setReportingOrder(_ order: Int) async throws -> Int {
         struct Result: Decodable { let previous: Int }
         let result: Result = try await control.call("reporting_order", ["order": order])

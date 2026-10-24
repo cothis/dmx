@@ -24,14 +24,14 @@ See [docs/PLAN.md](docs/PLAN.md) for the detailed plan.
 | 4 | Memory: footprint tracking, smaller baseline, memory controller, on-demand RAM | done |
 | 5 | Daemon, launchd socket activation, idle stop | done |
 | 6 | Data disk, networking, port forwarding, file sharing | done; extensions remain |
-| 7 | Docker compatibility (dockerd in the guest first) | done; 16K page compatibility needs a broader image matrix |
+| 7 | Docker compatibility (dockerd in the guest first) | done; image workloads and remaining emulation limits in [compatibility](docs/compatibility.md) |
 | 8 | Own runtime, replacing dockerd piece by piece | not started |
 | 9 | `dmx mcp`, sandboxes, checkpoints and logs | done |
 | 10 | Release: install script, guest downloads verified by dmx | groundwork done, no release yet |
 
-Measured on an M-series Mac (10 cores, 16 GB): idle host footprint is about 80 MB across 2G to 16G ceilings because the guest boots with 1 GB and adds the rest through virtio-mem as needed. The whole dmx process is counted, guest RAM included; Docker adds memory only after it starts. The first Virtualization.framework build cost 170 MB at 2G and 356 MB at 8G. With the VM stopped the daemon costs about 4 MB, and an idle daemon exits. Free page reporting returns memory within seconds; under host pressure dmx trims caches, removes spare hotplug RAM and uses a balloon for the memory that remains. These are local measurements, not a controlled comparison with other container engines; see [the dated measurements](docs/PLAN.md#findings-and-measurements).
+Measured on an M-series Mac (10 cores, 16 GB): the current 4K guest costs about 78 MB at idle with 2 vCPUs / a 4G ceiling, and about 89–90 MB with 10 vCPUs / an 8G ceiling. The whole dmx process is counted, guest RAM included; Docker adds memory after it starts. The guest boots with 1 GB and hotplugs more as needed, so unused ceiling RAM has no memmap cost. The first Virtualization.framework build cost 170 MB at 2G and 356 MB at 8G. With the VM stopped the daemon costs about 4 MB, and an idle daemon exits. Free page reporting returns data pages within seconds; spare hotplug RAM is removed after 5 seconds of surplus. Under host pressure dmx also trims caches and uses a balloon for memory that cannot be removed. These are local measurements, not a controlled comparison with other engines; see [the dated measurements](docs/PLAN.md#findings-and-measurements).
 
-Known gaps include some x86 applications' 4K page assumptions on the 16K guest kernel, IPv6 and split DNS, data disk resizing and boot-time fsck, and extended file-sharing metadata. See [Next up](docs/PLAN.md#next-up) for release validation and the remaining runtime work.
+The guest uses 4K pages for x86 shared mappings, guard pages and partial `msync`; virtio-mem keeps unused ceiling RAM free. Some amd64 allocators still need a QEMU address-layout workaround (currently Redis; see [the image matrix](docs/compatibility.md)). Other gaps include IPv6 and split DNS, data disk resizing and boot-time fsck, and extended file-sharing metadata. See [Next up](docs/PLAN.md#next-up) for release validation and the remaining runtime work.
 
 ## Install
 
@@ -54,7 +54,7 @@ guest target: `rustup target add aarch64-unknown-linux-musl` (it links with the 
 
 ```sh
 make build     # swift build + ad-hoc sign with the hypervisor entitlement
-make kernel    # build the 16K page guest kernel inside a dmx VM (slow; once per kernel version)
+make kernel    # build the trimmed 4K page guest kernel inside a dmx VM (once per kernel version)
 make guest     # fetch pinned Alpine Linux artifacts, build ~/.dmx/guest/{Image,initramfs.gz}
 make install   # copy dmx to ~/.local/bin (PREFIX=... to change)
 .build/release/dmx doctor
@@ -64,6 +64,8 @@ make mcptest                     # dmx mcp driven like an MCP client
 make dockertest                  # Docker, Compose and BuildKit, using dmx's bundled tools
 make sandboxtest                 # sandbox policies, checkpoints, logs and TTLs
 make x86test                     # x86_64 binaries through QEMU and binfmt_misc
+make imagetest                   # workloads in nine digest-pinned images, arm64 and amd64
+make benchmark                   # local measurements; comparison protocol in docs/benchmark.md
 ```
 
 ## Use

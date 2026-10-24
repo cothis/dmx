@@ -1,0 +1,121 @@
+{
+  "ok": false,
+  "engine": "dmx",
+  "at": "2026-10-24T16:15:12.452487+00:00",
+  "host": {
+    "macos": "26.6.1",
+    "arch": "arm64",
+    "cores": 10
+  },
+  "host_load_start": [
+    7.05615234375,
+    4.8662109375,
+    6.0771484375
+  ],
+  "host_pressure_start": 1,
+  "mach_timebase": {
+    "numer": 125,
+    "denom": 3
+  },
+  "cpu_reader_check": {
+    "getrusage_s": 0.05000799999999998,
+    "reader_s": 0.05009850000000002
+  },
+  "settings": {
+    "cpus": 10,
+    "ceiling_mb": 8192,
+    "container_cpus": 2,
+    "shares": "none"
+  },
+  "vm_start_ms": 531,
+  "before_docker": {
+    "footprint_mb": 88.8,
+    "cpu_s": 1.0267049166666666,
+    "processes": [
+      {
+        "pid": 72933,
+        "footprint_mb": 88.8,
+        "cpu_s": 1.0267049166666666
+      }
+    ]
+  },
+  "docker_versions": "29.9.2 / 29.9.2",
+  "first_docker_ms": 1854,
+  "process_commands": {
+    "72933": "/Users/cothis/dockermax/.build/out/Products/Release/dmx"
+  },
+  "docker_info": {
+    "ServerVersion": "29.9.2",
+    "KernelVersion": "6.18.58-dmx-4k",
+    "NCPU": 10,
+    "MemTotal": 1304039424,
+    "Architecture": "aarch64",
+    "Driver": "overlayfs"
+  },
+  "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+  "idle": {
+    "footprint_mb": 195.88,
+    "cpu_s": 4.273910166666666,
+    "processes": [
+      {
+        "pid": 72933,
+        "footprint_mb": 195.88,
+        "cpu_s": 4.273910166666666
+      }
+    ]
+  },
+  "idle_cpu_percent_of_one_core": 0.782,
+  "run_true_ms": {
+    "samples": [
+      336.4,
+      155.6,
+      138.09,
+      141.19,
+      135.08
+    ],
+    "median": 141.19
+  },
+  "sha256_256m_ms": 1466,
+  "holding_2g": {
+    "footprint_mb": 2405.32,
+    "cpu_s": 8.842208916666666,
+    "processes": [
+      {
+        "pid": 72933,
+        "footprint_mb": 2405.32,
+        "cpu_s": 8.842208916666666
+      }
+    ]
+  },
+  "return_after_2g": {
+    "baseline_mb": 294.7,
+    "after": {
+      "footprint_mb": 373.56,
+      "cpu_s": 9.128323708333333,
+      "processes": [
+        {
+          "pid": 72933,
+          "footprint_mb": 373.56,
+          "cpu_s": 9.128323708333333
+        }
+      ]
+    },
+    "elapsed_s": 10.08
+  },
+  "peak_2g_footprint_mb": 2411.67,
+  "host_load_end": [
+    7.76318359375,
+    5.4697265625,
+    6.21044921875
+  ],
+  "host_pressure_end": 1,
+  "guest_artifacts": {
+    "kernel-6.18.58-dmx-4k.tar": "afd14657b5ec43272dc2fdb9919cda7956bfd602645e09be1ef1864604cbc9e4",
+    "Image": "ae0aeacf5fd282302293c8b8e7132e218f4dd29ee6eab8c882f92b25d85189ba",
+    "initramfs.gz": "d36eb097b9755d240fb722625d7f61652dfa6143fd9ae48a757ec8b4bda835b8",
+    "dmx-agent": "3235c76f09423b53f4c739bd7c9fa97869acdcf7cd4000a10f784cfb83edc641",
+    "qemu-x86_64": "2af820864493b720fcfed48561678a249b1f5df07cf4c77dc906a874a0b3ee6f"
+  },
+  "normal_unplug_s": 30,
+  "quiet_poll_s": 10
+}

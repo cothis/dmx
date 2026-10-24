@@ -152,13 +152,29 @@ def memory_checks(results):
     check("memory_idle_sweep", swept, str(memory()[1]))
 
     # Grow well beyond boot RAM, then free it. Critical pressure must unplug immediately,
-    # rather than leave the memmap until the normal 30 s delay or pin it in the balloon.
+    # rather than wait for normal hysteresis or pin it in the balloon.
     r = dmx("exec", "--", "sh", "-c", "mkdir -p /mnt/pressure; mount -t tmpfs -o size=3G tmpfs /mnt/pressure; "
             "dd if=/dev/zero of=/mnt/pressure/data bs=1M count=2048 2>/dev/null")
     fp, m = memory()
     grown = m.get("plug") or {}
     check("memory_hotplug_growth", r.returncode == 0 and grown.get("plugged_mb", 0) >= 2048,
           f"footprint {fp} MB, {grown}, {r.stderr!r}")
+    daemon_call("simulate_pressure", {"level": "normal"})
+    dmx("exec", "--", "rm", "/mnt/pressure/data")
+    started = time.time()
+    normal_back = wait_for(lambda: (memory()[1].get("plug") or {}).get("plugged_mb", 1 << 20) <= 512
+                           and memory()[0] < idle + 64, 10)
+    fp, m = memory()
+    results["memory_normal_unplug_s"] = round(time.time() - started, 1)
+    results["memory_normal_footprint_mb"] = fp
+    check("memory_normal_unplug", normal_back, f"footprint {idle} -> {fp} MB, {m}")
+
+    # Grow again so the immediate pressure path is checked independently of normal unplug.
+    r = dmx("exec", "--", "sh", "-c", "dd if=/dev/zero of=/mnt/pressure/data bs=1M count=2048 2>/dev/null")
+    if r.returncode != 0:
+        check("memory_pressure_fixture", False, repr(r.stderr))
+    _, m = memory()
+    grown = m.get("plug") or {}
     results["memory_grown_plug"] = grown
     dmx("exec", "--", "rm", "/mnt/pressure/data")
     daemon_call("simulate_pressure", {"level": "critical"})
@@ -169,7 +185,13 @@ def memory_checks(results):
     plug = m.get("plug") or {}
     check("memory_unplug_on_critical", unplugged and plug.get("unplugs", 0) > grown.get("unplugs", 0), str(m))
     # The balloon still squeezes the boot RAM that virtio-mem cannot remove.
-    inflated = wait_for(lambda: (memory()[1].get("balloon_mb") or 0) >= 256, 15)
+    def squeezed():
+        fp, m = memory()
+        return (m.get("balloon_mb") or 0) >= 256 and fp < idle + 64
+
+    # Reaching 256 MB is only partial balloon progress; free-page reporting may still be
+    # finishing. Wait for both requirements within the same deadline, not an intermediate frame.
+    inflated = wait_for(squeezed, 15)
     fp, m = memory()
     results["memory_critical_footprint_mb"] = fp
     check("memory_balloon_on_critical", inflated and fp < idle + 64, f"footprint {fp} MB, {m}")

@@ -1,0 +1,94 @@
+{
+  "ok": true,
+  "at": "2026-10-24T16:09:10.009011+00:00",
+  "pins_at": "2026-10-24T15:10:31.755117+00:00",
+  "cpus": 2,
+  "ceiling_mb": 4096,
+  "host_load": [
+    2.8935546875,
+    3.52490234375,
+    6.50390625
+  ],
+  "qemu_guest_base": "0x800000000000",
+  "results": [
+    {
+      "name": "redis",
+      "platform": "linux/amd64",
+      "image": "library/redis@sha256:16b124a2d3eacd620d917ead6fd26cbf1f1d7117fa94122398971931cfe2d403",
+      "tag": "8-alpine",
+      "ok": true,
+      "image_id": "sha256:16b124a2d3eacd620d917ead6fd26cbf1f1d7117fa94122398971931cfe2d403",
+      "detail": "SET/GET, BGSAVE and AOF persistence across restart",
+      "workload_s": 1.81,
+      "state": {
+        "Status": "running",
+        "Running": true,
+        "Paused": false,
+        "Restarting": false,
+        "OOMKilled": false,
+        "Dead": false,
+        "Pid": 916,
+        "ExitCode": 0,
+        "Error": "",
+        "StartedAt": "2026-10-24T16:09:13.217177714Z",
+        "FinishedAt": "2026-10-24T16:09:13.179920381Z"
+      },
+      "logs": "1:M 24 Oct 2026 16:09:13.637 * <ReJSON> Exported RedisJSON_V2 API\n1:M 24 Oct 2026 16:09:13.637 * <ReJSON> Exported RedisJSON_V3 API\n1:M 24 Oct 2026 16:09:13.637 * <ReJSON> Exported RedisJSON_V4 API\n1:M 24 Oct 2026 16:09:13.637 * <ReJSON> Exported RedisJSON_V5 API\n1:M 24 Oct 2026 16:09:13.637 * <ReJSON> Exported RedisJSON_V6 API\n1:M 24 Oct 2026 16:09:13.637 * <ReJSON> Exported RedisJSON_V7 API\n1:M 24 Oct 2026 16:09:13.637 * <ReJSON> Exported RedisJSON_V8 API\n1:M 24 Oct 2026 16:09:13.637 * <ReJSON> Enabled diskless replication\n1:M 24 Oct 2026 16:09:13.637 * <ReJSON> Initialized shared string cache, thread safe: true.\n1:M 24 Oct 2026 16:09:13.638 * Module 'ReJSON' loaded from /usr/local/lib/redis/modules//rejson.so\n1:M 24 Oct 2026 16:09:13.638 * <search> Acquired RedisJSON_V8 API\n1:M 24 Oct 2026 16:09:13.648 * Server initialized\n1:M 24 Oct 2026 16:09:13.653 * <search> Changing workers threadpool size from 2 to 4\n1:M 24 Oct 2026 16:09:13.653 * <search> LOAD start source=AOF sst=false disk=rebuild-from-keyspace\n1:M 24 Oct 2026 16:09:13.656 * Reading RDB base file on AOF loading...\n1:M 24 Oct 2026 16:09:13.656 * Loading RDB produced by version 8.10.2\n1:M 24 Oct 2026 16:09:13.657 * RDB age 1 seconds\n1:M 24 Oct 2026 16:09:13.657 * RDB memory usage when created 1.25 Mb\n1:M 24 Oct 2026 16:09:13.657 * RDB is base AOF\n1:M 24 Oct 2026 16:09:13.657 * Done loading RDB, keys loaded: 0, keys expired: 0.\n1:M 24 Oct 2026 16:09:13.661 * <search> Draining workers thread pool with threshold 100\n1:M 24 Oct 2026 16:09:13.662 * DB loaded from base file appendonly.aof.1.base.rdb: 0.009 seconds\n1:M 24 Oct 2026 16:09:13.664 * DB loaded from incr file appendonly.aof.1.incr.aof: 0.002 seconds\n1:M 24 Oct 2026 16:09:13.665 * <search> Changing workers threadpool size from 4 to 2\n1:M 24 Oct 2026 16:09:13.665 * <search> Scheduling config_reduce_threads_job to remove 2 threads ASAP\n1:M 24 Oct 2026 16:09:13.665 * <search> LOAD end disk=rebuild-from-keyspace ok=true\n1:M 24 Oct 2026 16:09:13.665 * DB loaded from append only file: 0.013 seconds\n1:M 24 Oct 2026 16:09:13.672 * Opening AOF incr file appendonly.aof.1.incr.aof on server start\n1:M 24 Oct 2026 16:09:13.672 * Ready to accept connections tcp\n1:M 24 Oct 2026 16:09:13.672 # WARNING: Redis does not require authentication and is not protected by network restrictions. Redis will accept connections from any IP address on any network interface.",
+      "elapsed_s": 3.28
+    }
+  ],
+  "docker_versions": "29.9.2 / 29.9.2",
+  "guest": "6.18.58-dmx-4k\n4",
+  "status": {
+    "clients": 0,
+    "console_log": "/private/tmp/dmx-img-4k-20261025/logs/console.log",
+    "containers": 0,
+    "cpus": 2,
+    "disk": {
+      "allocated_mb": 3905,
+      "path": "/private/tmp/dmx-img-4k-20261025/data.img",
+      "size_mb": 16384
+    },
+    "docker_socket": "/private/tmp/dmx-img-4k-20261025/docker.sock",
+    "execs": 0,
+    "guest_used_mb": 78,
+    "host_footprint_mb": 377,
+    "host_peak_footprint_mb": 419,
+    "idle_stop_in_s": 599,
+    "idle_timeout_s": 600,
+    "launchd": false,
+    "max_memory": "4.0G",
+    "memory": {
+      "balloon_mb": 0,
+      "balloon_target_mb": 0,
+      "guest_cache_mb": 222,
+      "guest_page_size": 4096,
+      "guest_swap_mb": 0,
+      "host_pressure": "normal",
+      "plug": {
+        "boot_mb": 1024,
+        "plugged_mb": 384,
+        "plugs": 3,
+        "requested_mb": 384,
+        "unplugs": 0
+      },
+      "pressure_simulated": false,
+      "reported_mb": 1128,
+      "sweeps": 0,
+      "trims": 0
+    },
+    "pid": 69931,
+    "socket": "/private/tmp/dmx-img-4k-20261025/dmx.sock",
+    "state": "running",
+    "uptime_s": 3.8,
+    "version": "0.0.1"
+  },
+  "kernel_problems": [],
+  "guest_artifacts": {
+    "kernel-6.18.58-dmx-4k.tar": "afd14657b5ec43272dc2fdb9919cda7956bfd602645e09be1ef1864604cbc9e4",
+    "Image": "ae0aeacf5fd282302293c8b8e7132e218f4dd29ee6eab8c882f92b25d85189ba",
+    "initramfs.gz": "d36eb097b9755d240fb722625d7f61652dfa6143fd9ae48a757ec8b4bda835b8",
+    "dmx-agent": "3235c76f09423b53f4c739bd7c9fa97869acdcf7cd4000a10f784cfb83edc641",
+    "qemu-x86_64": "2af820864493b720fcfed48561678a249b1f5df07cf4c77dc906a874a0b3ee6f"
+  }
+}

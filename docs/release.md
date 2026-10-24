@@ -74,6 +74,7 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
 | `dmx-guest-<version>.tar.gz` (+ `.sha256`) | `Image`, `initramfs.gz`, `docker.img`, `manifest.json`, `THIRD_PARTY.md`, `LICENSES/` |
 | `install.sh` | `scripts/install.sh` with the version and the tarball's sha256 written in |
 | `kernel-<release>.config` | the exact config of the guest kernel |
+| `kernel-<release>.build.py` | the build recipe, pinned inputs and exact reporting-budget source patch |
 | `third-party.json` | every package in the guest and the binary: version, license, upstream, source |
 | `NOTES.md` | release text: install line, assets, source offer |
 | `SHA256SUMS` | all of the above |
@@ -98,13 +99,15 @@ still carries obligations. What `release.py` does for them:
   each pinned by sha256, in `LICENSES/`. A new id stops the release until its text is pinned.
 - **Source.** GPL-2.0 section 3 requires, with the binaries, either the complete corresponding
   source (3a) or a written offer valid for three years to provide it (3b); LGPL-2.1 section 6 is
-  similar. The source of every GPL/LGPL program in the guest is public and unmodified:
+  similar. The source of every GPL/LGPL program in the guest is public; dmx's kernel change is recorded below:
   - Alpine packages: the aports directory at the commit in `THIRD_PARTY.md` (APKBUILD, patches,
     configs) plus the upstream tarballs it names, which Alpine mirrors at
     `https://distfiles.alpinelinux.org/distfiles/v3.24/`. qemu-x86_64 is QEMU 11.0.3 with aports
     `51049924607603c9d9b7132c187a7f31085d7a12`.
   - The kernel: `linux-<version>.tar.xz` from kernel.org (sha256 in `scripts/build-kernel.py`),
-    unpatched, with `kernel-<release>.config` and `scripts/build-kernel.py`.
+    with `kernel-<release>.config` and `scripts/build-kernel.py`. The build script contains the
+    exact `mm/page_reporting.c` free-list budget patch and refuses a source that does not match;
+    its modified source must be included when delivering the corresponding kernel source.
 
   Pointing at Alpine's and kernel.org's servers is not enough on its own: the distributor must
   make sure the source stays available as long as it offers the binaries. `NOTES.md` therefore

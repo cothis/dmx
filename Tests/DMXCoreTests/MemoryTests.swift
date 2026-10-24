@@ -3,6 +3,19 @@ import Testing
 @testable import DMXCore
 
 @Suite struct MemoryTests {
+    @Test func kernelPageSizesAndReporting() {
+        #expect(Machine.pageSize(kernelFlags: 10) == 4096)
+        #expect(Machine.pageSize(kernelFlags: 12) == 16384)
+        #expect(Machine.pageSize(kernelFlags: 14) == 65536)
+        #expect(Machine.pageSize(kernelFlags: 0) == 4096)
+        // The same 512K busy and 16K idle ranges across 4K/16K Linux kernels on this Mac.
+        #expect(Machine.reportingOrder(pageSize: 4096, blockSize: 512 << 10) == 7)
+        #expect(Machine.reportingOrder(pageSize: 16384, blockSize: 512 << 10) == 5)
+        #expect(Machine.reportingOrder(pageSize: 4096, blockSize: 16 << 10) == 2)
+        #expect(Machine.reportingOrder(pageSize: 16384, blockSize: 16 << 10) == 0)
+        #expect(Machine.reportingOrder(pageSize: 65536, blockSize: 16 << 10) == 0)
+    }
+
     /// A late daemon pressure callback must not touch devices after Machine starts teardown.
     @Test func pressureAfterStopIsIgnored() {
         let ram = UnsafeMutableRawPointer.allocate(byteCount: 16, alignment: 16)

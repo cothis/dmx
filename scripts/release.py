@@ -117,7 +117,7 @@ def inventory(cache: Path, kernel_tar: Path) -> list:
     items.append({
         "name": "linux", "version": guest.DMX_KERNEL_RELEASE, "license": "GPL-2.0-only WITH Linux-syscall-note",
         "upstream": "https://kernel.org/", "source": kernel_build.SOURCE["url"], "source_sha256": kernel_build.SOURCE["sha256"],
-        "notes": f"unmodified kernel.org source, configured by scripts/build-kernel.py ({REPO}); the exact "
+        "notes": f"kernel.org source with the page_reporting free-list budget patch in scripts/build-kernel.py ({REPO}); the exact "
                  f"config is kernel-{guest.DMX_KERNEL_RELEASE}.config in this release",
         "from": "dmx",
     })
@@ -273,8 +273,9 @@ def main():
         "separate program in the VM under its own license; the texts are in LICENSES/. "
         "Alpine packages are unmodified binaries from Alpine Linux 3.24: their corresponding source "
         f"is the aports directory at the listed commit plus the upstream files it names (mirrored at "
-        f"{ALPINE_DISTFILES}). The kernel is unmodified kernel.org source built with the config in "
-        f"this release. Source is also available on request for three years: see NOTES.md of the release.",
+        f"{ALPINE_DISTFILES}). The kernel uses kernel.org source with the free-page-reporting "
+        f"budget patch in kernel-{guest.DMX_KERNEL_RELEASE}.build.py and the config in this release. "
+        f"Source is also available on request for three years: see NOTES.md of the release.",
         items)
 
     # 1. The guest archive.
@@ -312,6 +313,7 @@ def main():
     (out / "install.sh").write_text(install)
     with tarfile.open(kernel_tar) as tar:
         (out / f"kernel-{guest.DMX_KERNEL_RELEASE}.config").write_bytes(tar.extractfile("boot/config").read())
+    (out / f"kernel-{guest.DMX_KERNEL_RELEASE}.build.py").write_bytes((ROOT / "scripts/build-kernel.py").read_bytes())
     (out / "third-party.json").write_text(json.dumps({"guest": items, "dmx": swift}, indent=2) + "\n")
     (out / "NOTES.md").write_text(release_notes(args.version, archive_name, binary_name, items))
     assets = sorted(p for p in out.iterdir() if p.is_file() and p.name != "SHA256SUMS" and not p.name.endswith(".sha256"))
@@ -345,15 +347,17 @@ into dmx; `dmx guest fetch` does it ahead of time.
 - `{archive}`: the Linux guest: kernel, initramfs, Docker image, licenses and THIRD_PARTY.md
 - `install.sh`: installs dmx into ~/.local/bin after checking the tarball's sha256
 - `kernel-{guest.DMX_KERNEL_RELEASE}.config`: the configuration the guest kernel was built with
+- `kernel-{guest.DMX_KERNEL_RELEASE}.build.py`: pinned inputs and the exact kernel source patch
 - `third-party.json`: every package in the guest and the binary, with license and source
 - `SHA256SUMS`, `*.sha256`: checksums
 
 ## Source code
 
 dmx is Apache-2.0; its source is this tag. The guest contains programs under the GPL and LGPL,
-among them {", ".join(gpl)}. They are unmodified: Alpine Linux 3.24 packages
+among them {", ".join(gpl)}. The Alpine Linux 3.24 packages are unmodified
 (corresponding source: the Alpine aports directory at the commit listed in THIRD_PARTY.md and the
-upstream files it names) and the kernel.org Linux source built with the config above.
+upstream files it names). The kernel uses kernel.org Linux source with the reporting-budget
+patch in the build script and the config above.
 For three years from this release, the maintainer provides the complete corresponding source of
 these programs on request (open an issue at {REPO}/issues), for no more than the cost of
 distribution.

@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build install kernel guest selftest daemontest mcptest sandboxtest x86test dockertest test release clean
+.PHONY: build install kernel guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest benchmark test release clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -16,7 +16,7 @@ install: build
 	install -m 755 $(BIN) $(PREFIX)/bin/dmx
 	@if [ -f $(HOME)/Library/LaunchAgents/io.github.cothis.dmx.plist ]; then $(PREFIX)/bin/dmx install; fi
 
-# Builds the 16K page guest kernel inside a dmx VM (several minutes). `make guest` needs it.
+# Builds the trimmed 4K page guest kernel inside a dmx VM (several minutes). `make guest` needs it.
 kernel: build
 	python3 -I scripts/build-kernel.py
 
@@ -48,6 +48,15 @@ x86test: build
 # in a throwaway DMX_HOME (needs the internet; a few minutes).
 dockertest: build
 	python3 -I scripts/test-docker.py $(BIN)
+
+# Workloads in nine digest-pinned images, arm64 and amd64; failures are not skipped.
+imagetest: build
+	python3 -I scripts/test-images.py $(BIN)
+
+# Local dmx baseline. Cross-engine comparison needs matched settings and a quiet host;
+# scripts/benchmark.py can also drive an existing engine (docs/benchmark.md).
+benchmark: build
+	python3 -I scripts/benchmark.py $(BIN)
 
 # Unit tests that need no VM (the virtio-fs server's path containment).
 test:

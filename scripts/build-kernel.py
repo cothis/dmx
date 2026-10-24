@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""Build the dmx guest kernel (16K pages) inside a dmx VM.
+"""Build the dmx guest kernel (4K pages) inside a dmx VM.
 
 Inputs, all pinned by sha256:
   - the kernel.org source tarball for the same release Alpine ships,
   - Alpine's linux-virt config, read from the apk pinned in build-guest.py,
   - the Alpine toolchain packages in TOOLCHAIN, installed offline in the build VM.
 
-The config is Alpine's with 16K pages (struct page memmap is 4 MB per GB of guest memory
-instead of 16 MB) and without debug info, BTF, module signing and GCC plugins, which only
-make the build bigger. Output: <cache>/kernel-<release>.tar holding boot/Image, boot/config
+The trimmed config keeps 4K pages for x86 image compatibility; virtio-mem avoids paying
+the memmap for unused ceiling RAM. Free-page reporting processes a whole bounded free-list
+batch instead of spreading it over sixteen two-second rounds. No debug info, BTF, module
+signing or GCC plugins. Output: <cache>/kernel-<release>.tar holding boot/Image, boot/config
 and lib/modules/<release>/. `make guest` puts that kernel in the guest.
 
 `--lock` re-resolves TOOLCHAIN from Alpine's current APKINDEX and prints new pins; run it
@@ -87,8 +88,8 @@ TOOLCHAIN = {
 
 # Config symbols to change from Alpine's linux-virt config. None means "is not set".
 CONFIG = {
-    "ARM64_4K_PAGES": None,
-    "ARM64_16K_PAGES": "y",
+    "ARM64_4K_PAGES": "y",
+    "ARM64_16K_PAGES": None,
     "LOCALVERSION": f'"{LOCALVERSION}"',
     "DEBUG_INFO": None,
     "DEBUG_INFO_DWARF5": None,
@@ -135,19 +136,17 @@ CONFIG = {
     "SECURITY_LOCKDOWN_LSM": None,
     **{f"RD_{c}": None for c in ["BZIP2", "LZMA", "XZ", "LZO", "LZ4", "ZSTD"]},
 }
-# Derived symbols removed so olddefconfig recomputes them for 16K pages. The VA size stays
-# Alpine's 48 bits; the 16K default is 52, which needs LPA2 (Apple CPUs lack it) and trips a
-# fixmap static_assert in 6.18.
+# Recompute derived VA symbols while retaining Alpine's 48-bit address space.
 DROP = {"ARM64_VA_BITS"}
 # Checked after olddefconfig, because a symbol another option selects does not go away.
 MUST = {
-    "y": ["ARM64_16K_PAGES", "ARM64_VA_BITS_48", "DEBUG_INFO_NONE", "VIRTIO_MMIO", "VIRTIO_BALLOON",
+    "y": ["ARM64_4K_PAGES", "ARM64_VA_BITS_48", "DEBUG_INFO_NONE", "VIRTIO_MMIO", "VIRTIO_BALLOON",
           "VIRTIO_VSOCKETS", "HW_RANDOM_VIRTIO", "VIRTIO_CONSOLE", "SERIAL_AMBA_PL011", "PAGE_REPORTING",
           "MEMCG", "CGROUPS", "NAMESPACES", "USER_NS", "SECCOMP", "BPF_SYSCALL", "OVERLAY_FS", "PSI",
           # Memory above the 1 GB the guest boots with is plugged with virtio-mem (Machine.swift).
           "MEMORY_HOTPLUG", "MEMORY_HOTREMOVE", "VIRTIO_MEM"],
     "unset": ["PCI", "ACPI", "EFI", "NUMA", "COMPAT", "TRANSPARENT_HUGEPAGE_ALWAYS", "MODULE_SIG",
-              "ZONE_DMA", "ZONE_DMA32"],
+              "ZONE_DMA", "ZONE_DMA32", "ARM64_16K_PAGES"],
 }
 
 BUILD_SH = r"""
@@ -161,6 +160,10 @@ tar -xJf linux.tar.xz -C src --strip-components=1
 rm linux.tar.xz
 cp config src/.config
 cd src
+# The upstream 1/16 budget needs repeated 2s rounds when 4K pages limit buddy blocks to a
+# few MB. Bound a pass by the initial free-list length instead: fast return after a workload,
+# still no work when nothing is freed. Refuse a changed source rather than silently skip it.
+perl -0pi -e 's{\t/\*\n\t \* Limit how many calls.*?\*/\n\tbudget = DIV_ROUND_UP\(area->nr_free, PAGE_REPORTING_CAPACITY \* 16\);}{\t/* dmx: bound a pass by the initial free-list length. A 1/16 budget\n\t * spreads small 4K-kernel buddy blocks over repeated 2s rounds.\n\t * This remains bounded and adds no idle timer work.\n\t */\n\tbudget = DIV_ROUND_UP(area->nr_free, PAGE_REPORTING_CAPACITY);}s == 1 or die "page_reporting budget source changed\n"' mm/page_reporting.c
 make -s olddefconfig
 for s in $MUST_Y; do
 	grep -q "^CONFIG_$s=y" .config || { echo "build-kernel: CONFIG_$s=y did not stick" >&2; exit 1; }

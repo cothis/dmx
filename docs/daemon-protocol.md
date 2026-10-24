@@ -70,7 +70,7 @@ boot). `dmx status` prints `state: not_running` when no daemon answers.
 `memory` fields: `host_pressure` (`normal`, `warning`, `critical`: macOS's level, as the controller
 sees it), `pressure_simulated`, `balloon_mb` and `balloon_target_mb` (what the guest gave back on
 request, and what was asked), `guest_cache_mb` (clean page cache), `guest_swap_mb` (zram in use),
-`plug` (below), `reported_mb` (returned by free page reporting since boot), `trims`, `sweeps`, and `last_trim` (`reason`,
+`plug` (below), `guest_page_size` (Linux page size in bytes), `reported_mb` (returned by free page reporting since boot), `trims`, `sweeps`, and `last_trim` (`reason`,
 `seconds_ago`, `freed_mb`, `ms`). VM-specific optional fields are omitted while the VM is stopped.
 
 `memory.plug` describes virtio-mem: `boot_mb` is permanent boot RAM, `plugged_mb` is RAM
@@ -80,6 +80,9 @@ the configured ceiling; the target is `boot_mb + requested_mb`, rounded to 128 M
 The guest can take time to remove occupied or pinned blocks. `plug` is absent without a
 virtio-mem device (for example a 1G ceiling) or while stopped; older daemons omit it too.
 The human-readable status shows present RAM, boot and plugged portions, and the target.
+`guest_page_size` comes from bits 1–2 of the arm64 Image header, as specified by the
+[Linux boot protocol](https://docs.kernel.org/arch/arm64/booting.html). The reporting order uses
+guest pages: busy blocks stay 512 KB, and idle blocks cover one host page, across 4K/16K guests.
 
 ## Memory controller
 
@@ -88,29 +91,31 @@ Free page reporting returns what the guest frees by itself, within about 2 s. Th
 - trims the guest's clean page cache to 16 MB (`memory.reclaim`, file pages only) once the VM has
   been idle for 30 s: no exec started or ended, no forwarded connection opened or closed, and
   under 5 % of one CPU all along;
-- at the same moment, sweeps once: free page reporting goes from 512 KB blocks down to single
-  16 KB pages (agent `reporting_order`) and the guest's slab caches free their empty slabs
+- at the same moment, sweeps once: free page reporting goes from 512 KB blocks down to a host
+  page (16 KB on Apple Silicon; four 4K guest pages, agent `reporting_order`) and the guest's slab caches free their empty slabs
   (`shrink_slabs`). Bursts of connections, processes or small files leave tens of MB free in
   blocks under 512 KB, which reporting at 512 KB never hands back. When the guest is used again,
   reporting goes back to 512 KB blocks. `dmx status` counts these in `memory.sweeps`;
 - on macOS memory pressure (`DispatchSource.makeMemoryPressureSource`, and the level read with
   `kern.memorystatus_vm_pressure_level`): at warning, trims at once and after 5 s of idle; at
   critical, also pushes cold anonymous and tmpfs pages into zram and reduces free headroom to
-  256 MB. virtio-mem removes spare RAM immediately, without its normal 30 s delay, so the
+  256 MB. virtio-mem removes spare RAM immediately, without its normal 5 s delay, so the
   removed blocks' memmap also goes back to macOS. The balloon stays deflated while unplugging
   progresses, then squeezes boot RAM and any blocks that cannot be removed (after 5 s without
   progress). A guest without virtio-mem uses the balloon alone. Allocations still plug more RAM
   on demand, with growth-rate headroom; the configured ceiling remains the limit. After critical,
   headroom loosens to 1 GB at warning; at normal the balloon deflates and normal policy returns;
 - turns zram swap on (agent `swap_on`) the first time the guest is squeezed or uses more than half
-  its ceiling, not at boot (it costs ~3.5 MB of guest memory).
+  its ceiling, not at boot (its per-page metadata costs memory even while empty).
 
 Each action is logged to the daemon log with a `memory:` prefix.
 
 The hotplug policy reads the balloon's kernel stats queue independently of the agent. Normally
 it keeps 1 GB available plus 0.5 s of recent allocation growth, and removes excess RAM after
-30 s above 1.5 GB available. It polls active guests at 100 ms intervals, quiet ones at most
-every 10 s; under pressure it requests stats at least once per second.
+5 s above 1.5 GB available. It polls active guests at 100 ms intervals, quiet ones at most
+every 10 s; during the surplus countdown and under pressure it requests stats at least once
+per second. Once unplugging is pending it leaves retries to the guest instead of continually
+restarting the countdown. This also returns the larger 4K memmap within the memory-return goal.
 
 ## exec
 

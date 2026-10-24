@@ -2,7 +2,7 @@ import Foundation
 
 /// virtio-mem (device 24, virtio 1.2 section 5.15): guest RAM above what the guest boots with,
 /// plugged in blocks as the host asks. The kernel builds its struct page memmap (64 bytes per
-/// 16 KB page, 4 MB per GB) for all RAM it knows at boot and touches all of it, so a guest
+/// guest page: 16 MB/GB at 4K, 4 MB/GB at 16K) for RAM it knows at boot and touches it, so a guest
 /// booted with its whole ceiling pays for the ceiling. Memory it gets through this device costs
 /// memmap only once plugged, and unplugging gives the memmap back as well as the pages.
 ///
@@ -12,10 +12,10 @@ import Foundation
 /// (VIRTIO_MEM_F_UNPLUGGED_INACCESSIBLE), and a block plugged again faults in as zeros.
 final class VirtioMem: VirtioDevice, @unchecked Sendable {
     static let unpluggedInaccessible: UInt64 = 1 << 1
-    /// Plug granularity. Linux plugs at least a pageblock (32 MB with 16K pages, which is also
-    /// its largest allocation) and adds memory to the kernel in 128 MB memory blocks.
+    /// Plug granularity: 32 MB covers a Linux pageblock at both 4K and 16K pages. Linux adds
+    /// memory in 128 MB memory blocks; keeping that target alignment lets the memmap go too.
     static let blockSize: UInt64 = 32 << 20
-    /// Linux's memory block size with 16K pages (a sparsemem section). The region is aligned to
+    /// Linux's memory block size (a sparsemem section). The region is aligned to
     /// it, or the driver cannot use the partial blocks at its ends.
     static let linuxBlockSize: UInt64 = 128 << 20
 

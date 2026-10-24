@@ -236,6 +236,12 @@ and `HOME`, on host ports 20080 to 20090. It needs the internet for Docker Hub. 
 the context store, installing the tools (from file URLs), the plist, published-port selection
 and the DNS answers.
 
+`make imagetest` runs nine digest-pinned official images on arm64 and amd64, with actual SQL,
+HTTP, JIT, mmap and persistence workloads. The 4K guest resolves the previous Python loader
+and Java partial-msync failures. All native rows pass; the default amd64 Redis row remains a
+failure with a separately verified QEMU environment workaround. See [compatibility.md](compatibility.md)
+for exact inputs and the full matrix, and [benchmark.md](benchmark.md) for the measurement protocol.
+
 ## Measurements (2026-10-24, 8G, 10 vCPU, host load 25 to 50 from other agents' VMs)
 
 Timings are several times slower than on a quiet Mac; compare them only with each other.

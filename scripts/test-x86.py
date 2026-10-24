@@ -127,7 +127,7 @@ def guest_ms(script, runs):
     return int(r.stdout) if r.returncode == 0 and r.stdout.strip().isdigit() else None
 
 
-# What minds 16K host pages under 4K x86 pages, run by x86 python3 (ctypes for the raw calls).
+# Page operations on 4K x86 pages, run by x86 python3 (ctypes for the raw calls).
 # Prints name=value pairs; True means the call behaved as on x86 Linux.
 PROBE = r"""
 import ctypes, mmap, os
@@ -136,6 +136,8 @@ c.mmap.restype = ctypes.c_void_p
 c.mmap.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_long]
 for f in (c.mprotect, c.msync, c.madvise):
     f.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_int]
+c.mincore.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.POINTER(ctypes.c_ubyte)]
+c.munmap.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
 def faults(addr):
     pid = os.fork()
     if pid == 0:
@@ -148,10 +150,18 @@ fd = os.open("/tmp/probe", os.O_RDWR)
 m = mmap.mmap(fd, 4096, mmap.MAP_SHARED, offset=4096)
 m[0:2] = b"ok"
 s = c.mmap(None, 32768, 3, 0x01, fd, 0)
+fixed = c.mmap(s + 4096, 4096, 3, 0x11, fd, 4096)
 p = c.mmap(None, 32768, 3, 0x22, -1, 0)
 ctypes.memset(p, 1, 32768)
+u = c.mmap(None, 32768, 3, 0x22, -1, 0)
+ctypes.memset(u, 1, 32768)
+unmapped = c.munmap(u + 4096, 4096) == 0 and faults(u + 4096)
+vec = (ctypes.c_ubyte * 1)()
 print("page_size=%d" % mmap.PAGESIZE,
       "map_shared_4k_offset=%s" % (os.pread(fd, 2, 4096) == b"ok"),
+      "map_fixed_shared_4k=%s" % (fixed == s + 4096),
+      "mincore_4k=%s" % (c.mincore(s + 4096, 4096, vec) == 0),
+      "munmap_4k=%s" % (unmapped and ctypes.string_at(u, 1) == b"\1"),
       "msync_16k=%s" % (c.msync(s + 16384, 4096, 4) == 0),
       "msync_4k=%s" % (c.msync(s + 4096, 4096, 4) == 0),
       "prot_none_16k=%s" % (c.mprotect(p + 16384, 16384, 0) == 0 and faults(p + 16384)),
@@ -213,15 +223,14 @@ try:
     r = sh(f"{run} node -e 'const w = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array([0,97,115,109,1,0,0,0,1,7,1,96,2,127,127,1,127,3,2,1,0,7,7,1,3,97,100,100,0,0,10,9,1,7,0,32,0,32,1,106,11]))); console.log(w.exports.add(40, 2))'")
     check("node_wasm", r.stdout == b"42\n", out(r))
 
-    # 16K host pages under 4K x86 pages. Whole 16K pages behave; calls on a 4K page inside one
-    # do not: msync and MADV_DONTNEED fail with EINVAL (qemu passes the address on unaligned),
-    # and mprotect is not enforced, so a 4K guard page does not fault. MAP_SHARED at a 4K file
-    # offset works unless MAP_FIXED puts it at an address that does not line up mod 16K.
-    r = sh(f"cat >{DIR}/root/tmp/probe.py && {run} python3 /tmp/probe.py", stdin=PROBE.encode())
+    # All 4K operations must work. A 16K Linux guest used to fail partial msync, fixed shared
+    # mappings, MADV_DONTNEED zeroing and guard-page faults; do not count those as expected passes.
+    r = sh(f"ulimit -c 0; cat >{DIR}/root/tmp/probe.py && {run} python3 /tmp/probe.py", stdin=PROBE.encode())
     probe = dict(f.split("=") for f in r.stdout.decode().split() if "=" in f)
     results["pages"] = probe
-    check("pages_16k", probe.get("page_size") == "4096" and
-          all(probe.get(k) == "True" for k in ["map_shared_4k_offset", "msync_16k", "prot_none_16k", "dontneed_16k"]), out(r))
+    check("pages_4k", r.returncode == 0 and probe.get("page_size") == "4096" and
+          all(probe.get(k) == "True" for k in ["map_shared_4k_offset", "map_fixed_shared_4k", "mincore_4k", "munmap_4k", "msync_16k", "msync_4k",
+                                                "prot_none_16k", "prot_none_4k", "dontneed_16k", "dontneed_4k"]), out(r))
 
     # Each x86 process is qemu: its own translated code and copies of file pages it could not
     # map, on top of the program. qemu madvises its 128 MB code buffer for huge pages, which

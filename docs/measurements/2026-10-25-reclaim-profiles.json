@@ -1,0 +1,110 @@
+{
+  "command": "dmx boot --cpus 2 --memory 4G --selftest --timeout 180 --json",
+  "profiles": [
+    {
+      "profile": "16k",
+      "cpus": 2,
+      "ceiling_mb": 4096,
+      "guest_artifacts": {
+        "kernel-6.18.58-dmx.tar": "062f4253d0158c956688dab0b352487c4413bf88ea3a3928e3e007da1c2167ef",
+        "Image": "9072e8df76b7d2b6e46f0cc634baa96b7de57cb337dabb3c0222f77b602dc3c6",
+        "initramfs.gz": "8254dc4d90281868d60ddbd9d054d1c9f75faca3f59714a4c1b7639d59b4f8fb",
+        "dmx-agent": "3235c76f09423b53f4c739bd7c9fa97869acdcf7cd4000a10f784cfb83edc641",
+        "qemu-x86_64": "2af820864493b720fcfed48561678a249b1f5df07cf4c77dc906a874a0b3ee6f"
+      },
+      "samples": [
+        {
+          "ok": true,
+          "boot_ms": 339,
+          "idle_mb": 66,
+          "return_ms": 2156,
+          "after_mb": 65
+        },
+        {
+          "ok": true,
+          "boot_ms": 261,
+          "idle_mb": 64,
+          "return_ms": 411,
+          "after_mb": 60
+        },
+        {
+          "ok": true,
+          "boot_ms": 262,
+          "idle_mb": 65,
+          "return_ms": 416,
+          "after_mb": 61
+        }
+      ]
+    },
+    {
+      "profile": "4k-upstream-budget",
+      "cpus": 2,
+      "ceiling_mb": 4096,
+      "guest_artifacts": {
+        "kernel-6.18.58-dmx-4k.tar": "a7e6fd3dc539454fd16ca7d1ec506b00e8a3ed993ca4df16cebcdd7f9cc533cf",
+        "Image": "418dd91e7edbe4ac5c2e5cd27ae908c582e033ca2fc7fd91c9e25aad0d41725a",
+        "initramfs.gz": "d36eb097b9755d240fb722625d7f61652dfa6143fd9ae48a757ec8b4bda835b8",
+        "dmx-agent": "3235c76f09423b53f4c739bd7c9fa97869acdcf7cd4000a10f784cfb83edc641",
+        "qemu-x86_64": "2af820864493b720fcfed48561678a249b1f5df07cf4c77dc906a874a0b3ee6f"
+      },
+      "samples": [
+        {
+          "ok": true,
+          "boot_ms": 273,
+          "idle_mb": 77,
+          "return_ms": 9998,
+          "after_mb": 86
+        },
+        {
+          "ok": true,
+          "boot_ms": 234,
+          "idle_mb": 78,
+          "return_ms": 8297,
+          "after_mb": 86
+        },
+        {
+          "ok": true,
+          "boot_ms": 218,
+          "idle_mb": 78,
+          "return_ms": 8289,
+          "after_mb": 87
+        }
+      ]
+    },
+    {
+      "profile": "4k-full-budget",
+      "cpus": 2,
+      "ceiling_mb": 4096,
+      "guest_artifacts": {
+        "kernel-6.18.58-dmx-4k.tar": "afd14657b5ec43272dc2fdb9919cda7956bfd602645e09be1ef1864604cbc9e4",
+        "Image": "ae0aeacf5fd282302293c8b8e7132e218f4dd29ee6eab8c882f92b25d85189ba",
+        "initramfs.gz": "d36eb097b9755d240fb722625d7f61652dfa6143fd9ae48a757ec8b4bda835b8",
+        "dmx-agent": "3235c76f09423b53f4c739bd7c9fa97869acdcf7cd4000a10f784cfb83edc641",
+        "qemu-x86_64": "2af820864493b720fcfed48561678a249b1f5df07cf4c77dc906a874a0b3ee6f"
+      },
+      "samples": [
+        {
+          "ok": true,
+          "boot_ms": 250,
+          "idle_mb": 78,
+          "return_ms": 2114,
+          "after_mb": 87
+        },
+        {
+          "ok": true,
+          "boot_ms": 261,
+          "idle_mb": 78,
+          "return_ms": 320,
+          "after_mb": 88
+        },
+        {
+          "ok": true,
+          "boot_ms": 260,
+          "idle_mb": 78,
+          "return_ms": 317,
+          "after_mb": 86
+        }
+      ]
+    }
+  ]
+}

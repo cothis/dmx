@@ -22,7 +22,9 @@ import Foundation
 final class MemoryPlugPolicy: @unchecked Sendable {
     static let headroom: UInt64 = 1 << 30
     static let unplugSlack: UInt64 = 512 << 20
-    static let unplugAfter: TimeInterval = 30
+    /// At 4K the memmap costs 16 MB/GB: a burst can leave >64 MB behind even after every data
+    /// page was returned. Five seconds of surplus plus the reporting delay fits the 10 s goal.
+    static let unplugAfter: TimeInterval = 5
     static let lookahead = 0.5
     static let interval: DispatchTimeInterval = .milliseconds(100)
     static let maxQuiet: TimeInterval = 10
@@ -99,7 +101,9 @@ final class MemoryPlugPolicy: @unchecked Sendable {
         let cpu = processCPUTime(), now = Date()
         let ran = cpu - cpuMark > Self.busyCPU.tick || cpu - asked.cpu > Self.busyCPU.total
         cpuMark = cpu
-        let maxQuiet = pressureHeadroom == nil ? Self.maxQuiet : Self.pressurePoll
+        // Do not sleep past the unplug deadline after a large free. A quiet guest otherwise
+        // waits ten seconds for fresh stats, on top of the surplus timer.
+        let maxQuiet = pressureHeadroom == nil && excessSince == nil ? Self.maxQuiet : Self.pressurePoll
         guard ran || now.timeIntervalSince(asked.at) >= maxQuiet else { return }
         if balloon.requestStats() { asked = (now, cpu) }
     }
@@ -128,7 +132,7 @@ final class MemoryPlugPolicy: @unchecked Sendable {
         } else if pressureHeadroom != nil {
             excessSince = nil
             requestUnplug(present: present, excess: available - enough)
-        } else if available > Self.headroom + Self.unplugSlack, state.requested > 0 {
+        } else if available > Self.headroom + Self.unplugSlack, state.requested > 0, state.plugged <= state.requested {
             let since = excessSince ?? now
             excessSince = since
             if now.timeIntervalSince(since) >= Self.unplugAfter {

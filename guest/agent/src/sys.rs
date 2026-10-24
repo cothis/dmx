@@ -185,8 +185,8 @@ fn ceiling() -> io::Result<u64> {
 }
 
 /// Turns on compressed swap in RAM: zram0 with lz4, a quarter of the guest's ceiling, plus the
-/// sysctls that suit it. Not done at boot: the device's page table and the swap maps cost about
-/// 1.8 MB of guest memory per GB of swap at idle, and swap only matters once the guest is
+/// sysctls that suit it. Not done at boot: the device's page table and swap maps use memory
+/// even while empty (depending on guest page size), and swap only matters once the guest is
 /// squeezed or nearly full, which is when the host asks for it.
 pub fn swap_on() -> io::Result<SwapOnResult> {
     static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -221,7 +221,7 @@ const REPORTING_ORDER: &str = "/sys/module/page_reporting/parameters/page_report
 
 #[derive(Deserialize)]
 pub struct ReportingOrderParams {
-    /// Smallest free block reported, as a page order: 0 is one page (16 KB), 5 is 512 KB.
+    /// Smallest free block reported, as a page order: 0 is one guest page.
     pub order: u32,
 }
 

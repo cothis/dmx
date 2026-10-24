@@ -6,8 +6,8 @@ import Foundation
 /// - Idle: 30 s after the last exec started or ended, with the guest's CPU nearly idle all along,
 ///   the guest reclaims its clean page cache down to 16 MB (`memory.reclaim`, file pages only), so
 ///   the cache of a build or a big read is not charged to the Mac until the VM stops.
-/// - Idle sweep, at the same moment: free page reporting goes down from 512 KB blocks to single
-///   16 KB pages, and the slab caches free their empty slabs. Bursts of connections, processes or
+/// - Idle sweep, at the same moment: free page reporting goes down from 512 KB blocks to the
+///   Mac's page size, and the slab caches free their empty slabs. Bursts of connections, processes or
 ///   small files leave tens of MB free in blocks under 512 KB, which reporting skips (and
 ///   compaction does not merge); this hands them back within seconds. Once the guest is in use
 ///   again, reporting goes back to 512 KB blocks, so a busy guest does not hand back, and fault in
@@ -21,7 +21,7 @@ import Foundation
 ///   deflates. With DEFLATE_ON_OOM the guest takes balloon pages back rather than OOM-kill, so a
 ///   busy guest is slowed, not broken.
 /// - zram swap (lz4, a quarter of the ceiling) is turned on the first time the guest is squeezed
-///   or uses more than half its ceiling, not at boot: it costs ~3.5 MB of guest memory idle.
+///   or uses more than half its ceiling, not at boot: its per-page metadata costs memory idle.
 @MainActor
 final class MemoryController {
     enum Pressure: String, Codable, Sendable, Comparable {
@@ -44,9 +44,6 @@ final class MemoryController {
     static let criticalHeadroom: UInt64 = 256 << 20
     static let warningHeadroom: UInt64 = 1 << 30
     static let balloonStep: UInt64 = 64 << 20
-    /// Free page reporting while idle, as a page order: single pages (16 KB). In use it is the
-    /// kernel arg's order 5 (512 KB), which the sweep reads back from the guest.
-    static let idleReportingOrder = 0
     /// How long after a sweep the guest's CPU (shrinking slabs, then reporting what was freed
     /// 2 s later) does not count as use. Otherwise the sweep would end itself, and repeat.
     static let sweepSettle: Duration = .seconds(10)
@@ -129,6 +126,7 @@ final class MemoryController {
             hostPressure: pressure.rawValue, pressureSimulated: simulated != nil,
             balloonMb: balloon.map { Int($0.actual >> 20) }, balloonTargetMb: balloon.map { Int($0.target >> 20) },
             plug: machine?.memoryPlugState.map(MemoryPlugReport.init),
+            guestPageSize: machine.map { Int($0.guestPageSize) },
             guestCacheMb: guest.map { Int($0.cache >> 20) },
             guestSwapMb: guest.map { Int(($0.swapTotal - min($0.swapFree, $0.swapTotal)) >> 20) },
             reportedMb: machine.map { Int($0.freePageReports.bytes >> 20) },
@@ -241,7 +239,10 @@ final class MemoryController {
     /// comment). Reporting runs about 2 s after the next free, which the slab shrink provides.
     private func sweep(_ agent: AgentClient) async {
         let started = ContinuousClock.now
-        let previous = await setReportingOrder(agent, Self.idleReportingOrder, reason: "idle")
+        // A host page can only be released when the whole range is free: reporting individual
+        // 4K guest pages on a 16K Mac cannot return them, so do not spend CPU reporting them.
+        let order = Machine.reportingOrder(pageSize: machine?.guestPageSize ?? 4096, blockSize: UInt64(getpagesize()))
+        let previous = await setReportingOrder(agent, order, reason: "idle")
         swept = (.now, previous)
         do {
             let slabs = try await agent.shrinkSlabs()
@@ -259,7 +260,7 @@ final class MemoryController {
     private func setReportingOrder(_ agent: AgentClient, _ order: Int, reason: String) async -> Int? {
         do {
             let previous = try await agent.setReportingOrder(order)
-            log("memory: free page reporting from \(16 << order) KB blocks (\(reason))")
+            log("memory: free page reporting from \(((machine?.guestPageSize ?? 4096) << order) >> 10) KB blocks (\(reason))")
             return previous
         } catch {
             log("memory: free page reporting order not changed (\(reason)): \((error as? DMXError)?.message ?? "\(error)")")
@@ -286,6 +287,8 @@ public struct MemoryStatus: Codable, Sendable {
     public let balloonTargetMb: Int?
     /// Boot RAM, hotplug region requested/present, and request counts. nil without virtio-mem.
     public let plug: MemoryPlugReport?
+    /// Linux base page size in bytes, read from its Image header. Absent on older daemons.
+    public let guestPageSize: Int?
     /// Clean page cache the guest holds, and swap (zram) in use.
     public let guestCacheMb: Int?
     public let guestSwapMb: Int?

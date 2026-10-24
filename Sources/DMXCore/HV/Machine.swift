@@ -26,6 +26,8 @@ public final class Machine: @unchecked Sendable {
     }
 
     public let spec: MachineSpec
+    /// Linux page size from the arm64 Image header, independent of the Mac's page size.
+    public private(set) var guestPageSize: UInt64 = 4096
 
     private let ram: UnsafeMutableRawPointer
     private let ramSize: UInt64
@@ -297,6 +299,8 @@ public final class Machine: @unchecked Sendable {
         }
         let textOffset = kernel.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 8, as: UInt64.self) }
         let imageSize = kernel.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 16, as: UInt64.self) }
+        let flags = kernel.withUnsafeBytes { UInt64(littleEndian: $0.loadUnaligned(fromByteOffset: 24, as: UInt64.self)) }
+        guestPageSize = Self.pageSize(kernelFlags: flags)
         let kernelAddr = HVLayout.ramBase + textOffset
         let initrdAddr = alignUp(kernelAddr + max(imageSize, UInt64(kernel.count)), 2 << 20)
         let fdtAddr = HVLayout.ramBase + bootSize - (2 << 20)
@@ -325,18 +329,15 @@ public final class Machine: @unchecked Sendable {
         // Hash tables the kernel sizes by the memory ceiling (14 MB at 8 GB, zeroed at boot).
         // Fixed sizes cost 1.6 MB; a million cached dentries would average 8 per chain.
         "dhash_entries=131072", "ihash_entries=65536", "thash_entries=16384",
-        // Report free blocks from 512 KB (order 5 with 16K pages) instead of 16 MB, so little
-        // freed memory stays behind in blocks too fragmented to report.
-        "page_reporting.page_reporting_order=5",
         // Per-CPU free page lists are invisible to free page reporting and by default may hold
-        // up to 38 MB per vCPU at 8 GB. This caps them at 60 pages (~1 MB) each.
+        // up to 38 MB per vCPU at 8 GB. This caps them at 60 guest pages each.
         "sysctl.vm.percpu_pagelist_high_fraction=100000",
         // A transparent huge page is 32 MB with 16K pages, and Alpine's default is "always": one
         // byte touched per 32 MB of a 1 GB mapping cost 1 GB. Not even for programs that ask:
         // qemu-x86_64 madvises its 128 MB code buffer, so each x86 process cost 32 MB more.
         "transparent_hugepage=never",
-        // Slabs of at most 32 KB (order 1) instead of 128 KB. Every vCPU holds an active slab per
-        // cache, so large slabs cost ~0.5 MB per vCPU at idle.
+        // Cap slab order at 1: every vCPU holds an active slab per cache, so larger slabs cost
+        // memory even while idle (8 KB at 4K guest pages, 32 KB at 16K).
         "slub_max_order=1",
         // Not rodata=noalias: it would save the 4 MB of page tables (at 8 GB) that the page-by-page
         // linear map costs, but leave the linear alias of kernel text writable. Kept protected.
@@ -385,6 +386,23 @@ public final class Machine: @unchecked Sendable {
         return true
     }
 
+    /// arm64 boot protocol flags bits 1–2: 1 = 4K, 2 = 16K, 3 = 64K. Older unspecified
+    /// headers use the 4K default. https://docs.kernel.org/arch/arm64/booting.html
+    static func pageSize(kernelFlags: UInt64) -> UInt64 {
+        switch (kernelFlags >> 1) & 3 {
+        case 2: 16384
+        case 3: 65536
+        default: 4096
+        }
+    }
+
+    /// Smallest buddy order covering `blockSize`, in guest pages (not host pages).
+    static func reportingOrder(pageSize: UInt64, blockSize: UInt64) -> Int {
+        var bytes = pageSize, order = 0
+        while bytes < blockSize { bytes <<= 1; order += 1 }
+        return order
+    }
+
     private func deviceTree(initrd: Range<UInt64>) -> Data {
         let gicPhandle: UInt32 = 1, clockPhandle: UInt32 = 2
         let level: UInt32 = 4  // IRQ_TYPE_LEVEL_HIGH
@@ -402,7 +420,9 @@ public final class Machine: @unchecked Sendable {
 
             t.node("chosen") { t in
                 let plugArgs = memoryPlug == nil ? [] : Self.memoryPlugKernelArgs + ["dmx.memory=\(ramSize >> 20)"]
-                t.property("bootargs", string: (Self.baseKernelArgs + plugArgs + VirtioFS.kernelArgs(spec.shares) + spec.kernelArgs).joined(separator: " "))
+                // Keep the same reporting granularity on both 4K and 16K Linux guests.
+                let reporting = "page_reporting.page_reporting_order=\(Self.reportingOrder(pageSize: guestPageSize, blockSize: 512 << 10))"
+                t.property("bootargs", string: (Self.baseKernelArgs + [reporting] + plugArgs + VirtioFS.kernelArgs(spec.shares) + spec.kernelArgs).joined(separator: " "))
                 t.property("stdout-path", string: "/pl011@\(String(HVLayout.uart, radix: 16))")
                 t.property("linux,initrd-start", u64: initrd.lowerBound)
                 t.property("linux,initrd-end", u64: initrd.upperBound)
