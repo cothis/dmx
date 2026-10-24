@@ -56,6 +56,7 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | Defaults and security follow Docker Desktop (2026-10-24) | Maintainer's rule: Docker must just work, and security choices match standard tools. So: host directories shared read-write at the same path (Docker Desktop shares /Users, /Volumes, /private, /tmp, /var/folders; phase 7 matches that list), containers reach host services through a host alias (`host.docker.internal` in phase 7, today `host.dmx.internal`), ports bind 127.0.0.1 unless asked, host user ↔ guest root on shares, `init_on_alloc` on as in stock kernels, no TLS tools in the base guest (dockerd does its own TLS). Port forwards persist and keep the 4 MB daemon up while they exist. MCP tools are `dmx_*`, argv-based, 8 KiB/120 s defaults. |
 | No GitHub CI, no Homebrew dependency (2026-10-24) | Maintainer's choice: GitHub is only for distribution (source and releases). Checks run locally before a release (`make build`, `swift test`, selftest, daemontest, dockertest). dmx ships its own pinned Docker CLI tools instead of relying on Homebrew. |
 | dmx ships the docker CLI, Compose, Buildx and the keychain credential helper (2026-10-24) | Docker Desktop does, and users should not need Homebrew. Pinned upstream darwin-arm64 builds (the static CLI is trust-on-first-download: Docker publishes no checksum for it). Plugins through `cliPluginsExtraDirs`; no shell rc files edited. All Apache-2.0. |
+| Sandboxes are containers in the one VM (2026-10-24) | No state of dmx's own to clean up (labels), egress rules inside each sandbox's namespace cover every protocol. Isolation is Docker's: a guest kernel exploit reaches the whole guest and its shares; per-sandbox VMs are a possible later step for hostile code. |
 | CLI only, no GUI | The work that matters is invisible (memory, sockets). Agents use CLIs. |
 | Kernel hardening over a few MB (2026-10-24) | Maintainer's choice: `rodata=noalias` would save 4 MB at 8G (page tables of a page-by-page linear map) but leaves the linear alias of kernel text writable, so the default stays `rodata=full`. |
 | Memory savings are always on | Balloon, idle stop and cache trimming are defaults, not options. The user's standing preference: improvements are not toggles. |
@@ -311,18 +312,24 @@ only dmx's tools (43 checks).
 - [ ] Container runtime: namespaces, cgroups v2, seccomp, capabilities (study youki/runc).
 - [ ] Serve a subset of the Docker Engine API from dmx itself; replace dockerd piece by piece while the phase 7 suite keeps passing.
 
-### Phase 9: AI native
+### Phase 9: AI native (done)
 
 - [x] `dmx mcp` (`Sources/DMXCore/MCP`, [mcp.md](mcp.md)): stdio JSON-RPC serving MCP 2026-07-28
       (`server/discover`, per-request `_meta`) and the `initialize` revisions 2024-11-05 to
       2025-11-25. Tools `dmx_exec`, `dmx_status`, `dmx_start`, `dmx_stop`, `dmx_config_get`,
       `dmx_config_set`. One daemon connection per call, so idle stop still works. `make mcptest`.
       Still to come: logs and sandbox tools.
-- [ ] Sandboxes: disposable environments with a policy (allowed host paths, network egress allowlist, cpu/memory limits, TTL).
-- [ ] Checkpoints: snapshot and roll back an environment; fork one to try two approaches.
+- [x] Sandboxes ([sandbox.md](sandbox.md)): containers in the guest with a policy: network none / all /
+      IPv4 allowlist (iptables in the sandbox's own network namespace, `NET_RAW` dropped), host paths
+      read-only unless granted and only under the shares, cpu/memory/pids limits, TTL enforced by
+      the daemon's `SandboxReaper` even after the client left. State lives in container labels.
+      CLI `dmx sandbox …`, MCP `dmx_sandbox_*`, `make sandboxtest`. Isolation is Docker's.
+- [x] Checkpoints: `docker commit` (filesystem only); rollback and fork from a checkpoint or the
+      current state.
 - [x] Output limits: head and tail per stream (default 8 KiB, at most 1 MiB), cut on UTF-8
       boundaries, with a marker giving the bytes left out and totals; bounded memory while reading.
-      Timeout and cancellation kill the guest process group. Summaries are still to do.
+      Timeout and cancellation kill the guest process group. `dmx_logs` reads container logs with
+      the same caps and a pattern-based summary (counts, first and last error-looking lines).
 
 ### Phase 10: Release
 
@@ -359,7 +366,6 @@ Phase 7 is done. Open items, roughly in order of value:
   memmap that scales with the ceiling; ~10 MB left after network traffic; qemu's copy in the
   initramfs (+2 MB idle) should move into `docker.img`.
 - Docker gaps: UDP published ports, failing on a taken host port, restart policies at boot.
-- Phase 9: logs and sandbox tools in `dmx mcp`, sandboxes, checkpoints.
 - Phase 10: guest artifacts as releases (GPL obligations noted there), an install script; no CI, no Homebrew.
 - Re-measure timings on a quiet host: most of today's numbers were taken at load 15 to 90.
 
@@ -449,6 +455,7 @@ Phase 7 is done. Open items, roughly in order of value:
 | 2026-10-24 | Interrupted first-boot format | The daemon gave up on a boot after 30 s; on a loaded Mac that cut `mke2fs` short, and since `/init` formatted only an all-zero first MB, the disk was never formatted again. Now it formats a disk without an ext4 superblock (mke2fs writes it last) and the daemon waits 120 s; checked with a disk whose first MB is random. |
 | 2026-10-24 | dmx's Docker tools, load 15 to 20 | Download 112 MB in 10 to 11 s, 137 MB on disk (docker 41, buildx 62, compose 29, credential helper 2.3); resumes with HTTP ranges; re-checking all present 0.17 to 0.3 s. BuildKit build (FROM alpine, RUN, COPY) 1.2 to 2.0 s, `--no-cache` 0.5 to 1.1 s; multi-stage with a cache mount 3.3 to 3.8 s; `compose build` 0.8 to 1.6 s. |
 | 2026-10-24 | Guest download | Release guest archive 61.7 MB; download, check and unpack from a local server 0.3 to 0.6 s. Hashing with `FileHandle.read` left ~130 MB in the daemon (autoreleased chunks, no pool drains); one 1 MB buffer now. Daemon after a download: 10 MB with the VM stopped (4 MB otherwise), until it exits idle. |
+| 2026-10-24 | Sandboxes, load 10 to 28 | First create on a new data disk (boot, dockerd, pull) 6.2 to 6.9 s; create with the image present 0.21 to 0.53 s; exec `true` 35 to 52 ms; checkpoint 0.17 to 0.27 s (1.0 s with 3 MB changed, +3.8 MB per 4 MB written); rollback 0.25 to 0.36 s; fork 0.19 to 0.69 s; remove 0.09 to 0.14 s; a 10 s TTL removes it after 10.3 to 10.5 s with the client gone. Guest memory per idle sandbox 7 to 8 MB. Allowlist sandboxes still resolve any name (Docker's resolver runs outside the sandbox). |
 | 2026-10-24 | `dmx mcp` (stdio MCP), load 5 to 6 | `make mcptest` 5.3 to 6.3 s, 30 of 30 checks. Cold `dmx_exec uname -a` with no daemon 215 to 376 ms end to end; warm 0 to 2 ms. 200 MB of stdout capped to 8 KiB in 0.65 to 1.41 s; `dmx mcp` RSS 8 to 9 MB, 10 MB at peak. A 2 s timeout returns in 2.01 to 2.13 s with the guest processes gone. `tools/list` is 4.6 KB (3.8 KB without `outputSchema`). |
 | 2026-10-24 | Truncated exec output after a boot | `dmx stop`, an exec, then 200 MB of stdout: 5 to 6 of 40 runs ended with "daemon closed the connection mid-frame" (load 9 to 15); logging the shutdown path hid it. The guest sometimes sends RST right after its SHUTDOWN, and the host dropped the connection with up to 200 KB from the guest still unwritten to the full host socket. Now an RST on an open stream delivers what the guest sent, then closes: 0 of 50. Found by the `dmx mcp` tests. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
@@ -488,3 +495,4 @@ Phase 7 is done. Open items, roughly in order of value:
 - 2026-10-24: Phase 7 done: the stock docker CLI and Compose work against `~/.dmx/docker.sock` (`make dockertest`). Pages devices touch are no longer counted twice (idle 99 MB). An interrupted first-boot format is redone.
 - 2026-10-24: Maintainer: no GitHub CI and no Homebrew. Agents `cli`, `gaps`, `reuse`, `memmap`, `phase9`, `release` started.
 - 2026-10-24: `dmx tools` (docker CLI, Compose, Buildx without Homebrew; BuildKit builds) and release groundwork (guest download, `make release`, install.sh) merged.
+- 2026-10-24: Phase 9 done: sandboxes with policies and TTLs, checkpoints, fork, rollback and logs, in the CLI and over MCP.
