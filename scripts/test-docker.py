@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Drive dmx with the stock docker CLI and Compose, on the real VM, in a throwaway DMX_HOME.
+"""Drive dmx with the stock docker CLI, Compose and Buildx, on the real VM, in a throwaway DMX_HOME.
 
-Needs `docker` (and the compose plugin, from Homebrew: `brew install docker docker-compose`),
-the guest with Docker in it (`make guest`), and the internet (images come from Docker Hub). The
-docker CLI talks to $DMX_HOME/docker.sock through DOCKER_HOST and keeps its settings in a
-throwaway DOCKER_CONFIG; ~/.docker is not touched. Host ports 20000-20099 are used. Prints one
-JSON object and exits non-zero if any check failed.
+Uses only the docker tools dmx provides (`dmx tools install`, pinned and sha256-checked), never
+Homebrew's: they are installed once into $DMX_HOME/cache/docker-tools (the cache the guest build
+uses; ~115 MB the first time) and called by absolute path. Needs the guest with Docker in it
+(`make guest`) and the internet (images come from Docker Hub). The docker CLI talks to
+$DMX_HOME/docker.sock through DOCKER_HOST and keeps its settings in a throwaway DOCKER_CONFIG, and
+links go into a throwaway HOME; ~/.docker and ~/.local/bin are not touched. Host ports
+20000-20099 are used. Prints one JSON object and exits non-zero if any check failed.
 
     python3 -I scripts/test-docker.py [path/to/dmx]
 """
@@ -28,9 +30,10 @@ from pathlib import Path
 
 DMX = Path(sys.argv[1] if len(sys.argv) > 1 else ".build/release/dmx").resolve()
 GUEST = Path(os.environ.get("DMX_HOME") or Path.home() / ".dmx") / "guest"
-DOCKER = shutil.which("docker")
-# Homebrew's compose plugin; the docker CLI finds it through cliPluginsExtraDirs.
-PLUGINS = ["/opt/homebrew/lib/docker/cli-plugins", "/usr/local/lib/docker/cli-plugins"]
+# dmx's own docker tools, kept between runs (pinned, so a cache is safe): the DMX_HOME that
+# `dmx tools install` installs into for this test.
+TOOLS = Path(os.environ.get("DMX_HOME") or Path.home() / ".dmx") / "cache" / "docker-tools"
+DOCKER = str(TOOLS / "bin" / "docker")
 REPO = Path(__file__).resolve().parent.parent
 
 checks = []
@@ -46,8 +49,8 @@ def dmx(*args, timeout=120):
     return subprocess.run([str(DMX), *args], capture_output=True, timeout=timeout, env=ENV)
 
 
-def docker(*args, stdin=None, timeout=300, cwd=None):
-    return subprocess.run([DOCKER, *args], input=stdin, capture_output=True, timeout=timeout, env=ENV, cwd=cwd)
+def docker(*args, stdin=None, timeout=300, cwd=None, env_extra=None):
+    return subprocess.run([DOCKER, *args], input=stdin, capture_output=True, timeout=timeout, env={**ENV, **(env_extra or {})}, cwd=cwd)
 
 
 def timed(f, *args, **kwargs):
@@ -152,19 +155,60 @@ COPY hello.txt /hello.txt
 CMD ["sh", "-c", "cat /built /hello.txt"]
 """
 
+# BuildKit only: two stages, and a cache mount that keeps its contents when the step reruns
+# (a new N; --no-cache would give the step a fresh cache mount too).
+MULTISTAGE = """\
+FROM alpine AS build
+ARG N
+RUN --mount=type=cache,target=/cache echo run >> /cache/runs && wc -l < /cache/runs | tr -d ' ' > /count
+FROM busybox
+COPY --from=build /count /count
+CMD ["cat", "/count"]
+"""
+
+COMPOSE_BUILD = """\
+services:
+  built:
+    build: .
+    image: dmx-test-compose-build
+"""
+
 # A short path: Unix socket paths are limited to 104 bytes.
 HOME = Path(tempfile.mkdtemp(prefix="dmx-dt-", dir="/tmp"))
 DOCKER_CONFIG = HOME / "docker-config"
 DOCKER_CONFIG.mkdir()
-(DOCKER_CONFIG / "config.json").write_text(json.dumps({"cliPluginsExtraDirs": PLUGINS}))
-ENV = {k: v for k, v in os.environ.items() if not k.startswith("DOCKER_")}
-ENV.update(DMX_HOME=str(HOME), DOCKER_HOST=f"unix://{HOME}/docker.sock", DOCKER_CONFIG=str(DOCKER_CONFIG))
+# A home of its own for the links `dmx tools install` makes, first on PATH; Homebrew's docker and
+# plugins are never used: the CLI runs by absolute path, and only dmx's plugin directory is listed.
+USER_HOME = HOME / "home"
+LINKS = USER_HOME / ".local" / "bin"
+ENV = {k: v for k, v in os.environ.items() if not k.startswith(("DOCKER_", "BUILDX_", "COMPOSE_"))}
+ENV.update(DMX_HOME=str(HOME), DOCKER_HOST=f"unix://{HOME}/docker.sock", DOCKER_CONFIG=str(DOCKER_CONFIG),
+           HOME=str(USER_HOME), PATH=f"{LINKS}:{TOOLS / 'bin'}:/usr/bin:/bin:/usr/sbin:/sbin")
 (HOME / "guest").symlink_to(GUEST)
 server = None
 try:
-    if not check("docker_cli", DOCKER, "install it: brew install docker docker-compose"):
-        raise SystemExit
     results["host_load"] = os.getloadavg()[0]
+
+    # dmx's docker tools: installed (or found present, sha256 checked) in the tools home, linked
+    # into the throwaway ~/.local/bin, plugins listed in the throwaway docker config.
+    r, ms = timed(subprocess.run, [str(DMX), "tools", "install", "--json"], capture_output=True, timeout=900,
+                  env={**ENV, "DMX_HOME": str(TOOLS)})
+    results["tools_install_ms"] = ms
+    report = json.loads(r.stdout or b"{}")
+    results["tools_downloaded_mb"] = sum(t.get("downloaded_bytes", 0) for t in report.get("tools", [])) >> 20
+    if not check("tools_install", r.returncode == 0 and Path(DOCKER).is_file(), r.stdout[-400:] + r.stderr[-400:]):
+        raise SystemExit
+    check("tools_on_path", report.get("dmx_docker_on_path") and shutil.which("docker", path=ENV["PATH"]) == str(LINKS / "docker"),
+          report.get("docker_on_path"))
+    config = json.loads((DOCKER_CONFIG / "config.json").read_text())
+    check("tools_plugins_config", config.get("cliPluginsExtraDirs") == [str(TOOLS / "cli-plugins")], config)
+    r = docker("version", "--format", "{{.Client.Version}}")
+    results["client_version"] = r.stdout.decode().strip()
+    check("client_is_dmx", r.stdout.strip() == b"29.9.2", f"{r.stdout!r} {r.stderr!r}")
+    r = docker("compose", "version", "--short")
+    check("compose_version", r.stdout.strip() == b"5.6.1", f"{r.stdout!r} {r.stderr!r}")
+    r = docker("buildx", "version")
+    check("buildx_version", b" v0.38.1 " in r.stdout, f"{r.stdout!r} {r.stderr!r}")
 
     # Docker's socket is there once a daemon runs; nothing of Docker runs in the guest yet.
     r = dmx("start", "--json")
@@ -196,7 +240,15 @@ try:
                             [(b"# ", b"echo hi-$((40+2))\n"), (b"hi-42", b"exit 3\n")])
     check("run_it", "hi-42" in out and code == 3, f"code {code}: {out[-300:]!r}")
 
-    # docker build of a small Dockerfile with a build context from the Mac.
+    # Both plugins are dmx's copies, found through cliPluginsExtraDirs.
+    r = docker("info", "--format", "{{json .ClientInfo.Plugins}}")
+    plugins = {p.get("Name"): p.get("Path", "") for p in json.loads(r.stdout or b"[]") if isinstance(p, dict)}
+    check("plugins_from_dmx", all(plugins.get(n, "").startswith(str(TOOLS)) for n in ("compose", "buildx")), plugins)
+
+    # docker build of a small Dockerfile with a build context from the Mac: BuildKit through the
+    # buildx plugin and dockerd's built-in BuildKit (the default builder, docker driver).
+    r = docker("buildx", "ls")
+    check("buildx_ls", r.returncode == 0 and b"docker" in r.stdout and b"running" in r.stdout, f"{r.stdout!r} {r.stderr!r}")
     ctx = HOME / "build"
     ctx.mkdir()
     (ctx / "Dockerfile").write_text(DOCKERFILE)
@@ -204,8 +256,37 @@ try:
     r, ms = timed(docker, "build", "-t", "dmx-test-build", str(ctx))
     results["build_ms"] = ms
     check("build", r.returncode == 0, r.stderr[-400:])
+    check("build_is_buildkit", b"building with" in r.stderr and b"Step 1/" not in r.stdout + r.stderr, r.stderr[:300])
     r = docker("run", "--rm", "dmx-test-build")
     check("build_run", r.stdout == b"built-in-dmx\nhello from the mac\n", r.stdout)
+    # The same build without cache, with BuildKit and with the deprecated legacy builder (timing only).
+    r, ms = timed(docker, "build", "--no-cache", "-t", "dmx-test-build", str(ctx))
+    results["build_buildkit_no_cache_ms"] = ms
+    r, ms = timed(docker, "build", "--no-cache", "-t", "dmx-test-build-legacy", str(ctx), env_extra={"DOCKER_BUILDKIT": "0"})
+    results["build_legacy_no_cache_ms"] = ms if r.returncode == 0 else None
+
+    # Multi-stage with a cache mount: the second run of the step sees what the first left.
+    multi = HOME / "multi"
+    multi.mkdir()
+    (multi / "Dockerfile").write_text(MULTISTAGE)
+    r, ms = timed(docker, "build", "--build-arg", f"N={time.time()}", "-t", "dmx-test-multi", str(multi))
+    results["build_multistage_ms"] = ms
+    first = docker("run", "--rm", "dmx-test-multi").stdout.strip()
+    r2 = docker("build", "--build-arg", f"N={time.time()}", "-t", "dmx-test-multi", str(multi))
+    second = docker("run", "--rm", "dmx-test-multi").stdout.strip()
+    check("build_cache_mount", r.returncode == 0 and r2.returncode == 0 and first.isdigit() and second.isdigit()
+          and int(second) == int(first) + 1, f"{first!r} {second!r} {r.stderr[-300:]!r} {r2.stderr[-300:]!r}")
+
+    # docker compose build (Compose hands it to Buildx).
+    cb = HOME / "compose-build"
+    cb.mkdir()
+    (cb / "Dockerfile").write_text(DOCKERFILE)
+    (cb / "hello.txt").write_text("hello from compose\n")
+    (cb / "compose.yaml").write_text(COMPOSE_BUILD)
+    r, ms = timed(docker, "compose", "-p", "dmxtestbuild", "build", cwd=cb)
+    results["compose_build_ms"] = ms
+    out = docker("run", "--rm", "dmx-test-compose-build").stdout
+    check("compose_build", r.returncode == 0 and out == b"built-in-dmx\nhello from compose\n", f"{out!r} {r.stderr[-300:]!r}")
 
     # Bind mounts: /tmp (a link into /private on the Mac), its real path, and /Users read-only.
     bind = HOME / "bind"
