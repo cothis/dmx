@@ -55,7 +55,9 @@ dmx shell                        # interactive shell in the VM
 dmx status --json                # state, uptime, guest memory, host footprint
 dmx stop                         # power off now instead of waiting for the idle timeout
 dmx config set idle_timeout 10m  # also: cpus, memory (the ceiling, e.g. 8G), disk_size
-dmx install                      # optional: launchd starts the daemon on the first connection
+dmx install                      # optional: launchd starts the daemon on the first connection,
+                                 # and docker, docker compose and docker buildx are installed
+docker run --rm hello-world      # the docker context "dmx" points at ~/.dmx/docker.sock
 dmx boot                         # debugging: a VM in the foreground with its console, Ctrl-] powers off
 ```
 
@@ -70,6 +72,11 @@ claude mcp add dmx -- dmx mcp
 ```
 
 See [docs/mcp.md](docs/mcp.md) for other clients and the tool reference.
+
+Docker needs no Homebrew and no Docker Desktop: dmx installs pinned, sha256-checked copies of the
+docker CLI and the Compose and Buildx plugins into `~/.dmx` (`dmx tools install`, also part of
+`dmx install`), links `docker` into `~/.local/bin` when that is on PATH, and `docker build` uses
+BuildKit. See [docs/docker.md](docs/docker.md).
 
 The VM stops after 5 minutes with nothing using it, and the daemon exits 10 s later.
 The guest's `/var/lib` is a data disk, `~/.dmx/data.img`: a sparse file of 64G (`disk_size`, set

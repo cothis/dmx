@@ -39,8 +39,8 @@ mcptest: build
 x86test: build
 	python3 -I scripts/test-x86.py $(BIN)
 
-# The stock docker CLI and Compose against dmx, in a throwaway DMX_HOME (needs the internet and
-# `brew install docker docker-compose`; a few minutes).
+# The stock docker CLI, Compose and Buildx (dmx's own copies, `dmx tools install`) against dmx,
+# in a throwaway DMX_HOME (needs the internet; a few minutes).
 dockertest: build
 	python3 -I scripts/test-docker.py $(BIN)
 

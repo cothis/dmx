@@ -20,13 +20,15 @@ public enum LaunchAgent {
         public let daemonPid: Int32?
         /// The `docker context` install created and selected; nil after uninstall.
         public var dockerContext: DockerContext.Report? = nil
+        /// The docker CLI and plugins install put in place; nil after uninstall.
+        public var dockerTools: DockerTools.Report? = nil
     }
 
     /// Writes the plist, loads it, and checks that a connection starts the daemon. Replaces an
     /// earlier install, and stops a daemon the CLI started, which would hold the socket. Then
-    /// creates and selects the `dmx` docker context.
+    /// creates and selects the `dmx` docker context, and installs the docker CLI and its plugins.
     @MainActor
-    public static func install(paths: Paths) async throws -> Report {
+    public static func install(paths: Paths, progress: @Sendable (String) -> Void = { _ in }) async throws -> Report {
         let executable = try currentExecutable()
         try FileManager.default.createDirectory(at: paths.logs, withIntermediateDirectories: true)
         try await quitStandaloneDaemon(paths)
@@ -47,6 +49,11 @@ public enum LaunchAgent {
         defer { client.close() }
         var report = Report(label: label, plist: plist.path, socket: paths.controlSocket.path, executable: executable, daemonPid: client.hello.pid)
         report.dockerContext = try DockerContext.install(socket: paths.dockerSocket, configDir: DockerContext.configDir())
+        do {
+            report.dockerTools = try await DockerTools.install(paths: paths, progress: progress)
+        } catch let error as DMXError {
+            throw DMXError(error.code, "the launchd agent and the docker context are installed, but not the docker CLI: \(error.message)", hint: error.hint)
+        }
         return report
     }
 
@@ -79,6 +86,7 @@ public enum LaunchAgent {
         if isLaunchdSocket(paths.controlSocket) { unlink(paths.controlSocket.path) }
         if isLaunchdSocket(paths.dockerSocket) { unlink(paths.dockerSocket.path) }
         try DockerContext.uninstall(configDir: DockerContext.configDir())
+        try DockerTools.uninstall(paths: paths)
         return Report(label: label, plist: plist.path, socket: paths.controlSocket.path, executable: nil, daemonPid: nil)
     }
 

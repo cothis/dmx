@@ -1,19 +1,64 @@
 # Docker on dmx
 
-The stock `docker` CLI and Compose talk to `~/.dmx/docker.sock` (`$DMX_HOME/docker.sock`), which
-dmx forwards to dockerd in the guest. Nothing else is needed on the Mac: no Docker Desktop, no
-root, no extra processes.
+The stock `docker` CLI, Compose and Buildx talk to `~/.dmx/docker.sock` (`$DMX_HOME/docker.sock`),
+which dmx forwards to dockerd in the guest. dmx brings the CLI and its plugins itself, as Docker
+Desktop does: no Homebrew, no Docker Desktop, no root, no extra processes.
 
 ```sh
-brew install docker docker-compose   # the CLI and the compose plugin
-dmx install                          # launchd answers on docker.sock; selects the docker context "dmx"
+dmx install                # launchd answers on docker.sock; selects the docker context "dmx";
+                           # installs docker, docker compose and docker buildx
 docker run --rm hello-world
+docker build .             # BuildKit
 ```
 
-Without `dmx install`, `dmx start` (or any `dmx` command that starts the daemon) brings up the
-socket, and `export DOCKER_HOST=unix://$HOME/.dmx/docker.sock` points the CLI at it. For
-`docker compose`, Homebrew's plugin needs `"cliPluginsExtraDirs": ["/opt/homebrew/lib/docker/cli-plugins"]`
-in `~/.docker/config.json` (Homebrew prints this; dmx does not edit it).
+Without `dmx install`, `dmx tools install` installs the tools alone, `dmx start` (or any `dmx`
+command that starts the daemon) brings up the socket, and
+`export DOCKER_HOST=unix://$HOME/.dmx/docker.sock` points the CLI at it.
+
+## The docker CLI, Compose and Buildx
+
+`dmx install` and `dmx tools install` download pinned darwin-arm64 builds, check each against the
+sha256 built into dmx (`Sources/DMXCore/DockerTools.swift`), and put them in `~/.dmx`:
+
+| Tool | Version | From | Installed as |
+|---|---|---|---|
+| docker CLI | 29.9.2 (as dockerd in the guest) | download.docker.com `mac/static/stable/aarch64/docker-29.9.2.tgz` (19 MB) | `~/.dmx/bin/docker` (41 MB) |
+| docker-credential-osxkeychain | 0.9.12 | github.com/docker/docker-credential-helpers (2.3 MB) | `~/.dmx/bin/docker-credential-osxkeychain` |
+| Compose | 5.6.1 | github.com/docker/compose `docker-compose-darwin-aarch64` (29 MB) | `~/.dmx/cli-plugins/docker-compose` |
+| Buildx | 0.38.1 | github.com/docker/buildx `buildx-v0.38.1.darwin-arm64` (62 MB) | `~/.dmx/cli-plugins/docker-buildx` |
+
+About 113 MB to download and 136 MB on disk. The GitHub releases publish `checksums.txt`, which
+the pins match; download.docker.com publishes none for the static CLI, so its pin is the tgz as
+first downloaded (and the sha256 of `docker/docker` inside it).
+
+- **Downloads** go to `~/.dmx/downloads/<file>.part` and resume from there (HTTP range) when
+  interrupted or rerun; failed attempts are retried four times. Only a file with the pinned size
+  and sha256 is used; it is renamed over the installed file, so a half-written binary is never in
+  place and a running copy keeps its file. A mismatch deletes the download (`checksum_mismatch`);
+  network trouble keeps it (`download_failed`, hint: run `dmx tools install` again). Installed
+  files with the right sha256 are not downloaded again; a changed one is replaced.
+- **Plugins** reach the CLI through `cliPluginsExtraDirs` in `$DOCKER_CONFIG/config.json` (default
+  `~/.docker`), as Docker Desktop's do: `~/.dmx/cli-plugins` is put first in the list, so dmx's
+  copies win over another install of the same plugin (Homebrew's, say), and the other keys and
+  entries stay. `~/.docker/cli-plugins` is not touched.
+- **`docker` on PATH**: if `~/.local/bin` (where `make install` puts dmx) is on PATH, `docker` and
+  the credential helper are linked there, unless something else already has the name. dmx does
+  not edit shell rc files: `dmx tools ls` says which `docker` PATH finds and, if it is not dmx's
+  (Homebrew's comes first, or `~/.local/bin` is not on PATH), what to change
+  (`export PATH="$HOME/.dmx/bin:$PATH"`).
+- **Credentials**: with `docker-credential-osxkeychain` on PATH and no credentials in config.json,
+  the CLI uses the macOS keychain for `docker login`, as with Docker Desktop, instead of storing
+  them base64-encoded in config.json.
+- **BuildKit**: with the buildx plugin present, `docker build` runs `docker buildx build` on the
+  `default` builder (docker driver), which is dockerd's built-in BuildKit, and `docker compose build`
+  goes through Buildx as well. Multi-stage builds, `RUN --mount=type=cache` and the rest of
+  BuildKit's Dockerfile features work; the build context is sent over the same docker.sock.
+  `DOCKER_BUILDKIT=0` still selects the deprecated legacy builder. `--no-cache` also gives
+  `RUN --mount=type=cache` steps an empty cache mount; a step that reruns for another reason
+  (a changed input or build argument) sees what earlier runs left there.
+- `dmx tools ls` shows versions, paths and states (`present`, `missing`, `changed`);
+  `dmx tools uninstall` and `dmx uninstall` remove the files, the links that point at them and
+  the plugin directory from the docker config.
 
 ## What runs where
 
@@ -143,10 +188,12 @@ embedded DNS forwards to it). The guest's /etc/hosts has them for dockerd itself
 
 ## Tests
 
-`make dockertest` (`scripts/test-docker.py`) runs the stock CLI and Compose against a throwaway
-`DMX_HOME` with a throwaway `DOCKER_CONFIG`, on host ports 20080 to 20090. It needs the internet
-for Docker Hub. `swift test` covers the context store, the plist, published-port selection and
-the DNS answers.
+`make dockertest` (`scripts/test-docker.py`) runs dmx's own CLI, Compose and Buildx (installed by
+`dmx tools install` into `$DMX_HOME/cache/docker-tools`, kept between runs, and called by absolute
+path; Homebrew's are never used) against a throwaway `DMX_HOME` with a throwaway `DOCKER_CONFIG`
+and `HOME`, on host ports 20080 to 20090. It needs the internet for Docker Hub. `swift test` covers
+the context store, installing the tools (from file URLs), the plist, published-port selection
+and the DNS answers.
 
 ## Measurements (2026-10-24, 8G, 10 vCPU, host load 25 to 50 from other agents' VMs)
 
@@ -165,6 +212,8 @@ Timings are several times slower than on a quiet Mac; compare them only with eac
 | `docker run --rm hello-world` | with pull 11 to 27 s; warm 1.9 to 3.2 s; cold (VM stopped, dockerd not started) 8.8 s at load 31, 12.5 s at 25, 54 s at 49 |
 | `docker pull alpine` | 5.3 to 8.9 s |
 | `docker build` (FROM alpine, RUN, COPY; legacy builder, no buildx) | 8.6 to 24 s |
+| dmx's docker tools (2026-10-24, load 15 to 20) | 112 MB downloaded in 10 to 11 s, 137 MB on disk; `dmx tools install` with everything present (sha256 of 137 MB checked) 0.17 to 0.3 s. `make dockertest` with dmx's CLI 29.9.2, Compose 5.6.1, Buildx 0.38.1: 43 of 43 checks (two runs, load 15 and 20; an earlier run failed only the cache-mount check, which used `--no-cache` and was fixed) |
+| `docker build` with BuildKit (same Dockerfile, alpine pulled; load 15 to 20) | first 1.2 to 2.0 s; `--no-cache` 0.52 to 1.1 s, legacy builder (`DOCKER_BUILDKIT=0`) 0.64 to 1.1 s: about the same for so small a build. Multi-stage with a cache mount 3.3 to 3.8 s, `docker compose build` 0.8 to 1.6 s |
 | `docker compose up -d` (2 services, volume, port, bind mount) | 3.8 to 21 s |
 | Bind mount (`/tmp`, virtio-fs), 256 MB | read + md5 in a container 15.9 s incl. start; write with fsync 30 MB/s in a container, 108 MB/s from `dmx exec` at the same time: host load bound |
 | Published port, 256 MB over HTTP from a container (busybox httpd reading a bind mount) | 5.8 to 12 s |

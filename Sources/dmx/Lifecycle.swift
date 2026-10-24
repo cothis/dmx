@@ -121,6 +121,7 @@ struct Install: AsyncParsableCommand {
         abstract: "Let launchd start the daemon when a client connects, from now on and after login.",
         discussion: """
             launchd then also listens on ~/.dmx/docker.sock, and the docker context `dmx` (pointing there) is created and selected. \
+            The docker CLI, Compose and Buildx are installed as `dmx tools install` does. \
             Without it, dmx commands start the daemon themselves. Run it again after moving the dmx binary.
             """
     )
@@ -129,10 +130,12 @@ struct Install: AsyncParsableCommand {
 
     @MainActor
     func run() async throws {
+        let quiet = global.json
         try await report(global) {
-            let result = try await LaunchAgent.install(paths: Paths())
+            let result = try await LaunchAgent.install(paths: Paths(), progress: { if !quiet { printProgress($0) } })
             var text = "installed \(result.label): \(result.plist)\n  socket \(result.socket), daemon pid \(result.daemonPid.map(String.init) ?? "-")"
             if let context = result.dockerContext { text += "\n  docker context \(context.name) (\(context.host)) selected" }
+            if let tools = result.dockerTools { text += "\n" + describeTools(tools) }
             return (result, text, true)
         }
     }

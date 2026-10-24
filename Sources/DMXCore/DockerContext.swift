@@ -63,7 +63,7 @@ public enum DockerContext {
 
     /// Reads config.json (an empty object if there is none), changes it, and writes it back with
     /// its permissions. A file that is not a JSON object is left alone.
-    private static func updateConfig(_ configDir: URL, _ change: (inout [String: Any]) -> Void) throws {
+    static func updateConfig(_ configDir: URL, _ change: (inout [String: Any]) -> Void) throws {
         let file = configDir.appendingPathComponent("config.json")
         var config: [String: Any] = [:]
         var mode: Int = 0o600
