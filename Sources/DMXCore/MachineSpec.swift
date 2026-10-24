@@ -5,6 +5,9 @@ import Foundation
 public struct MachineSpec: Sendable {
     public var cpus: Int
     public var maxMemory: UInt64
+    /// Guest RAM present at boot; the rest of `maxMemory` is plugged as the guest needs it
+    /// (virtio-mem). nil: `Machine.defaultBootMemory`. At least `maxMemory`: all of it at boot.
+    public var bootMemory: UInt64?
     public var kernelArgs: [String]
     /// Host directories the guest mounts at the same path (virtio-fs).
     public var shares: [Share]

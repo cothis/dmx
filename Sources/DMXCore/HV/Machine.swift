@@ -29,6 +29,10 @@ public final class Machine: @unchecked Sendable {
 
     private let ram: UnsafeMutableRawPointer
     private let ramSize: UInt64
+    /// RAM the guest boots with; `ramSize` above it is `memoryPlug`'s region.
+    private let bootSize: UInt64
+    private var memoryPlug: VirtioMem?
+    private var memoryPlugPolicy: MemoryPlugPolicy?
     /// Drops this process's mappings of guest RAM after devices touch it, so those pages are
     /// not counted twice in the footprint.
     private let hostMappings: HostMappings
@@ -69,6 +73,7 @@ public final class Machine: @unchecked Sendable {
         resolved.maxMemory = max(spec.maxMemory, 256 << 20) & ~UInt64((2 << 20) - 1)
         self.spec = resolved
         ramSize = resolved.maxMemory
+        bootSize = Self.bootSize(spec: resolved)
         // Shares open their roots now, so a missing directory fails before there is a VM.
         fileSystems = try resolved.shares.enumerated().map { index, share in
             VirtioFS(tag: "dmx\(index)", server: try FUSEServer(path: share.path, readOnly: share.readOnly))
@@ -114,6 +119,14 @@ public final class Machine: @unchecked Sendable {
         addVirtio(vsock, ram: ram)
         balloon = VirtioBalloon(ram: ram) { [unowned self] address, length in self.release(address, length) }
         addVirtio(balloon, ram: ram)
+        if bootSize < ramSize {
+            let plug = VirtioMem(address: HVLayout.ramBase + bootSize, size: ramSize - bootSize) { [unowned self] address, length in
+                self.release(address, length)
+            }
+            memoryPlug = plug
+            memoryPlugPolicy = MemoryPlugPolicy(plug: plug, balloon: balloon, boot: bootSize)
+            addVirtio(plug, ram: ram)
+        }
         addVirtio(net, ram: ram)
         for fs in fileSystems { addVirtio(fs, ram: ram) }
         if let disk { addVirtio(disk, ram: ram) }
@@ -218,6 +231,7 @@ public final class Machine: @unchecked Sendable {
 
         let entry = try loadGuest()
         vcpus[0].powerOn(entry: entry.kernel, context: entry.fdt)
+        memoryPlugPolicy?.start()
     }
 
     public func stop() async { stop(.guestStopped) }
@@ -242,6 +256,7 @@ public final class Machine: @unchecked Sendable {
         exit = result
         lock.unlock()
         for vcpu in vcpus { vcpu.halt() }
+        memoryPlugPolicy?.stop()
         vsock.closeAll()
         net.stop()
         // Often called on a vCPU thread (PSCI SYSTEM_OFF), so wait for the threads elsewhere.
@@ -278,7 +293,7 @@ public final class Machine: @unchecked Sendable {
         let imageSize = kernel.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 16, as: UInt64.self) }
         let kernelAddr = HVLayout.ramBase + textOffset
         let initrdAddr = alignUp(kernelAddr + max(imageSize, UInt64(kernel.count)), 2 << 20)
-        let fdtAddr = HVLayout.ramBase + ramSize - (2 << 20)
+        let fdtAddr = HVLayout.ramBase + bootSize - (2 << 20)
         guard initrdAddr + UInt64(initramfs.count) < fdtAddr else {
             throw DMXError("vm_error", "guest memory is too small for the kernel and initramfs")
         }
@@ -324,6 +339,37 @@ public final class Machine: @unchecked Sendable {
         "coherent_pool=64K",
     ]
 
+    // MARK: Memory plug (virtio-mem)
+
+    /// Guest RAM at boot unless `MachineSpec.bootMemory` says otherwise. Kernel allocations
+    /// (page tables, slab, network buffers) can only use this; memory plugged later goes mostly
+    /// to ZONE_MOVABLE, so it can be unplugged again.
+    public static let defaultBootMemory: UInt64 = 1 << 30
+
+    static func bootSize(spec: MachineSpec) -> UInt64 {
+        let boot = alignUp(max(spec.bootMemory ?? defaultBootMemory, 256 << 20), VirtioMem.linuxBlockSize)
+        // A region below one Linux memory block could never be plugged.
+        return spec.maxMemory >= boot + VirtioMem.linuxBlockSize ? boot : spec.maxMemory
+    }
+
+    /// Plugged memory is onlined at once (no udev in the guest). auto-movable puts it in
+    /// ZONE_MOVABLE while that stays below 3x the kernel's memory, so unplugging can migrate
+    /// whatever lives there; beyond that it goes to ZONE_NORMAL.
+    static let memoryPlugKernelArgs = ["memhp_default_state=online", "memory_hotplug.online_policy=auto-movable"]
+
+    /// Memory present now: what the guest booted with plus what it has plugged; nil without
+    /// the device (`bootMemory` covers the ceiling).
+    public var memoryPlugState: (boot: UInt64, requested: UInt64, plugged: UInt64, plugs: Int, unplugs: Int)? {
+        memoryPlug.map { let s = $0.state; return (bootSize, s.requested, s.plugged, s.plugs, s.unplugs) }
+    }
+
+    /// Asks the guest to have `bytes` of RAM in all, boot memory included (rounded up to 128 MB,
+    /// at most the ceiling). The guest gets there on its own: plugging takes milliseconds,
+    /// unplugging only what it can free.
+    public func setPluggedMemory(_ bytes: UInt64) {
+        memoryPlug?.setRequested(bytes > bootSize ? bytes - bootSize : 0)
+    }
+
     private func deviceTree(initrd: Range<UInt64>) -> Data {
         let gicPhandle: UInt32 = 1, clockPhandle: UInt32 = 2
         let level: UInt32 = 4  // IRQ_TYPE_LEVEL_HIGH
@@ -340,14 +386,15 @@ public final class Machine: @unchecked Sendable {
             t.property("interrupt-parent", u32: gicPhandle)
 
             t.node("chosen") { t in
-                t.property("bootargs", string: (Self.baseKernelArgs + VirtioFS.kernelArgs(spec.shares) + spec.kernelArgs).joined(separator: " "))
+                let plugArgs = memoryPlug == nil ? [] : Self.memoryPlugKernelArgs + ["dmx.memory=\(ramSize >> 20)"]
+                t.property("bootargs", string: (Self.baseKernelArgs + plugArgs + VirtioFS.kernelArgs(spec.shares) + spec.kernelArgs).joined(separator: " "))
                 t.property("stdout-path", string: "/pl011@\(String(HVLayout.uart, radix: 16))")
                 t.property("linux,initrd-start", u64: initrd.lowerBound)
                 t.property("linux,initrd-end", u64: initrd.upperBound)
             }
             t.node("memory@\(String(HVLayout.ramBase, radix: 16))") { t in
                 t.property("device_type", string: "memory")
-                t.property("reg", u32: hi(HVLayout.ramBase), lo(HVLayout.ramBase), hi(ramSize), lo(ramSize))
+                t.property("reg", u32: hi(HVLayout.ramBase), lo(HVLayout.ramBase), hi(bootSize), lo(bootSize))
             }
             t.node("cpus") { t in
                 t.property("#address-cells", u32: 1)

@@ -173,7 +173,18 @@ pub struct SwapOnResult {
     pub enabled_now: bool,
 }
 
-/// Turns on compressed swap in RAM: zram0 with lz4, a quarter of the guest's memory, plus the
+/// The memory ceiling: `dmx.memory=<MB>` on the kernel command line when memory above what the
+/// guest booted with is plugged as needed (virtio-mem), otherwise all of it is there: MemTotal.
+fn ceiling() -> io::Result<u64> {
+    let cmdline = fs::read_to_string("/proc/cmdline")?;
+    let mb = cmdline.split_whitespace().find_map(|a| a.strip_prefix("dmx.memory=")?.parse::<u64>().ok());
+    Ok(match mb {
+        Some(mb) => mb << 20,
+        None => memory()?.total,
+    })
+}
+
+/// Turns on compressed swap in RAM: zram0 with lz4, a quarter of the guest's ceiling, plus the
 /// sysctls that suit it. Not done at boot: the device's page table and the swap maps cost about
 /// 1.8 MB of guest memory per GB of swap at idle, and swap only matters once the guest is
 /// squeezed or nearly full, which is when the host asks for it.
@@ -185,7 +196,7 @@ pub fn swap_on() -> io::Result<SwapOnResult> {
         let size: u64 = fs::read_to_string(block.join("disksize"))?.trim().parse().unwrap_or(0);
         return Ok(SwapOnResult { size, enabled_now: false });
     }
-    let size = memory()?.total / 4 & !0xfffff;
+    let size = ceiling()? / 4 & !0xfffff;
     fs::write(block.join("comp_algorithm"), "lz4")?;
     fs::write(block.join("disksize"), size.to_string())?;
     let made = std::process::Command::new("/sbin/mkswap")

@@ -164,7 +164,8 @@ final class MemoryController {
             level = current
         }
 
-        if !swapOn, current == .critical || memory.used > memory.total / 2 {
+        // Half the ceiling, not of MemTotal: with virtio-mem that is what is plugged, which grows with use.
+        if !swapOn, current == .critical || memory.used > machine.spec.maxMemory / 2 {
             do {
                 let size = try await agent.swapOn()
                 swapOn = true

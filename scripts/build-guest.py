@@ -108,6 +108,7 @@ DMX_KERNEL_RELEASE = "6.18.58-dmx"
 MODULES = [
     "virtio_mmio",
     "virtio_balloon",
+    "virtio_mem",
     "vmw_vsock_virtio_transport",
     "virtio_rng",
     "virtio_net",

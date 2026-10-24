@@ -102,7 +102,7 @@ CONFIG = {
     # Devices dmx's VMM has, built in so /init loads nothing for them.
     **{sym: "y" for sym in [
         "VIRTIO_MMIO", "VIRTIO_BALLOON", "VSOCKETS", "VIRTIO_VSOCKETS", "HW_RANDOM", "HW_RANDOM_VIRTIO",
-        "VIRTIO_BLK", "VIRTIO_NET", "FUSE_FS", "VIRTIO_FS", "OVERLAY_FS", "EXT4_FS", "ZRAM",
+        "VIRTIO_BLK", "VIRTIO_NET", "FUSE_FS", "VIRTIO_FS", "OVERLAY_FS", "EXT4_FS", "ZRAM", "VIRTIO_MEM",
     ]},
     # The VMM has 64 vCPUs at most and one memory node; NR_CPUS=4096 sizes static per-CPU arrays.
     "NR_CPUS": "64",
@@ -143,7 +143,9 @@ DROP = {"ARM64_VA_BITS"}
 MUST = {
     "y": ["ARM64_16K_PAGES", "ARM64_VA_BITS_48", "DEBUG_INFO_NONE", "VIRTIO_MMIO", "VIRTIO_BALLOON",
           "VIRTIO_VSOCKETS", "HW_RANDOM_VIRTIO", "VIRTIO_CONSOLE", "SERIAL_AMBA_PL011", "PAGE_REPORTING",
-          "MEMCG", "CGROUPS", "NAMESPACES", "USER_NS", "SECCOMP", "BPF_SYSCALL", "OVERLAY_FS", "PSI"],
+          "MEMCG", "CGROUPS", "NAMESPACES", "USER_NS", "SECCOMP", "BPF_SYSCALL", "OVERLAY_FS", "PSI",
+          # Memory above the 1 GB the guest boots with is plugged with virtio-mem (Machine.swift).
+          "MEMORY_HOTPLUG", "MEMORY_HOTREMOVE", "VIRTIO_MEM"],
     "unset": ["PCI", "ACPI", "EFI", "NUMA", "COMPAT", "TRANSPARENT_HUGEPAGE_ALWAYS", "MODULE_SIG",
               "ZONE_DMA", "ZONE_DMA32"],
 }
@@ -289,7 +291,8 @@ def build(args):
         f"BUILD_TIMESTAMP='{args.timestamp}' MUST_Y='{' '.join(MUST['y'])}' MUST_UNSET='{' '.join(MUST['unset'])}' "
         f"CONFIG_ONLY='{'1' if args.config_only else ''}' sh build.sh"
     )
-    cmd = [str(dmx), "boot", "--memory", args.memory, "--", "sh", "-c", script]
+    # All of it at boot: the build's tmpfs is sized from MemTotal when it is mounted.
+    cmd = [str(dmx), "boot", "--memory", args.memory, "--boot-memory", args.memory, "--", "sh", "-c", script]
     start = time.monotonic()
     tmp = out.with_name(out.name + ".part")  # distinct for --config-only, so the two can run at once
     with open(tmp, "wb") as f:
