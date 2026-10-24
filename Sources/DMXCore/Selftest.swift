@@ -24,6 +24,8 @@ public struct SelftestReport: Encodable, Sendable {
     public let stats: AgentStats?
     /// Host memory of the VM process, read after dropping caches, before shutdown.
     public let host: HostFootprint?
+    /// Guest RAM present when `host` was read (boot plus plugged, virtio-mem), and the ceiling's rest.
+    public let memoryPlug: MemoryPlugReport?
     public let reclaim: ReclaimReport?
     public let disk: DiskReport?
     public let checks: [SelftestCheck]
@@ -60,6 +62,7 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
     var checks: [SelftestCheck] = []
     var hello: AgentHello?, uname: String?, offsetMs: Double?, stats: AgentStats?
     var host: HostFootprint?
+    var plug: MemoryPlugReport?
     var reclaim: ReclaimReport?
     var disk: DiskReport?
     var bootMs: Int?, shutdownStarted: ContinuousClock.Instant?
@@ -96,7 +99,9 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
         // Bound drivers, whether built in or loaded as modules: /sys/bus/virtio/drivers/<driver>/virtioN.
         let bound = text(try await agent.run(["find", "/sys/bus/virtio/drivers", "-mindepth", "2", "-maxdepth", "2", "-name", "virtio*"]).stdout)
             .split(separator: "\n").map { $0.split(separator: "/").dropLast().last.map(String.init) ?? "" }
-        for driver in ["virtio_console", "virtio_rng", "virtio_balloon", "vmw_vsock_virtio_transport", "virtio_net", "virtio_blk"] {
+        let drivers = ["virtio_console", "virtio_rng", "virtio_balloon", "vmw_vsock_virtio_transport", "virtio_net", "virtio_blk"]
+            + (machine.memoryPlugState == nil ? [] : ["virtio_mem"])
+        for driver in drivers {
             check("driver.\(driver)", bound.contains(driver), bound.contains(driver) ? "bound" : "no device bound")
         }
 
@@ -113,6 +118,7 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
               "available \(formatSize(dropped.availableBefore)) -> \(formatSize(dropped.availableAfter))")
         stats = try await agent.stats()
         host = machine.hostFootprint()
+        plug = machine.memoryPlugState.map(MemoryPlugReport.init)
         check("host_footprint", host != nil, host.map { "pid \($0.pid), \($0.footprintMb) MB (peak \($0.peakFootprintMb) MB)" } ?? "VM process not found")
 
         if let idle = host {
@@ -177,12 +183,29 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
         guestUsedMb: stats.map { Int($0.memory.used >> 20) },
         stats: stats,
         host: host,
+        memoryPlug: plug,
         reclaim: reclaim,
         disk: disk,
         checks: checks,
         problems: problems,
         console: ok ? nil : lines
     )
+}
+
+public struct MemoryPlugReport: Encodable, Sendable {
+    public let bootMb: Int
+    public let pluggedMb: Int
+    public let requestedMb: Int
+    public let plugs: Int
+    public let unplugs: Int
+
+    init(_ s: (boot: UInt64, requested: UInt64, plugged: UInt64, plugs: Int, unplugs: Int)) {
+        bootMb = Int(s.boot >> 20)
+        pluggedMb = Int(s.plugged >> 20)
+        requestedMb = Int(s.requested >> 20)
+        plugs = s.plugs
+        unplugs = s.unplugs
+    }
 }
 
 public struct ReclaimReport: Encodable, Sendable {

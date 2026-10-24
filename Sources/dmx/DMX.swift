@@ -89,6 +89,9 @@ struct Boot: AsyncParsableCommand {
     @Option(help: "Memory ceiling, e.g. 8G. Only touched pages use host memory.")
     var memory: String?
 
+    @Option(help: "Guest RAM at boot, e.g. 1G; the rest of --memory is plugged as needed (default 1G). For experiments.")
+    var bootMemory: String?
+
     @Flag(help: "Boot, exercise the guest agent over vsock, and power off through it.")
     var selftest = false
 
@@ -109,8 +112,9 @@ struct Boot: AsyncParsableCommand {
 
     @MainActor
     func run() async throws {
-        let spec = MachineSpec(cpus: cpus, maxMemory: try memory.map(parseSize), kernelArgs: kernelArgs,
+        var spec = MachineSpec(cpus: cpus, maxMemory: try memory.map(parseSize), kernelArgs: kernelArgs,
                                shares: try Share.parseList(shares.joined(separator: ",")))
+        spec.bootMemory = try bootMemory.map(parseSize)
         if !command.isEmpty {
             let status: Int32
             do {

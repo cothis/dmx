@@ -7,7 +7,11 @@ mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev
 mkdir -p /dev/pts /dev/shm /run
 mount -t devpts devpts /dev/pts
-mount -t tmpfs -o mode=0755 tmpfs /run
+# tmpfs sizes itself from the RAM present at mount. With virtio-mem that is only what the guest
+# booted with, so the host passes the ceiling (dmx.memory=<MB>) and /run gets half of it, as before.
+run=50%
+for arg in $(cat /proc/cmdline); do case "$arg" in dmx.memory=*) run=$((${arg#dmx.memory=} / 2))m; esac; done
+mount -t tmpfs -o mode=0755,size=$run tmpfs /run
 mount -t cgroup2 cgroup2 /sys/fs/cgroup
 echo "+cpu +memory +io +pids" >/sys/fs/cgroup/cgroup.subtree_control || echo "dmx-init: cgroup controllers not enabled" >&2
 hostname dmx
@@ -15,7 +19,7 @@ ip link set lo up
 
 # The dmx kernel has these built in; the stock Alpine kernel that bootstraps `make kernel` does not.
 builtin=/lib/modules/$(uname -r)/modules.builtin
-for m in virtio_mmio virtio_balloon vmw_vsock_virtio_transport virtio_rng virtio_net; do
+for m in virtio_mmio virtio_balloon virtio_mem vmw_vsock_virtio_transport virtio_rng virtio_net; do
 	sed s/-/_/g "$builtin" 2>/dev/null | grep -q "/$m.ko$" || modprobe "$m" || echo "dmx-init: modprobe $m failed" >&2
 done
 
