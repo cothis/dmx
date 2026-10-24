@@ -1,7 +1,7 @@
 # dmx daemon control protocol
 
 `dmx daemon` owns the VM and listens on a Unix socket, `~/.dmx/dmx.sock` (mode 0600). The CLI
-talks to it; `dmx mcp` will too. The wire format is the [agent protocol](agent-protocol.md)'s:
+talks to it, and so does `dmx mcp` (one connection per tool call, see [mcp.md](mcp.md)). The wire format is the [agent protocol](agent-protocol.md)'s:
 frames of a 4-byte big-endian length, one kind byte (0 JSON, 1 stdin, 2 stdout, 3 stderr) and
 the payload. JSON keys are snake_case.
 

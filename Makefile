@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build install kernel guest selftest daemontest clean
+.PHONY: build install kernel guest selftest daemontest mcptest clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -29,6 +29,10 @@ selftest: build
 # The daemon, its socket and exec paths, idle stop, in a throwaway DMX_HOME (about 45 s).
 daemontest: build
 	python3 -I scripts/test-daemon.py $(BIN)
+
+# `dmx mcp` driven over pipes like an MCP client: tools, output limits, timeouts (about 6 s).
+mcptest: build
+	python3 -I scripts/test-mcp.py $(BIN)
 
 clean:
 	rm -rf .build
