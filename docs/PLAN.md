@@ -49,6 +49,7 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | x86_64 images through QEMU user mode + binfmt, not Rosetta (2026-10-23) | Rosetta for Linux exists only inside Virtualization.framework. Most images are multi-arch; emulation is a fallback. |
 | One long lived VM, not one VM per container | One kernel's overhead instead of N. Revisit per-container VMs for sandboxes (phase 9). |
 | CLI only, no GUI | The work that matters is invisible (memory, sockets). Agents use CLIs. |
+| Kernel hardening over a few MB (2026-10-24) | Maintainer's choice: `rodata=noalias` would save 4 MB at 8G (page tables of a page-by-page linear map) but leaves the linear alias of kernel text writable, so the default stays `rodata=full`. |
 | Memory savings are always on | Balloon, idle stop and cache trimming are defaults, not options. The user's standing preference: improvements are not toggles. |
 | Docker compatibility first via dockerd in the guest | Gets `docker run` working early; own runtime replaces pieces later. |
 | Alpine Linux artifacts, pinned by sha256 | Small, musl, official signed packages. A custom kernel is allowed when needed (see phase 3). |
@@ -252,7 +253,7 @@ Done when: the test suite passes with the stock `docker` CLI.
 ## Next up
 
 Phase 5, "`dmx daemon`": the remaining phase 4 tasks (memory controller, idle page cache
-trimming, host pressure) need it. Phase 4's idle target is met (111 MB at 8G, goal under 150);
+trimming, host pressure) need it. Phase 4's idle target is met (115 to 116 MB at 8G, goal under 150);
 its second half (a 2 GB container's memory back within 10 s) is tested once containers run.
 
 ## Findings and measurements
@@ -309,6 +310,7 @@ its second half (a 2 GB container's memory back within 10 s) is tested once cont
 | 2026-10-24 | Guest MemTotal - MemFree at idle (48 MB) | per-CPU free lists 11.3 MB (722 pages over 20 lists: DMA and Normal zone per vCPU), slab 10, vmalloc ~5 (3 MB of it the atomic DMA pools), shmem 3.6, kernel stacks 2, page tables 1.8, percpu 1.8, the rest driver buffers. `coherent_pool=64K` (pools of 1 MB per zone otherwise): 112 to 113 MB. |
 | 2026-10-24 | Kernel without the lockdown LSM | `MODULE_SIG` off; modprobe no longer taints the kernel. Compiled in 7423 s at host load 30 to 76. Selftest with `rodata=noalias coherent_pool=64K`: 112 MB at 8G (3 runs), back to 113 to 118 MB after the 1 GB test. |
 | 2026-10-24 | Kernel without ZONE_DMA/ZONE_DMA32 (one Normal zone) | Compiled in 933 s at host load ~10 to 25. Per-CPU free lists 20 → 10, but they hold the same in total (776 pages, 12 MB): each list's high mark grows with its zone. Selftest 8G 111 to 112 MB (was 112), 2G 87; after the 1 GB test 113 MB in 0.3 s. Kept: nothing in dmx needs memory below 4 GB. |
+| 2026-10-24 | Back to `rodata=full` (maintainer's choice) | Selftest 8G 115 to 116 MB (was 111 to 112 with `rodata=noalias`), after the 1 GB test 116 to 118 MB in 0.3 s; agent up in 140 to 170 ms. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -331,3 +333,4 @@ its second half (a 2 GB container's memory back within 10 s) is tested once cont
 - 2026-10-24: VMM fixes: vCPUs come back after CPU_OFF, no lost virtio interrupts on ack, a stopped VM closes its vsock streams.
 - 2026-10-24: The unexplained 24 MB turned out to be guest pages `mincore` misses. Linear map in blocks and small atomic DMA pools: idle at 8G 120 → 112 MB.
 - 2026-10-24: One memory zone in the guest kernel; idle 111 MB at 8G.
+- 2026-10-24: Kept kernel text protected in the linear map (no `rodata=noalias`); idle 115 MB at 8G.
