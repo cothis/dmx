@@ -414,8 +414,10 @@ extension PortForwards {
 /// A side is read only once the other side has taken everything read from it before, so a slow
 /// reader holds the writer back through TCP and vsock flow control instead of bytes piling up
 /// here: at most one 64 KB buffer per direction, and only while bytes are in flight. End of
-/// stream on one side becomes a half close (SHUT_WR) on the other; an error on either ends both.
-/// The caller closes the descriptors afterwards.
+/// stream on one side becomes a half close (SHUT_WR) on the other. A side that stops taking bytes
+/// ends only the direction writing to it: what it sent before may still be unread, and the other
+/// direction delivers that up to its end of stream. A read error ends both. The caller closes
+/// the descriptors afterwards.
 func splice(_ a: Int32, _ b: Int32) async {
     let splice = Splice(a, b)
     await withCheckedContinuation { splice.run($0) }
@@ -502,7 +504,8 @@ private final class Splice: @unchecked Sendable {
             } else if n < 0 && errno == EAGAIN {
                 return false
             } else {
-                abort()
+                // `to` is gone for writing; leave its read side alone (see `splice`).
+                end(d)
                 return false
             }
         }
@@ -531,7 +534,7 @@ private final class Splice: @unchecked Sendable {
         d.readerSuspended = false
     }
 
-    /// Ends both directions after an error on either side.
+    /// Ends both directions after a read error: that side is gone.
     private func abort() {
         shutdown(a, SHUT_RDWR)
         shutdown(b, SHUT_RDWR)

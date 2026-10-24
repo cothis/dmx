@@ -410,16 +410,20 @@ func seconds(_ d: Duration) -> Double {
 }
 
 /// Copies bytes both ways between two connected sockets until either side is done, then shuts
-/// both down so the other direction ends too.
+/// both down so the other direction ends too. A direction that ends because its destination
+/// stopped taking bytes shuts nothing down: what that side sent before going away (an exec's last
+/// output and its `exit`) may still be unread, and shutting down its read side would discard it.
+/// The other direction ends at its end of stream.
 func relay(_ a: Int32, _ b: Int32) async {
     await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
         let group = DispatchGroup()
         for (from, to) in [(a, b), (b, a)] {
             group.enter()
             Thread.detachNewThread {
-                pump(from: from, to: to)
-                shutdown(a, SHUT_RDWR)
-                shutdown(b, SHUT_RDWR)
+                if pump(from: from, to: to) {
+                    shutdown(a, SHUT_RDWR)
+                    shutdown(b, SHUT_RDWR)
+                }
                 group.leave()
             }
         }
@@ -427,20 +431,21 @@ func relay(_ a: Int32, _ b: Int32) async {
     }
 }
 
-private func pump(from: Int32, to: Int32) {
+/// Returns false when writing to `to` failed, true when `from` ended.
+private func pump(from: Int32, to: Int32) -> Bool {
     let size = 128 << 10
     let buffer = UnsafeMutableRawPointer.allocate(byteCount: size, alignment: 16)
     defer { buffer.deallocate() }
     while true {
         let n = read(from, buffer, size)
         if n < 0 && errno == EINTR { continue }
-        if n <= 0 { return }
+        if n <= 0 { return true }
         var offset = 0
         while offset < n {
             let w = write(to, buffer + offset, n - offset)
             if w < 0 {
                 if errno == EINTR { continue }
-                return
+                return false
             }
             offset += w
         }
