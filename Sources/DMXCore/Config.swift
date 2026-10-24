@@ -9,9 +9,12 @@ public struct Config: Codable, Sendable, Equatable {
     public var memory: String?
     /// Seconds without clients before the VM stops; default 300.
     public var idleTimeout: Int?
+    /// Host directories shared at the same path in the guest (`Share.text` forms); default the
+    /// home directory. An empty list shares nothing.
+    public var shares: [String]?
 
     public static let defaultIdleTimeout = 300
-    public static let keys = ["cpus", "memory", "idle_timeout"]
+    public static let keys = ["cpus", "memory", "idle_timeout", "shares"]
 
     public init() {}
 
@@ -35,10 +38,14 @@ public struct Config: Codable, Sendable, Equatable {
     }
 
     public var spec: MachineSpec {
-        get throws { MachineSpec(cpus: cpus, maxMemory: try memory.map(parseSize)) }
+        get throws { MachineSpec(cpus: cpus, maxMemory: try memory.map(parseSize), shares: try shareList) }
     }
 
     public var idleTimeoutSeconds: Int { idleTimeout ?? Self.defaultIdleTimeout }
+
+    public var shareList: [Share] {
+        get throws { try shares.map { try Share.parseList($0.joined(separator: ",")) } ?? Share.defaults }
+    }
 
     /// Every key with the value in effect: the configured one, or the default.
     public var effective: [String: String] {
@@ -47,6 +54,7 @@ public struct Config: Codable, Sendable, Equatable {
             "cpus": String(spec.cpus),
             "memory": memory ?? formatSize(spec.maxMemory),
             "idle_timeout": formatDuration(idleTimeoutSeconds),
+            "shares": (try? shareList).map { $0.isEmpty ? "none" : $0.map(\.text).joined(separator: ",") } ?? "invalid",
         ]
     }
 
@@ -69,6 +77,9 @@ public struct Config: Codable, Sendable, Equatable {
         case "idle_timeout":
             guard let value else { idleTimeout = nil; return }
             idleTimeout = try parseDuration(value)
+        case "shares":
+            guard let value else { shares = nil; return }
+            shares = try Share.parseList(value).map(\.text)
         default:
             throw DMXError("unknown_config_key", "no setting named \"\(key)\"", hint: "settings are \(Self.keys.joined(separator: ", ")); run `dmx config get`")
         }

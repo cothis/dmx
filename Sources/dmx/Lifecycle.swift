@@ -243,6 +243,7 @@ func configReport(_ paths: Paths, only key: String?) throws -> (ConfigReport, St
         switch k {
         case "cpus": config.cpus != nil
         case "memory": config.memory != nil
+        case "shares": config.shares != nil
         default: config.idleTimeout != nil
         }
     }

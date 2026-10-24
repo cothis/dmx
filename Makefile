@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build install kernel guest selftest daemontest mcptest clean
+.PHONY: build install kernel guest selftest daemontest mcptest test clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -33,6 +33,10 @@ daemontest: build
 # `dmx mcp` driven over pipes like an MCP client: tools, output limits, timeouts (about 6 s).
 mcptest: build
 	python3 -I scripts/test-mcp.py $(BIN)
+
+# Unit tests that need no VM (the virtio-fs server's path containment).
+test:
+	swift test
 
 clean:
 	rm -rf .build
