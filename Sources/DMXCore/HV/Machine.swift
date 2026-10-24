@@ -297,8 +297,9 @@ public final class Machine: @unchecked Sendable {
         // up to 38 MB per vCPU at 8 GB. This caps them at 60 pages (~1 MB) each.
         "sysctl.vm.percpu_pagelist_high_fraction=100000",
         // A transparent huge page is 32 MB with 16K pages, and Alpine's default is "always": one
-        // byte touched per 32 MB of a 1 GB mapping cost 1 GB. Only programs that ask get them.
-        "transparent_hugepage=madvise",
+        // byte touched per 32 MB of a 1 GB mapping cost 1 GB. Not even for programs that ask:
+        // qemu-x86_64 madvises its 128 MB code buffer, so each x86 process cost 32 MB more.
+        "transparent_hugepage=never",
         // Slabs of at most 32 KB (order 1) instead of 128 KB. Every vCPU holds an active slab per
         // cache, so large slabs cost ~0.5 MB per vCPU at idle.
         "slub_max_order=1",

@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build install kernel guest selftest daemontest mcptest test clean
+.PHONY: build install kernel guest selftest daemontest mcptest x86test test clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -33,6 +33,11 @@ daemontest: build
 # `dmx mcp` driven over pipes like an MCP client: tools, output limits, timeouts (about 6 s).
 mcptest: build
 	python3 -I scripts/test-mcp.py $(BIN)
+
+# x86_64 programs through binfmt_misc and qemu: static, dynamic, python3, node, speed against
+# native (pinned Alpine x86_64 packages, ~40 MB the first time; about 2 min).
+x86test: build
+	python3 -I scripts/test-x86.py $(BIN)
 
 # Unit tests that need no VM (the virtio-fs server's path containment).
 test:
