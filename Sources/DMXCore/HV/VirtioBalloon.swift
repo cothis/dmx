@@ -12,6 +12,7 @@ final class VirtioBalloon: VirtioDevice, @unchecked Sendable {
     let features: UInt64 = VirtioBalloon.deflateOnOOM | VirtioBalloon.reporting
     /// inflateq, deflateq, reporting_vq: absent queues (stats, free page hints) take no index.
     let queueSizes: [UInt16] = [64, 64, 32]
+    let accessesBuffers = false
 
     private let queue = DispatchQueue(label: "dmx.balloon")
     private let release: (UInt64, UInt64) -> Void
