@@ -1,0 +1,733 @@
+{
+  "what": "Cross-engine comparison on one Mac (macOS 26.6.1, 10 cores, 16 GB), docs/benchmark.md protocol: 2 CPUs, 4 GiB, no shares, native arm64 alpine; one engine running at a time; three alternating rounds",
+  "engines": {
+    "dmx": "this commit's build, Docker 29.9.2",
+    "colima": "Colima 0.10.3 + Lima 2.2.1 (vz, --mount none), Docker 29.5.2",
+    "orbstack": "OrbStack 2.2.5 (21124), Docker 29.8.2; rounds 2-3 measured headless (orbctl start, no GUI process); round 1 includes the GUI process",
+    "docker-desktop": "Docker Desktop 4.96.3 (244472), Docker 29.9.2, Apple Virtualization framework, all Docker.app processes"
+  },
+  "installers": {
+    "Docker.dmg": "a3ac78b7de67af169ca58f33a4fa4c26007840870574c80c59a7ab0c7f68d954",
+    "OrbStack.dmg": "f2b887d26a21e0a12147eb005297782794b26f461f77c6b9cdfb57f576ad5e6d"
+  },
+  "runs": {
+    "colima": [
+      {
+        "at": "2026-10-24T18:01:39.048369+00:00",
+        "host_load_start": [
+          2.87,
+          2.41,
+          3.18
+        ],
+        "docker_versions": "29.9.2 / 29.5.2",
+        "docker_info": {
+          "ServerVersion": "29.5.2",
+          "KernelVersion": "6.8.0-117-generic",
+          "NCPU": 2,
+          "MemTotal": 4094390272,
+          "Architecture": "aarch64",
+          "Driver": "overlayfs"
+        },
+        "processes": {
+          "48456": "/opt/homebrew/bin/limactl",
+          "48460": "/opt/homebrew/bin/limactl",
+          "48469": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+          "48491": "ssh: /Users/cothis/.colima/_lima/colima/ssh.sock [mux]"
+        },
+        "before_docker_mb": null,
+        "idle_mb": 987.89,
+        "idle_by_process": {
+          "48456": 37.83,
+          "48460": 59.34,
+          "48469": 889.02,
+          "48491": 1.7
+        },
+        "idle_cpu_percent_of_one_core": 0.473,
+        "run_true_ms": {
+          "samples": [
+            230.33,
+            64.54,
+            61.86,
+            58.86,
+            79.93
+          ],
+          "median": 64.54
+        },
+        "sha256_256m_ms": 912,
+        "holding_2g_mb": 3083.4,
+        "peak_2g_mb": 3092.3,
+        "return": {
+          "baseline_mb": 1111.51,
+          "after_mb": 3092.3,
+          "elapsed_s": 10.03,
+          "within_10s": false
+        }
+      },
+      {
+        "at": "2026-10-24T18:20:01.155783+00:00",
+        "host_load_start": [
+          3.12,
+          3.96,
+          4.17
+        ],
+        "docker_versions": "29.9.2 / 29.5.2",
+        "docker_info": {
+          "ServerVersion": "29.5.2",
+          "KernelVersion": "6.8.0-117-generic",
+          "NCPU": 2,
+          "MemTotal": 4094447616,
+          "Architecture": "aarch64",
+          "Driver": "overlayfs"
+        },
+        "processes": {
+          "64503": "/opt/homebrew/bin/limactl",
+          "64505": "/opt/homebrew/bin/limactl",
+          "64512": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+          "64522": "ssh: /Users/cothis/.colima/_lima/colima/ssh.sock [mux]"
+        },
+        "before_docker_mb": null,
+        "idle_mb": 1346.69,
+        "idle_by_process": {
+          "64503": 30.38,
+          "64505": 59.2,
+          "64512": 1255.39,
+          "64522": 1.72
+        },
+        "idle_cpu_percent_of_one_core": 0.257,
+        "run_true_ms": {
+          "samples": [
+            243.01,
+            67.26,
+            73.29,
+            63.22,
+            76.8
+          ],
+          "median": 73.29
+        },
+        "sha256_256m_ms": 915,
+        "holding_2g_mb": 3344.87,
+        "peak_2g_mb": 3346.15,
+        "return": {
+          "baseline_mb": 1371.24,
+          "after_mb": 3346.15,
+          "elapsed_s": 10.06,
+          "within_10s": false
+        }
+      },
+      {
+        "at": "2026-10-24T18:31:55.825831+00:00",
+        "host_load_start": [
+          2.97,
+          4.8,
+          4.48
+        ],
+        "docker_versions": "29.9.2 / 29.5.2",
+        "docker_info": {
+          "ServerVersion": "29.5.2",
+          "KernelVersion": "6.8.0-117-generic",
+          "NCPU": 2,
+          "MemTotal": 4094455808,
+          "Architecture": "aarch64",
+          "Driver": "overlayfs"
+        },
+        "processes": {
+          "77944": "/opt/homebrew/bin/limactl",
+          "77946": "/opt/homebrew/bin/limactl",
+          "77954": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+          "77963": "ssh: /Users/cothis/.colima/_lima/colima/ssh.sock [mux]"
+        },
+        "before_docker_mb": null,
+        "idle_mb": 1097.43,
+        "idle_by_process": {
+          "77944": 32.24,
+          "77946": 59.86,
+          "77954": 1003.64,
+          "77963": 1.69
+        },
+        "idle_cpu_percent_of_one_core": 0.213,
+        "run_true_ms": {
+          "samples": [
+            184.52,
+            70.48,
+            66.65,
+            78.61,
+            75.27
+          ],
+          "median": 75.27
+        },
+        "sha256_256m_ms": 893,
+        "holding_2g_mb": 3172.13,
+        "peak_2g_mb": 3179.82,
+        "return": {
+          "baseline_mb": 1210.7,
+          "after_mb": 3179.73,
+          "elapsed_s": 10.05,
+          "within_10s": false
+        }
+      }
+    ],
+    "docker-desktop": [
+      {
+        "at": "2026-10-24T18:09:45.094729+00:00",
+        "host_load_start": [
+          6.37,
+          3.46,
+          3.21
+        ],
+        "docker_versions": "29.9.2 / 29.9.2",
+        "docker_info": {
+          "ServerVersion": "29.9.2",
+          "KernelVersion": "7.0.14-linuxkit",
+          "NCPU": 2,
+          "MemTotal": 4107407360,
+          "Architecture": "aarch64",
+          "Driver": "overlay2"
+        },
+        "processes": {
+          "51038": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+          "51041": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+          "51042": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+          "51073": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/MacOS/Docker Desktop",
+          "51074": "/Applications/Docker.app/Contents/MacOS/com.docker.build",
+          "51076": "/Applications/Docker.app/Contents/MacOS/com.docker.virtualization",
+          "51083": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+          "51107": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+          "51110": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+          "51127": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper (Renderer).app/Contents/MacOS/Docker Desktop Helper (Renderer)",
+          "51142": "/Applications/Docker.app/Contents/Resources/cli-plugins/docker-agent"
+        },
+        "before_docker_mb": null,
+        "idle_mb": 1193.39,
+        "idle_by_process": {
+          "51038": 29.72,
+          "51041": 86.13,
+          "51042": 29.03,
+          "51073": 77.13,
+          "51074": 16.49,
+          "51076": 35.44,
+          "51083": 782.69,
+          "51107": 26.0,
+          "51110": 7.19,
+          "51127": 65.58,
+          "51142": 37.99
+        },
+        "idle_cpu_percent_of_one_core": 0.823,
+        "run_true_ms": {
+          "samples": [
+            320.5,
+            101.78,
+            96.84,
+            98.75,
+            91.68
+          ],
+          "median": 98.75
+        },
+        "sha256_256m_ms": 1922,
+        "holding_2g_mb": 3388.05,
+        "peak_2g_mb": 3389.67,
+        "return": {
+          "baseline_mb": 1347.22,
+          "after_mb": 3388.17,
+          "elapsed_s": 10.01,
+          "within_10s": false
+        }
+      },
+      {
+        "at": "2026-10-24T18:27:17.243089+00:00",
+        "host_load_start": [
+          7.61,
+          4.16,
+          3.96
+        ],
+        "docker_versions": "29.9.2 / 29.9.2",
+        "docker_info": {
+          "ServerVersion": "29.9.2",
+          "KernelVersion": "7.0.14-linuxkit",
+          "NCPU": 2,
+          "MemTotal": 4107407360,
+          "Architecture": "aarch64",
+          "Driver": "overlay2"
+        },
+        "processes": {
+          "72761": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+          "72781": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+          "72782": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+          "72813": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/MacOS/Docker Desktop",
+          "72815": "/Applications/Docker.app/Contents/MacOS/com.docker.build",
+          "72816": "/Applications/Docker.app/Contents/MacOS/com.docker.virtualization",
+          "72819": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+          "72840": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+          "72841": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+          "72853": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper (Renderer).app/Contents/MacOS/Docker Desktop Helper (Renderer)",
+          "72920": "/Applications/Docker.app/Contents/Resources/cli-plugins/docker-agent"
+        },
+        "before_docker_mb": null,
+        "idle_mb": 1149.36,
+        "idle_by_process": {
+          "72761": 30.78,
+          "72781": 90.67,
+          "72782": 29.05,
+          "72813": 78.3,
+          "72815": 15.19,
+          "72816": 38.77,
+          "72819": 740.1,
+          "72840": 23.5,
+          "72841": 6.91,
+          "72853": 61.42,
+          "72920": 34.67
+        },
+        "idle_cpu_percent_of_one_core": 0.423,
+        "run_true_ms": {
+          "samples": [
+            252.41,
+            115.84,
+            128.82,
+            139.25,
+            120.5
+          ],
+          "median": 128.82
+        },
+        "sha256_256m_ms": 1739,
+        "holding_2g_mb": 3319.18,
+        "peak_2g_mb": 3322.68,
+        "return": {
+          "baseline_mb": 1273.28,
+          "after_mb": 3298.84,
+          "elapsed_s": 10.05,
+          "within_10s": false
+        }
+      },
+      {
+        "at": "2026-10-24T18:28:35.300389+00:00",
+        "host_load_start": [
+          12.39,
+          6.33,
+          4.79
+        ],
+        "docker_versions": "29.9.2 / 29.9.2",
+        "docker_info": {
+          "ServerVersion": "29.9.2",
+          "KernelVersion": "7.0.14-linuxkit",
+          "NCPU": 2,
+          "MemTotal": 4107407360,
+          "Architecture": "aarch64",
+          "Driver": "overlay2"
+        },
+        "processes": {
+          "76834": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+          "76854": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+          "76855": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+          "76892": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/MacOS/Docker Desktop",
+          "76894": "/Applications/Docker.app/Contents/MacOS/com.docker.build",
+          "76895": "/Applications/Docker.app/Contents/MacOS/com.docker.virtualization",
+          "76896": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+          "76910": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+          "76911": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+          "76930": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper (Renderer).app/Contents/MacOS/Docker Desktop Helper (Renderer)",
+          "77016": "/Applications/Docker.app/Contents/Resources/cli-plugins/docker-agent"
+        },
+        "before_docker_mb": null,
+        "idle_mb": 1175.74,
+        "idle_by_process": {
+          "76834": 31.13,
+          "76854": 94.61,
+          "76855": 28.92,
+          "76892": 82.58,
+          "76894": 14.97,
+          "76895": 35.64,
+          "76896": 756.24,
+          "76910": 23.84,
+          "76911": 6.92,
+          "76930": 66.3,
+          "77016": 34.59
+        },
+        "idle_cpu_percent_of_one_core": 0.365,
+        "run_true_ms": {
+          "samples": [
+            259.08,
+            82.37,
+            86.38,
+            96.63,
+            82.95
+          ],
+          "median": 86.38
+        },
+        "sha256_256m_ms": 1110,
+        "holding_2g_mb": 3373.25,
+        "peak_2g_mb": 3373.25,
+        "return": {
+          "baseline_mb": 1312.55,
+          "after_mb": 3361.47,
+          "elapsed_s": 10.03,
+          "within_10s": false
+        }
+      }
+    ],
+    "dmx": [
+      {
+        "at": "2026-10-24T17:47:17.790959+00:00",
+        "host_load_start": [
+          4.09,
+          5.54,
+          4.73
+        ],
+        "docker_versions": "29.9.2 / 29.9.2",
+        "docker_info": {
+          "ServerVersion": "29.9.2",
+          "KernelVersion": "6.18.58-dmx-4k",
+          "NCPU": 2,
+          "MemTotal": 1305063424,
+          "Architecture": "aarch64",
+          "Driver": "overlayfs"
+        },
+        "processes": {
+          "46345": "/Users/cothis/dockermax/.build/out/Products/Release/dmx"
+        },
+        "before_docker_mb": 79.31,
+        "idle_mb": 180.05,
+        "idle_by_process": {
+          "46345": 180.05
+        },
+        "idle_cpu_percent_of_one_core": 0.673,
+        "run_true_ms": {
+          "samples": [
+            299.67,
+            176.0,
+            159.05,
+            155.74,
+            149.79
+          ],
+          "median": 159.05
+        },
+        "sha256_256m_ms": 1346,
+        "holding_2g_mb": 2373.1,
+        "peak_2g_mb": 2379.92,
+        "return": {
+          "baseline_mb": 273.05,
+          "after_mb": 336.99,
+          "elapsed_s": 6.49,
+          "within_10s": true
+        }
+      },
+      {
+        "at": "2026-10-24T18:17:33.276534+00:00",
+        "host_load_start": [
+          2.79,
+          4.63,
+          4.43
+        ],
+        "docker_versions": "29.9.2 / 29.9.2",
+        "docker_info": {
+          "ServerVersion": "29.9.2",
+          "KernelVersion": "6.18.58-dmx-4k",
+          "NCPU": 2,
+          "MemTotal": 1305063424,
+          "Architecture": "aarch64",
+          "Driver": "overlayfs"
+        },
+        "processes": {
+          "63990": "/Users/cothis/dockermax/.build/out/Products/Release/dmx"
+        },
+        "before_docker_mb": 80.55,
+        "idle_mb": 179.52,
+        "idle_by_process": {
+          "63990": 179.52
+        },
+        "idle_cpu_percent_of_one_core": 0.484,
+        "run_true_ms": {
+          "samples": [
+            226.19,
+            117.63,
+            123.05,
+            108.19,
+            118.13
+          ],
+          "median": 118.13
+        },
+        "sha256_256m_ms": 954,
+        "holding_2g_mb": 2372.75,
+        "peak_2g_mb": 2379.3,
+        "return": {
+          "baseline_mb": 275.2,
+          "after_mb": 331.92,
+          "elapsed_s": 1.49,
+          "within_10s": true
+        }
+      },
+      {
+        "at": "2026-10-24T18:33:47.563407+00:00",
+        "host_load_start": [
+          2.62,
+          4.09,
+          4.24
+        ],
+        "docker_versions": "29.9.2 / 29.9.2",
+        "docker_info": {
+          "ServerVersion": "29.9.2",
+          "KernelVersion": "6.18.58-dmx-4k",
+          "NCPU": 2,
+          "MemTotal": 1305063424,
+          "Architecture": "aarch64",
+          "Driver": "overlayfs"
+        },
+        "processes": {
+          "78390": "/Users/cothis/dockermax/.build/out/Products/Release/dmx"
+        },
+        "before_docker_mb": 80.74,
+        "idle_mb": 186.44,
+        "idle_by_process": {
+          "78390": 186.44
+        },
+        "idle_cpu_percent_of_one_core": 0.559,
+        "run_true_ms": {
+          "samples": [
+            204.63,
+            118.09,
+            110.54,
+            112.88,
+            104.26
+          ],
+          "median": 112.88
+        },
+        "sha256_256m_ms": 932,
+        "holding_2g_mb": 2369.92,
+        "peak_2g_mb": 2375.63,
+        "return": {
+          "baseline_mb": 269.45,
+          "after_mb": 328.81,
+          "elapsed_s": 5.89,
+          "within_10s": true
+        }
+      }
+    ],
+    "orbstack": [
+      {
+        "at": "2026-10-24T18:07:51.514515+00:00",
+        "host_load_start": [
+          2.38,
+          2.32,
+          2.84
+        ],
+        "docker_versions": "29.9.2 / 29.8.2",
+        "docker_info": {
+          "ServerVersion": "29.8.2",
+          "KernelVersion": "7.2.12-orbstack-00394-gbecdd6130068",
+          "NCPU": 2,
+          "MemTotal": 4180803584,
+          "Architecture": "aarch64",
+          "Driver": "overlayfs"
+        },
+        "processes": {
+          "50320": "/Applications/OrbStack.app/Contents/MacOS/OrbStack",
+          "50462": "/Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper"
+        },
+        "before_docker_mb": null,
+        "idle_mb": 604.22,
+        "idle_by_process": {
+          "50320": 48.92,
+          "50462": 555.3
+        },
+        "idle_cpu_percent_of_one_core": 5.551,
+        "run_true_ms": {
+          "samples": [
+            277.96,
+            122.79,
+            120.5,
+            131.72,
+            122.97
+          ],
+          "median": 122.97
+        },
+        "sha256_256m_ms": 1469,
+        "holding_2g_mb": 2735.94,
+        "peak_2g_mb": 2736.56,
+        "return": {
+          "baseline_mb": 707.09,
+          "after_mb": 642.36,
+          "elapsed_s": 0.54,
+          "within_10s": true
+        }
+      },
+      {
+        "at": "2026-10-24T18:18:29.836710+00:00",
+        "host_load_start": [
+          2.76,
+          4.28,
+          4.31
+        ],
+        "docker_versions": "29.9.2 / 29.8.2",
+        "docker_info": {
+          "ServerVersion": "29.8.2",
+          "KernelVersion": "7.2.12-orbstack-00394-gbecdd6130068",
+          "NCPU": 2,
+          "MemTotal": 4180803584,
+          "Architecture": "aarch64",
+          "Driver": "overlayfs"
+        },
+        "processes": {
+          "64265": "/Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper"
+        },
+        "before_docker_mb": null,
+        "idle_mb": 525.55,
+        "idle_by_process": {
+          "64265": 525.55
+        },
+        "idle_cpu_percent_of_one_core": 0.207,
+        "run_true_ms": {
+          "samples": [
+            258.0,
+            121.23,
+            117.27,
+            118.36,
+            121.54
+          ],
+          "median": 121.23
+        },
+        "sha256_256m_ms": 1462,
+        "holding_2g_mb": 2620.52,
+        "peak_2g_mb": 2629.44,
+        "return": {
+          "baseline_mb": 570.1,
+          "after_mb": 618.14,
+          "elapsed_s": 9.29,
+          "within_10s": true
+        }
+      },
+      {
+        "at": "2026-10-24T18:35:15.558276+00:00",
+        "host_load_start": [
+          3.55,
+          3.96,
+          4.17
+        ],
+        "docker_versions": "29.9.2 / 29.8.2",
+        "docker_info": {
+          "ServerVersion": "29.8.2",
+          "KernelVersion": "7.2.12-orbstack-00394-gbecdd6130068",
+          "NCPU": 2,
+          "MemTotal": 4180803584,
+          "Architecture": "aarch64",
+          "Driver": "overlayfs"
+        },
+        "processes": {
+          "78732": "/Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper"
+        },
+        "before_docker_mb": null,
+        "idle_mb": 528.38,
+        "idle_by_process": {
+          "78732": 528.38
+        },
+        "idle_cpu_percent_of_one_core": 0.183,
+        "run_true_ms": {
+          "samples": [
+            201.14,
+            143.18,
+            142.51,
+            124.17,
+            133.86
+          ],
+          "median": 142.51
+        },
+        "sha256_256m_ms": 1477,
+        "holding_2g_mb": 2620.5,
+        "peak_2g_mb": 2628.78,
+        "return": {
+          "baseline_mb": 570.46,
+          "after_mb": 615.64,
+          "elapsed_s": 4.2,
+          "within_10s": true
+        }
+      }
+    ]
+  },
+  "long_return": {
+    "docker-desktop": {
+      "label": "docker-desktop",
+      "start_mb": 3386.9,
+      "samples": [
+        {
+          "s": 30,
+          "mb": 3387.5,
+          "alive": 11
+        },
+        {
+          "s": 60,
+          "mb": 3387.5,
+          "alive": 11
+        },
+        {
+          "s": 120,
+          "mb": 3372.2,
+          "alive": 11
+        },
+        {
+          "s": 300,
+          "mb": 364.8,
+          "alive": 9
+        },
+        {
+          "s": 360,
+          "mb": 362.3,
+          "alive": 9
+        }
+      ]
+    },
+    "colima": {
+      "label": "colima",
+      "start_mb": 3346.2,
+      "samples": [
+        {
+          "s": 30,
+          "mb": 3346.1,
+          "alive": 4
+        },
+        {
+          "s": 60,
+          "mb": 3346.3,
+          "alive": 4
+        },
+        {
+          "s": 120,
+          "mb": 3346.3,
+          "alive": 4
+        },
+        {
+          "s": 300,
+          "mb": 3378.2,
+          "alive": 4
+        },
+        {
+          "s": 360,
+          "mb": 3394.2,
+          "alive": 4
+        }
+      ]
+    },
+    "orbstack": {
+      "label": "orbstack",
+      "start_mb": 618.4,
+      "samples": [
+        {
+          "s": 30,
+          "mb": 606.3,
+          "alive": 1
+        },
+        {
+          "s": 60,
+          "mb": 555.1,
+          "alive": 1
+        },
+        {
+          "s": 120,
+          "mb": 502.1,
+          "alive": 1
+        },
+        {
+          "s": 300,
+          "mb": 377.8,
+          "alive": 1
+        }
+      ]
+    }
+  }
+}

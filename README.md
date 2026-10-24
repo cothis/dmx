@@ -117,6 +117,7 @@ State lives in `~/.dmx` (override with `DMX_HOME`). The control socket is descri
 - `guest/init`: PID 1 inside the VM
 - `guest/agent`: `dmx-agent`, the Rust guest agent on vsock ([protocol](docs/agent-protocol.md))
 - `scripts/build-kernel.py`: builds the guest kernel in a dmx VM from pinned, checksummed sources and toolchain
+- `scripts/build-qemu.py`: builds the guest's qemu-x86_64 in a dmx VM from pinned QEMU source, Alpine's patches and toolchain
 - `scripts/build-guest.py`: builds the guest from pinned, checksummed Alpine Linux packages and that kernel
 - `scripts/test-daemon.py`: end to end test of the daemon on the real VM (`make daemontest`)
 - `scripts/test-mcp.py`: `dmx mcp` driven over pipes on the real VM (`make mcptest`)
@@ -126,3 +127,6 @@ State lives in `~/.dmx` (override with `DMX_HOME`). The control socket is descri
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).
+
+Docker is a trademark of Docker, Inc. dmx is an independent project, compatible with the Docker CLI
+and Engine API; it is not affiliated with or endorsed by Docker, Inc.

@@ -387,9 +387,11 @@ BuildKit through dmx's Buildx; the deprecated legacy builder remains available t
       guest addresses stay in x86-64's 47-bit user space. Default matrix 18/18 without any
       setting; `make x86test` checks the address range (with an upstream-layout control) and
       Python with jemalloc and mimalloc preloaded.
-- [ ] Controlled comparison with Docker Desktop, OrbStack and Colima on a quiet Mac; record
-      versions, equivalent settings, idle/busy footprints and timings. Re-measure dmx's earlier
-      load-15-to-90 results rather than presenting them as a comparison.
+- [x] Comparison with Docker Desktop 4.96.3, OrbStack 2.2.5 and Colima 0.10.3 at 2 CPUs/4 GiB,
+      three alternating rounds, host load 2–6 ([benchmark.md](benchmark.md#results-2026-10-25)):
+      idle 180 / 528 / 1097 / 1176 MB (dmx / OrbStack / Colima / Docker Desktop); after freeing
+      2 GiB dmx and OrbStack return within seconds, the VZ engines keep it. Provisional until a
+      quiet-Mac rerun. dmx's warm `docker run` (118 ms) trails Colima (73) and Docker Desktop (99).
 - [ ] First public release. Before it: versioning (SemVer `v0.1.0`?), GPL source (written offer
       vs attaching ~300 MB of sources), Developer ID signing (browser downloads are quarantined).
 - [ ] Guest artifacts published as GitHub Releases, downloaded and verified by `dmx`, so users do not need Python.
@@ -405,22 +407,19 @@ BuildKit through dmx's Buildx; the deprecated legacy builder remains available t
 
 ## Next up
 
-For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md). It records
-the last verified commit, the gates and their results, and what the remaining steps need from
-the maintainer, without relying on temporary files.
+For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md).
 
-Phases 1–7 and 9 meet their acceptance criteria, and the pinned image matrix is 18/18 (amd64
-Redis fixed by dmx's qemu-x86_64). The rest of phase 10 needs the maintainer:
+Phases 1–7 and 9 meet their acceptance criteria; the image matrix is 18/18 and the cross-engine
+comparison is recorded. The first release waits on the maintainer's answer to the
+recommendation in [release.md](release.md#recommendation-2026-10-25). After that:
 
-1. Measure dmx and the comparison engines on a quiet Mac with matched settings, using
-   [benchmark.md](benchmark.md) and `scripts/benchmark.py`. Docker Desktop, OrbStack and Colima
-   are not installed here; installing them is the maintainer's call. Existing local
-   measurements are not a cross-engine benchmark. Investigate the old unreproduced guest soft
-   lockup if it recurs.
-2. Resolve maintainer decisions (version/tag scheme, GPL source delivery, Developer ID/signing)
-   in [release.md](release.md), then cut and publish the first GitHub Release and guest assets.
-   The install script, release packager and verified guest downloader are already implemented;
-   the packager now also ships qemu-x86_64's recipe. No CI and no Homebrew.
+1. If attached sources are chosen: teach `release.py` to write `dmx-sources-<version>.tar`
+   (kernel.org and qemu.org tarballs, the aports directories and distfiles of every shipped
+   Alpine package, dmx's patches and recipes) and drop the written offer from NOTES.md.
+2. Cut v0.1.0 as release.md describes, including the local-server dry run; publish only with
+   the maintainer's go-ahead.
+3. Performance follow-up: warm `docker run` is 118 ms on dmx vs 73 ms on Colima; profile the
+   container start path. A quiet-Mac rerun of the comparison would tighten its ranges.
 
 Phase 8 (own runtime) remains unstarted; Docker currently uses dockerd/containerd/runc. Storage,
 network and sharing extensions are explicitly tracked under phase 6. None is silently marked
@@ -530,6 +529,7 @@ complete by the finished acceptance suites.
 | 2026-10-25 | amd64 Redis and QEMU's guest address layout | QEMU 11.0.3 gives a 64-bit guest any host address (`guest_addr_max = ~0` without `-R`); with a taken hint the 48-bit guest kernel searches top-down from just below 2^48, so x86_64 code got `0x0000ffff...`, above its 47-bit user space, and jemalloc's sign-extended pointers faulted. dmx's qemu-x86_64 (2^47 guest base): Redis amd64 passes in 3.6 s; default matrix 18/18, no kernel problems ([report](measurements/2026-10-25-images-guest-base.json)). Before switching, all nine amd64 images passed with the base set via `QEMU_GUEST_BASE`. x86test 16/16: probe addresses below 2^47 (upstream layout control: above); python3 with jemalloc preloaded exits 139 under the upstream layout and passes with dmx's; mimalloc passes both. `make qemu` 23–27 s (compile 8–10 s), two builds same sha256, 3.85 MB (Alpine's 3.78 MB). |
 | 2026-10-25 | qemu-x86_64 before/after, x86test twice each, load ~2–6 | Alpine → dmx build: x86 `sleep` RSS 5 → 5 MB; `true` 2–4 ms both; python3 start 126 → 120–123 ms; node 403–420 → 396–400 ms; 100 MB sha256 x86 1040–1050 → 1020 ms; footprint after x86 work 216–221 → 215–223 MB, after cleanup 122–123 → 117–121 MB. No regression ([raw](measurements/2026-10-25-qemu-guest-base.json)). |
 | 2026-10-25 | Gates after the QEMU change, load 4–6 | Selftest 21/21 (8G/10 CPU idle 92 MB, 1 GiB back in 634 ms), daemon 41/41, Docker 57/57, MCP 30/30, sandbox 41/41, x86 16/16, unit tests 33/33. Benchmark (native arm64, so qemu is not on its path): 2 CPU/4G idle 180–292 MB over three runs (recorded 193; the 292 MB run is the outlier), 2 GiB returned to baseline +64 MB in 1.6–6.5 s; 10 CPU/8G back below its baseline in 6.6 s. |
+| 2026-10-25 | Engine comparison, 2 CPUs/4 GiB, three alternating rounds, load 2.4–6.4 | Median idle: dmx 180, OrbStack 528, Colima 1097, Docker Desktop 1176 MB. Holding 2 GiB: 2373 / 2621 / 3172 / 3373 MB. 10 s after freeing: 332 / 618 / 3180 / 3362 MB; dmx back in 5.9 s, OrbStack 4.2 s; Docker Desktop fell to 365 MB only when Resource Saver stopped its VM (2–5 min), Colima still 3394 MB at 6 min. Warm `docker run` 118 / 123 / 73 / 99 ms; SHA-256 of 256 MiB 954 / 1469 / 912 / 1739 ms ([raw](measurements/2026-10-25-engine-comparison.json)). Engines installed temporarily and removed. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -576,3 +576,4 @@ complete by the finished acceptance suites.
 - 2026-10-25: Ran the 9×2 pinned image matrix; switched to 4K pages for Python/Java and real 4K mapping/guard semantics. Fixed slow page reporting and normal hotplug metadata return; 2 GB containers return within 10 s at both the 4G comparison profile and default 8G profile. Added raw evidence, a benchmark harness with checked Mach-time CPU accounting, and source-patch release notices. Redis amd64's default QEMU layout and unavailable comparison engines remain open; no public release made.
 - 2026-10-25: Added HANDOFF.md and linked it from Next up so a new session can continue directly with the pinned amd64 Redis reproduction, verified memory gates and remaining release work. Documentation only; no new runtime validation claimed.
 - 2026-10-25: Fixed the default amd64 Redis crash: dmx builds qemu-x86_64 from pinned QEMU 11.0.3 with Alpine's patches and a 2^47 x86_64 guest base (`make qemu`). Image matrix 18/18; x86test checks the address range and jemalloc/mimalloc; release packager ships the QEMU recipe and its static libraries' licenses. Remaining phase 10 work needs maintainer decisions.
+- 2026-10-25: Cross-engine comparison against Docker Desktop, OrbStack and Colima (installed briefly, then removed); dmx lowest at idle and under load and returns memory within seconds. README gained a Docker trademark notice. Release recommendation written for the maintainer.

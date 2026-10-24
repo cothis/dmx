@@ -1,4 +1,4 @@
-# 다음 세션 인계 — 2026-10-25 (Redis 수정 후)
+# 다음 세션 인계 — 2026-10-25 (Redis 수정, 엔진 비교 후)
 
 `이어서 진행해`라는 요청을 받으면 [PLAN.md](PLAN.md)의 **Next up**과 이 문서를 읽어요.
 별도 대화 이력이나 `/tmp` 파일은 필요하지 않아요. 계획·결정의 기준은 계속 `PLAN.md`예요.
@@ -63,13 +63,22 @@ make build && make guest   # 캐시가 없으면 make kernel, make qemu를 먼�
 [qemu-guest-base](measurements/2026-10-25-qemu-guest-base.json). 측정 중 호스트 load는 2–6이었어요.
 `make install`과 공개 릴리스는 하지 않았어요.
 
+## 엔진 비교 (완료, 잠정)
+
+maintainer 승인(2026-10-25)으로 Docker Desktop 4.96.3, OrbStack 2.2.5, Colima 0.10.3을 잠시
+설치해 2 CPU/4 GiB, 한 번에 한 엔진, 순서를 바꾼 3라운드로 측정했어요. 측정 후 앱·데이터·
+`~/.docker`·brew 패키지를 지우고, OrbStack/Colima가 `~/.zprofile`·`~/.ssh/config`에 넣은 줄도
+되돌렸어요. 결과는 [benchmark.md](benchmark.md#results-2026-10-25)와
+[원자료](measurements/2026-10-25-engine-comparison.json)에 있어요. 중앙값 idle은 dmx 180,
+OrbStack 528, Colima 1097, Docker Desktop 1176 MB예요. 호스트 load가 2–6이라 잠정치예요.
+다시 측정할 때도 설치한 엔진은 끝나고 지우고, 약관·관리자 암호 창은 maintainer가 처리해요.
+
 ## 남은 작업과 경계
 
-- **엔진 비교:** Docker Desktop·OrbStack·Colima/Lima가 이 Mac에 없어요. 설치는 maintainer가
-  결정해요. [benchmark.md](benchmark.md)의 동일 설정과 실제 VM/helper PID attribution으로
-  조용한 Mac에서 반복·교차 측정해야 해요. 기존 dmx 측정은 단일 엔진 자료예요.
-- **공개 릴리스:** 버전/태그(`v0.1.0`은 가정), GPL 소스 첨부 대 written offer, Developer ID
-  서명·공증은 maintainer 결정이에요. [release.md](release.md)를 먼저 읽어요.
+- **릴리스:** [release.md의 추천](release.md#recommendation-2026-10-25)(v0.1.0, 소스 첨부(3a),
+  v0.1.0은 ad-hoc 서명, 이름은 dmx 유지)에 대한 maintainer 답을 기다려요. 승인되면 `release.py`에
+  소스 번들 단계를 추가하고, 로컬 서버 dry run 후 maintainer가 허락할 때만 태그·게시해요.
+- **성능 후속:** warm `docker run`이 dmx 118 ms, Colima 73 ms예요. 컨테이너 시작 경로를 profiling해요.
 - **지속 결정:** GitHub CI와 Homebrew 의존성은 추가하지 않아요. 예전 고부하 soft lockup은
   재현되지 않은 열린 관찰 사항이에요.
 - **별도 backlog:** Phase 8 자체 런타임은 미착수예요. Phase 6의 fsck/디스크 확장,
