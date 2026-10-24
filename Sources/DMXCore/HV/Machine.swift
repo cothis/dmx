@@ -33,6 +33,7 @@ public final class Machine: @unchecked Sendable {
     private let console: VirtioConsole
     let vsock = VirtioVsock()
     private var balloon: VirtioBalloon!
+    private let net = VirtioNet()
     /// Every MMIO device by guest address, UART first.
     private var bus: [(base: UInt64, size: UInt64, device: MMIODevice)] = []
     private var virtioSlots = 0
@@ -98,6 +99,7 @@ public final class Machine: @unchecked Sendable {
         addVirtio(vsock, ram: ram)
         balloon = VirtioBalloon(ram: ram) { [unowned self] address, length in self.release(address, length) }
         addVirtio(balloon, ram: ram)
+        addVirtio(net, ram: ram)
     }
 
     private func addVirtio(_ device: VirtioDevice, ram: GuestRAM) {
@@ -204,6 +206,7 @@ public final class Machine: @unchecked Sendable {
         lock.unlock()
         for vcpu in vcpus { vcpu.halt() }
         vsock.closeAll()
+        net.stop()
         // Often called on a vCPU thread (PSCI SYSTEM_OFF), so wait for the threads elsewhere.
         threads.notify(queue: .global()) { [self] in
             destroyVM()
