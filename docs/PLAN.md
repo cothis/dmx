@@ -49,6 +49,8 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | x86_64 images through QEMU user mode + binfmt, not Rosetta (2026-10-23) | Rosetta for Linux exists only inside Virtualization.framework. Most images are multi-arch; emulation is a fallback. |
 | One long lived VM, not one VM per container | One kernel's overhead instead of N. Revisit per-container VMs for sandboxes (phase 9). |
 | The daemon exits when idle; the CLI starts it if launchd does not (2026-10-24) | An idle dmx should cost nothing, not even a 4 MB daemon. `dmx install` is optional: without it `dmx exec` still just works, which matters for agents. One daemon per `DMX_HOME`, enforced by a lock file. |
+| Docker from a read-only image unpacked onto the data disk, started on first use (2026-10-24) | Docker is ~170 MB unpacked: in the initramfs it would sit in guest RAM. A pinned image on a read-only disk is unpacked only when its sha256 changes, and dockerd starts only when `docker.sock` is first used, so a VM nobody runs Docker in costs nothing extra. |
+| Drop dmx's own mappings of guest RAM after device traffic (2026-10-24) | macOS charges a page to `ri_phys_footprint` once per mapping; guest RAM is mapped by dmx and by stage 2, so pages a device filled counted twice (1 GB read = +2 GB). Remapping dmx's view onto itself (`mach_vm_remap` overwrite) after traffic leaves one mapping; devices fault pages back in. |
 | Transparent huge pages off in the guest (2026-10-24) | With 16K pages a huge page is 32 MB. `madvise` (2026-10-23) still let qemu's 128 MB code buffer take 32 MB per x86 process (`sleep` 38 MB RSS, 5.4 MB without); nothing in dmx needs huge pages. Replaces the `madvise` choice. |
 | Guest network is a user space NAT inside dmx, not vmnet (2026-10-24) | vmnet needs root or `com.apple.vm.networking`, which Apple grants on request (verified: an ad-hoc process gets VMNET_FAILURE, the entitlement gets it killed). Guest flows map onto host sockets like passt: no TCP stack, no second process, bounded buffers, and traffic is dmx's own so VPNs and firewalls apply. Costs: IPv4 only, no ICMP errors; inbound goes through vsock port forwarding. |
 | Defaults and security follow Docker Desktop (2026-10-24) | Maintainer's rule: Docker must just work, and security choices match standard tools. So: host directories shared read-write at the same path (Docker Desktop shares /Users, /Volumes, /private, /tmp, /var/folders; phase 7 matches that list), containers reach host services through a host alias (`host.docker.internal` in phase 7, today `host.dmx.internal`), ports bind 127.0.0.1 unless asked, host user ↔ guest root on shares, `init_on_alloc` on as in stock kernels, no TLS tools in the base guest (dockerd does its own TLS). Port forwards persist and keep the 4 MB daemon up while they exist. MCP tools are `dmx_*`, argv-based, 8 KiB/120 s defaults. |
@@ -267,22 +269,37 @@ Result: verified with launchd and without; see Findings for timings and memory.
 
 Done when: the guest can `wget` from the internet, a guest web server is reachable on `localhost`, and a host directory is readable/writable in the guest.
 
-### Phase 7: Docker compatibility
+### Phase 7: Docker compatibility (done)
 
-- [ ] dockerd + containerd in the guest (Alpine packages installed onto the data disk, or a separate pinned layer).
-- [ ] `~/.dmx/docker.sock` forwarded to the guest's `/var/run/docker.sock` over vsock.
-- [ ] `dmx install` creates and selects a `docker context` named `dmx`.
-- [ ] Published ports are forwarded automatically (watch Docker events).
-- [ ] Bind mounts of host paths work through virtio-fs.
+- [x] dockerd 29.9.2, containerd 2.3.7, runc 1.4.3, tini, iptables (nf_tables), libseccomp and the CA
+      bundle from pinned Alpine apks in `docker.img` ([docker.md](docker.md)): a read-only virtio-blk
+      disk (header + gzip'd tar, 52 MB) that `guest/docker` unpacks onto the data disk when its
+      sha256 changes; the initramfs grows by 3 KB. dockerd starts on the first `docker.sock`
+      connection after a boot (agent `docker_start`), in its own mount namespace on a
+      switch_root-style root so runc keeps `pivot_root`. Running containers and open Docker
+      connections count as use; `containers` in `dmx status`.
+- [x] `~/.dmx/docker.sock` (0600) forwarded to the guest's `/var/run/docker.sock` over vsock (agent
+      `connect` takes a Unix path); a second launchd socket `Docker` activates the daemon.
+- [x] `dmx install` creates and selects a `docker context` named `dmx`; `dmx uninstall` removes it.
+- [x] Published ports follow Docker's start/die events like Docker Desktop: `-p 8080:80` on 0.0.0.0,
+      `-p 127.0.0.1:...` on loopback; shown as `(docker)` in `dmx port ls`, never persisted.
+      Left: UDP, and failing `docker run` when the host port is taken.
+- [x] Bind mounts through virtio-fs; default shares are Docker Desktop's (`/Users`, `/Volumes`,
+      `/private`; dockerd sees `/tmp` and `/var/folders` as the Mac's). `host.docker.internal` and
+      `gateway.docker.internal` answered by the NAT's DNS; `host-gateway` is the Mac.
 - [x] x86_64 binaries through QEMU user mode: Alpine's static `qemu-x86_64` 11.0.3 (pinned, signature
       checked) registered with binfmt_misc, flags `POCF` (Docker Desktop uses `CF`; `P` keeps
       argv[0]). Carried compressed in the initramfs and unpacked onto the data disk on first boot
       or a version change, so it uses guest RAM only while x86 code runs (+~2 MB idle; moves to
       Docker's delivery later). 16K pages: msync, mincore, MADV_DONTNEED, MAP_FIXED|MAP_SHARED and
       mprotect/munmap on single 4K pages misbehave (Findings). `make x86test`.
-- [ ] Test suite: `docker run hello-world`, `docker build`, a compose app with a volume and a port.
+- [x] `make dockertest` (`scripts/test-docker.py`, 33 checks): hello-world, `run -it`, build, compose
+      with a volume, a published port and a bind mount, idle stop with Docker, the context.
 
 Done when: the test suite passes with the stock `docker` CLI.
+Result: passes with Homebrew's docker 29.9.1 and Compose 5.6.0. Left: restart policies bring
+containers back on the next Docker client rather than at boot; `docker build` uses the legacy
+builder unless `docker-buildx` is installed.
 
 ### Phase 8: Own runtime
 
@@ -322,11 +339,14 @@ Done when: the test suite passes with the stock `docker` CLI.
 
 ## Next up
 
-Phase 7, Docker: dockerd and containerd in the guest with their data on the data disk, the Docker
-socket forwarded to `~/.dmx/docker.sock`, a `docker context`, published ports through port
-forwarding, bind mounts through virtio-fs (shares matching Docker Desktop's list), and
-`host.docker.internal`. In parallel: `double` (pages the host writes into guest RAM count twice in
-the footprint) and `frag` (fragmented freed guest memory is not returned).
+Phase 7 is done. Open items, roughly in order of value:
+- Memory: reusable pages the guest re-dirties go uncounted (Findings, "Reusable pages"); the
+  memmap that scales with the ceiling; ~10 MB left after network traffic; qemu's copy in the
+  initramfs (+2 MB idle) should move into `docker.img`.
+- Docker gaps: UDP published ports, failing on a taken host port, restart policies at boot.
+- Phase 9: logs and sandbox tools in `dmx mcp`, sandboxes, checkpoints.
+- Phase 10: CI, guest artifacts as releases (GPL obligations noted there), Homebrew.
+- Re-measure timings on a quiet host: most of today's numbers were taken at load 15 to 90.
 
 ## Findings and measurements
 
@@ -408,6 +428,10 @@ the footprint) and `frag` (fragmented freed guest memory is not returned).
 | 2026-10-24 | x86_64 through qemu-x86_64, load 25 to 90 | Initramfs 2.03 → 3.09 MB. Idle +~2 MB (115 to 117 → 117 to 119), guest used unchanged; first-boot unpack leaves +4 to 8 MB of freed pages. x86 process RSS with THP madvise / never: `sleep` 38 / 5.4 MB, python3 43 to 47 / 15.7 MB, node 23.5 MB; x86 `true` 201 → 49 ms. Rough speed (loaded host): `true` 22 to 62 ms vs 1 to 6 native, sha256 1.8 to 4.5x native. Static, dynamic (chroot), python3 (ssl, sqlite, threads), node 24 (JIT, wasm) work. |
 | 2026-10-24 | x86 programs on 16K guest pages | x86 code sees 4096-byte pages. Works: brk, MAP_PRIVATE at 4K offsets (copied, not shared), MAP_SHARED at 4K offsets without MAP_FIXED. EINVAL on a 4K page inside a 16K page: msync (Python `mmap.flush()`), mincore, MADV_DONTNEED (page not zeroed), MAP_FIXED|MAP_SHARED misaligned to 16K. Not enforced: mprotect and munmap of a single 4K page (guard pages fail silently). Likely victims: stack guards, LMDB-style msync databases, the JVM's 4K polling page (untested). |
 | 2026-10-24 | binfmt `C` flag | As `nobody`, a setuid-root x86 binary with `QEMU_LOG_FILENAME=/root/x` creates a root-owned file: qemu honours `QEMU_*` while privileged. Docker Desktop's `CF` has the same exposure; kept to match it. |
+| 2026-10-24 | Pages counted twice | Standalone test: 512 MB touched by host and guest = 1026 MB footprint whichever side goes first; a second mapping in one process without a VM (`mach_vm_remap` alias) does the same; the VM object held 512 MB. Dropping either mapping halves it. Fix: 1 GB virtio-fs read +2046 → +1024 MB; selftest idle 115 to 117 → 97 to 99 MB (the host's copies of kernel and initramfs had counted twice); idle footprint now equals the guest's own count (reserved + used). ~30 remaps per GB, 0.3 to 3 ms each. Side effect: a page only a device filled and the guest never touched is uncounted until touched (small with init_on_alloc on). |
+| 2026-10-24 | Reusable pages re-dirtied by the guest | After `MADV_FREE_REUSABLE` and a full guest rewrite, footprint stayed 2 MB with 512 MB dirty, counted only once macOS paged them out. Real VM: a 500 MB refill came in ~50 MB short. Fix idea: keep released ranges out of stage 2 and `MADV_FREE_REUSE` them on the guest's fault. Open. |
+| 2026-10-24 | Docker (stock CLI 29.9.1, Compose 5.6.0), load 16 to 50 | Idle without Docker 99 MB (with the double-count fix). dockerd + containerd idle: guest +52 MB (RSS 37 + 25); footprint 305 MB right after start, 210 MB after the idle trim and sweep (guest used 91, cache 45). One `busybox sleep` container: guest +10 to 12 MB. First Docker use (unpack + start) 10 to 35 s; dockerd start on a later boot 1.5 to 4.7 s. hello-world with pull 6.6 to 27 s, warm 2.0 to 3.2 s, cold from a stopped VM 7.5 s; pull alpine 5.3 to 8.9 s; small build 3 to 24 s; compose up 2 to 21 s. Bind mount write with fsync 30 MB/s in a container. |
+| 2026-10-24 | Interrupted first-boot format | The daemon gave up on a boot after 30 s; on a loaded Mac that cut `mke2fs` short, and since `/init` formatted only an all-zero first MB, the disk was never formatted again. Now it formats a disk without an ext4 superblock (mke2fs writes it last) and the daemon waits 120 s; checked with a disk whose first MB is random. |
 | 2026-10-24 | `dmx mcp` (stdio MCP), load 5 to 6 | `make mcptest` 5.3 to 6.3 s, 30 of 30 checks. Cold `dmx_exec uname -a` with no daemon 215 to 376 ms end to end; warm 0 to 2 ms. 200 MB of stdout capped to 8 KiB in 0.65 to 1.41 s; `dmx mcp` RSS 8 to 9 MB, 10 MB at peak. A 2 s timeout returns in 2.01 to 2.13 s with the guest processes gone. `tools/list` is 4.6 KB (3.8 KB without `outputSchema`). |
 | 2026-10-24 | Truncated exec output after a boot | `dmx stop`, an exec, then 200 MB of stdout: 5 to 6 of 40 runs ended with "daemon closed the connection mid-frame" (load 9 to 15); logging the shutdown path hid it. The guest sometimes sends RST right after its SHUTDOWN, and the host dropped the connection with up to 200 KB from the guest still unwritten to the full host socket. Now an RST on an open stream delivers what the guest sent, then closes: 0 of 50. Found by the `dmx mcp` tests. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
@@ -444,3 +468,4 @@ the footprint) and `frag` (fragmented freed guest memory is not returned).
 - 2026-10-24: Data disk merged; phase 6 done. Phase 7 (Docker) next.
 - 2026-10-24: Idle sweep merged: guest memory freed in small blocks goes back to macOS when idle.
 - 2026-10-24: x86_64 binaries run in the guest through qemu-x86_64 and binfmt_misc; THP off.
+- 2026-10-24: Phase 7 done: the stock docker CLI and Compose work against `~/.dmx/docker.sock` (`make dockertest`). Pages devices touch are no longer counted twice (idle 99 MB). An interrupted first-boot format is redone.

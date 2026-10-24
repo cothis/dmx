@@ -261,7 +261,9 @@ public final class Daemon {
                 let machine = try Machine(spec: spec, paths: paths, console: console)
                 self.machine = machine
                 try machine.start()
-                let agent = try await machine.connectAgent(timeout: .seconds(30))
+                // Generous: on a loaded Mac a first boot that formats the data disk can take 30 s,
+                // and giving up then would cut the format short.
+                let agent = try await machine.connectAgent(timeout: .seconds(120))
                 _ = try await agent.syncTime()
                 lastTimeSync = .now
                 self.agent = agent

@@ -194,8 +194,9 @@ final class DockerBridge {
                     events = stream
                     try await DockerHTTP.send(stream.fd, Self.eventsPath)
                     syncSoon(agent, epoch)
-                    await DockerHTTP.lines(stream.fd) { [weak self] in
-                        DispatchQueue.main.async { MainActor.assumeIsolated { self?.syncSoon(agent, epoch) } }
+                    // The task already holds self until dockerd or the VM goes away.
+                    await DockerHTTP.lines(stream.fd) {
+                        DispatchQueue.main.async { MainActor.assumeIsolated { self.syncSoon(agent, epoch) } }
                     }
                     events = nil
                     stream.close()
