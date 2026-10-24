@@ -54,6 +54,7 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | Transparent huge pages off in the guest (2026-10-24) | With 16K pages a huge page is 32 MB. `madvise` (2026-10-23) still let qemu's 128 MB code buffer take 32 MB per x86 process (`sleep` 38 MB RSS, 5.4 MB without); nothing in dmx needs huge pages. Replaces the `madvise` choice. |
 | Guest network is a user space NAT inside dmx, not vmnet (2026-10-24) | vmnet needs root or `com.apple.vm.networking`, which Apple grants on request (verified: an ad-hoc process gets VMNET_FAILURE, the entitlement gets it killed). Guest flows map onto host sockets like passt: no TCP stack, no second process, bounded buffers, and traffic is dmx's own so VPNs and firewalls apply. Costs: IPv4 only, no ICMP errors; inbound goes through vsock port forwarding. |
 | Defaults and security follow Docker Desktop (2026-10-24) | Maintainer's rule: Docker must just work, and security choices match standard tools. So: host directories shared read-write at the same path (Docker Desktop shares /Users, /Volumes, /private, /tmp, /var/folders; phase 7 matches that list), containers reach host services through a host alias (`host.docker.internal` in phase 7, today `host.dmx.internal`), ports bind 127.0.0.1 unless asked, host user ↔ guest root on shares, `init_on_alloc` on as in stock kernels, no TLS tools in the base guest (dockerd does its own TLS). Port forwards persist and keep the 4 MB daemon up while they exist. MCP tools are `dmx_*`, argv-based, 8 KiB/120 s defaults. |
+| No GitHub CI, no Homebrew dependency (2026-10-24) | Maintainer's choice. Checks run locally before a release (`make build`, `swift test`, selftest, daemontest, dockertest). dmx ships its own pinned Docker CLI tools instead of relying on Homebrew. |
 | CLI only, no GUI | The work that matters is invisible (memory, sockets). Agents use CLIs. |
 | Kernel hardening over a few MB (2026-10-24) | Maintainer's choice: `rodata=noalias` would save 4 MB at 8G (page tables of a page-by-page linear map) but leaves the linear alias of kernel text writable, so the default stays `rodata=full`. |
 | Memory savings are always on | Balloon, idle stop and cache trimming are defaults, not options. The user's standing preference: improvements are not toggles. |
@@ -325,13 +326,12 @@ builder unless `docker-buildx` is installed.
 
 - [x] `make install`: copies dmx to `~/.local/bin` (`PREFIX` to change), no sudo, and repoints the
       launchd agent if it is installed. Building from source still needs Xcode, Python and Rust.
-- [ ] CI on GitHub Actions: build and unit tests (hosted macOS runners may not allow nested virtualization; VM tests stay local until proven otherwise).
 - [ ] Guest artifacts published as GitHub Releases, downloaded and verified by `dmx`, so users do not need Python.
       They contain GPL software (kernel, busybox, qemu-x86_64 "GPL-2.0-only AND LGPL-2.1-only"):
       ship license texts and the corresponding source or a written offer (qemu: QEMU 11.0.3 +
       Alpine aports 51049924607603c9d9b7132c187a7f31085d7a12). dmx stays Apache-2.0: these run as
       separate programs in the guest.
-- [ ] Homebrew tap; Developer ID signing and notarization when distributing binaries.
+- [ ] Developer ID signing and notarization when distributing binaries (no Homebrew tap).
 
 ### Later, maybe
 
@@ -345,7 +345,7 @@ Phase 7 is done. Open items, roughly in order of value:
   initramfs (+2 MB idle) should move into `docker.img`.
 - Docker gaps: UDP published ports, failing on a taken host port, restart policies at boot.
 - Phase 9: logs and sandbox tools in `dmx mcp`, sandboxes, checkpoints.
-- Phase 10: CI, guest artifacts as releases (GPL obligations noted there), Homebrew.
+- Phase 10: guest artifacts as releases (GPL obligations noted there), an install script; no CI, no Homebrew.
 - Re-measure timings on a quiet host: most of today's numbers were taken at load 15 to 90.
 
 ## Findings and measurements
@@ -469,3 +469,4 @@ Phase 7 is done. Open items, roughly in order of value:
 - 2026-10-24: Idle sweep merged: guest memory freed in small blocks goes back to macOS when idle.
 - 2026-10-24: x86_64 binaries run in the guest through qemu-x86_64 and binfmt_misc; THP off.
 - 2026-10-24: Phase 7 done: the stock docker CLI and Compose work against `~/.dmx/docker.sock` (`make dockertest`). Pages devices touch are no longer counted twice (idle 99 MB). An interrupted first-boot format is redone.
+- 2026-10-24: Maintainer: no GitHub CI and no Homebrew. Agents `cli`, `gaps`, `reuse`, `memmap`, `phase9`, `release` started.
