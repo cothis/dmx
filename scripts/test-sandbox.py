@@ -115,8 +115,11 @@ def timed(fn, *a, **kw):
 
 
 def docker_get(path):
-    """GET on the Docker API through $DMX_HOME/docker.sock (HTTP/1.0: the body ends at close)."""
+    """GET on the Docker API through $DMX_HOME/docker.sock (HTTP/1.0: the body ends at close).
+    With a timeout Python waits in poll before each recv: macOS can lose the wakeup of a recv
+    sleeping on a Unix socket when the peer half-closes it (see `readSocket` in Daemon.swift)."""
     s = socket.socket(socket.AF_UNIX)
+    s.settimeout(60)
     s.connect(str(HOME / "docker.sock"))
     s.sendall(f"GET {path} HTTP/1.0\r\nHost: d\r\n\r\n".encode())
     data = b""
