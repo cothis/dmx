@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build install kernel guest selftest daemontest clean
+.PHONY: build install kernel guest selftest daemontest test clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -29,6 +29,10 @@ selftest: build
 # The daemon, its socket and exec paths, idle stop, in a throwaway DMX_HOME (about 45 s).
 daemontest: build
 	python3 -I scripts/test-daemon.py $(BIN)
+
+# Unit tests that need no VM (the virtio-fs server's path containment).
+test:
+	swift test
 
 clean:
 	rm -rf .build

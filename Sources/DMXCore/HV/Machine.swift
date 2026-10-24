@@ -33,6 +33,8 @@ public final class Machine: @unchecked Sendable {
     private let console: VirtioConsole
     let vsock = VirtioVsock()
     private var balloon: VirtioBalloon!
+    /// One virtio-fs device per share (`spec.shares`).
+    private let fileSystems: [VirtioFS]
     /// Every MMIO device by guest address, UART first.
     private var bus: [(base: UInt64, size: UInt64, device: MMIODevice)] = []
     private var virtioSlots = 0
@@ -61,6 +63,10 @@ public final class Machine: @unchecked Sendable {
         resolved.maxMemory = max(spec.maxMemory, 256 << 20) & ~UInt64((2 << 20) - 1)
         self.spec = resolved
         ramSize = resolved.maxMemory
+        // Shares open their roots now, so a missing directory fails before there is a VM.
+        fileSystems = try resolved.shares.enumerated().map { index, share in
+            VirtioFS(tag: "dmx\(index)", server: try FUSEServer(path: share.path, readOnly: share.readOnly))
+        }
 
         guard hvSupported else {
             throw DMXError("virtualization_unsupported", "this Mac does not support Hypervisor.framework")
@@ -98,6 +104,7 @@ public final class Machine: @unchecked Sendable {
         addVirtio(vsock, ram: ram)
         balloon = VirtioBalloon(ram: ram) { [unowned self] address, length in self.release(address, length) }
         addVirtio(balloon, ram: ram)
+        for fs in fileSystems { addVirtio(fs, ram: ram) }
     }
 
     private func addVirtio(_ device: VirtioDevice, ram: GuestRAM) {
@@ -218,6 +225,7 @@ public final class Machine: @unchecked Sendable {
         vsock.closeAll()
         // Often called on a vCPU thread (PSCI SYSTEM_OFF), so wait for the threads elsewhere.
         threads.notify(queue: .global()) { [self] in
+            for fs in fileSystems { fs.stop() }
             destroyVM()
             lock.lock()
             stopped = result
@@ -305,7 +313,7 @@ public final class Machine: @unchecked Sendable {
             t.property("interrupt-parent", u32: gicPhandle)
 
             t.node("chosen") { t in
-                t.property("bootargs", string: (Self.baseKernelArgs + spec.kernelArgs).joined(separator: " "))
+                t.property("bootargs", string: (Self.baseKernelArgs + VirtioFS.kernelArgs(spec.shares) + spec.kernelArgs).joined(separator: " "))
                 t.property("stdout-path", string: "/pl011@\(String(HVLayout.uart, radix: 16))")
                 t.property("linux,initrd-start", u64: initrd.lowerBound)
                 t.property("linux,initrd-end", u64: initrd.upperBound)

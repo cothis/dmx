@@ -19,6 +19,18 @@ for m in virtio_mmio virtio_balloon vmw_vsock_virtio_transport virtio_rng; do
 	sed s/-/_/g "$builtin" 2>/dev/null | grep -q "/$m.ko$" || modprobe "$m" || echo "dmx-init: modprobe $m failed" >&2
 done
 
+# Host directories shared over dmx's virtio-fs device, mounted at the same path as on the host so
+# bind mounts keep their paths. The host passes one dmx.share=<tag>:<rw|ro>:<path> per share
+# (paths without whitespace). The host enforces read-only and the share root itself.
+set -f  # no globbing of paths
+for arg in $(cat /proc/cmdline); do
+	case "$arg" in dmx.share=*)
+		v=${arg#dmx.share=}; tag=${v%%:*}; v=${v#*:}; mode=${v%%:*}; dir=${v#*:}
+		mkdir -p "$dir" && mount -t virtiofs -o "$mode" "$tag" "$dir" || echo "dmx-init: cannot mount share $dir" >&2
+	esac
+done
+set +f
+
 # The host talks to the guest through dmx-agent on vsock port 1024. Restart it if it dies.
 (
 	while :; do

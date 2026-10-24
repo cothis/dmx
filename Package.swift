@@ -19,5 +19,6 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),
+        .testTarget(name: "DMXCoreTests", dependencies: ["DMXCore"]),
     ]
 )

@@ -99,6 +99,14 @@ try:
     s = status()
     check("not_running", s["state"] == "not_running" and not daemon_pids(), s["state"])
 
+    # Share a throwaway directory instead of the default (the home directory).
+    SHARE = HOME / "share"
+    SHARE.mkdir()
+    (SHARE / "from-host").write_text("host\n")
+    (SHARE / "esc").symlink_to(HOME / "config.json")
+    r = dmx("config", "set", "shares", str(SHARE))
+    check("config_shares", r.returncode == 0, repr(r.stderr))
+
     started = time.time()
     r = dmx("exec", "--", "uname", "-r")
     results["cold_exec_ms"] = int((time.time() - started) * 1000)
@@ -132,6 +140,17 @@ try:
 
     r = dmx("exec", "--", "nosuch")
     check("missing_binary", r.returncode == 1 and b"nosuch" in r.stderr, repr(r.stderr))
+
+    # The share is at the same path in the guest, read-write, owned by root there; host changes
+    # show on the next open; nothing outside it is reachable.
+    G = json.loads(dmx("config", "get", "shares", "--json").stdout)["settings"]["shares"]
+    r = dmx("exec", "--", "sh", "-c", f"cat {G}/from-host && echo guest > {G}/from-guest && stat -c %u {G}/from-host")
+    check("share_read_write", r.stdout == b"host\n0\n" and (SHARE / "from-guest").read_text() == "guest\n", repr(r))
+    (SHARE / "from-host").write_text("changed on the host\n")
+    r = dmx("exec", "--", "cat", f"{G}/from-host")
+    check("share_host_change", r.stdout == b"changed on the host\n", repr(r.stdout))
+    r = dmx("exec", "--", "sh", "-c", f"ls -a {G}/..; cat {G}/esc {G}/../config.json 2>&1")
+    check("share_contained", b"shares" not in r.stdout and b"config.json\n" not in r.stdout, repr(r.stdout))
 
     # SIGTERM to dmx is passed to the guest process, which decides how to exit.
     p = subprocess.Popen([str(DMX), "exec", "--", "sh", "-c", 'trap "echo term; exit 5" TERM; while :; do sleep 0.1; done'],

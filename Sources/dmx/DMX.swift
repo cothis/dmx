@@ -101,12 +101,16 @@ struct Boot: AsyncParsableCommand {
     @Option(name: .customLong("kernel-arg"), help: "Extra kernel command line argument (repeatable), for experiments.")
     var kernelArgs: [String] = []
 
+    @Option(name: .customLong("share"), help: "Host directory to share at the same path (repeatable; path:ro for read-only). The daemon uses `dmx config set shares` instead.")
+    var shares: [String] = []
+
     @Argument(parsing: .postTerminator, help: "Command to run in the guest, after --.")
     var command: [String] = []
 
     @MainActor
     func run() async throws {
-        let spec = MachineSpec(cpus: cpus, maxMemory: try memory.map(parseSize), kernelArgs: kernelArgs)
+        let spec = MachineSpec(cpus: cpus, maxMemory: try memory.map(parseSize), kernelArgs: kernelArgs,
+                               shares: try Share.parseList(shares.joined(separator: ",")))
         if !command.isEmpty {
             let status: Int32
             do {
