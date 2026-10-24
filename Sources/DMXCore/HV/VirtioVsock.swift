@@ -75,6 +75,8 @@ final class VirtioVsock: VirtioDevice, @unchecked Sendable {
         var advertised: UInt32 = 0
         var peerBufAlloc: UInt32 = 0, peerFwdCount: UInt32 = 0
         var hostClosed = false, guestClosedSend = false, guestClosed = false
+        /// We told the guest the host will send nothing more (SHUTDOWN with SEND).
+        var shutdownSent = false
         /// Dispatch sources still using `fd`; it is closed when the last one is cancelled.
         var sources = 0
 
@@ -221,8 +223,9 @@ final class VirtioVsock: VirtioDevice, @unchecked Sendable {
                 }
                 return
             } else {
-                c.inbox.removeAll()  // the host end is gone; RST follows when it reads EOF
-                return
+                // Nobody reads the host end any more: reset the stream.
+                control.append(Header(srcPort: c.key.local, dstPort: c.key.peer, op: .rst))
+                return drop(c, error: nil)
             }
         }
         // Everything the guest sent has reached the host socket.
@@ -334,9 +337,16 @@ final class VirtioVsock: VirtioDevice, @unchecked Sendable {
 
         for c in Array(connections.values) {
             if c.outbox.count < 64 << 10 { resumeReading(c) }
-            if c.hostClosed && c.outbox.isEmpty && c.connecting == nil && !c.guestClosed {
-                control.append(Header(srcPort: c.key.local, dstPort: c.key.peer, op: .rst))
-                drop(c, error: nil)
+            // The host end reached EOF and the guest has everything it sent. That may be a half
+            // close (a forwarded client done sending, still reading the reply), so tell the guest
+            // with SHUTDOWN and keep receiving; reset only once the guest is done sending too.
+            // A host end that is gone for good shows up as a failed write in flushInbox.
+            if c.hostClosed && c.outbox.isEmpty && c.connecting == nil && !c.guestClosed && !c.shutdownSent {
+                c.shutdownSent = true
+                let done = c.guestClosedSend && c.inbox.isEmpty
+                control.append(Header(srcPort: c.key.local, dstPort: c.key.peer, op: done ? .rst : .shutdown,
+                                      flags: done ? 0 : 2, fwdCnt: c.fwdCount))
+                if done { drop(c, error: nil) }
                 deliver()
                 return
             }

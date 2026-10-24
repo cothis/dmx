@@ -31,7 +31,7 @@ A connection carries requests answered in order:
 {"id": 1, "ok": false, "error": {"code": "bad_request", "message": "..."}}
 ```
 
-Error codes: `bad_request`, `unknown_method`, `exec_failed`, `io_error`, `internal`.
+Error codes: `bad_request`, `unknown_method`, `exec_failed`, `connect_failed`, `io_error`, `internal`.
 The host turns them into `DMXError` codes prefixed with `agent_`.
 
 | Method | Params | Result |
@@ -44,6 +44,7 @@ The host turns them into `DMXError` codes prefixed with `agent_`.
 | `time_sync` | `unix_ns` (host clock) | `offset_ns`: guest minus host before the change |
 | `shutdown` | none | `{}`, then the guest syncs and powers off |
 | `exec` | see below | `pid`, then the connection becomes the process's streams |
+| `connect` | see below | `{}`, then the connection becomes a TCP stream's raw bytes |
 
 ## exec
 
@@ -64,10 +65,24 @@ inherits SIGINT and SIGQUIT ignored from `/init`). With a tty the process runs i
 one it runs in its own process group. If the host closes the connection before the process
 exits, the agent kills the process group. After the process exits, output still arriving is
 forwarded until the streams have been quiet for 500 ms, so a background child holding a stream
-open does not delay `exit` forever.
+open does not delay `exit` forever. Output still waiting for a host that reads slowly is not
+quiet: it goes out before `exit`.
 
 Because an exec takes over its connection, the host opens one connection for control calls and
 a new one per exec (`AgentClient` does this).
+
+## connect
+
+Params: `port` (required), `host` (an IP address, default `127.0.0.1`). The agent opens a TCP
+connection to `host:port` in the guest, which is how the daemon forwards a host port
+([daemon protocol](daemon-protocol.md#port-forwarding)). A refused or unreachable port answers
+`connect_failed`; a target that drops the connection attempt fails after 5 s.
+
+After the `ok` reply there are no more frames: the vsock connection carries the TCP stream's bytes
+as they are, both ways. End of stream on one side becomes a half close on the other (a host that
+shuts down its sending side still reads the reply); an error on either side closes both. Each
+forwarded connection costs the agent two threads and two descriptors; the agent raises its
+descriptor limit to the hard limit (4096) at start, which processes it starts inherit.
 
 ## Versioning
 

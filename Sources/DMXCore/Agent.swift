@@ -318,7 +318,8 @@ public final class FrameConnection: @unchecked Sendable {
 /// (the agent hands an exec's connection over to that process's streams).
 public final class AgentClient: Sendable {
     private let control: FrameConnection
-    private let open: @MainActor @Sendable () async throws -> FrameConnection
+    /// Opens a new connection to the agent (exec and connect take theirs over).
+    let open: @MainActor @Sendable () async throws -> FrameConnection
 
     init(control: FrameConnection, open: @escaping @MainActor @Sendable () async throws -> FrameConnection) {
         self.control = control
