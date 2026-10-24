@@ -1,14 +1,16 @@
 # dmx daemon control protocol
 
-`dmx daemon` owns the VM and listens on a Unix socket, `~/.dmx/dmx.sock` (mode 0600). The CLI
+`dmx daemon` owns the VM and listens on a Unix socket, `~/.dmx/dmx.sock` (mode 0600), and on the
+Docker API socket `~/.dmx/docker.sock` ([docker.md](docker.md)). The CLI
 talks to it, and so does `dmx mcp` (one connection per tool call, see [mcp.md](mcp.md)). The wire format is the [agent protocol](agent-protocol.md)'s:
 frames of a 4-byte big-endian length, one kind byte (0 JSON, 1 stdin, 2 stdout, 3 stderr) and
 the payload. JSON keys are snake_case.
 
 ## Who starts the daemon
 
-- After `dmx install`, launchd holds the socket (label `io.github.cothis.dmx`, plist in
-  `~/Library/LaunchAgents`) and starts `dmx daemon` on the first connection.
+- After `dmx install`, launchd holds both sockets (label `io.github.cothis.dmx`, plist in
+  `~/Library/LaunchAgents`, `Sockets` `Listeners` and `Docker`) and starts `dmx daemon` on the
+  first connection to either.
 - Otherwise `dmx start`, `dmx exec` and `dmx shell` start it themselves, detached, when nothing
   answers on the socket. `dmx status` and `dmx stop` never start one.
 
@@ -23,7 +25,10 @@ One daemon runs per `DMX_HOME` (it holds a lock on `daemon.lock`). It logs to
 - Once the VM is stopped and no client has been connected for 10 s, the daemon exits. (launchd
   delays relaunching a job that ran less than 10 s.) The next connection starts a new one.
   While any port is forwarded it stays (4 MB with the VM stopped) to listen on the ports; see
-  [Port forwarding](#port-forwarding).
+  [Port forwarding](#port-forwarding). A daemon the CLI started (not launchd) also stays once a
+  Docker client used it, to keep answering on docker.sock, until `dmx stop`.
+- A running Docker container counts as using the VM, and so does an open connection on
+  docker.sock.
 - SIGTERM or SIGINT (also `dmx uninstall`, which unloads the launchd job) powers the guest off
   through the agent, with a 10 s limit, and exits.
 
@@ -55,7 +60,8 @@ command to run.
 is also the process guest memory is charged to), `version`, `launchd`, `uptime_s`, `cpus`,
 `max_memory`, `guest_used_mb`, `host_footprint_mb` and `host_peak_footprint_mb` (the daemon's
 `ri_phys_footprint`, guest RAM included), `clients` (other connections), `execs`, `containers`
-(null until Docker runs in the guest), `idle_timeout_s`, `idle_stop_in_s` (when nothing uses
+(running Docker containers; null until a Docker client used the VM since it booted),
+`docker_socket`, `idle_timeout_s`, `idle_stop_in_s` (when nothing uses
 the VM), `socket`, `console_log`, `memory` (below), and `disk` (the data disk `~/.dmx/data.img`:
 `path`, `size_mb` as the guest sees it, `allocated_mb` it takes on the host; null before the first
 boot). `dmx status` prints `state: not_running` when no daemon answers.
@@ -122,7 +128,10 @@ privileged helper is involved, and the guest needs no network device. TCP and IP
   sent data) and the daemon log says why.
 - Removing a forward stops listening; connections already open stay until either end closes them.
 
-A forward in `port_ls` or `port_add`: `host_address`, `host_port`, `guest_port`, `listening`
+Ports that running containers publish are forwarded too, while they run, and are not saved; see
+[docker.md](docker.md#published-ports).
+
+A forward in `port_ls` or `port_add`: `source` (`docker` for a container's port, absent otherwise), `host_address`, `host_port`, `guest_port`, `listening`
 (false with `error` when the port could not be listened on, for example taken after a restart),
 `connections` (open now) and `total_connections` (since the daemon started).
 

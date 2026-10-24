@@ -1,7 +1,7 @@
 import Foundation
 
-/// The launchd user agent that owns the control socket and starts `dmx daemon` on the first
-/// connection, so nothing runs until a client connects.
+/// The launchd user agent that owns the control socket and the Docker socket and starts
+/// `dmx daemon` on the first connection to either, so nothing runs until a client connects.
 public enum LaunchAgent {
     public static let label = "io.github.cothis.dmx"
 
@@ -18,29 +18,20 @@ public enum LaunchAgent {
         public let executable: String?
         /// The daemon that answered on the socket after install; nil after uninstall.
         public let daemonPid: Int32?
+        /// The `docker context` install created and selected; nil after uninstall.
+        public var dockerContext: DockerContext.Report? = nil
     }
 
     /// Writes the plist, loads it, and checks that a connection starts the daemon. Replaces an
-    /// earlier install, and stops a daemon the CLI started, which would hold the socket.
+    /// earlier install, and stops a daemon the CLI started, which would hold the socket. Then
+    /// creates and selects the `dmx` docker context.
     @MainActor
     public static func install(paths: Paths) async throws -> Report {
         let executable = try currentExecutable()
         try FileManager.default.createDirectory(at: paths.logs, withIntermediateDirectories: true)
         try await quitStandaloneDaemon(paths)
 
-        let job: [String: Any] = [
-            "Label": label,
-            "ProgramArguments": [executable, "daemon"],
-            "EnvironmentVariables": ["DMX_HOME": paths.home.path],
-            "Sockets": ["Listeners": ["SockPathName": paths.controlSocket.path, "SockPathMode": 0o600]],
-            "StandardOutPath": paths.daemonLog.path,
-            "StandardErrorPath": paths.daemonLog.path,
-            // Containers are interactive work: no background CPU and I/O throttling.
-            "ProcessType": "Interactive",
-            // The daemon exits whenever it is idle; let the next connection start it at once.
-            "ThrottleInterval": 1,
-        ]
-        let data = try PropertyListSerialization.data(fromPropertyList: job, format: .xml, options: 0)
+        let data = try plistData(paths: paths, executable: executable)
         try FileManager.default.createDirectory(at: plist.deletingLastPathComponent(), withIntermediateDirectories: true)
         _ = try? launchctl(["bootout", "\(domain)/\(label)"])
         try data.write(to: plist, options: .atomic)
@@ -54,7 +45,30 @@ public enum LaunchAgent {
             throw DMXError("install_failed", "launchd did not start the daemon on \(paths.controlSocket.path)", hint: "see \(paths.daemonLog.path)")
         }
         defer { client.close() }
-        return Report(label: label, plist: plist.path, socket: paths.controlSocket.path, executable: executable, daemonPid: client.hello.pid)
+        var report = Report(label: label, plist: plist.path, socket: paths.controlSocket.path, executable: executable, daemonPid: client.hello.pid)
+        report.dockerContext = try DockerContext.install(socket: paths.dockerSocket, configDir: DockerContext.configDir())
+        return report
+    }
+
+    /// The job launchd runs: `dmx daemon` with both sockets, started on the first connection.
+    public static func plistData(paths: Paths, executable: String) throws -> Data {
+        let job: [String: Any] = [
+            "Label": label,
+            "ProgramArguments": [executable, "daemon"],
+            "EnvironmentVariables": ["DMX_HOME": paths.home.path],
+            "Sockets": [
+                "Listeners": ["SockPathName": paths.controlSocket.path, "SockPathMode": 0o600],
+                // The first Docker client starts the daemon too (DockerBridge takes it by this name).
+                "Docker": ["SockPathName": paths.dockerSocket.path, "SockPathMode": 0o600],
+            ],
+            "StandardOutPath": paths.daemonLog.path,
+            "StandardErrorPath": paths.daemonLog.path,
+            // Containers are interactive work: no background CPU and I/O throttling.
+            "ProcessType": "Interactive",
+            // The daemon exits whenever it is idle; let the next connection start it at once.
+            "ThrottleInterval": 1,
+        ]
+        return try PropertyListSerialization.data(fromPropertyList: job, format: .xml, options: 0)
     }
 
     /// Unloads the agent (launchd sends SIGTERM, so a running VM powers off cleanly) and removes
@@ -62,7 +76,9 @@ public enum LaunchAgent {
     public static func uninstall(paths: Paths) throws -> Report {
         _ = try? launchctl(["bootout", "\(domain)/\(label)"])
         try? FileManager.default.removeItem(at: plist)
-        if isLaunchdSocket(paths) { unlink(paths.controlSocket.path) }
+        if isLaunchdSocket(paths.controlSocket) { unlink(paths.controlSocket.path) }
+        if isLaunchdSocket(paths.dockerSocket) { unlink(paths.dockerSocket.path) }
+        try DockerContext.uninstall(configDir: DockerContext.configDir())
         return Report(label: label, plist: plist.path, socket: paths.controlSocket.path, executable: nil, daemonPid: nil)
     }
 
@@ -71,8 +87,8 @@ public enum LaunchAgent {
     private static var domain: String { "gui/\(getuid())" }
 
     /// After bootout the socket file stays behind; remove it only if nothing listens on it.
-    private static func isLaunchdSocket(_ paths: Paths) -> Bool {
-        guard let address = try? unixAddress(paths.controlSocket) else { return false }
+    private static func isLaunchdSocket(_ path: URL) -> Bool {
+        guard let address = try? unixAddress(path) else { return false }
         var a = address
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         defer { close(fd) }

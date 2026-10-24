@@ -48,8 +48,8 @@ Addresses (static, set by `guest/init`; no DHCP, so eth0 is up before the agent)
 | Address | What |
 |---|---|
 | 192.168.127.2 | the guest (eth0, MAC 02:64:6d:78:00:02) |
-| 192.168.127.1 | gateway. UDP/TCP port 53 goes to the host's DNS server, the first `nameserver` in `/etc/resolv.conf` (IPv4 or IPv6), read at each boot. Answers ping. |
-| 192.168.127.254 | the host: connections go to the host's 127.0.0.1 (`host.dmx.internal` in the guest's /etc/hosts) |
+| 192.168.127.1 | gateway. UDP/TCP port 53 goes to the host's DNS server, the first `nameserver` in `/etc/resolv.conf` (IPv4 or IPv6), read at each boot, except for `host.docker.internal`, `host.dmx.internal` (192.168.127.254) and `gateway.docker.internal` (192.168.127.1), which the gateway answers itself over UDP so containers resolve them (`UserNetDNS.swift`). Answers ping. |
+| 192.168.127.254 | the host: connections go to the host's 127.0.0.1 (`host.dmx.internal` and `host.docker.internal` in the guest's /etc/hosts) |
 | anything else | the outside world, through host sockets |
 
 - **ARP**: answered for .1 and .254 with the gateway's MAC.

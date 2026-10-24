@@ -1,5 +1,6 @@
 //! dmx-agent: runs inside the dmx VM and answers the host over vsock.
 
+mod docker;
 mod exec;
 mod forward;
 mod frame;
@@ -91,6 +92,8 @@ fn serve(conn: vsock::Stream) {
             }
             "shutdown" => {
                 reply_ok(&out, id, json!({}));
+                // Containers get a moment to stop; the host pulls the plug 10 s after asking.
+                docker::stop(std::time::Duration::from_secs(7));
                 let e = sys::power_off();
                 eprintln!("dmx-agent: power off: {e}");
             }
@@ -131,6 +134,7 @@ fn dispatch(method: &str, params: Value) -> Result<Value, Failure> {
         "reporting_order" => to_value(sys::reporting_order(params_of(params)?).map_err(io)?),
         "shrink_slabs" => to_value(sys::shrink_slabs().map_err(io)?),
         "time_sync" => to_value(sys::time_sync(params_of(params)?).map_err(io)?),
+        "docker_start" => to_value(docker::start().map_err(|e| ("docker_failed", e.to_string()))?),
         _ => Err(("unknown_method", format!("unknown method {method:?}"))),
     }
 }

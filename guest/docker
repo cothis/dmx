@@ -1,0 +1,93 @@
+#!/bin/sh
+# dmx-docker: starts dockerd. dmx-agent runs it (`docker_start`) the first time the host uses the
+# Docker socket after a boot, then waits for /var/run/docker.sock; see docs/docker.md.
+#
+# Docker comes on a read-only disk whose serial is dmx-docker: a 4 KB header ("dmx-docker 1",
+# then the sha256 and length of the payload) and a gzip'd tar. The tar is unpacked onto the data
+# disk whenever that sha256 changes, so Docker costs guest RAM only for what runs.
+set -eu
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+lib=/var/lib/dmx
+root=$lib/docker
+log=$lib/log/dockerd.log
+
+fail() {
+	echo "dmx-docker: $*" >&2
+	exit 1
+}
+
+mountpoint -q /var/lib || fail "no data disk at /var/lib"
+dev=
+for b in /sys/block/vd*; do
+	[ "$(cat "$b/serial" 2>/dev/null)" = dmx-docker ] && dev=/dev/${b##*/}
+done
+[ -n "$dev" ] || fail "no Docker disk; rebuild the guest (make guest)"
+
+set -- $(head -c 4096 "$dev" | tr -d '\0')
+[ "$#" -ge 4 ] && [ "$1 $2" = "dmx-docker 1" ] || fail "$dev is not a dmx Docker image"
+sha=$3 len=$4
+if [ "$(cat "$root/.version" 2>/dev/null)" != "$sha" ]; then
+	echo "dmx-docker: unpacking $sha onto the data disk" >&2
+	rm -rf "$root.new" "$root.old"
+	mkdir -p "$root.new"
+	dd if="$dev" bs=4096 skip=1 2>/dev/null | head -c "$len" | tar -xzf - -C "$root.new"
+	echo "$sha" >"$root.new/.version"
+	[ -d "$root" ] && mv "$root" "$root.old"
+	mv "$root.new" "$root"
+	rm -rf "$root.old"
+	# What the unpacking left in the page cache (the image and ~150 MB of files) is not needed
+	# again soon; drop it now rather than waiting for the idle trim.
+	sync
+	blockdev --flushbufs "$dev" 2>/dev/null || true
+	echo 1 >/proc/sys/vm/drop_caches
+fi
+
+# The kernel's own module loader (request_module) runs /sbin/modprobe in this namespace, so the
+# modules go here, not only into dockerd's namespace. A superset of the initramfs modules.
+mountpoint -q /lib/modules || mount --bind "$root/lib/modules" /lib/modules
+for m in nf_tables nft_compat nft_chain_nat; do
+	modprobe -q "$m" || echo "dmx-docker: modprobe $m failed" >&2
+done
+
+mkdir -p /run/dmx "$lib/log" /etc/ssl /var/folders
+# host-gateway (`--add-host x:host-gateway`) is the host, as host.docker.internal is. No IPv6:
+# the guest network has none. A short shutdown timeout fits the host's 10 s power-off limit.
+cat >/run/dmx/daemon.json <<EOF
+{
+	"hosts": ["unix:///var/run/docker.sock"],
+	"host-gateway-ips": ["192.168.127.254"],
+	"ip6tables": false,
+	"shutdown-timeout": 5
+}
+EOF
+[ -f "$log" ] && mv -f "$log" "$log.1"
+
+# dockerd runs in its own mount namespace, where /usr is the unpacked tree over the guest's own
+# (binaries and libraries at the paths they were built for), /etc/ssl has the CA bundle, and
+# /tmp and /var/folders are the Mac's (they are links into /private on macOS), so bind mounts of
+# host paths under them name the host's files. The rest of the guest keeps its own /tmp.
+# The guest's root is the initramfs, on which pivot_root fails, and runc jails containers with
+# pivot_root (its alternative for ramdisks, DOCKER_RAMDISK, is weaker). So, as switch_root does,
+# a recursive bind mount of / is moved on top of / and becomes the root: a mount with a parent,
+# where pivot_root works. Being on top of / (not just chrooted into) matters: `docker exec`
+# enters a container's mount namespace with setns, which roots the process at the topmost mount
+# on the namespace's /, and that has to be the container's root, not the initramfs.
+# Programs under dockerd keep temporary files and sockets (runc's console socket) on the data
+# disk: /tmp here is the Mac's, over virtio-fs, which has no Unix sockets.
+rm -rf "$lib/tmp"
+mkdir -m 0700 "$lib/tmp"
+export TMPDIR=$lib/tmp
+exec unshare -m --propagation slave sh -c "
+	set -e
+	mount -t overlay overlay -o lowerdir=$root/usr:/usr /usr
+	mount --bind $root/etc/ssl /etc/ssl
+	if mountpoint -q /private; then
+		[ -d /private/tmp ] && mount --bind /private/tmp /tmp
+		[ -d /private/var/folders ] && mount --bind /private/var/folders /var/folders
+	fi
+	mkdir -p /run/dmx/root
+	mount --rbind / /run/dmx/root
+	cd /run/dmx/root
+	mount --move . /
+	exec chroot . /usr/bin/dockerd --config-file /run/dmx/daemon.json
+" </dev/null >>"$log" 2>&1

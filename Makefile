@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build install kernel guest selftest daemontest mcptest x86test test clean
+.PHONY: build install kernel guest selftest daemontest mcptest x86test dockertest test clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -38,6 +38,11 @@ mcptest: build
 # native (pinned Alpine x86_64 packages, ~40 MB the first time; about 2 min).
 x86test: build
 	python3 -I scripts/test-x86.py $(BIN)
+
+# The stock docker CLI and Compose against dmx, in a throwaway DMX_HOME (needs the internet and
+# `brew install docker docker-compose`; a few minutes).
+dockertest: build
+	python3 -I scripts/test-docker.py $(BIN)
 
 # Unit tests that need no VM (the virtio-fs server's path containment).
 test:
