@@ -41,6 +41,8 @@ The host turns them into `DMXError` codes prefixed with `agent_`.
 | `drop_caches` | `level` 1, 2 or 3 (default 3) | `available_before`, `available_after` |
 | `reclaim` | `bytes`, `swappiness` (0 to 200; 0 takes only file cache, absent uses `vm.swappiness`) | `free_before`, `free_after` (MemFree), `complete` (false when the kernel found less than `bytes`). Writes the root cgroup's `memory.reclaim`. |
 | `swap_on` | none | `size` (bytes), `enabled_now` (false if it was on). zram0 with lz4, a quarter of MemTotal, priority 100; sets `vm.swappiness` 100 and `vm.page-cluster` 0. |
+| `reporting_order` | `order`: smallest free block that free page reporting hands to the host, as a page order (0 is one 16 KB page, the boot value 5 is 512 KB) | `previous`. Writes `/sys/module/page_reporting/parameters/page_reporting_order`; the kernel reports about 2 s after the next free, and rejects orders above its largest. |
+| `shrink_slabs` | none | `free_before`, `free_after` (MemFree). Writes `1` to every `/sys/kernel/slab/<cache>/shrink`: per-CPU slabs are flushed and empty slabs freed; no object is evicted. |
 | `time_sync` | `unix_ns` (host clock) | `offset_ns`: guest minus host before the change |
 | `shutdown` | none | `{}`, then the guest syncs, freezes the data disk at `/var/lib` (its journal is left clean) and powers off |
 | `exec` | see below | `pid`, then the connection becomes the process's streams |

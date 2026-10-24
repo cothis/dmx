@@ -206,6 +206,49 @@ pub fn swap_on() -> io::Result<SwapOnResult> {
     Ok(SwapOnResult { size, enabled_now: true })
 }
 
+const REPORTING_ORDER: &str = "/sys/module/page_reporting/parameters/page_reporting_order";
+
+#[derive(Deserialize)]
+pub struct ReportingOrderParams {
+    /// Smallest free block reported, as a page order: 0 is one page (16 KB), 5 is 512 KB.
+    pub order: u32,
+}
+
+#[derive(Serialize)]
+pub struct ReportingOrderResult {
+    pub previous: u32,
+}
+
+/// Sets the smallest block of free pages that free page reporting hands to the host. The kernel
+/// reports about 2 s after the next free into its buddy lists, and only blocks it has not
+/// reported before; it rejects orders above its largest (EINVAL).
+pub fn reporting_order(p: ReportingOrderParams) -> io::Result<ReportingOrderResult> {
+    let previous = fs::read_to_string(REPORTING_ORDER)?.trim().parse().map_err(io::Error::other)?;
+    fs::write(REPORTING_ORDER, p.order.to_string())?;
+    Ok(ReportingOrderResult { previous })
+}
+
+#[derive(Serialize)]
+pub struct ShrinkSlabsResult {
+    /// MemFree before and after.
+    pub free_before: u64,
+    pub free_after: u64,
+}
+
+/// Has every slab cache give its empty slabs back to the page allocator, after flushing the
+/// per-CPU slabs into the cache's lists (`/sys/kernel/slab/<cache>/shrink`). Objects in use stay
+/// where they are: this frees what a burst of sockets or processes left behind, and evicts nothing.
+pub fn shrink_slabs() -> io::Result<ShrinkSlabsResult> {
+    let before = memory()?.free;
+    for entry in fs::read_dir("/sys/kernel/slab")?.flatten() {
+        // Merged caches appear under several names, as symlinks to one directory.
+        if entry.file_type().is_ok_and(|t| t.is_dir()) {
+            let _ = fs::write(entry.path().join("shrink"), "1");
+        }
+    }
+    Ok(ShrinkSlabsResult { free_before: before, free_after: memory()?.free })
+}
+
 #[derive(Deserialize)]
 pub struct TimeSyncParams {
     pub unix_ns: i128,

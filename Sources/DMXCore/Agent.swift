@@ -354,6 +354,21 @@ public final class AgentClient: Sendable {
         return result.size
     }
 
+    /// Sets the smallest block of free pages that free page reporting hands back, as a page order
+    /// (0: one 16 KB page); returns the order it replaced.
+    public func setReportingOrder(_ order: Int) async throws -> Int {
+        struct Result: Decodable { let previous: Int }
+        let result: Result = try await control.call("reporting_order", ["order": order])
+        return result.previous
+    }
+
+    /// Has every guest slab cache free its empty slabs; returns the guest's MemFree before and after.
+    public func shrinkSlabs() async throws -> (freeBefore: UInt64, freeAfter: UInt64) {
+        struct Result: Decodable { let freeBefore: UInt64; let freeAfter: UInt64 }
+        let result: Result = try await control.call("shrink_slabs", Empty())
+        return (result.freeBefore, result.freeAfter)
+    }
+
     /// Sets the guest clock to the host clock and returns how far off it was, in nanoseconds.
     public func syncTime() async throws -> Int64 {
         struct Params: Encodable { let unixNs: Int64 }

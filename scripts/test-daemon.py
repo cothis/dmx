@@ -142,6 +142,9 @@ def memory_checks(results):
     results["memory_idle_trim_s"] = round(time.time() - started, 1)
     fp, m = memory()
     check("memory_idle_trim", back and (m.get("last_trim") or {}).get("reason") == "idle", f"footprint {fp} MB, {m}")
+    # The idle sweep (reporting from 16 KB blocks, empty slabs freed) comes with the idle trim.
+    swept = wait_for(lambda: (memory()[1].get("sweeps") or 0) >= 1, 10)
+    check("memory_idle_sweep", swept, str(memory()[1]))
 
     # Critical: zram swap goes on and the balloon caps the guest; normal deflates it.
     daemon_call("simulate_pressure", {"level": "critical"})

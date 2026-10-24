@@ -128,6 +128,8 @@ fn dispatch(method: &str, params: Value) -> Result<Value, Failure> {
         "drop_caches" => to_value(sys::drop_caches(params_of(params)?).map_err(io)?),
         "reclaim" => to_value(sys::reclaim(params_of(params)?).map_err(io)?),
         "swap_on" => to_value(sys::swap_on().map_err(io)?),
+        "reporting_order" => to_value(sys::reporting_order(params_of(params)?).map_err(io)?),
+        "shrink_slabs" => to_value(sys::shrink_slabs().map_err(io)?),
         "time_sync" => to_value(sys::time_sync(params_of(params)?).map_err(io)?),
         _ => Err(("unknown_method", format!("unknown method {method:?}"))),
     }
