@@ -319,8 +319,9 @@ Follow-ups beyond the completed acceptance criteria:
       cannot reach a TCP or UDP destination (network, host, prohibited) or a UDP port is closed,
       so connects fail with the real reason and UDP clients do not wait. Time exceeded and
       packet too big are not generated (see network.md).
-- [ ] Port forwarding on the Mac's IPv6 too: `-p 8080:80` listens on `::` as well as 0.0.0.0, and
-      `dmx port add` on ::1 as well as 127.0.0.1, as Docker Desktop does.
+- [x] Port forwarding on the Mac's IPv6 too (2026-10-25): `-p 8080:80` listens on `::` as well as
+      0.0.0.0, and 127.0.0.1 forwards (`dmx port add`'s default) on ::1, as Docker Desktop does;
+      TCP and UDP. The IPv6 socket is best effort (logged if taken).
 - [x] File sharing: Unix sockets, xattrs and stored ownership (2026-10-25). A guest `bind()` in a
       share leaves a host socket file (bound with `pthread_fchdir_np`, as macOS has no bindat) and
       guest programs connect through the guest kernel. `user.*` xattrs only, stored under the same
@@ -497,19 +498,18 @@ Done when: on a Mac whose only way out is an HTTP proxy (no authentication) with
 
 For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md).
 
-v0.2.1 is published (signed and notarized, 2026-10-25); main has IPv6 in the guest network and
-ICMP errors to the guest on top of it (unreleased). In order:
+v0.2.1 is published (signed and notarized, 2026-10-25); main has IPv6 in the guest network, ICMP
+errors to the guest and IPv6 port forwarding on top of it (unreleased). In order:
 
-1. Port forwarding on the Mac's IPv6 (phase 6): `localhost` on the Mac tries ::1 first, which
-   now gets "connection refused" before the IPv4 fallback.
+1. The guest kernel stack overflow (Findings, 2026-10-25, "reproduced"): a boot that runs
+   `e2fsck -fy` panics about one time in two. Find the cause (a CPU_ON or context-switch state
+   problem in the VMM is the lead), fix it, and keep the reproducer as a test. The earlier oops
+   in `sysfs_kf_seq_show` may be the same fault.
 2. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
    ~120 ms by choice (data disk barrier flushes, see Decisions).
 3. Community announcement (Show HN, Reddit, GeekNews): phase 11 is out in 0.2.0, so this waits only
    on the maintainer's word (maintainer, 2026-10-25: after more improvements).
-4. The guest kernel oops seen once (Findings, 2026-10-25): cause still unknown and not reproduced
-   in 25 rounds. A stuck agent no longer wedges the daemon; look again if it recurs (the console
-   log keeps the trace).
-5. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
+4. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
 
 Phase 8 (own runtime) remains unstarted; Docker currently uses dockerd/containerd/runc. Storage,
 network and sharing extensions are explicitly tracked under phase 6. None is silently marked
@@ -638,6 +638,8 @@ complete by the finished acceptance suites.
 | 2026-10-25 | 0.2.1 release checks, load 1.2–3.3 | Unit 42/42, selftest ok (86 MB), daemon 48/48 (one run before the CNAME fix failed `dns_cname_chain`; after it 48/48), MCP 30/30, x86 16/16, Docker 66/66 (idle without Docker 79 MB, dockerd idle 285, one container 270; warm hello-world 180 ms), sandbox 41/41. Release directory: guest 61.8 MB, binary tarball 1.8 MB (signed, notarized), sources 467 MiB (21 packages). |
 | 2026-10-25 | IPv6 in the guest network, load 5–6.5 | On this Mac (no IPv6 default route, a Tailscale ULA only): ping fd64:646d:7800::1 0.12 ms, ::254 0.15 ms, the Mac's Tailscale address 0.35 ms; 64 MB over HTTP from the Mac's ::1 at 250–528 MB/s (IPv4 the same run 434–540); UDP echo and AAAA lookups over the gateway's IPv6 address; google.com's AAAA left out (no route). Neighbor entries for ::1 and ::254 REACHABLE. Containers: on a `--ipv6` network a container reaches the Mac's ::1 through dockerd's NAT66 (`ip6tables` on by default now), `getent ahosts host.docker.internal` lists IPv4 first; default-bridge containers unchanged. The first UDP replies were dropped by the guest (Udp6InCsumErrors): IPv6 forbids a zero UDP checksum, so dmx now computes it for UDP over IPv6. Memory: selftest 88–92 MB (86–93 before); dockerd idle 267/266 MB with `ip6tables` on, 267/266 with it off, guest used 79–85 vs 82–84 MB: no cost. Unit 42/42, daemon 50/50 (one earlier run failed with its output lost; three runs after it passed), MCP 30/30, x86 16/16, Docker 67/67, sandbox 41/41. |
 | 2026-10-25 | ICMP errors to the guest, load 6–10 | A TCP connect to 2001:4860:4860::8888 (no IPv6 route on this Mac) and to 240.0.0.1 fails in the guest at once with "Host is unreachable" (before: "Connection refused"); a closed port on the Mac's 127.0.0.1 and ::1 over connected UDP raises ConnectionRefusedError in 0.0 s in a python:3-alpine container on an IPv6 network (through Docker's NAT and NAT66), instead of the 3 s timeout. TCP to a closed port is still refused by reset. Unit 42/42, selftest 87 MB, daemon 52/52 (new `icmp_errors`, `tcp_unreachable`), MCP 30/30, x86 16/16, Docker 67/67 (idle without Docker 78 MB, dockerd idle 214, one container 284), sandbox 41/41. |
+| 2026-10-25 | IPv6 port forwarding | `dmx port add 18780:80` answers on ::1 (daemontest `portfwd_ipv6_loopback`); `-p 20081:80` and `-p 127.0.0.1:20082:80` answer on [::1] (`published_ipv6`); a published UDP port echoes over ::1 (`udp_ipv6_loopback`). Port forward throughput 289 MB/s guest to host, 338 MB/s host to guest (load ~8). Docker 69/69, daemon 52/53: `fsck_repaired` failed, see the next row. |
+| 2026-10-25 | Guest kernel stack overflow, reproduced | The boot that runs `e2fsck -fy` after a corrupted superblock (daemontest `fsck_repaired`) hung: "Insufficient stack space to handle exception", `kworker/6:1` (`mm_percpu_wq`), pc `el1h_64_sync`, lr `__switch_to+0xe0`, sp at the bottom of the task stack while the frame pointer is at its top: a synchronous exception taken over and over in a context switch until the stack ran out. A loop of corrupt-and-boot (throwaway `DMX_HOME`, shares off) hit it on the second boot. Likely the unexplained daemontest failure earlier the same day. Not caused by the network work (no network code runs there). Open: Next up 1. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -702,3 +704,4 @@ complete by the finished acceptance suites.
 - 2026-10-25: Released v0.2.1 (signed, notarized); installed and booted from GitHub as a user would. Next: IPv6 in the guest network.
 - 2026-10-25: IPv6 in the guest network: a ULA prefix behind the NAT, NDP and ICMPv6 echo from the gateway, TCP/UDP onto the Mac's IPv6 sockets, unroutable AAAA records left out; Docker `--ipv6` networks work. Next: ICMP errors to the guest.
 - 2026-10-25: ICMP errors to the guest: destination unreachable for TCP and UDP flows the Mac cannot reach and for closed UDP ports. Next: port forwarding on the Mac's IPv6.
+- 2026-10-25: Port forwards listen on the Mac's IPv6 too (::1 with 127.0.0.1, :: with 0.0.0.0), TCP and UDP. A guest kernel stack overflow reproduces on fsck-repair boots. Next: that crash.

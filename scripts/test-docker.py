@@ -132,12 +132,12 @@ def footprint(label, settle=35):
     results[f"guest_used_{label}_mb"] = s.get("guest_used_mb")
 
 
-def udp_echo(port, payload, tries=20):
+def udp_echo(port, payload, tries=20, host="127.0.0.1"):
     """Sends a datagram to the Mac's port until one comes back; returns the reply or None."""
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+    with socket.socket(socket.AF_INET6 if ":" in host else socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.settimeout(1)
         for _ in range(tries):
-            s.sendto(payload, ("127.0.0.1", port))
+            s.sendto(payload, (host, port))
             try:
                 return s.recv(65536)
             except socket.timeout:
@@ -158,6 +158,7 @@ def check_udp():
         big = os.urandom(8192)  # macOS sends at most 9216 bytes (net.inet.udp.maxdgram)
         check("udp_large_datagram", udp_echo(21053, big) == big)
         check("udp_second_peer", udp_echo(21053, b"another peer") == b"another peer")
+        check("udp_ipv6_loopback", udp_echo(21053, b"over ::1", host="::1") == b"over ::1")
     finally:
         docker("rm", "-f", "udp-echo")
     check("udp_unpublished", wait_for(lambda: not any(x["host_port"] == 21053 for x in forwards()), 10), forwards())
@@ -535,6 +536,9 @@ try:
     f = {(x["host_address"], x["host_port"]): x for x in forwards()}
     check("published_port", ok and f.get(("0.0.0.0", 20081), {}).get("source") == "docker", f"{http_get(20081)!r} {list(f)}")
     check("published_loopback", http_get(20082) == b"published\n" and ("127.0.0.1", 20082) in f, list(f))
+    # Also on the Mac's IPv6, as Docker Desktop does: :: with 0.0.0.0, ::1 with 127.0.0.1.
+    check("published_ipv6", [http_get(p, host="[::1]") for p in (20081, 20082)] == [b"published\n"] * 2,
+          [http_get(p, host="[::1]") for p in (20081, 20082)])
     saved = (HOME / "ports.json").read_text() if (HOME / "ports.json").exists() else "[]"
     check("published_not_saved", "20081" not in saved, saved)
     s = status()

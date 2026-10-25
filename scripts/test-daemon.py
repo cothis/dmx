@@ -253,8 +253,8 @@ sleep 0.3
 """
 
 
-def http_get(port, path, timeout=60):
-    with socket.create_connection(("127.0.0.1", port), timeout=timeout) as c:
+def http_get(port, path, timeout=60, host="127.0.0.1"):
+    with socket.create_connection((host, port), timeout=timeout) as c:
         c.sendall(f"GET {path} HTTP/1.0\r\n\r\n".encode())
         data = bytearray()
         while chunk := c.recv(1 << 20):
@@ -279,6 +279,9 @@ def portfwd(results):
     dmx("exec", "--", "sh", stdin=GUEST_SERVERS)
     body = http_get(18780, "/")
     check("portfwd_http", all(a.get("listening") for a in added) and body == b"hello from the guest\n", f"{body!r} {added[0]}")
+    # A forward on 127.0.0.1 listens on ::1 too: `localhost` on the Mac tries ::1 first.
+    body = http_get(18780, "/", host="::1")
+    check("portfwd_ipv6_loopback", body == b"hello from the guest\n", repr(body))
 
     started = time.time()
     n = len(http_get(18780, "/zero/200000000"))

@@ -208,8 +208,8 @@ the port on the guest's loopback, where docker-proxy listens.
 
 - The host address is what the container asked for, as on Docker Desktop: `-p 8080:80` listens on
   0.0.0.0 (every interface; macOS may ask whether dmx may accept incoming connections),
-  `-p 127.0.0.1:8080:80` on loopback only. Docker lists the IPv6 binding (`::`) of the same port
-  too; only IPv4 is forwarded. Other addresses are not forwarded.
+  `-p 127.0.0.1:8080:80` on loopback only, each on the Mac's IPv6 as well (`::` and `::1`), so
+  `localhost`, which tries ::1 first, connects at once. Other addresses are not forwarded.
 - They appear in `dmx port ls` with `source: docker`, are never written to `ports.json`, and go
   away when the container stops or the VM does.
 - The host ports are taken before the container starts: the daemon reads requests on

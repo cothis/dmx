@@ -134,7 +134,10 @@ with its status (128 + signal if it was killed); `-t` gives it a pty sized like 
 port, by default on 127.0.0.1 only; `0.0.0.0` lets other machines in. Each accepted connection
 gets its own vsock stream to the agent, whose [`connect`](agent-protocol.md#connect) opens a TCP
 connection to the guest port on the guest's loopback, then the daemon copies bytes both ways. No
-privileged helper is involved, and the guest needs no network device. IPv4 only.
+privileged helper is involved, and the guest needs no network device. The address is IPv4;
+127.0.0.1 is listened on at ::1 too and 0.0.0.0 at `::` (IPv6 only), as Docker Desktop does, so
+`localhost` on the Mac, which tries ::1 first, connects at once. If the IPv6 address cannot be had,
+the daemon logs it and forwards IPv4 only.
 
 `dmx port add 5353:53/udp` forwards a UDP port: the daemon binds the host port, and each peer
 that sends to it gets its own vsock stream, on which the agent relays datagrams to the guest port

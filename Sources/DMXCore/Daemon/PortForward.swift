@@ -79,6 +79,24 @@ public struct PortForward: Codable, Sendable, Equatable {
 
     var hostEndpoint: String { "\(hostAddress):\(hostPort)" + (proto == "tcp" ? "" : "/\(proto)") }
 
+    /// The IPv6 address listened on as well, as Docker Desktop does: ::1 with 127.0.0.1 (the Mac's
+    /// `localhost` tries ::1 first) and :: with 0.0.0.0. None for a specific address.
+    var hostAddress6: String? {
+        switch hostAddress {
+        case "127.0.0.1": "::1"
+        case "0.0.0.0": "::"
+        default: nil
+        }
+    }
+
+    /// The socket address listened on: the IPv4 one, or with `v6` its IPv6 companion.
+    func socketAddress(v6: Bool) -> HostEndpoint? {
+        guard let address = v6 ? hostAddress6 : hostAddress else { return nil }
+        return HostEndpoint(address, port: UInt16(hostPort))
+    }
+
+    func endpoint(v6: Bool) -> String { v6 ? "[\(hostAddress6 ?? "")]:\(hostPort)" + (proto == "tcp" ? "" : "/\(proto)") : hostEndpoint }
+
     /// Whether two forwards would listen on the same host port (0.0.0.0 overlaps every address).
     func overlaps(_ other: PortForward) -> Bool {
         hostPort == other.hostPort && proto == other.proto
@@ -284,28 +302,40 @@ final class PortForwards {
 
     // MARK: Connections
 
+    /// Listens on the forward's IPv4 address, which fails the forward if it cannot, then on its
+    /// IPv6 companion (`hostAddress6`), which is only logged if it cannot: IPv4 is what was asked.
     private func listen(_ listener: Listener) throws {
+        try listen(listener, v6: false)
+        listener.error = nil
+        guard listener.forward.hostAddress6 != nil else { return }
+        do {
+            try listen(listener, v6: true)
+        } catch {
+            log("port \(listener.forward.endpoint(v6: true)): \((error as? DMXError)?.message ?? "\(error)"); forwarding IPv4 only")
+        }
+    }
+
+    private func listen(_ listener: Listener, v6: Bool) throws {
         if listener.forward.proto == "udp" {
             let port = listener.forward.guestPort
-            listener.udp = try UDPRelay(listener.forward, connect: { [unowned self] in
+            let relay = try UDPRelay(listener.forward, v6: v6, connect: { [unowned self] in
                 guard let agent else { throw DMXError("daemon_exiting", "the daemon is shutting down") }
                 return try await agent().connect(port: port, udp: true)
             }, using: { [unowned self] in using?($0) })
-            listener.error = nil
+            if v6 { listener.udp6 = relay } else { listener.udp = relay }
             return
         }
-        let fd = try listenTCP(listener.forward)
+        let fd = try listenTCP(listener.forward, v6: v6)
         _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK)
         let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: .main)
-        source.setEventHandler { [unowned self] in MainActor.assumeIsolated { accept(listener) } }
+        source.setEventHandler { [unowned self, unowned source] in MainActor.assumeIsolated { accept(listener, source) } }
         source.setCancelHandler { Darwin.close(fd) }
         source.resume()
-        listener.source = source
-        listener.error = nil
+        if v6 { listener.source6 = source } else { listener.source = source }
     }
 
-    private func accept(_ listener: Listener) {
-        guard let source = listener.source, !listener.paused else { return }
+    private func accept(_ listener: Listener, _ source: DispatchSourceRead) {
+        guard !listener.paused else { return }
         while true {
             let fd = Darwin.accept(Int32(source.handle), nil, nil)
             guard fd >= 0 else {
@@ -313,13 +343,10 @@ final class PortForwards {
                 // again at once. Wait for connections to close instead of spinning.
                 if errno == EMFILE || errno == ENFILE {
                     log("port \(listener.forward.hostEndpoint): out of file descriptors, pausing accept")
-                    listener.paused = true
-                    source.suspend()
+                    listener.pause()
                     Task {
                         try? await Task.sleep(for: .milliseconds(100))
-                        guard listener.paused else { return }
-                        listener.paused = false
-                        source.resume()
+                        listener.unpause()
                     }
                 }
                 return
@@ -378,8 +405,11 @@ private final class Listener {
     /// Follows a port a container publishes; not saved.
     let docker: Bool
     var source: DispatchSourceRead?
+    /// The same on the IPv6 companion address, if listening there worked.
+    var source6: DispatchSourceRead?
     /// A UDP forward's socket and peers, instead of `source`.
     var udp: UDPRelay?
+    var udp6: UDPRelay?
     var error: String?
     var active = 0, total = 0
     /// Accepting is suspended for a moment after running out of descriptors.
@@ -392,17 +422,35 @@ private final class Listener {
         self.docker = docker
     }
 
-    func close() {
-        if paused { source?.resume() }
+    func pause() {
+        guard !paused else { return }
+        paused = true
+        source?.suspend()
+        source6?.suspend()
+    }
+
+    func unpause() {
+        guard paused else { return }
         paused = false
+        source?.resume()
+        source6?.resume()
+    }
+
+    func close() {
+        unpause()
         source?.cancel()
         source = nil
+        source6?.cancel()
+        source6 = nil
         udp?.close()
         udp = nil
+        udp6?.close()
+        udp6 = nil
     }
 
     var status: PortForwardStatus {
-        let counts = udp?.counts ?? (active: active, total: total)
+        var counts = udp?.counts ?? (active: active, total: total)
+        if let more = udp6?.counts { counts = (counts.active + more.active, counts.total + more.total) }
         return PortForwardStatus(hostAddress: forward.hostAddress, hostPort: forward.hostPort, guestPort: forward.guestPort,
                                  listening: source != nil || udp != nil, error: error, connections: counts.active,
                                  totalConnections: counts.total, source: docker ? "docker" : nil, proto: forward.proto)
@@ -420,52 +468,52 @@ private func raiseDescriptorLimit() {
     _ = setrlimit(RLIMIT_NOFILE, &limit)
 }
 
-/// A listening TCP socket on the forward's host address and port.
-private func listenTCP(_ forward: PortForward) throws -> Int32 {
-    var address = sockaddr_in()
-    address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
-    address.sin_family = sa_family_t(AF_INET)
-    address.sin_port = in_port_t(UInt16(forward.hostPort).bigEndian)
-    inet_pton(AF_INET, forward.hostAddress, &address.sin_addr)
-
-    func bound(reuse: Bool) throws -> Int32? {
-        let fd = socket(AF_INET, SOCK_STREAM, 0)
-        guard fd >= 0 else { throw DMXError("daemon_error", "socket: \(String(cString: strerror(errno)))") }
-        _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
-        var on: Int32 = 1
-        if reuse { _ = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, socklen_t(MemoryLayout<Int32>.size)) }
-        let result = withUnsafePointer(to: &address) {
-            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
-        }
-        if result == 0, listen(fd, 128) == 0 { return fd }
-        let code = errno
-        Darwin.close(fd)
-        if code == EADDRINUSE { return nil }
-        throw DMXError("port_unavailable", "cannot listen on \(forward.hostEndpoint): \(String(cString: strerror(code)))",
-                       hint: "use 127.0.0.1 or 0.0.0.0, or another port")
+/// A socket of `type` bound to the forward's host address and port, or with `v6` its IPv6
+/// companion (IPv6 only, so :: leaves 0.0.0.0 to the IPv4 socket). Nil when the port is in use.
+func bindForward(_ forward: PortForward, v6: Bool, type: Int32, reuse: Bool = false) throws -> Int32? {
+    guard let address = forward.socketAddress(v6: v6) else {
+        throw DMXError("bad_port_spec", "\"\(forward.hostAddress)\" is not an IPv4 address", hint: "use 127.0.0.1 or 0.0.0.0")
     }
+    let fd = socket(address.family, type, 0)
+    guard fd >= 0 else { throw DMXError("daemon_error", "socket: \(String(cString: strerror(errno)))") }
+    _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
+    var on: Int32 = 1
+    if reuse { _ = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, socklen_t(MemoryLayout<Int32>.size)) }
+    if v6 { _ = setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &on, socklen_t(MemoryLayout<Int32>.size)) }
+    if address.withSockaddr({ bind(fd, $0, $1) }) == 0, type != SOCK_STREAM || listen(fd, 128) == 0 { return fd }
+    let code = errno
+    Darwin.close(fd)
+    if code == EADDRINUSE { return nil }
+    throw DMXError("port_unavailable", "cannot listen on \(forward.endpoint(v6: v6)): \(String(cString: strerror(code)))",
+                   hint: "use 127.0.0.1 or 0.0.0.0, or another port")
+}
 
+/// A listening TCP socket on the forward's host address and port, or its IPv6 companion.
+private func listenTCP(_ forward: PortForward, v6: Bool = false) throws -> Int32 {
     // Without SO_REUSEADDR a port fails while connections of an earlier listener linger in
     // TIME_WAIT; with it, macOS would let us bind 127.0.0.1 under another program's 0.0.0.0
     // listener and take its local connections. So try without, and if the port is busy, reuse it
     // only when nothing accepts connections on it.
-    if let fd = try bound(reuse: false) { return fd }
-    if !accepts(address), let fd = try bound(reuse: true) { return fd }
-    throw DMXError("port_in_use", "host port \(forward.hostEndpoint) is in use by another program",
+    if let fd = try bindForward(forward, v6: v6, type: SOCK_STREAM) { return fd }
+    if !accepts(forward, v6: v6), let fd = try bindForward(forward, v6: v6, type: SOCK_STREAM, reuse: true) { return fd }
+    throw DMXError("port_in_use", "host port \(forward.endpoint(v6: v6)) is in use by another program",
                    hint: "pick another host port (`dmx port add <port>:\(forward.guestPort)`), or find the owner with `lsof -nP -iTCP:\(forward.hostPort) -sTCP:LISTEN`")
 }
 
-/// Whether something accepts TCP connections at `address` (0.0.0.0 is tried as 127.0.0.1).
-private func accepts(_ address: sockaddr_in) -> Bool {
-    var target = address
-    if target.sin_addr.s_addr == INADDR_ANY { target.sin_addr.s_addr = in_addr_t(0x7f00_0001).bigEndian }
-    let fd = socket(AF_INET, SOCK_STREAM, 0)
+/// Whether something accepts TCP connections on the forward's address (0.0.0.0 and :: are tried
+/// on loopback).
+private func accepts(_ forward: PortForward, v6: Bool) -> Bool {
+    let address = v6 ? forward.hostAddress6 : forward.hostAddress
+    let target = switch address {
+    case "0.0.0.0": "127.0.0.1"
+    case "::": "::1"
+    default: address ?? ""
+    }
+    guard let endpoint = HostEndpoint(target, port: UInt16(forward.hostPort)) else { return false }
+    let fd = socket(endpoint.family, SOCK_STREAM, 0)
     guard fd >= 0 else { return false }
     defer { Darwin.close(fd) }
-    let result = withUnsafePointer(to: &target) {
-        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
-    }
-    return result == 0
+    return endpoint.withSockaddr { connect(fd, $0, $1) } == 0
 }
 
 extension AgentClient {

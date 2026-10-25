@@ -17,21 +17,24 @@ final class UDPRelay: @unchecked Sendable {
     static let pendingLimit = 64
     static let datagramLimit = 65507
 
+    /// A peer's socket address (IPv4 or IPv6), as received.
     private struct Peer: Hashable {
-        let address: UInt32, port: UInt16
+        let bytes: [UInt8]
     }
 
     private final class Flow: @unchecked Sendable {
-        let peer: sockaddr_in
+        let peer: sockaddr_storage
+        let length: socklen_t
         var connection: FrameConnection?
         var pending: [Data] = []
         var lastActive = ContinuousClock.now
         var ended = false
 
-        init(peer: sockaddr_in) { self.peer = peer }
+        init(peer: sockaddr_storage, length: socklen_t) { self.peer = peer; self.length = length }
     }
 
     let forward: PortForward
+    private let v6: Bool
     private var fd: Int32
     private let queue = DispatchQueue(label: "dmx.udp")
     private var source: DispatchSourceRead?
@@ -44,13 +47,15 @@ final class UDPRelay: @unchecked Sendable {
     private let connect: @MainActor @Sendable () async throws -> FrameConnection
     private let using: @MainActor @Sendable (Bool) -> Void
 
-    /// Binds the host port; throws `port_in_use` when another program has it.
-    init(_ forward: PortForward, connect: @escaping @MainActor @Sendable () async throws -> FrameConnection,
+    /// Binds the host port (its IPv6 companion with `v6`); throws `port_in_use` when another
+    /// program has it.
+    init(_ forward: PortForward, v6: Bool = false, connect: @escaping @MainActor @Sendable () async throws -> FrameConnection,
          using: @escaping @MainActor @Sendable (Bool) -> Void) throws {
         self.forward = forward
+        self.v6 = v6
         self.connect = connect
         self.using = using
-        fd = try bindUDP(forward)
+        fd = try bindUDP(forward, v6: v6)
         _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK)
         let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
         source.setEventHandler { [self] in receive() }
@@ -87,15 +92,15 @@ final class UDPRelay: @unchecked Sendable {
         var buffer = [UInt8](repeating: 0, count: Self.datagramLimit)
         // A bounded number per event, so one busy port does not starve the others' streams.
         for _ in 0..<64 {
-            var from = sockaddr_in()
-            var length = socklen_t(MemoryLayout<sockaddr_in>.size)
+            var from = sockaddr_storage()
+            var length = socklen_t(MemoryLayout<sockaddr_storage>.size)
             let n = withUnsafeMutablePointer(to: &from) {
                 $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { recvfrom(fd, &buffer, buffer.count, 0, $0, &length) }
             }
             if n < 0 && errno == EINTR { continue }
             guard n >= 0 else { return }
-            let key = Peer(address: from.sin_addr.s_addr, port: from.sin_port)
-            let flow = flows[key] ?? open(key, from)
+            let key = withUnsafeBytes(of: &from) { Peer(bytes: Array($0.prefix(Int(length)))) }
+            let flow = flows[key] ?? open(key, from, length)
             flow.lastActive = .now
             let datagram = Data(buffer[..<n])
             if let connection = flow.connection {
@@ -106,8 +111,8 @@ final class UDPRelay: @unchecked Sendable {
         }
     }
 
-    private func open(_ key: Peer, _ peer: sockaddr_in) -> Flow {
-        let flow = Flow(peer: peer)
+    private func open(_ key: Peer, _ peer: sockaddr_storage, _ length: socklen_t) -> Flow {
+        let flow = Flow(peer: peer, length: length)
         flows[key] = flow
         total += 1
         let connect = connect, using = using
@@ -117,7 +122,7 @@ final class UDPRelay: @unchecked Sendable {
                 let connection = try await connect()
                 queue.async { [self] in started(flow, connection) }
             } catch {
-                log("port \(forward.hostEndpoint): \((error as? DMXError)?.message ?? "\(error)")")
+                log("port \(forward.endpoint(v6: v6)): \((error as? DMXError)?.message ?? "\(error)")")
                 queue.async { [self] in end(flow) }
             }
         }
@@ -192,7 +197,7 @@ final class UDPRelay: @unchecked Sendable {
             // A full socket buffer drops the datagram, as a network would.
             _ = withUnsafePointer(to: &peer) {
                 $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    sendto(fd, buffer, count, 0, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+                    sendto(fd, buffer, count, 0, $0, flow.length)
                 }
             }
             queue.async { flow.lastActive = .now }
@@ -212,29 +217,13 @@ final class UDPRelay: @unchecked Sendable {
     }
 }
 
-/// A UDP socket bound to the forward's host address and port. No SO_REUSEADDR: on macOS it would
-/// let us bind 127.0.0.1 under another program's 0.0.0.0 socket and take its datagrams.
-private func bindUDP(_ forward: PortForward) throws -> Int32 {
-    var address = sockaddr_in()
-    address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
-    address.sin_family = sa_family_t(AF_INET)
-    address.sin_port = in_port_t(UInt16(forward.hostPort).bigEndian)
-    inet_pton(AF_INET, forward.hostAddress, &address.sin_addr)
-    let fd = socket(AF_INET, SOCK_DGRAM, 0)
-    guard fd >= 0 else { throw DMXError("daemon_error", "socket: \(String(cString: strerror(errno)))") }
-    _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
-    let result = withUnsafePointer(to: &address) {
-        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
-    }
-    guard result == 0 else {
-        let code = errno
-        Darwin.close(fd)
-        if code == EADDRINUSE {
-            throw DMXError("port_in_use", "host port \(forward.hostEndpoint) is in use by another program",
-                           hint: "pick another host port, or find the owner with `lsof -nP -iUDP:\(forward.hostPort)`")
-        }
-        throw DMXError("port_unavailable", "cannot bind \(forward.hostEndpoint): \(String(cString: strerror(code)))",
-                       hint: "use 127.0.0.1 or 0.0.0.0, or another port")
+/// A UDP socket bound to the forward's host address and port (or its IPv6 companion). No
+/// SO_REUSEADDR: on macOS it would let us bind 127.0.0.1 under another program's 0.0.0.0 socket
+/// and take its datagrams.
+private func bindUDP(_ forward: PortForward, v6: Bool) throws -> Int32 {
+    guard let fd = try bindForward(forward, v6: v6, type: SOCK_DGRAM) else {
+        throw DMXError("port_in_use", "host port \(forward.endpoint(v6: v6)) is in use by another program",
+                       hint: "pick another host port, or find the owner with `lsof -nP -iUDP:\(forward.hostPort)`")
     }
     return fd
 }
