@@ -45,6 +45,12 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
   못했어요(Mac의 `::1`, Tailscale ULA로 확인). 이어서 게스트로 ICMP 오류(destination unreachable)를
   전달해요(`UserNet.unreachable`): 연결 실패가 "connection refused" 대신 실제 사유로 보이고, 닫힌
   UDP 포트는 바로 오류가 나요. 포트 포워딩도 Mac의 IPv6에서 받아요(127.0.0.1이면 `::1`, 0.0.0.0이면 `::`).
+- **게스트 메모리 손상 수정(main, 미배포):** 한 번 본 커널 oops와 fsck 부팅 크래시의 원인은 Mac이
+  스왑할 때 virtio-blk의 direct I/O(`F_NOCACHE`)가 게스트 페이지에 직접 닿아 게스트 메모리가 0으로
+  보이는 것이었어요(파일 유실도 있었어요). 이제 virtio-blk는 자체 bounce 버퍼로 복사하고
+  (`VirtioBlock.bounced`), virtio-fs는 게스트의 O_DIRECT를 `F_NOCACHE`로 넘기지 않아요. 재현은
+  `make pressuretest`(Mac을 몇 분간 스왑시켜요, 릴리스 체크 아님). 0.2.x 사용자 모두에 해당하니
+  0.2.2 릴리스를 maintainer에게 제안할 만해요.
 - **마지막 검증**(0.2.1 릴리스, load 1.2–3.3): 단위 42/42, selftest 86 MB, daemontest 48/48,
   mcptest 30/30, x86test 16/16, dockertest 66/66, sandboxtest 41/41. GitHub에서 설치한 0.2.1
   selftest 96 MB.
@@ -75,6 +81,6 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
 
 ## 남은 작업
 
-PLAN.md의 Next up 순서를 따라요. 요약하면: fsck 복구 부팅에서 재현되는 게스트 커널 스택 오버플로(`__switch_to`), 조용한 Mac에서 엔진 비교 재측정,
+PLAN.md의 Next up 순서를 따라요. 요약하면: 0.2.2 릴리스(maintainer 결정), 조용한 Mac에서 엔진 비교 재측정,
 커뮤니티 홍보(maintainer 결정), 실제 회사망에서 Phase 11
 확인. 0.2.1 릴리스는 maintainer가 원할 때 release.md 절차로 내요.

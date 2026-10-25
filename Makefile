@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build install kernel qemu guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest benchmark test release clean
+.PHONY: build install kernel qemu guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest pressuretest benchmark test release clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -57,6 +57,11 @@ dockertest: build
 # Workloads in nine digest-pinned images, arm64 and amd64; failures are not skipped.
 imagetest: build
 	python3 -I scripts/test-images.py $(BIN)
+
+# Guest memory and disk integrity while the Mac swaps (an incompressible hog of 3/4 of RAM,
+# boots that run e2fsck -fy). Not a release check: the Mac slows down for a few minutes.
+pressuretest: build
+	python3 -I scripts/test-pressure.py $(BIN)
 
 # Local dmx baseline. Cross-engine comparison needs matched settings and a quiet host;
 # scripts/benchmark.py can also drive an existing engine (docs/benchmark.md).

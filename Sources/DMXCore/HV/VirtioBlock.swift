@@ -42,7 +42,7 @@ public struct DiskUsage: Codable, Sendable {
 /// journal holds after a power cut, though the last writes before it may be lost. A guest fsync
 /// costs 3 to 7 ms this way, 10 to 17 with `F_FULLFSYNC` (durable even then); plain `fsync`
 /// would not order anything on the SSD. Discard and write-zeroes punch holes (`F_PUNCHHOLE`), so space the guest frees goes back to
-/// macOS.
+/// macOS. Data moves between the file and guest RAM through a buffer of ours (`bounced`).
 final class VirtioBlock: VirtioDevice, @unchecked Sendable {
     static let sizeMaxFeature: UInt64 = 1 << 1
     static let segMaxFeature: UInt64 = 1 << 2
@@ -81,6 +81,8 @@ final class VirtioBlock: VirtioDevice, @unchecked Sendable {
     /// writes from queueing behind each other (mkfs, journal commits).
     private let workers = DispatchQueue(label: "dmx.blk.io", attributes: .concurrent)
     static let maxInFlight = 8
+    /// The most a request moves through its bounce buffer at a time.
+    static let bounceSize = 1 << 20
     private let inFlight = DispatchSemaphore(value: maxInFlight)
     private let lock = NSLock()
     private var transport: VirtioMMIO?
@@ -226,14 +228,14 @@ final class VirtioBlock: VirtioDevice, @unchecked Sendable {
         case 0:  // IN: read into the writable buffers, all but the status byte
             let iov = slices(chain.writable, dropFirst: 0, dropLast: 1)
             let length = iov.reduce(0) { $0 + $1.iov_len }
-            result = inBounds(sector, length) && transfer(iov, at: sector * 512, write: false) ? .ok : .ioError
+            result = inBounds(sector, length) && bounced(iov, at: sector * 512, write: false) ? .ok : .ioError
             if result == .ok { written = length }
         case _ where readOnly && [1, 4, 11, 13].contains(type):  // the guest knows it is read-only (VIRTIO_BLK_F_RO)
             result = type == 4 ? .ok : .ioError
         case 1:  // OUT: write the readable buffers after the header
             let iov = slices(chain.readable, dropFirst: 16, dropLast: 0)
             let length = iov.reduce(0) { $0 + $1.iov_len }
-            result = inBounds(sector, length) && transfer(iov, at: sector * 512, write: true) ? .ok : .ioError
+            result = inBounds(sector, length) && bounced(iov, at: sector * 512, write: true) ? .ok : .ioError
         case 4:  // FLUSH
             result = fcntl(fd, F_BARRIERFSYNC) == 0 ? .ok : .ioError
         case 8:  // GET_ID: up to 20 bytes, no terminator needed
@@ -297,6 +299,44 @@ final class VirtioBlock: VirtioDevice, @unchecked Sendable {
             position += buffer.count
         }
         return iov
+    }
+
+    /// Moves guest buffers to or from the image through a buffer of ours: the file's I/O never
+    /// touches guest RAM, only memcpy does, as for every other device. Direct I/O (`F_NOCACHE`)
+    /// straight on guest pages corrupted guest memory once macOS was short of memory: the guest
+    /// kernel crashed with zeroed page tables, stacks and lists, and files on the disk were lost
+    /// (an fsck boot while the Mac swapped crashed 18 times in 28 with direct I/O on guest pages,
+    /// 0 in 18 without, 0 in 36 with this copy). macOS presumably moves or copies a page under a direct transfer, and the
+    /// guest's stage-2 mapping, refreshed when the page is compressed and comes back, then sees a
+    /// different page than the one it wrote.
+    private func bounced(_ vectors: [iovec], at offset: UInt64, write: Bool) -> Bool {
+        let total = vectors.reduce(0) { $0 + $1.iov_len }
+        guard total > 0 else { return true }
+        let size = min(total, Self.bounceSize)
+        let bounce = UnsafeMutableRawPointer.allocate(byteCount: size, alignment: Int(getpagesize()))
+        defer { bounce.deallocate() }
+        var position = offset, index = 0, within = 0, left = total
+        while left > 0 {
+            let count = min(left, size)
+            if !write, !transfer([iovec(iov_base: bounce, iov_len: count)], at: position, write: false) { return false }
+            var done = 0
+            while done < count {
+                let n = min(vectors[index].iov_len - within, count - done)
+                let guest = vectors[index].iov_base.advanced(by: within)
+                if write {
+                    (bounce + done).copyMemory(from: guest, byteCount: n)
+                } else {
+                    guest.copyMemory(from: bounce + done, byteCount: n)
+                }
+                done += n
+                within += n
+                if within == vectors[index].iov_len { index += 1; within = 0 }
+            }
+            if write, !transfer([iovec(iov_base: bounce, iov_len: count)], at: position, write: true) { return false }
+            position += UInt64(count)
+            left -= count
+        }
+        return true
     }
 
     /// preadv/pwritev until every byte moved; short transfers resume where they stopped.

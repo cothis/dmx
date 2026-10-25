@@ -922,7 +922,10 @@ final class FUSEServer: @unchecked Sendable {
             throw FUSEError(st.st_mode & S_IFMT == S_IFDIR ? Linux.EISDIR : Linux.ESTALE)
         }
         _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) & ~O_NONBLOCK)
-        if linux & Linux.O_DIRECT != 0 { _ = fcntl(fd, F_NOCACHE, 1) }
+        // The guest's O_DIRECT is not passed on as F_NOCACHE: reads and writes go straight
+        // between the file and guest buffers, and direct I/O on guest pages corrupts guest memory
+        // when macOS is short of memory (see VirtioBlock.bounced). Through the Mac's file cache
+        // they are copies into and out of the guest's pages, like every other device's.
         return (fd, st)
     }
 
