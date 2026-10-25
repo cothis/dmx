@@ -46,6 +46,26 @@ impl Listener {
 pub struct Stream(OwnedFd);
 
 impl Stream {
+    /// Connects to `port` on the host (a host service, see host_services.rs).
+    pub fn connect_host(port: u32) -> io::Result<Self> {
+        unsafe {
+            let fd = libc::socket(libc::AF_VSOCK, libc::SOCK_STREAM | libc::SOCK_CLOEXEC, 0);
+            if fd < 0 {
+                return Err(io::Error::last_os_error());
+            }
+            let fd = OwnedFd::from_raw_fd(fd);
+            let mut addr: libc::sockaddr_vm = std::mem::zeroed();
+            addr.svm_family = libc::AF_VSOCK as libc::sa_family_t;
+            addr.svm_port = port;
+            addr.svm_cid = libc::VMADDR_CID_HOST;
+            let len = std::mem::size_of::<libc::sockaddr_vm>() as libc::socklen_t;
+            if libc::connect(fd.as_raw_fd(), &addr as *const _ as *const libc::sockaddr, len) < 0 {
+                return Err(io::Error::last_os_error());
+            }
+            Ok(Stream(fd))
+        }
+    }
+
     pub fn try_clone(&self) -> io::Result<Self> {
         Ok(Stream(self.0.try_clone()?))
     }

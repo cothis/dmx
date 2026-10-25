@@ -320,8 +320,12 @@ Follow-ups beyond the completed acceptance criteria:
       are cached per node by ctime. FUSE 7.33 with `HANDLE_KILLPRIV_V2`: dmx clears setuid/setgid
       on write, truncate and chown, and the guest stops asking for `security.capability` before
       every write.
-- [ ] File sharing: ACLs and DAX; host Unix sockets reachable from containers (Docker Desktop's
-      `/run/host-services/ssh-auth.sock` for the Mac's SSH agent).
+- [x] The Mac's SSH agent in containers (2026-10-25), as on Docker Desktop: the agent listens on
+      `/run/host-services/ssh-auth.sock` (0666) and opens a vsock stream to host port 1025 per
+      connection; the vsock device now accepts guest-initiated connections on ports the host
+      listens on (`VirtioVsock.listen`, `HostServices.swift`). The host side uses the daemon's
+      `SSH_AUTH_SOCK`, else launchd's, else macOS's own `com.openssh.ssh-agent` socket.
+- [ ] File sharing: ACLs and DAX; other host Unix sockets reachable from containers.
 
 ### Phase 7: Docker compatibility (done)
 
@@ -479,21 +483,18 @@ For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDO
 
 v0.2.0 is published (signed and notarized). Changes since then (agent timeout, boot-time
 e2fsck, growing the data disk, DNS through macOS's resolver, sockets/xattrs/ownership on shared
-files) are on main, unreleased: 0.2.1 when the maintainer wants it (release.md, "Cutting a
-release"). In order:
+files, the Mac's SSH agent in containers) are on main, unreleased: 0.2.1 when the maintainer
+wants it (release.md, "Cutting a release"). In order:
 
-1. The Mac's SSH agent in containers (phase 6), as Docker Desktop does: a guest socket at
-   `/run/host-services/ssh-auth.sock` forwarded to the host's `$SSH_AUTH_SOCK`. Needs
-   guest-initiated vsock connections (today only the host connects).
-2. IPv6 in the guest network (phase 6).
-3. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
+1. IPv6 in the guest network (phase 6).
+2. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
    ~120 ms by choice (data disk barrier flushes, see Decisions).
-4. Community announcement (Show HN, Reddit, GeekNews): phase 11 is out in 0.2.0, so this waits only
+3. Community announcement (Show HN, Reddit, GeekNews): phase 11 is out in 0.2.0, so this waits only
    on the maintainer's word (maintainer, 2026-10-25: after more improvements).
-5. The guest kernel oops seen once (Findings, 2026-10-25): cause still unknown and not reproduced
+4. The guest kernel oops seen once (Findings, 2026-10-25): cause still unknown and not reproduced
    in 25 rounds. A stuck agent no longer wedges the daemon; look again if it recurs (the console
    log keeps the trace).
-6. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
+5. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
 
 Phase 8 (own runtime) remains unstarted; Docker currently uses dockerd/containerd/runc. Storage,
 network and sharing extensions are explicitly tracked under phase 6. None is silently marked
@@ -617,6 +618,7 @@ complete by the finished acceptance suites.
 | 2026-10-25 | Growing the data disk | 2G → 64G with a file on it: grown at boot, file kept, `df` 64,367 MB, host allocation 8 MB, boot + first exec 190 ms (120 without growth). Growing in a thread let the first command still see the old size, so the agent grows before it listens. daemontest 46/46 (64G → 80G; 16G afterwards leaves 80G). Selftest 88–90 MB, boot 231–250 ms. |
 | 2026-10-25 | Guest DNS through macOS's resolver | The Mac's own `cothis-mac.local` (multicast DNS only) resolves in the guest to its LAN address and 192.168.127.254 (its loopback, translated); `www.github.com` returns the CNAME and the address; glibc (debian:13-slim `getent`) and musl containers resolve both. A name that does not exist: empty NOERROR (`getent` exit 2). 20 lookups in one exec: 1.7 ms each for github.com, 2.2 ms for a two-CNAME chain (cached by mDNSResponder). daemontest 48/48, Docker 63/63, sandbox 41/41, MCP 30/30, unit 38/38, selftest 89 MB. A VPN's per-domain resolver could not be created without admin rights; mDNS names exercise the same path (answers only mDNSResponder has). |
 | 2026-10-25 | Sockets, xattrs and stored ownership on shares | Host costs (C, APFS): fstatat 1.0 µs; `listxattr` 1.6 µs; `getxattr` ~8 µs whether the attribute exists or not; open + `fsetxattr` + close 50 µs. So the owner is looked for with `listxattr` first (lookup in the server 1.8 → 3.6 µs, 2.3 µs once cached by ctime) and stored only when it differs from the default. A first version mapped the host group separately, so in `/tmp` (group wheel) tar's chown to 0:0 stored an xattr on every file: untar 3.1 → 4.0 s, `find` 0.06 → 0.19 s. With the host user's files always 0:0 and the cache: 9,200 files in a share, old / new, load 4: untar 2.5–4.1 / 2.5–3.7 s, `find` 0.07–0.08 / 0.06–0.08, `ls -lR` 0.09–0.10 / 0.08–0.09, read all 0.9–1.4 / 0.8–1.4, rm 0.7–1.5 / 0.7–1.0; cold (caches dropped) `find` 0.05–0.12 / 0.07–0.10. Answering GETXATTR made the guest ask for `security.capability` before every write (2 extra round trips per file); `HANDLE_KILLPRIV_V2` removes them (untar 3.5 → 3.0 s). postgres:17-alpine with its data directory in a share: before, `initdb: could not access directory: Permission denied`; after, starts and serves queries. Selftest 89 MB, daemontest 48/48 (one earlier run had 3 network timeouts that did not recur), dockertest 65/65 (2 new), unit 42/42. |
+| 2026-10-25 | The Mac's SSH agent in containers | A non-root container user (`-u 1000`) lists the keys of an agent the daemon's `SSH_AUTH_SOCK` names; with no `SSH_AUTH_SOCK` and `launchctl getenv` empty (a shell outside the login session), the socket of macOS's `com.openssh.ssh-agent` job answers ("The agent has no identities"). Old / new guest, same host binary, three rounds after one exec: host 82/82, 79/79, 84/84 MB, guest used 37/36, 33/34, 39/44 MB (noise); selftest 86–93 MB. dockertest 66/66 (new `ssh_agent`), daemontest 48/48. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -676,3 +678,4 @@ complete by the finished acceptance suites.
 - 2026-10-25: Raising `disk_size` grows an existing data disk at the next boot, online. Next: split DNS for company VPNs.
 - 2026-10-25: Guest DNS goes through macOS's resolver: split DNS from VPNs, `.local` names, network changes. Next: Unix sockets and xattrs on shared files.
 - 2026-10-25: Shared files: Unix sockets bind in shares, `user.*` xattrs, and ownership stored by chown and by non-root creators, so non-root containers can write to bind mounts (postgres data directory works). Next: the Mac's SSH agent in containers.
+- 2026-10-25: The Mac's SSH agent is at `/run/host-services/ssh-auth.sock` in the VM, as on Docker Desktop; the vsock device accepts guest-initiated connections. Next: IPv6 in the guest network.

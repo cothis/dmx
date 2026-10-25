@@ -33,8 +33,11 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
     chown과 non-root 사용자가 만든 파일의 소유자를 호스트 xattr `com.dmx.owner`에 저장해요.
     virtio-fs는 늘 default_permissions라 이게 있어야 non-root 컨테이너가 바인드 마운트에 써요
     (postgres 데이터 디렉터리). FUSE 7.33 + `HANDLE_KILLPRIV_V2`(`FUSEServer.swift`).
-- **마지막 검증**(load 3–4, 공유 폴더 변경 후): daemontest 48/48, dockertest 65/65, 단위 42/42,
-  selftest 89 MB. sandboxtest 41/41, mcptest 30/30은 그 전 변경(DNS) 때 결과예요.
+  - Mac의 SSH 에이전트를 VM의 `/run/host-services/ssh-auth.sock`으로 제공(Docker Desktop과 같은
+    경로). vsock 장치가 게스트에서 먼저 여는 연결을 받아요(`VirtioVsock.listen`, 포트 1025,
+    `HostServices.swift`, 에이전트 `host_services.rs`).
+- **마지막 검증**(load 3–4, SSH 에이전트 변경 후): daemontest 48/48, dockertest 66/66, 단위 42/42,
+  selftest 86–93 MB. sandboxtest 41/41, mcptest 30/30은 그 전 변경(DNS) 때 결과예요.
 
 ## 서명·공증 (저장소 밖)
 
@@ -62,7 +65,6 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
 
 ## 남은 작업
 
-PLAN.md의 Next up 순서를 따라요. 요약하면: Mac의 SSH 에이전트를 컨테이너에 전달(Docker Desktop의
-`/run/host-services/ssh-auth.sock`, 게스트가 먼저 여는 vsock 연결 필요), VM 네트워크 IPv6, 조용한 Mac에서 엔진 비교 재측정,
+PLAN.md의 Next up 순서를 따라요. 요약하면: VM 네트워크 IPv6, 조용한 Mac에서 엔진 비교 재측정,
 커뮤니티 홍보(maintainer 결정), 한 번 본 게스트 커널 oops(재현 안 됨), 실제 회사망에서 Phase 11
 확인. 0.2.1 릴리스는 maintainer가 원할 때 release.md 절차로 내요.

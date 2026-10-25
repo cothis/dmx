@@ -77,7 +77,7 @@ EOF
 # enters a container's mount namespace with setns, which roots the process at the topmost mount
 # on the namespace's /, and that has to be the container's root, not the initramfs.
 # Programs under dockerd keep temporary files and sockets (runc's console socket) on the data
-# disk: /tmp here is the Mac's, over virtio-fs, which has no Unix sockets.
+# disk: /tmp here is the Mac's, and a socket there would leave a file on the Mac.
 rm -rf "$lib/tmp"
 mkdir -m 0700 "$lib/tmp"
 export TMPDIR=$lib/tmp

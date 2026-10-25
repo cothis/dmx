@@ -99,6 +99,19 @@ Datagrams the host sends go out from that socket; datagrams the target sends bac
 the host. One stream serves one host peer; it ends when the host closes it (after a quiet minute,
 for a forwarded UDP port). A datagram the target refuses is dropped.
 
+## Host services
+
+The other direction: the guest connects to the host. The agent listens on Unix sockets under
+`/run/host-services` (mode 0666, as in Docker Desktop's VM) and opens a vsock stream to the host
+(CID 2) for each connection; the stream then carries the socket's bytes as `connect` does. The
+host listens on these vsock ports (`HostServices.swift`, `VirtioVsock.listen`):
+
+| Guest socket | Host vsock port | On the host |
+|---|---|---|
+| `/run/host-services/ssh-auth.sock` | 1025 | The Mac's SSH agent: the daemon's `SSH_AUTH_SOCK`, else launchd's (`launchctl getenv`), else the socket of macOS's own `com.openssh.ssh-agent` job |
+
+A connection the host cannot serve (no agent) ends at once; the guest client reads end of stream.
+
 ## Versioning
 
 `hello.protocol` changes only on incompatible changes. The host refuses a mismatched agent with

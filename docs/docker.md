@@ -257,6 +257,17 @@ Access is still checked as the Mac user on the Mac. Unix sockets can be bound in
 used between containers; a Mac program cannot connect to them, nor a container to a Mac socket.
 Only `user.*` extended attributes are visible.
 
+The Mac's SSH agent is at `/run/host-services/ssh-auth.sock` in the VM, as on Docker Desktop:
+
+```sh
+docker run -v /run/host-services/ssh-auth.sock:/run/host-services/ssh-auth.sock \
+  -e SSH_AUTH_SOCK=/run/host-services/ssh-auth.sock alpine/git clone git@github.com:you/private.git
+```
+
+Any container user may use it once mounted; containers without the mount cannot reach it. The
+agent is the one in the daemon's `SSH_AUTH_SOCK` (the shell's, for a daemon the CLI started), or
+else macOS's own ssh-agent ([agent protocol](agent-protocol.md#host-services)).
+
 ## Host names
 
 From containers, `host.docker.internal` is the Mac (its 127.0.0.1, through the NAT's

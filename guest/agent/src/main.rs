@@ -4,6 +4,7 @@ mod docker;
 mod exec;
 mod forward;
 mod frame;
+mod host_services;
 mod sys;
 mod vsock;
 
@@ -37,6 +38,7 @@ fn main() {
         Ok(None) => {}
         Err(e) => eprintln!("dmx-agent: cannot grow the data disk: {e}"),
     }
+    host_services::start();
     let listener = match vsock::Listener::bind(PORT) {
         Ok(l) => l,
         Err(e) => {

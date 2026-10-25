@@ -25,8 +25,9 @@ slower than Colima's because dmx keeps write ordering on the data disk across a 
   returns freed guest pages to macOS, adds RAM to the guest only as it needs it, trims caches when
   idle, and powers the VM off after 5 minutes with nothing running (the daemon then exits).
 - **Docker compatible.** The stock `docker` CLI, Compose and BuildKit against a Docker Engine API
-  socket; published ports, bind mounts of Mac paths, `host.docker.internal`, restart policies and
-  amd64 images (through QEMU) work as on Docker Desktop. dmx installs pinned copies of the CLI
+  socket; published ports, bind mounts of Mac paths, `host.docker.internal`, the Mac's SSH agent
+  at `/run/host-services/ssh-auth.sock`, restart policies and amd64 images (through QEMU) work as
+  on Docker Desktop. dmx installs pinned copies of the CLI
   tools, so neither Homebrew nor Docker Desktop is needed.
 - **AI native.** Every command has `--json` and structured errors with a hint naming the next
   command; nothing prompts. `dmx mcp` gives AI clients the engine itself over MCP, with capped
@@ -104,7 +105,9 @@ containers and volumes).
 `/var/folders` are shared read-write with the VM at the same paths (`dmx config set shares` to
 narrow them); the Mac user maps to root in the guest. `~/.dmx/docker.sock` is readable only by the
 user. `dmx port` forwards bind 127.0.0.1 unless told otherwise; Docker's published ports follow
-their bindings (`-p 8080:80` listens on all interfaces, as on Docker Desktop). Containers and
+their bindings (`-p 8080:80` listens on all interfaces, as on Docker Desktop). The Mac's SSH agent
+is reachable in the VM at `/run/host-services/ssh-auth.sock`, so a container that mounts it can
+use the user's keys, as on Docker Desktop. Containers and
 sandboxes share one VM and its kernel: their isolation is Docker's, not a VM per sandbox, and
 sandboxes with a host allowlist can still resolve any DNS name. Report vulnerabilities as
 described in [SECURITY.md](SECURITY.md).

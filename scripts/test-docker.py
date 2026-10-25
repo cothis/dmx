@@ -357,6 +357,16 @@ services:
     image: dmx-test-compose-build
 """
 
+# Asks the agent at /run/host-services/ssh-auth.sock for its keys (SSH2_AGENTC_REQUEST_IDENTITIES):
+# prints the answer's type (12), the key count and whether the test key is there.
+SSH_AGENT_LIST = """\
+import socket, struct
+s = socket.socket(socket.AF_UNIX); s.connect("/run/host-services/ssh-auth.sock"); s.sendall(b"\\0\\0\\0\\1\\x0b")
+n = struct.unpack(">I", s.recv(4))[0]; d = b""
+while len(d) < n: d += s.recv(n - len(d))
+print(d[0], struct.unpack(">I", d[1:5])[0], b"dmx-test-key" in d)
+"""
+
 # Run in a bind mount as root: prints "hi [value, names] uid gid" (a file uid 1000 made).
 BIND_EXTRAS = """\
 import os, socket
@@ -386,6 +396,11 @@ ENV = {k: v for k, v in os.environ.items() if not k.startswith(("DOCKER_", "BUIL
 ENV.update(DMX_HOME=str(HOME), DOCKER_HOST=f"unix://{HOME}/docker.sock", DOCKER_CONFIG=str(DOCKER_CONFIG),
            HOME=str(USER_HOME), PATH=f"{LINKS}:{TOOLS / 'bin'}:/usr/bin:/bin:/usr/sbin:/sbin")
 (HOME / "guest").symlink_to(GUEST)
+# An SSH agent of the test's own with one key, for /run/host-services/ssh-auth.sock: the daemon
+# inherits SSH_AUTH_SOCK from the first dmx command.
+subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-C", "dmx-test-key", "-f", HOME / "key"], check=True)
+agent = subprocess.Popen(["ssh-agent", "-D", "-a", HOME / "agent.sock"], stdout=subprocess.DEVNULL)
+ENV["SSH_AUTH_SOCK"] = str(HOME / "agent.sock")
 server = None
 try:
     results["host_load"] = os.getloadavg()[0]
@@ -521,6 +536,12 @@ try:
     r = docker("run", "--rm", "-v", f"{bind}:/b", "alpine", "stat", "-c", "%u:%g", "/b/own/d/y")
     check("bind_owner_persists", r.stdout == b"1000:1000\n", f"{r.stdout!r} {r.stderr!r}")
 
+    # The Mac's SSH agent, as on Docker Desktop: list its keys from a non-root container user.
+    wait_for(lambda: subprocess.run(["ssh-add", HOME / "key"], env=ENV, capture_output=True).returncode == 0, 5)
+    r = docker("run", "--rm", "-u", "1000", "-v", "/run/host-services/ssh-auth.sock:/run/host-services/ssh-auth.sock",
+               "python:3-alpine", "python3", "-c", SSH_AGENT_LIST)
+    check("ssh_agent", r.stdout == b"12 1 True\n", f"{r.stdout!r} {r.stderr[-300:]!r}")
+
     # Published ports: forwarded on the Mac while the container runs, where it asked (0.0.0.0 by
     # default, like Docker Desktop), never saved in ports.json.
     r = docker("run", "-d", "--name", "web", "-p", "20081:80", "-p", "127.0.0.1:20082:80", "busybox",
@@ -649,6 +670,7 @@ try:
 except subprocess.TimeoutExpired as e:
     check("no_timeout", False, f"{e.cmd} timed out after {e.timeout} s")
 finally:
+    agent.terminate()
     if server:
         server.shutdown()
     try:

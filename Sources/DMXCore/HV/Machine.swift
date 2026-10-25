@@ -119,6 +119,7 @@ public final class Machine: @unchecked Sendable {
         addVirtio(self.console, ram: ram)
         addVirtio(VirtioRNG(), ram: ram)
         addVirtio(vsock, ram: ram)
+        HostServices.attach(to: vsock)
         balloon = VirtioBalloon(ram: ram) { [unowned self] address, length in self.release(address, length) }
         addVirtio(balloon, ram: ram)
         if bootSize < ramSize {

@@ -123,7 +123,7 @@ public enum LaunchAgent {
     }
 
     @discardableResult
-    private static func launchctl(_ arguments: [String]) throws -> String {
+    static func launchctl(_ arguments: [String]) throws -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
         process.arguments = arguments

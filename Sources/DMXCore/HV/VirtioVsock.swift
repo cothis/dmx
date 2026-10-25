@@ -18,6 +18,8 @@ final class VirtioVsock: VirtioDevice, @unchecked Sendable {
     private var connections: [Key: Connection] = [:]
     private var control: [Header] = []  // payload-free packets waiting for an rx buffer
     private var nextPort: UInt32 = 49152
+    /// Host ports the guest may connect to, each with what takes the host end of a new stream.
+    private var listeners: [UInt32: @Sendable (Int32) -> Void] = [:]
 
     private struct Key: Hashable {
         let local: UInt32  // host port
@@ -130,17 +132,9 @@ final class VirtioVsock: VirtioDevice, @unchecked Sendable {
     func connect(port: UInt32, timeout: Duration = .seconds(1)) async throws -> Int32 {
         try await withCheckedThrowingContinuation { continuation in
             queue.async {
-                var fds: [Int32] = [0, 0]
-                guard socketpair(AF_UNIX, SOCK_STREAM, 0, &fds) == 0 else {
+                guard let fds = Self.socketPair() else {
                     return continuation.resume(throwing: DMXError("vm_error", "socketpair: \(String(cString: strerror(errno)))"))
                 }
-                for fd in fds {
-                    var on: Int32 = 1, size: Int32 = 1 << 20
-                    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
-                    setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &size, socklen_t(MemoryLayout<Int32>.size))
-                    setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &size, socklen_t(MemoryLayout<Int32>.size))
-                }
-                _ = fcntl(fds[0], F_SETFL, fcntl(fds[0], F_GETFL) | O_NONBLOCK)
                 let key = Key(local: self.allocatePort(), peer: port)
                 let c = Connection(key: key, fd: fds[0])
                 c.hostFD = fds[1]
@@ -155,6 +149,41 @@ final class VirtioVsock: VirtioDevice, @unchecked Sendable {
                 }
             }
         }
+    }
+
+    /// Accepts the guest's connections to host `port`: `accept` gets the host end of each new
+    /// stream (on another queue) and closes it when done.
+    func listen(port: UInt32, _ accept: @escaping @Sendable (Int32) -> Void) {
+        queue.async { self.listeners[port] = accept }
+    }
+
+    /// A connected socketpair: ours (non-blocking) and the host end.
+    private static func socketPair() -> [Int32]? {
+        var fds: [Int32] = [0, 0]
+        guard socketpair(AF_UNIX, SOCK_STREAM, 0, &fds) == 0 else { return nil }
+        for fd in fds {
+            var on: Int32 = 1, size: Int32 = 1 << 20
+            setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
+            setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &size, socklen_t(MemoryLayout<Int32>.size))
+            setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &size, socklen_t(MemoryLayout<Int32>.size))
+        }
+        _ = fcntl(fds[0], F_SETFL, fcntl(fds[0], F_GETFL) | O_NONBLOCK)
+        return fds
+    }
+
+    /// A guest connection request to a port with a listener: answer it and hand the host end over.
+    private func accept(_ h: Header, _ key: Key, _ accept: @escaping @Sendable (Int32) -> Void) {
+        guard let fds = Self.socketPair() else {
+            control.append(Header(srcPort: h.dstPort, dstPort: h.srcPort, op: .rst))
+            return
+        }
+        let c = Connection(key: key, fd: fds[0])
+        c.peerBufAlloc = h.bufAlloc
+        c.peerFwdCount = h.fwdCnt
+        connections[key] = c
+        send(c, .response)
+        startPumping(c)
+        DispatchQueue.global().async { accept(fds[1]) }
     }
 
     private func allocatePort() -> UInt32 {
@@ -254,7 +283,11 @@ final class VirtioVsock: VirtioDevice, @unchecked Sendable {
         for (h, payload) in packets where h.type == 1 && h.dstCID == Self.hostCID {
             let key = Key(local: h.dstPort, peer: h.srcPort)
             guard let c = connections[key] else {
-                // No such stream (or the guest is connecting to the host, unsupported yet).
+                if h.op == Op.request.rawValue, let accept = listeners[h.dstPort] {
+                    self.accept(h, key, accept)
+                    continue
+                }
+                // No such stream, or nothing listens on that host port.
                 if h.op != Op.rst.rawValue {
                     control.append(Header(srcPort: h.dstPort, dstPort: h.srcPort, op: .rst))
                 }

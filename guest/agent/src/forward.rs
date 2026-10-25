@@ -27,7 +27,7 @@ pub struct Params {
 }
 
 /// The guest end of a forwarded connection.
-enum Target {
+pub enum Target {
     Tcp(TcpStream),
     Unix(UnixStream),
 }
@@ -82,7 +82,7 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
 /// guest kernel in blocks too small for free page reporting, so each connection keeps it small.
 const BUF: usize = 32 << 10;
 /// Stack of the second copying thread: the buffer plus a little (the default is 2 MiB).
-const STACK: usize = BUF + (64 << 10);
+pub const STACK: usize = BUF + (64 << 10);
 /// The largest UDP payload over IPv4.
 const DATAGRAM: usize = 65507;
 
@@ -97,7 +97,11 @@ pub fn run(id: u64, p: Params, conn: Stream, out: Arc<Mutex<Stream>>) {
     };
     crate::reply_ok(&out, id, serde_json::json!({}));
     drop(out);
+    join(conn, target);
+}
 
+/// Copies both ways between a vsock stream and its guest end until both directions are done.
+pub fn join(conn: Stream, target: Target) {
     // Two descriptors per connection: both directions share the sockets instead of duplicating them.
     // End of stream on one side becomes a half close on the other; an error ends both sides.
     let (conn, target) = (Arc::new(conn), Arc::new(target));
