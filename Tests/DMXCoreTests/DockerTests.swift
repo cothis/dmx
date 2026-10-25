@@ -5,6 +5,56 @@ import Testing
 /// The host side of Docker support that needs no VM: the docker context, the launchd job,
 /// which published ports become forwards, and the names the gateway's DNS answers.
 @Suite struct DockerTests {
+    @Test func certificatesFromAFile() throws {
+        let home = URL(fileURLWithPath: NSTemporaryDirectory() + "dmx-ca-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: home) }
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        let text = "comment\n-----BEGIN CERTIFICATE-----\r\nAAAA\r\nBBBB\r\n-----END CERTIFICATE-----\r\n"
+            + "-----BEGIN PRIVATE KEY-----\nCCCC\n-----END PRIVATE KEY-----\n"
+            + "  -----BEGIN CERTIFICATE-----\nDDDD\n-----END CERTIFICATE-----"
+        #expect(HostCertificates.pemBlocks(text) == ["-----BEGIN CERTIFICATE-----\nAAAA\nBBBB\n-----END CERTIFICATE-----\n",
+                                                     "-----BEGIN CERTIFICATE-----\nDDDD\n-----END CERTIFICATE-----\n"])
+        try Data(text.utf8).write(to: home.appendingPathComponent(HostCertificates.fileName))
+        let found = HostCertificates.pem(home: home)
+        #expect(found.file == 2)
+        #expect(found.pem.hasSuffix("-----BEGIN CERTIFICATE-----\nDDDD\n-----END CERTIFICATE-----\n"))
+        #expect(HostCertificates.pem(Data([1, 2, 3])) == "-----BEGIN CERTIFICATE-----\nAQID\n-----END CERTIFICATE-----\n")
+    }
+
+    @Test func systemProxyForDockerd() throws {
+        let off = HostProxy.parse(["ExceptionsList": ["*.local", "169.254/16"], "FTPPassive": 1])
+        #expect(off.proxy == nil && !off.pac)
+
+        let on = HostProxy.parse(["HTTPEnable": 1, "HTTPProxy": "proxy.corp.example", "HTTPPort": 8080,
+                                  "HTTPSEnable": 1, "HTTPSProxy": "127.0.0.1", "HTTPSPort": 3128,
+                                  "ExceptionsList": ["*.local", "169.254/16", "10.0.0.0/8", "intranet"],
+                                  "ProxyAutoConfigEnable": 1])
+        #expect(on.pac)
+        let proxy = try #require(on.proxy)
+        #expect(proxy.http == "http://proxy.corp.example:8080")
+        #expect(proxy.https == "http://192.168.127.254:3128")  // the Mac's loopback, from the guest
+        #expect(proxy.noProxy.suffix(4) == [".local", "169.254.0.0/16", "10.0.0.0/8", "intranet"])
+        #expect(proxy.noProxy.contains("host.docker.internal") && proxy.noProxy.contains("192.168.127.0/24"))
+        // Turned off, a proxy host still in the settings is not used.
+        #expect(HostProxy.parse(["HTTPEnable": 0, "HTTPProxy": "proxy.corp.example", "HTTPPort": 8080]).proxy == nil)
+        #expect(HostProxy.parse(["HTTPSEnable": 1, "HTTPSProxy": "::1", "HTTPSPort": 3128]).proxy?.https == "http://192.168.127.254:3128")
+        #expect(HostProxy.parse(["HTTPSEnable": 1, "HTTPSProxy": "fd00::1", "HTTPSPort": 3128]).proxy?.https == "http://[fd00::1]:3128")
+
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory() + "dmx-proxy-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = DockerEngineConfig.file(configDir: dir)
+        func proxies() throws -> [String: Any]? {
+            let json = try DockerEngineConfig.build(userFile: file, proxy: proxy).json
+            return (try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])?["proxies"] as? [String: Any]
+        }
+        #expect(try proxies()?["https-proxy"] as? String == "http://192.168.127.254:3128")
+        // The user's own proxies win, whole.
+        try Data(#"{"proxies": {"http-proxy": "http://other:1"}}"#.utf8).write(to: file)
+        #expect(try proxies()?["http-proxy"] as? String == "http://other:1")
+        #expect(try proxies()?["https-proxy"] == nil)
+    }
+
     @Test func engineConfigKeepsUserSettingsUnderDmxKeys() throws {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory() + "dmx-daemon-json-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }

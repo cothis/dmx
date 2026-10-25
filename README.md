@@ -107,19 +107,26 @@ sandboxes share one VM and its kernel: their isolation is Docker's, not a VM per
 sandboxes with a host allowlist can still resolve any DNS name. Report vulnerabilities as
 described in [SECURITY.md](SECURITY.md).
 
-**Signing.** Releases are ad-hoc signed, not yet signed with a Developer ID or notarized. The
-install script is not affected by Gatekeeper; a tarball downloaded with a browser needs
-`xattr -d com.apple.quarantine dmx`. Managed Macs that allow only notarized software cannot run
-dmx yet.
+**Signing.** From the next release, dmx is signed with a Developer ID and notarized by Apple,
+so Macs that allow only notarized software run it, and a copy downloaded with a browser asks
+once before its first launch. v0.1.0 is ad-hoc signed: install it with the script, or run
+`xattr -d com.apple.quarantine dmx` on a browser download.
 
-**Docker Engine settings** such as registry mirrors, insecure registries and an HTTP(S) proxy go
-in `~/.docker/daemon.json`, as with Docker Desktop, and apply at the VM's next start (`dmx stop`).
-A proxy listening on the Mac's own loopback is reached from the VM as `host.docker.internal`.
+**Proxies and Docker Engine settings.** dockerd pulls through the HTTP and HTTPS proxy set in
+System Settings (Network, Proxies), with its exceptions; a proxy on the Mac's own loopback is
+reached from the VM. Registry mirrors, insecure registries, a different proxy and other Docker
+Engine settings go in `~/.docker/daemon.json`, as with Docker Desktop. Both apply at the VM's
+next start (`dmx stop`). Proxy auto-configuration (PAC) files and proxies that ask for a password
+are not supported yet; set such a proxy in daemon.json. Proxy settings apply to image pulls, not
+to programs inside containers.
 
-**Known gaps** that matter on company networks: dockerd does not yet pick up the Mac's system
-proxy by itself, and does not trust certificates added to the macOS keychain (TLS inspection), so
-image pulls through an inspecting proxy fail today. Also missing: IPv6, split DNS, data disk resizing and boot-time
-fsck. Progress is tracked in [docs/PLAN.md](docs/PLAN.md#next-up).
+**Company certificates.** Root certificates an administrator or you added to the macOS keychain
+and marked trusted (a TLS-inspecting proxy, an internal registry's CA) are trusted by dockerd and
+BuildKit in the VM, as on Docker Desktop. Certificates handed out as a file go in
+`~/.dmx/ca-certificates.pem`. Both apply at the VM's next start.
+
+**Known gaps:** IPv6, split DNS (names only a VPN's DNS server knows), data disk resizing and
+boot-time fsck. Progress is tracked in [docs/PLAN.md](docs/PLAN.md#next-up).
 
 **Uninstalling.**
 

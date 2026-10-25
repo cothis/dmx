@@ -116,6 +116,23 @@ docker CLI ──▶ ~/.dmx/docker.sock ──▶ dmx daemon ──vsock──�
   `shutdown-timeout`, `data-root`, `exec-root`, `pidfile`, `containerd`) are ignored, with a line
   in the daemon's log. A file that is not a JSON object fails the Docker client with
   `docker_config_invalid` and the file's path; a key dockerd rejects shows in dockerd's log.
+- **The Mac's proxy.** Unless daemon.json sets `proxies`, the HTTP and HTTPS proxy of the
+  Mac's network settings (`CFNetworkCopySystemProxySettings`, what `scutil --proxy` prints) become
+  dockerd's, read when dockerd starts (`HostProxy.swift`). A proxy on the Mac's loopback is
+  given as 192.168.127.254, the Mac as the guest reaches it. `no-proxy` is the guest and its
+  network, the names for the Mac (`host.docker.internal`, `gateway.docker.internal`,
+  `host.dmx.internal`), and the Mac's exceptions in Go's syntax (`*.local` → `.local`,
+  `169.254/16` → `169.254.0.0/16`). A PAC file is not evaluated (the daemon logs that it is in
+  use), and proxy passwords in the keychain are not used. It serves pulls (BuildKit's
+  included); programs in containers get no proxy environment from it.
+- **The Mac's certificates.** Certificates with trust settings in the keychain's admin or user
+  domain (roots an administrator or the user added and marked trusted, as a company's
+  TLS-inspecting proxy or private registry CA needs; Apple's own roots are in the system domain
+  and the guest's bundle has the public ones), except those the settings deny, plus the blocks of
+  `$DMX_HOME/ca-certificates.pem` (`HostCertificates.swift`). The agent writes them to
+  `/run/dmx/host-ca.pem` with `docker_start`; `guest/docker` then gives dockerd a copy of the
+  bundle with them appended at `/etc/ssl/certs/ca-certificates.crt`, which Go's TLS (dockerd,
+  BuildKit) reads. Read when dockerd starts; containers keep their images' own bundles.
 - **Configuration** (`/run/dmx/daemon.json`): `host-gateway-ips` 192.168.127.254 (the Mac, so
   `--add-host x:host-gateway` works as on Docker Desktop), `ip6tables` false (the guest network
   has no IPv6), `shutdown-timeout` 5 s (the host powers the guest off within 10 s; the agent

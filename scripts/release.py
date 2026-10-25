@@ -7,7 +7,9 @@ the cache it used, and this checkout. Steps:
      THIRD_PARTY.md and LICENSES/ for what runs in the guest. Byte-identical for the same guest.
   2. Sources/DMXCore/GuestPin.swift: the archive's sha256 and the hash of each boot file, so the
      dmx binary verifies the guest it downloads against itself (GuestStore.swift).
-  3. `make build`, then dmx-<version>-darwin-arm64.tar.gz (dmx, LICENSE, THIRD_PARTY.md).
+  3. `make build`, a copy signed with a Developer ID and notarized by Apple (sign_and_notarize,
+     settings in ~/.dmx-signing/release.json; `--ad-hoc` skips it), then
+     dmx-<version>-darwin-arm64.tar.gz (dmx, LICENSE, THIRD_PARTY.md).
   4. dmx-sources-<version>.tar: the complete corresponding source of the guest (source_bundle).
   5. <asset>.sha256 next to each archive, SHA256SUMS, install.sh with the version and the
      binary's sha256 written in, the kernel config, and NOTES.md (release text).
@@ -378,6 +380,7 @@ def main():
     ap.add_argument("--cache", type=Path, default=home / "cache",
                     help="the cache `make guest` used; its inputs are only read, sources download to <cache>/release-sources")
     ap.add_argument("--no-build", action="store_true", help="package .build/release/dmx as it is")
+    ap.add_argument("--ad-hoc", action="store_true", help=f"package the ad-hoc signed binary; skip Developer ID signing and notarization ({SIGNING_CONFIG})")
     args = ap.parse_args()
 
     tag = f"v{args.version}"
@@ -386,6 +389,8 @@ def main():
         sys.exit(f"Sources/dmx/DMX.swift says version {declared}; set it to {args.version} first")
     out = args.out or ROOT / ".build" / "dist" / tag
     out.mkdir(parents=True, exist_ok=True)
+    if not args.ad_hoc and not SIGNING_CONFIG.is_file():
+        sys.exit(f"no signing settings in {SIGNING_CONFIG} (see sign_and_notarize); pass --ad-hoc to release unsigned")
 
     manifest = json.loads((args.guest / "manifest.json").read_text())
     if manifest.get("kernel") != guest.DMX_KERNEL_RELEASE or "docker" not in manifest:
@@ -437,6 +442,10 @@ def main():
     entitlements = subprocess.run(["codesign", "-d", "--entitlements", "-", "--xml", str(binary)], capture_output=True, text=True).stdout
     if "com.apple.security.hypervisor" not in entitlements:
         sys.exit(f"{binary} is not signed with the hypervisor entitlement; run `make build`")
+    signing = "ad-hoc signed"
+    if not args.ad_hoc:
+        binary = sign_and_notarize(binary, ROOT / ".build" / "signed")
+        signing = "signed with a Developer ID and notarized by Apple"
     swift = swift_packages()
     binary_notes = third_party_md("Software in the dmx binary", "Linked into dmx; the license texts are in LICENSE.", swift)
     binary_name = f"dmx-{args.version}-darwin-arm64.tar.gz"
@@ -454,7 +463,7 @@ def main():
     (out / f"kernel-{guest.DMX_KERNEL_RELEASE}.build.py").write_bytes((ROOT / "scripts/build-kernel.py").read_bytes())
     (out / f"{guest.DMX_QEMU}.build.py").write_bytes((ROOT / "scripts/build-qemu.py").read_bytes())
     (out / "third-party.json").write_text(json.dumps({"guest": items, "dmx": swift}, indent=2) + "\n")
-    (out / "NOTES.md").write_text(release_notes(args.version, archive_name, binary_name, items))
+    (out / "NOTES.md").write_text(release_notes(args.version, archive_name, binary_name, items, signing))
     assets = sorted(p for p in out.iterdir() if p.is_file() and p.name != "SHA256SUMS" and not p.name.endswith(".sha256"))
     (out / "SHA256SUMS").write_text("".join(f"{sha256(p.read_bytes())}  {p.name}\n" for p in assets))
 
@@ -467,7 +476,54 @@ def main():
               file=sys.stderr)
 
 
-def release_notes(version: str, archive: str, binary: str, items: list) -> str:
+SIGNING_CONFIG = Path(os.environ.get("DMX_SIGNING_CONFIG", Path.home() / ".dmx-signing" / "release.json"))
+
+
+def sign_and_notarize(binary: Path, work: Path) -> Path:
+    """A copy of `binary` signed with the Developer ID in SIGNING_CONFIG (hardened runtime, secure
+    timestamp, dmx's entitlements) and accepted by Apple's notary service. Command-line tools
+    cannot carry a stapled ticket; Gatekeeper finds the ticket online on first launch.
+
+    SIGNING_CONFIG (never in this repository) holds: identity (certificate SHA-1 or name),
+    keychain and keychain_password_file (a keychain kept for signing, unlocked here), and
+    notary_key, notary_key_id, notary_issuer (an App Store Connect API key)."""
+    config = json.loads(SIGNING_CONFIG.read_text())
+    path = lambda key: str(Path(config[key]).expanduser())
+    signed = work / "dmx"
+    work.mkdir(parents=True, exist_ok=True)
+    signed.write_bytes(binary.read_bytes())
+    signed.chmod(0o755)
+    keychain = path("keychain")
+    password = Path(path("keychain_password_file")).read_text().strip()
+    subprocess.run(["security", "unlock-keychain", "-p", password, keychain], check=True)
+    # codesign looks for identities only in the search list; add the keychain for the signature
+    # and put the list back exactly as it was.
+    listed = subprocess.run(["security", "list-keychains", "-d", "user"], check=True, capture_output=True, text=True).stdout
+    before = [line.strip().strip('"') for line in listed.splitlines() if line.strip()]
+    subprocess.run(["security", "list-keychains", "-d", "user", "-s", keychain, *before], check=True)
+    try:
+        subprocess.run(["codesign", "--force", "--options", "runtime", "--timestamp",
+                        "--entitlements", str(ROOT / "dmx.entitlements"), "--sign", config["identity"], str(signed)], check=True)
+    finally:
+        subprocess.run(["security", "list-keychains", "-d", "user", "-s", *before], check=True)
+    details = subprocess.run(["codesign", "-dvv", str(signed)], capture_output=True, text=True).stderr
+    if "Authority=Developer ID Application" not in details or "(runtime)" not in details:
+        sys.exit(f"{signed} is not signed with a Developer ID and the hardened runtime:\n{details}")
+    archive = work / "dmx-notarize.zip"
+    archive.unlink(missing_ok=True)
+    subprocess.run(["ditto", "-c", "-k", "--keepParent", str(signed), str(archive)], check=True)
+    notary = ["--key", path("notary_key"), "--key-id", config["notary_key_id"], "--issuer", config["notary_issuer"]]
+    result = json.loads(subprocess.run(["xcrun", "notarytool", "submit", str(archive), *notary, "--wait", "--output-format", "json"],
+                                       check=True, capture_output=True, text=True).stdout)
+    archive.unlink()
+    if result.get("status") != "Accepted":
+        log = subprocess.run(["xcrun", "notarytool", "log", result.get("id", ""), *notary], capture_output=True, text=True).stdout
+        sys.exit(f"notarization {result.get('id')}: {result.get('status')}\n{log}")
+    print(f"notarized: {result['id']}", file=sys.stderr)
+    return signed
+
+
+def release_notes(version: str, archive: str, binary: str, items: list, signing: str) -> str:
     gpl = sorted({f"{i['name']} {i['version']}" for i in items if "GPL" in i["license"]})
     return f"""# dmx {version}
 
@@ -482,7 +538,7 @@ into dmx; `dmx guest fetch` does it ahead of time.
 
 ## Assets
 
-- `{binary}`: the dmx binary (ad-hoc signed), its license and third-party notices
+- `{binary}`: the dmx binary ({signing}), its license and third-party notices
 - `{archive}`: the Linux guest: kernel, initramfs, Docker image, licenses and THIRD_PARTY.md
 - `install.sh`: installs dmx into ~/.local/bin after checking the tarball's sha256
 - `kernel-{guest.DMX_KERNEL_RELEASE}.config`: the configuration the guest kernel was built with

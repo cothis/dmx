@@ -47,7 +47,7 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | The VMM is Swift, in DMXCore (2026-10-23) | One language and one binary for all host code; Hypervisor.framework is a C API Swift calls directly. Maintainer's choice over a Rust VMM process. |
 | macOS 15 or later (2026-10-23) | Hypervisor.framework has an in-kernel GICv3 (`hv_gic_create`) from macOS 15, so dmx does not emulate an interrupt controller. |
 | x86_64 images through QEMU user mode + binfmt, not Rosetta (2026-10-23) | Rosetta for Linux exists only inside Virtualization.framework. Most images are multi-arch; emulation is a fallback. |
-| First release choices (maintainer, 2026-10-25) | `v0.1.0`, SemVer, an ordinary GitHub release; GPL source attached to every release as `dmx-sources-<version>.tar` (3a) instead of a three-year written offer; ad-hoc signing while `curl \| sh` is the supported install (Developer ID later); the name stays "dmx", described as Docker-compatible, with a trademark notice. See [release.md](release.md#decisions-maintainer-2026-10-25). |
+| First release choices (maintainer, 2026-10-25) | `v0.1.0`, SemVer, an ordinary GitHub release; GPL source attached to every release as `dmx-sources-<version>.tar` (3a) instead of a three-year written offer; ad-hoc signing for v0.1.0, Developer ID signing and notarization from the next release (maintainer, 2026-10-25); the name stays "dmx", described as Docker-compatible, with a trademark notice. See [release.md](release.md#decisions-maintainer-2026-10-25). |
 | dmx builds its own qemu-x86_64 with a 2^47 guest base (2026-10-25) | Upstream QEMU gives a 64-bit guest any host address; on the 48-bit aarch64 guest kernel that includes addresses above x86-64's 47-bit user space, and jemalloc (Redis) crashed. A default in the binfmt interpreter covers run, exec, fork and chroots; an environment variable would leak into containers and a wrapper breaks binfmt's `F`/`O`/`C`. Same pinned source, Alpine patches and configure line, one small patch; `QEMU_GUEST_BASE` still overrides. |
 | Data disk flushes stay `F_BARRIERFSYNC` (maintainer, 2026-10-25) | Plain `fsync`, as Lima/Colima use, makes warm `docker run` 125 → 76 ms, but the SSD may reorder writes across a power cut and corrupt the ext4 data disk (images, volumes); with the barrier a power cut loses only the last writes. See [benchmark.md](benchmark.md#warm-docker-run-profile-2026-10-25). |
 | One long lived VM, not one VM per container | One kernel's overhead instead of N. Revisit per-container VMs for sandboxes (phase 9). |
@@ -409,7 +409,10 @@ BuildKit through dmx's Buildx; the deprecated legacy builder remains available t
       matches Colima (75–78 ms) but loses write ordering on a power cut; kept the barrier
       (maintainer). Found on the way: dockerd ran in the root cgroup, so every `--memory` warned
       "no swap limit support" and swap stayed unlimited; dockerd now has its own cgroup.
-- [ ] Developer ID signing and notarization when distributing binaries (no Homebrew tap).
+- [x] Developer ID signing and notarization (2026-10-25, applies from the next release): `release.py`
+      signs a copy with "Developer ID Application: MINHO YUN (V4YA23448U)", hardened runtime and
+      secure timestamp, and submits it to `notarytool`; settings live in `~/.dmx-signing/release.json`.
+      The hardened-runtime binary passes the selftest and daemontest.
 
 ### Phase 11: Work Macs
 
@@ -424,14 +427,15 @@ mirrors, managed software policies, and an open-source review before adoption.
       merged under dmx's keys (`DockerEngineConfig.swift`) and passed with agent `docker_start`;
       keys dmx owns are ignored with a log line, an invalid file fails the client with
       `docker_config_invalid`. dockertest checks both.
-- [ ] HTTP(S) proxy: the Mac's system proxy (or `HTTPS_PROXY` given to dmx) used by dockerd for
-      pulls, with a proxy on the Mac's loopback reached through the gateway address.
-- [ ] Certificates trusted in the macOS keychain (TLS inspection, internal registries) trusted by
-      dockerd and BuildKit in the guest, as Docker Desktop does.
+- [x] HTTP(S) proxy: the Mac's system proxy (`CFNetworkCopySystemProxySettings`) becomes dockerd's
+      `proxies` unless daemon.json sets them; a loopback proxy is given as 192.168.127.254; the
+      Mac's exceptions join `no-proxy` in Go's syntax. PAC files and proxy passwords: not yet.
+- [x] Certificates with trust settings in the keychain's admin/user domains, plus
+      `$DMX_HOME/ca-certificates.pem`, appended to dockerd's CA bundle (`HostCertificates.swift`).
 - [ ] Mirrors for dmx's own downloads: the docker CLI tools as well as the guest
       (`DMX_RELEASE_URL` covers only the guest).
-- [ ] Developer ID signing and notarization (phase 10 task; the maintainer's Apple account), so
-      managed Macs that allow only notarized software can run dmx.
+- [x] Developer ID signing and notarization (phase 10), so managed Macs that allow only
+      notarized software can run dmx; first signed binary ships with the next release.
 
 Done when: on a Mac whose only way out is an HTTP proxy (no authentication) with TLS inspection,
 `docker pull` and `docker build` work after `dmx install`, with no file edited by hand.
@@ -447,18 +451,19 @@ For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDO
 v0.1.0 is published. Improvements go out as 0.1.x/0.2 releases (release.md, "Cutting a release";
 publishing still needs the maintainer's go-ahead). In order:
 
-1. Phase 11 (work Macs), in order: the system proxy (into dockerd's `proxies` unless
-   daemon.json sets them; a loopback proxy through 192.168.127.254), keychain certificates, a
-   mirror for the tool downloads. Each needs a test that runs without a corporate
-   network (a local proxy and a local registry with its own CA).
-2. Boot-time fsck of the data disk (phase 6): an unclean stop or a power cut should be repaired
+1. Phase 11 (work Macs): a mirror for the docker CLI tool downloads (like `DMX_RELEASE_URL`);
+   then cut 0.2.0 (first Developer ID signed and notarized release; publishing needs the
+   maintainer's go-ahead).
+2. The guest kernel oops seen once (2026-10-25, Findings): `dmx-agent` reading a sysfs file hit a
+   NULL `sysfs_ops` in `sysfs_kf_seq_show`; the agent hung and every later control call with it.
+   Find the file (likely `page_reporting_order` during the idle sweep) and make the daemon notice
+   a dead agent instead of waiting.
+3. Boot-time fsck of the data disk (phase 6): an unclean stop or a power cut should be repaired
    before ext4 mounts, not found later. Then data disk resize.
-3. Other phase 6 extensions most likely to bite users: IPv6 and split DNS, Unix sockets/xattrs/
+4. Other phase 6 extensions most likely to bite users: IPv6 and split DNS, Unix sockets/xattrs/
    ownership on shared files.
-4. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
+5. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
    ~120 ms by choice (data disk barrier flushes, see Decisions).
-5. Developer ID signing and notarization once a managed Mac, a browser or a GUI download needs it
-   (paid Apple account in the maintainer's name).
 6. Community announcement (Show HN, Reddit, GeekNews) after phase 11 (maintainer, 2026-10-25).
 
 Phase 8 (own runtime) remains unstarted; Docker currently uses dockerd/containerd/runc. Storage,
@@ -573,6 +578,9 @@ complete by the finished acceptance suites.
 | 2026-10-25 | Warm `docker run` profile, 2 CPUs/4 GiB, load 3–8 | Create 35–38 ms, start 48–54, exit to `wait` reply ~16; proxy/vsock round trips ~0.3 ms; WFI cap 100 µs or 20 ms: no change. ~80 guest flushes per run + rm (containerd meta.db 24 fdatasyncs, dockerd local-kv.db 14, snapshotter metadata.db 12, ~11 files). Host flush: `F_BARRIERFSYNC` ~0.35 ms, `fsync` 15 µs, `F_FULLFSYNC` 3.7 ms; guest fsync of 4 KB 2.1 ms vs 0.46 ms with flushes skipped. Medians, three alternating rounds: barrier 122–137 ms, early answer + barrier 115–130, plain fsync 75–78, no flush 69. Barrier kept ([benchmark.md](benchmark.md#warm-docker-run-profile-2026-10-25)). |
 | 2026-10-25 | dockerd in its own cgroup | `--memory 256m` now sets `memory.swap.max` 256 MB (was `max`, with the "no swap limit support" warning); `docker info` SwapLimit true. Warm `docker run` at load ~17, dockerd/containerd moved between cgroups live, three rounds: 200–218 vs 210–231 ms in the root (no cost). Idle after a container and 45 s: 144–154 MB vs 145 before (single runs). dockertest 58/58 (dockerd idle 289 MB, one container 266), daemontest 41/41, sandboxtest 41/41, selftest ok (92 MB). |
 | 2026-10-25 | User daemon.json | Labels and an insecure registry from `$DOCKER_CONFIG/daemon.json` show in `docker info`; its `hosts` is ignored; a truncated file fails `docker version` with the path and hint. dockertest 60/60 at load ~12 (idle without Docker 75 MB, dockerd idle 270, one container 252), sandboxtest 41/41, selftest 22/22 checks ok, unit tests 34/34. |
+| 2026-10-25 | The Mac's proxy and certificates for dockerd | dockertest 63/63 at load ~4.5: a CONNECT proxy on the Mac's loopback named in daemon.json carried `registry-1.docker.io:443` and `auth.docker.io:443`; a registry stub with a self-signed CA on the Mac failed with `x509: certificate signed by unknown authority`, then answered `not found` (TLS accepted) after the CA went into `DMX_HOME/ca-certificates.pem` and `dmx stop`. Changing the Mac's system proxy needs admin rights and changes the whole Mac's network, so `HostProxy.parse` is unit-tested instead (36 unit tests). Footprints: idle without Docker 75 MB, dockerd idle 275, one container 404 (other runs today 252–460; noisy at this step). |
+| 2026-10-25 | Guest kernel oops (once) | dockertest, ~31 s after boot (idle sweep time): `Unable to handle kernel NULL pointer dereference` in `sysfs_kf_seq_show+0x50` from `dmx-agent` reading a sysfs file (`kobj->ktype->sysfs_ops` NULL). The agent stopped answering and `dmx status` waited 120 s. Not reproduced by 20,000 reads of `page_reporting_order`. `dmx status` now gives up on guest memory after 2 s. Open. |
+| 2026-10-25 | Developer ID signing and notarization | New "Developer ID Application" certificate (G2, until 2027-11-24) from a CSR made on this Mac, in a signing keychain. Signed with hardened runtime + timestamp; `notarytool` accepted in 29 s. Gatekeeper: `spctl` said "Unnotarized" for the first minute, then "valid but not an app" (normal for a tool); a quarantined copy then asked "downloaded from the Internet … Open?" instead of refusing. Hardened-runtime binary: selftest ok (88 MB), daemontest 41/41. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -624,3 +632,4 @@ complete by the finished acceptance suites.
 - 2026-10-25: Profiled warm `docker run`: the gap to Colima is data disk barrier flushes; plain fsync would close it but risks the disk on a power cut, so the barrier stays (maintainer). dockerd now runs in its own cgroup, so `--memory` limits swap without a warning. Next: boot-time fsck.
 - 2026-10-25: Phase 11 (work Macs) started: README rewritten for users and company reviewers, SECURITY.md and private vulnerability reporting, repository topics. Maintainer: announce to communities after more improvements.
 - 2026-10-25: dockerd reads the user's Docker Engine settings from `~/.docker/daemon.json` like Docker Desktop (mirrors, insecure registries, proxies), under dmx's own keys.
+- 2026-10-25: dockerd uses the Mac's proxy and its added root certificates; `dmx status` no longer hangs on a stuck agent; a dangling guest link no longer loops guest downloads. Developer ID certificate created and release.py signs and notarizes; the next release is the first notarized one.

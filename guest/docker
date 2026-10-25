@@ -86,10 +86,19 @@ export TMPDIR=$lib/tmp
 # root every `docker run --memory` warned and set no swap limit. Containers go to /docker/<id>.
 mkdir -p /sys/fs/cgroup/dmx-docker
 echo $$ >/sys/fs/cgroup/dmx-docker/cgroup.procs
+# Certificates the Mac trusts beyond Apple's roots (the agent writes them from the host's
+# keychain) join the CA bundle dockerd and BuildKit read.
+ssl=$root/etc/ssl
+if [ -s /run/dmx/host-ca.pem ]; then
+	rm -rf /run/dmx/ssl
+	cp -a "$root/etc/ssl" /run/dmx/ssl
+	cat /run/dmx/host-ca.pem >>/run/dmx/ssl/certs/ca-certificates.crt
+	ssl=/run/dmx/ssl
+fi
 exec unshare -m --propagation slave sh -c "
 	set -e
 	mount -t overlay overlay -o lowerdir=$root/usr:/usr /usr
-	mount --bind $root/etc/ssl /etc/ssl
+	mount --bind $ssl /etc/ssl
 	if mountpoint -q /private; then
 		[ -d /private/tmp ] && mount --bind /private/tmp /tmp
 		[ -d /private/var/folders ] && mount --bind /private/var/folders /var/folders

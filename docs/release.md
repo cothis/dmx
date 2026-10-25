@@ -70,7 +70,7 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
 
 | File | What |
 |---|---|
-| `dmx-<version>-darwin-arm64.tar.gz` (+ `.sha256`) | `dmx` (ad-hoc signed with the hypervisor entitlement), `LICENSE`, `THIRD_PARTY.md` (swift-argument-parser) |
+| `dmx-<version>-darwin-arm64.tar.gz` (+ `.sha256`) | `dmx` (signed with the maintainer's Developer ID, hardened runtime and the hypervisor entitlement, notarized; ad-hoc with `--ad-hoc` and in v0.1.0), `LICENSE`, `THIRD_PARTY.md` (swift-argument-parser) |
 | `dmx-guest-<version>.tar.gz` (+ `.sha256`) | `Image`, `initramfs.gz`, `docker.img`, `manifest.json`, `THIRD_PARTY.md`, `LICENSES/` |
 | `install.sh` | `scripts/install.sh` with the version and the tarball's sha256 written in |
 | `kernel-<release>.config` | the exact config of the guest kernel |
@@ -139,11 +139,17 @@ still carries obligations. What `release.py` does for them:
   section 3), so the obligation ends with the upload and nobody has to answer source requests
   for three years. It also carries the copyright notices MIT and BSD ask for. Attached to every
   release, whether or not the guest changed, so each release page is complete on its own.
-- **Signing:** v0.1.0 is ad-hoc signed. The supported install is `curl … | sh`, which does not
-  quarantine, so Gatekeeper is not involved; a tarball downloaded in a browser needs
-  `xattr -d com.apple.quarantine dmx`. Developer ID signing and notarization (a paid Apple
-  Developer account in the maintainer's name; the hypervisor entitlement is allowed with the
-  hardened runtime) come when there is a browser or GUI download to support.
+- **Signing:** v0.1.0 is ad-hoc signed. From the next release (maintainer, 2026-10-25) the binary
+  is signed with the Developer ID "Developer ID Application: MINHO YUN (V4YA23448U)" with the
+  hardened runtime and a secure timestamp, and notarized, so managed Macs that allow only
+  notarized software run it and a browser download asks once ("downloaded from the Internet …
+  Open?") instead of being blocked. `release.py` does it (`sign_and_notarize`) with settings in
+  `~/.dmx-signing/release.json`, outside the repository: a keychain kept only for signing (its
+  password in a 0600 file; the login keychain is not reachable from a terminal session without a
+  prompt) and the App Store Connect API key used for `notarytool`. A command-line tool cannot
+  carry a stapled ticket, so Gatekeeper looks the ticket up online on first launch; about a
+  minute after acceptance it is found (earlier, the launch was refused once). `curl … | sh` does
+  not quarantine, so the install script works the same either way. `--ad-hoc` releases unsigned.
 - **Name:** "dmx", described as Docker-compatible. No name containing "Docker" (Docker, Inc.'s
   trademark guidelines forbid names implying affiliation, and "Docker for Mac" was its own
   product); README carries the trademark notice.

@@ -184,7 +184,8 @@ public struct GuestStore: Sendable {
 
         // Swap directories. A VM that is running keeps its open docker.img; the kernel and
         // initramfs were copied into guest RAM at boot.
-        if fm.fileExists(atPath: paths.guest.path) {
+        // Not `fileExists`, which follows links: a link to a guest that is gone is replaced too.
+        if (try? fm.attributesOfItem(atPath: paths.guest.path)) != nil {
             try fm.moveItem(at: paths.guest, to: work.appendingPathComponent("old", isDirectory: true))
         }
         try fm.moveItem(at: unpacked, to: paths.guest)

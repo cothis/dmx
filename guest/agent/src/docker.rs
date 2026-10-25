@@ -18,6 +18,7 @@ const SCRIPT: &str = "/sbin/dmx-docker";
 pub const SOCKET: &str = "/var/run/docker.sock";
 const PIDFILE: &str = "/var/run/docker.pid";
 const CONFIG: &str = "/run/dmx/daemon.json";
+const HOST_CA: &str = "/run/dmx/host-ca.pem";
 const LOG: &str = "/var/lib/dmx/log/dockerd.log";
 const CONTAINERS: &str = "/var/lib/docker/containers";
 /// The first start unpacks Docker onto the data disk; a loaded host slows everything down.
@@ -41,6 +42,9 @@ pub struct StartParams {
     /// own keys. Without it the script writes dmx's keys alone.
     #[serde(default)]
     config: Option<String>,
+    /// PEM certificates the Mac trusts beyond Apple's roots, which dockerd trusts too.
+    #[serde(default)]
+    ca_certificates: Option<String>,
 }
 
 /// Starts dockerd unless it answers; with `only_restartable`, only if a container would come
@@ -60,11 +64,15 @@ pub fn start(only_restartable: bool, params: StartParams) -> io::Result<Started>
         }
         restartable = Some(n);
     }
+    std::fs::create_dir_all("/run/dmx")?;
     if let Some(config) = &params.config {
-        std::fs::create_dir_all("/run/dmx")?;
         // Proxy settings may carry credentials.
         let mut file = OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(CONFIG)?;
         file.write_all(config.as_bytes())?;
+    }
+    match &params.ca_certificates {
+        Some(pem) => std::fs::write(HOST_CA, pem)?,
+        None => drop(std::fs::remove_file(HOST_CA)),
     }
     let mut cmd = Command::new(SCRIPT);
     cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped());

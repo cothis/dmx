@@ -270,7 +270,10 @@ final class DockerBridge {
                 let begun = ContinuousClock.now
                 let config: (json: String, ignored: [String])
                 do {
-                    config = try DockerEngineConfig.build(userFile: DockerEngineConfig.file())
+                    let system = HostProxy.system()
+                    if system.pac { log("docker: the Mac uses a proxy auto-configuration file, which dmx does not evaluate; set proxies in \(DockerEngineConfig.file().path)") }
+                    if let proxy = system.proxy { log("docker: the Mac's proxy: \([proxy.http, proxy.https].compactMap { $0 }.joined(separator: ", ")) (unless daemon.json sets proxies)") }
+                    config = try DockerEngineConfig.build(userFile: DockerEngineConfig.file(), proxy: system.proxy)
                 } catch let error as DMXError where onlyRestartable {
                     // The first client gets the error.
                     log("docker: at boot: \(error.message)")
@@ -279,7 +282,11 @@ final class DockerBridge {
                 if !config.ignored.isEmpty {
                     log("docker: \(DockerEngineConfig.file().path): ignoring \(config.ignored.joined(separator: ", ")), which dmx sets")
                 }
-                struct StartParams: Encodable, Sendable { let config: String }
+                let certificates = HostCertificates.pem(home: paths.home)
+                if !certificates.pem.isEmpty {
+                    log("docker: trusting \(certificates.keychain) certificate\(certificates.keychain == 1 ? "" : "s") from the keychain and \(certificates.file) from \(HostCertificates.fileName)")
+                }
+                struct StartParams: Encodable, Sendable { let config: String; let caCertificates: String? }
                 // Its own connection: the first start may take seconds, and the control connection
                 // serves the memory controller meanwhile.
                 let connection = try await agent.open()
@@ -287,7 +294,7 @@ final class DockerBridge {
                 struct Started: Decodable { let started: Bool; let running: Bool?; let restartable: Int? }
                 let result: Started
                 do {
-                    result = try await connection.call(onlyRestartable ? "docker_autostart" : "docker_start", StartParams(config: config.json))
+                    result = try await connection.call(onlyRestartable ? "docker_autostart" : "docker_start", StartParams(config: config.json, caCertificates: certificates.pem.isEmpty ? nil : certificates.pem))
                 } catch let error as DMXError where onlyRestartable {
                     // A client waiting on this start starts dockerd itself; an older guest has
                     // no `docker_autostart` and keeps Docker for its first client.

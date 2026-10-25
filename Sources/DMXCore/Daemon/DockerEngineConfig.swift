@@ -22,8 +22,9 @@ enum DockerEngineConfig {
         configDir.appendingPathComponent("daemon.json")
     }
 
-    /// The JSON to give dockerd, and the user's keys left out because dmx owns them.
-    static func build(userFile: URL) throws -> (json: String, ignored: [String]) {
+    /// The JSON to give dockerd, and the user's keys left out because dmx owns them. The Mac's
+    /// proxy becomes dockerd's `proxies` unless the user's file sets them.
+    static func build(userFile: URL, proxy: HostProxy? = nil) throws -> (json: String, ignored: [String]) {
         var settings: [String: Any] = [:]
         if let data = try? Data(contentsOf: userFile) {
             let parsed: Any
@@ -38,6 +39,7 @@ enum DockerEngineConfig {
         let ignored = settings.keys.filter(owned.contains).sorted()
         for key in owned { settings[key] = nil }
         settings.merge(required) { _, dmx in dmx }
+        if settings["proxies"] == nil, let proxy { settings["proxies"] = proxy.daemonJSON }
         let data = try JSONSerialization.data(withJSONObject: settings, options: [.prettyPrinted, .sortedKeys])
         return (String(decoding: data, as: UTF8.self), ignored)
     }

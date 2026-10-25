@@ -231,6 +231,85 @@ def check_restart_policy():
         docker("rm", "-f", "keeper")
 
 
+class ConnectProxy:
+    """An HTTP CONNECT proxy on the Mac's loopback, as a company proxy agent would run; records
+    the hosts it was asked for."""
+
+    def __init__(self):
+        self.listener = socket.create_server(("127.0.0.1", 0))
+        self.port = self.listener.getsockname()[1]
+        self.targets = []
+        threading.Thread(target=self.serve, daemon=True).start()
+
+    def serve(self):
+        while True:
+            try: client, _ = self.listener.accept()
+            except OSError: return
+            threading.Thread(target=self.tunnel, args=(client,), daemon=True).start()
+
+    def tunnel(self, client):
+        with client:
+            head = b""
+            while b"\r\n\r\n" not in head:
+                data = client.recv(4096)
+                if not data: return
+                head += data
+            method, target = head.split(b" ")[:2]
+            if method != b"CONNECT":
+                client.sendall(b"HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n")
+                return
+            self.targets.append(target.decode())
+            host, port = target.decode().rsplit(":", 1)
+            with socket.create_connection((host, int(port)), timeout=60) as upstream:
+                client.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
+                upstream.sendall(head.split(b"\r\n\r\n", 1)[1])
+                back = threading.Thread(target=self.pump, args=(upstream, client), daemon=True)
+                back.start()
+                self.pump(client, upstream)
+                back.join(60)
+
+    @staticmethod
+    def pump(a, b):
+        try:
+            while data := a.recv(65536):
+                b.sendall(data)
+            b.shutdown(socket.SHUT_WR)
+        except OSError:
+            pass
+
+
+def registry_with_private_ca():
+    """An HTTPS registry stub on the Mac's loopback with a self-signed certificate for
+    host.docker.internal; returns its port and the certificate (PEM)."""
+    import ssl
+    tmp = Path(tempfile.mkdtemp(prefix="dmx-ca-", dir="/tmp"))
+    subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2", "-subj", "/CN=dmx test CA",
+                    "-addext", "subjectAltName=DNS:host.docker.internal", "-addext", "basicConstraints=critical,CA:TRUE",
+                    "-keyout", tmp / "key.pem", "-out", tmp / "cert.pem"], check=True, capture_output=True)
+
+    class Registry(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == "/v2/":
+                body, code = b"{}", 200
+            else:
+                body, code = b'{"errors":[{"code":"MANIFEST_UNKNOWN","message":"manifest unknown"}]}', 404
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Docker-Distribution-API-Version", "registry/2.0")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        do_HEAD = do_GET
+        def log_message(self, *args): pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Registry)
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(tmp / "cert.pem", tmp / "key.pem")
+    server.socket = context.wrap_socket(server.socket, server_side=True)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server, (tmp / "cert.pem").read_text()
+
+
 def check_amd64():
     """An amd64 image through qemu-x86_64, which now comes from docker.img."""
     r = docker("run", "--rm", "--platform", "linux/amd64", "alpine", "uname", "-m")
@@ -506,7 +585,30 @@ try:
     (DOCKER_CONFIG / "daemon.json").write_text("{\"labels\": [")
     r = docker("version")
     check("engine_settings_invalid", r.returncode != 0 and b"daemon.json: it is not valid JSON" in r.stderr, r.stderr[-400:])
+    # dockerd pulls through a proxy on the Mac's loopback, reached as host.docker.internal.
+    proxy = ConnectProxy()
+    url = f"http://host.docker.internal:{proxy.port}"
+    (DOCKER_CONFIG / "daemon.json").write_text(json.dumps({**json.loads(settings), "proxies": {"http-proxy": url, "https-proxy": url}}))
+    r = docker("pull", "alpine")
+    check("engine_settings_proxy", r.returncode == 0 and any(t.startswith("registry-1.docker.io:") for t in proxy.targets),
+          f"{proxy.targets} {r.stderr[-300:]!r}")
+    proxy.listener.close()
     (DOCKER_CONFIG / "daemon.json").write_text(settings)
+    dmx("stop")
+
+    # A registry with a private CA: untrusted, then trusted from DMX_HOME/ca-certificates.pem
+    # (the keychain's added roots take the same path, but a test cannot add one without a prompt).
+    registry, certificate = registry_with_private_ca()
+    image = f"host.docker.internal:{registry.server_address[1]}/dmx-test/none"
+    r = docker("pull", image)
+    check("private_ca_untrusted", r.returncode != 0 and b"certificate" in r.stderr, r.stderr[-300:])
+    (HOME / "ca-certificates.pem").write_text(certificate)
+    dmx("stop")
+    r = docker("pull", image)
+    check("private_ca_trusted", r.returncode != 0 and b"not found" in r.stderr and b"x509" not in r.stderr, r.stderr[-300:])
+    (HOME / "ca-certificates.pem").unlink()
+    registry.shutdown()
+    dmx("stop")
     r, ms = timed(docker, "run", "--rm", "hello-world")
     results["hello_world_cold_ms"] = ms
     check("hello_world_cold", b"Hello from Docker!" in r.stdout, r.stderr)

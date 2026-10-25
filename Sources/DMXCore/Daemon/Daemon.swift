@@ -204,9 +204,35 @@ public final class Daemon {
         await relay(client.fd, session.connection.fd)
     }
 
+    /// The guest's memory, or nil if the agent does not answer in time: a guest in trouble (once,
+    /// an oops in the agent's read of a sysfs file) leaves the control call waiting forever, and
+    /// `dmx status` has to answer anyway.
+    private nonisolated static func memory(of agent: AgentClient, within limit: Duration) async -> GuestMemory? {
+        final class Once: @unchecked Sendable {
+            let lock = NSLock()
+            var continuation: CheckedContinuation<GuestMemory?, Never>?
+            func resume(_ value: GuestMemory?) {
+                lock.lock()
+                let c = continuation
+                continuation = nil
+                lock.unlock()
+                c?.resume(returning: value)
+            }
+        }
+        let once = Once()
+        return await withCheckedContinuation { continuation in
+            once.continuation = continuation
+            Task { once.resume(try? await agent.stats().memory) }
+            Task {
+                try? await Task.sleep(for: limit)
+                once.resume(nil)
+            }
+        }
+    }
+
     private func status() async -> DaemonStatus {
         var guest: GuestMemory?
-        if state == .running { guest = try? await agent?.stats().memory }
+        if state == .running, let agent { guest = await Self.memory(of: agent, within: .seconds(2)) }
         let used = guest.map { Int($0.used >> 20) }
         let host = HostFootprint.read(pid: getpid())
         let others = max(clients - 1, 0)
