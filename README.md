@@ -2,7 +2,7 @@
 
 A container engine for macOS that stays out of your memory, built to be driven by AI agents as easily as by people.
 
-> Early development; no public release yet. `dmx` runs Docker, Compose and BuildKit in its own Linux VM on Hypervisor.framework, with storage, networking and host file sharing. An on-demand daemon boots the VM and stops it when idle. Memory the guest frees goes back to macOS within seconds, and virtio-mem adds RAM as needed. Agents can use MCP tools and disposable sandboxes with checkpoints, resource limits and TTLs.
+> Early development (0.x). `dmx` runs Docker, Compose and BuildKit in its own Linux VM on Hypervisor.framework, with storage, networking and host file sharing. An on-demand daemon boots the VM and stops it when idle. Memory the guest frees goes back to macOS within seconds, and virtio-mem adds RAM as needed. Agents can use MCP tools and disposable sandboxes with checkpoints, resource limits and TTLs.
 
 ## Why
 
@@ -27,17 +27,18 @@ See [docs/PLAN.md](docs/PLAN.md) for the detailed plan.
 | 7 | Docker compatibility (dockerd in the guest first) | done; image workloads and remaining emulation limits in [compatibility](docs/compatibility.md) |
 | 8 | Own runtime, replacing dockerd piece by piece | not started |
 | 9 | `dmx mcp`, sandboxes, checkpoints and logs | done |
-| 10 | Release: install script, guest downloads verified by dmx | groundwork done, no release yet |
+| 10 | Release: install script, guest downloads verified by dmx | v0.1.0 |
 
-Measured on an M-series Mac (10 cores, 16 GB): the current 4K guest costs about 78 MB at idle with 2 vCPUs / a 4G ceiling, and about 89–90 MB with 10 vCPUs / an 8G ceiling. The whole dmx process is counted, guest RAM included; Docker adds memory after it starts. The guest boots with 1 GB and hotplugs more as needed, so unused ceiling RAM has no memmap cost. The first Virtualization.framework build cost 170 MB at 2G and 356 MB at 8G. With the VM stopped the daemon costs about 4 MB, and an idle daemon exits. Free page reporting returns data pages within seconds; spare hotplug RAM is removed after 5 seconds of surplus. Under host pressure dmx also trims caches and uses a balloon for memory that cannot be removed. These are local measurements, not a controlled comparison with other engines; see [the dated measurements](docs/PLAN.md#findings-and-measurements).
+Measured on an M-series Mac (10 cores, 16 GB): the current 4K guest costs about 78 MB at idle with 2 vCPUs / a 4G ceiling, and about 89–90 MB with 10 vCPUs / an 8G ceiling. The whole dmx process is counted, guest RAM included; Docker adds memory after it starts. The guest boots with 1 GB and hotplugs more as needed, so unused ceiling RAM has no memmap cost. The first Virtualization.framework build cost 170 MB at 2G and 356 MB at 8G. With the VM stopped the daemon costs about 4 MB, and an idle daemon exits. Free page reporting returns data pages within seconds; spare hotplug RAM is removed after 5 seconds of surplus. Under host pressure dmx also trims caches and uses a balloon for memory that cannot be removed. Against Docker Desktop, OrbStack and Colima at the same 2 CPUs / 4 GiB, dmx used 180 MB at idle (528, 1097 and 1176 MB) and gave back a freed 2 GiB within seconds, as only OrbStack also did; this ran on a moderately busy Mac, see [the comparison](docs/benchmark.md#results-2026-10-25) and [the dated measurements](docs/PLAN.md#findings-and-measurements).
 
-The guest uses 4K pages for x86 shared mappings, guard pages and partial `msync`; virtio-mem keeps unused ceiling RAM free. Some amd64 allocators still need a QEMU address-layout workaround (currently Redis; see [the image matrix](docs/compatibility.md)). Other gaps include IPv6 and split DNS, data disk resizing and boot-time fsck, and extended file-sharing metadata. See [Next up](docs/PLAN.md#next-up) for release validation and the remaining runtime work.
+The guest uses 4K pages for x86 shared mappings, guard pages and partial `msync`; virtio-mem keeps unused ceiling RAM free. amd64 images run through dmx's own qemu-x86_64 build; nine popular images pass real workloads on both architectures ([the image matrix](docs/compatibility.md)). Gaps include IPv6 and split DNS, data disk resizing and boot-time fsck, and extended file-sharing metadata. See [Next up](docs/PLAN.md#next-up) for release validation and the remaining runtime work.
 
 ## Install
 
 Releases need no Xcode, Python, Rust or Homebrew: one script installs `dmx` into `~/.local/bin`
 (no sudo), and dmx downloads its Linux guest on first use, checked against the sha256 built into
-the binary. No release is published yet; until then, build from source below.
+the binary. A tarball downloaded with a browser is quarantined: the binary is not yet signed with
+a Developer ID, so run `xattr -d com.apple.quarantine dmx` on it, or use the script.
 
 ```sh
 curl -fsSL https://github.com/cothis/dmx/releases/download/v0.1.0/install.sh | sh
