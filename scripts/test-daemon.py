@@ -502,6 +502,23 @@ try:
     check("restart_in_process", r.returncode == 0 and daemon_pids() == pid and s["state"] == "stopped", f"{s['state']} {pid}")
     check("disk_persists", r.stdout == b"kept\n" and (s.get("disk") or {}).get("size_mb") == 65536, f"{r.stdout!r} {s.get('disk')}")
 
+    # Boot-time e2fsck: an error ext4 recorded forces a check; a superblock e2fsck -p will not
+    # touch (a bad checksum) is repaired by e2fsck -fy from a backup; files survive both.
+    dmx("exec", "--", "sh", "-c", "echo 1 > /sys/fs/ext4/vda/trigger_fs_error")
+    dmx("stop")
+    r = dmx("exec", "--", "sh", "-c", "cat /var/lib/dmx/log/fsck.log; cat /sys/fs/ext4/vda/errors_count")
+    check("fsck_forced", b"check forced" in r.stdout and r.stdout.endswith(b"\n0\n"), repr(r.stdout[-300:]))
+    dmx("stop")
+    with open(HOME / "data.img", "r+b") as image:
+        image.seek(1024 + 12)  # s_free_blocks_count_lo; the superblock checksum no longer matches
+        image.write((12345).to_bytes(4, "little"))
+    started = time.monotonic()
+    r = dmx("exec", "--", "sh", "-c", "cat /var/lib/marker; tail -3 /var/lib/dmx/log/fsck.log")
+    results["fsck_repair_boot_s"] = round(time.monotonic() - started, 2)
+    console = (HOME / "logs" / "console.log").read_text(errors="replace")
+    check("fsck_repaired", r.stdout.startswith(b"kept\n") and b"FILE SYSTEM WAS MODIFIED" in r.stdout and "running e2fsck -fy" in console,
+          f"{r.stdout[-300:]!r}")
+
     fixed_memory_checks()
 
     # Idle: the VM stops after idle_timeout, then the daemon exits after 10 s.

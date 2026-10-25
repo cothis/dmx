@@ -30,15 +30,35 @@ done
 # the page cache, and makes a 128 MB journal instead of 512 MB: journal blocks stay allocated on the host once
 # written. Mounted with discard: ext4 punches the blocks it frees out of the host file. Block
 # bitmaps are read when needed rather than all at mount (~2 MB of guest RAM).
-# mke2fs is needed for nothing else, so its directory goes (~1 MB of guest RAM).
+# An existing file system is checked first with e2fsck -p, which replays the journal and repairs
+# what is safe to repair unattended; it is quick on a clean disk. Only if that is not enough (a
+# power cut that reordered writes, an error ext4 recorded) does e2fsck -fy fix everything it finds,
+# with no one to ask, as a VM that cannot mount its disk is worse. Unless e2fsck only found the
+# disk clean, its output is added to /var/lib/dmx/log/fsck.log.
+# mke2fs and e2fsck are needed for nothing else, so their directory goes (~1.4 MB of guest RAM).
 mkfs=/usr/libexec/dmx-mkfs
 if [ -b /dev/vda ]; then
 	# The ext4 magic, 0xEF53 little-endian, at byte 1080.
 	if [ "$(dd if=/dev/vda bs=1 skip=1080 count=2 2>/dev/null | od -An -tx1 | tr -d ' \n')" != 53ef ]; then
 		MKE2FS_CONFIG=$mkfs/mke2fs.conf LD_LIBRARY_PATH=$mkfs $mkfs/mke2fs -q -D -t ext4 -L dmx-data -J size=128 /dev/vda ||
 			echo "dmx-init: cannot format /dev/vda" >&2
+	else
+		fsck() { E2FSCK_CONFIG=$mkfs/e2fsck.conf LD_LIBRARY_PATH=$mkfs $mkfs/e2fsck "$@" /dev/vda >>/run/dmx-fsck.log 2>&1; }
+		fsck -p
+		checked=$?
+		if [ $checked -ge 4 ]; then
+			echo "dmx-init: e2fsck -p could not repair /dev/vda ($checked); running e2fsck -fy" >&2
+			fsck -fy
+			checked=$?
+		fi
+		[ $checked -ne 0 ] && echo "dmx-init: e2fsck on /dev/vda exited $checked (see /var/lib/dmx/log/fsck.log)" >&2
 	fi
 	mount -t ext4 -o discard,no_prefetch_block_bitmaps /dev/vda /var/lib || echo "dmx-init: cannot mount /dev/vda on /var/lib" >&2
+	if [ -s /run/dmx-fsck.log ] && ! grep -q ': clean, ' /run/dmx-fsck.log && mountpoint -q /var/lib; then
+		mkdir -p /var/lib/dmx/log
+		{ echo "-- e2fsck at boot $(cat /proc/sys/kernel/random/boot_id)"; cat /run/dmx-fsck.log; } >>/var/lib/dmx/log/fsck.log
+	fi
+	rm -f /run/dmx-fsck.log
 fi
 rm -rf "$mkfs"
 

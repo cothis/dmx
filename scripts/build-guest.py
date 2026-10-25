@@ -35,8 +35,8 @@ SOURCES = {
         "sha256": "b46c51ddf572d85b2ba7b9adfaa64f4c38fc490c93d97a20ffd2418d51284085",
     },
 }
-# mke2fs, to format the data disk on first boot (busybox has no ext4 mkfs), and the libraries it
-# links. Signatures checked against the Alpine keys in the minirootfs when these were pinned.
+# mke2fs, to format the data disk on first boot (busybox has no ext4 mkfs), e2fsck, to check it at
+# every boot, and the libraries they link. Signatures checked against the Alpine keys in the minirootfs when these were pinned.
 MKFS_PACKAGES = {
     "e2fsprogs": ("e2fsprogs-1.47.4-r0.apk", "52fd401e79ce6b0ff7648733ba4de3135083cd0132543534e72106e7ea767a00"),
     "e2fsprogs-libs": ("e2fsprogs-libs-1.47.4-r0.apk", "52124971ae397d599aadd79263fcd68fc9e271922ccf8185b124f35fe24c60c8"),
@@ -50,7 +50,7 @@ for _name, (_file, _sha) in MKFS_PACKAGES.items():
 # Only these files, all in one directory that /init deletes once the disk is mounted, so they
 # cost guest RAM only during boot.
 MKFS_FILES = {
-    "sbin/mke2fs", "etc/mke2fs.conf", "usr/lib/libext2fs.so.2", "usr/lib/libe2p.so.2", "usr/lib/libcom_err.so.2",
+    "sbin/mke2fs", "sbin/e2fsck", "etc/mke2fs.conf", "usr/lib/libext2fs.so.2", "usr/lib/libe2p.so.2", "usr/lib/libcom_err.so.2",
     "usr/lib/libblkid.so.1", "usr/lib/libuuid.so.1", "usr/lib/libeconf.so.0",
 }
 MKFS_DIR = "usr/libexec/dmx-mkfs"
@@ -269,6 +269,9 @@ def add_mkfs(cpio: Cpio, cache: Path):
     cpio.parents(MKFS_DIR + "/mke2fs")
     for path, (data, perm) in sorted(found.items()):
         cpio.file(f"{MKFS_DIR}/{Path(path).name}", data, perm)
+    # The guest has no real-time clock: until the host sets it, its clock is far behind the times
+    # e2fsck finds in the superblock, which would force a full check at every boot.
+    cpio.file(f"{MKFS_DIR}/e2fsck.conf", b"[options]\n\tbroken_system_clock = 1\n", 0o644)
 
 
 def qemu_binary(cache: Path) -> bytes:
