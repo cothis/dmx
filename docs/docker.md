@@ -113,7 +113,9 @@ docker CLI ──▶ ~/.dmx/docker.sock ──▶ dmx daemon ──vsock──�
   has no IPv6), `shutdown-timeout` 5 s (the host powers the guest off within 10 s; the agent
   sends dockerd SIGTERM and waits up to 7 s so containers stop cleanly). Everything else is
   Docker's default: overlayfs, the containerd image store, json-file logs, the userland proxy,
-  cgroup v2 with cgroupfs. Images, containers and volumes live on the data disk
+  cgroup v2 with cgroupfs. dockerd and its containerd run in the `/dmx-docker` cgroup and
+  containers in `/docker/<id>`: from the root cgroup, which has no `memory.swap.max`, dockerd
+  reported no swap limit support, warned on every `--memory` and left swap unlimited. Images, containers and volumes live on the data disk
   (`/var/lib/docker`, `/var/lib/containerd`). dockerd's log is `/var/lib/dmx/log/dockerd.log`
   (`dmx exec -- tail /var/lib/dmx/log/dockerd.log`), the previous one `dockerd.log.1`.
 

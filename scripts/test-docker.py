@@ -340,6 +340,10 @@ try:
     results["pull_alpine_ms"] = ms
     check("pull", r.returncode == 0, r.stderr)
 
+    # A memory limit also limits swap, without dockerd's "no swap limit support" warning.
+    r = docker("run", "--rm", "--memory", "64m", "alpine", "cat", "/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory.swap.max")
+    check("memory_swap_limit", r.stdout == b"67108864\n67108864\n" and b"WARNING" not in r.stderr, f"{r.stdout!r} {r.stderr!r}")
+
     # Interactive: a terminal, input, exit status.
     out, code = through_pty([DOCKER, "run", "-it", "--rm", "alpine", "sh"],
                             [(b"# ", b"echo hi-$((40+2))\n"), (b"hi-42", b"exit 3\n")])

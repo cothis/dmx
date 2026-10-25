@@ -49,6 +49,7 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | x86_64 images through QEMU user mode + binfmt, not Rosetta (2026-10-23) | Rosetta for Linux exists only inside Virtualization.framework. Most images are multi-arch; emulation is a fallback. |
 | First release choices (maintainer, 2026-10-25) | `v0.1.0`, SemVer, an ordinary GitHub release; GPL source attached to every release as `dmx-sources-<version>.tar` (3a) instead of a three-year written offer; ad-hoc signing while `curl \| sh` is the supported install (Developer ID later); the name stays "dmx", described as Docker-compatible, with a trademark notice. See [release.md](release.md#decisions-maintainer-2026-10-25). |
 | dmx builds its own qemu-x86_64 with a 2^47 guest base (2026-10-25) | Upstream QEMU gives a 64-bit guest any host address; on the 48-bit aarch64 guest kernel that includes addresses above x86-64's 47-bit user space, and jemalloc (Redis) crashed. A default in the binfmt interpreter covers run, exec, fork and chroots; an environment variable would leak into containers and a wrapper breaks binfmt's `F`/`O`/`C`. Same pinned source, Alpine patches and configure line, one small patch; `QEMU_GUEST_BASE` still overrides. |
+| Data disk flushes stay `F_BARRIERFSYNC` (maintainer, 2026-10-25) | Plain `fsync`, as Lima/Colima use, makes warm `docker run` 125 → 76 ms, but the SSD may reorder writes across a power cut and corrupt the ext4 data disk (images, volumes); with the barrier a power cut loses only the last writes. See [benchmark.md](benchmark.md#warm-docker-run-profile-2026-10-25). |
 | One long lived VM, not one VM per container | One kernel's overhead instead of N. Revisit per-container VMs for sandboxes (phase 9). |
 | The daemon exits when idle; the CLI starts it if launchd does not (2026-10-24) | An idle dmx should cost nothing, not even a 4 MB daemon. `dmx install` is optional: without it `dmx exec` still just works, which matters for agents. One daemon per `DMX_HOME`, enforced by a lock file. |
 | Docker from a read-only image unpacked onto the data disk, started on first use (2026-10-24) | Docker is ~170 MB unpacked: in the initramfs it would sit in guest RAM. A pinned image on a read-only disk is unpacked only when its sha256 changes, and dockerd starts only when `docker.sock` is first used, so a VM nobody runs Docker in costs nothing extra. |
@@ -403,6 +404,11 @@ BuildKit through dmx's Buildx; the deprecated legacy builder remains available t
       match SHA256SUMS; `curl … | sh` installs 0.1.0 without quarantine; a fresh `DMX_HOME`
       fetched the guest in 5.4 s and passed the selftest (idle 90 MB). dmx stays Apache-2.0: the
       GPL programs run as separate programs in the guest.
+- [x] Profiled warm `docker run` (118 ms vs Colima 73): the gap is the data disk's ~80 flushes per
+      run (bolt DB fdatasyncs in containerd and dockerd), each an `F_BARRIERFSYNC`. Plain `fsync`
+      matches Colima (75–78 ms) but loses write ordering on a power cut; kept the barrier
+      (maintainer). Found on the way: dockerd ran in the root cgroup, so every `--memory` warned
+      "no swap limit support" and swap stayed unlimited; dockerd now has its own cgroup.
 - [ ] Developer ID signing and notarization when distributing binaries (no Homebrew tap).
 
 ### Later, maybe
@@ -416,11 +422,12 @@ For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDO
 v0.1.0 is published. Improvements go out as 0.1.x/0.2 releases (release.md, "Cutting a release";
 publishing still needs the maintainer's go-ahead). In order:
 
-1. Warm `docker run` is 118 ms on dmx vs 73 ms on Colima at the same settings: profile the
-   container start path (daemon → vsock → dockerd → runc) and remove the gap.
-2. Phase 6 extensions most likely to bite users: data disk resize and boot-time fsck, IPv6 and
-   split DNS, Unix sockets/xattrs/ownership on shared files.
-3. Rerun the engine comparison on a quiet Mac to tighten its ranges.
+1. Boot-time fsck of the data disk (phase 6): an unclean stop or a power cut should be repaired
+   before ext4 mounts, not found later. Then data disk resize.
+2. Other phase 6 extensions most likely to bite users: IPv6 and split DNS, Unix sockets/xattrs/
+   ownership on shared files.
+3. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
+   ~120 ms by choice (data disk barrier flushes, see Decisions).
 4. Developer ID signing and notarization once a browser or GUI download needs it (paid Apple
    account in the maintainer's name).
 
@@ -533,6 +540,8 @@ complete by the finished acceptance suites.
 | 2026-10-25 | qemu-x86_64 before/after, x86test twice each, load ~2–6 | Alpine → dmx build: x86 `sleep` RSS 5 → 5 MB; `true` 2–4 ms both; python3 start 126 → 120–123 ms; node 403–420 → 396–400 ms; 100 MB sha256 x86 1040–1050 → 1020 ms; footprint after x86 work 216–221 → 215–223 MB, after cleanup 122–123 → 117–121 MB. No regression ([raw](measurements/2026-10-25-qemu-guest-base.json)). |
 | 2026-10-25 | Gates after the QEMU change, load 4–6 | Selftest 21/21 (8G/10 CPU idle 92 MB, 1 GiB back in 634 ms), daemon 41/41, Docker 57/57, MCP 30/30, sandbox 41/41, x86 16/16, unit tests 33/33. Benchmark (native arm64, so qemu is not on its path): 2 CPU/4G idle 180–292 MB over three runs (recorded 193; the 292 MB run is the outlier), 2 GiB returned to baseline +64 MB in 1.6–6.5 s; 10 CPU/8G back below its baseline in 6.6 s. |
 | 2026-10-25 | Engine comparison, 2 CPUs/4 GiB, three alternating rounds, load 2.4–6.4 | Median idle: dmx 180, OrbStack 528, Colima 1097, Docker Desktop 1176 MB. Holding 2 GiB: 2373 / 2621 / 3172 / 3373 MB. 10 s after freeing: 332 / 618 / 3180 / 3362 MB; dmx back in 5.9 s, OrbStack 4.2 s; Docker Desktop fell to 365 MB only when Resource Saver stopped its VM (2–5 min), Colima still 3394 MB at 6 min. Warm `docker run` 118 / 123 / 73 / 99 ms; SHA-256 of 256 MiB 954 / 1469 / 912 / 1739 ms ([raw](measurements/2026-10-25-engine-comparison.json)). Engines installed temporarily and removed. |
+| 2026-10-25 | Warm `docker run` profile, 2 CPUs/4 GiB, load 3–8 | Create 35–38 ms, start 48–54, exit to `wait` reply ~16; proxy/vsock round trips ~0.3 ms; WFI cap 100 µs or 20 ms: no change. ~80 guest flushes per run + rm (containerd meta.db 24 fdatasyncs, dockerd local-kv.db 14, snapshotter metadata.db 12, ~11 files). Host flush: `F_BARRIERFSYNC` ~0.35 ms, `fsync` 15 µs, `F_FULLFSYNC` 3.7 ms; guest fsync of 4 KB 2.1 ms vs 0.46 ms with flushes skipped. Medians, three alternating rounds: barrier 122–137 ms, early answer + barrier 115–130, plain fsync 75–78, no flush 69. Barrier kept ([benchmark.md](benchmark.md#warm-docker-run-profile-2026-10-25)). |
+| 2026-10-25 | dockerd in its own cgroup | `--memory 256m` now sets `memory.swap.max` 256 MB (was `max`, with the "no swap limit support" warning); `docker info` SwapLimit true. Warm `docker run` at load ~17, dockerd/containerd moved between cgroups live, three rounds: 200–218 vs 210–231 ms in the root (no cost). Idle after a container and 45 s: 144–154 MB vs 145 before (single runs). dockertest 58/58 (dockerd idle 289 MB, one container 266), daemontest 41/41, sandboxtest 41/41, selftest ok (92 MB). |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -581,3 +590,4 @@ complete by the finished acceptance suites.
 - 2026-10-25: Fixed the default amd64 Redis crash: dmx builds qemu-x86_64 from pinned QEMU 11.0.3 with Alpine's patches and a 2^47 x86_64 guest base (`make qemu`). Image matrix 18/18; x86test checks the address range and jemalloc/mimalloc; release packager ships the QEMU recipe and its static libraries' licenses. Remaining phase 10 work needs maintainer decisions.
 - 2026-10-25: Cross-engine comparison against Docker Desktop, OrbStack and Colima (installed briefly, then removed); dmx lowest at idle and under load and returns memory within seconds. README gained a Docker trademark notice. Release recommendation written for the maintainer.
 - 2026-10-25: Released v0.1.0 on GitHub (binary, guest, 467 MiB source bundle); installed and booted from GitHub as a user would.
+- 2026-10-25: Profiled warm `docker run`: the gap to Colima is data disk barrier flushes; plain fsync would close it but risks the disk on a power cut, so the barrier stays (maintainer). dockerd now runs in its own cgroup, so `--memory` limits swap without a warning. Next: boot-time fsck.

@@ -84,8 +84,8 @@ maintainer 확인 후에만 해요.
 
 ## 남은 작업과 경계
 
-- **성능:** warm `docker run`이 dmx 118 ms, Colima 73 ms예요. 컨테이너 시작 경로를 profiling해요.
-- **Phase 6 확장:** 디스크 확장·부팅 fsck, IPv6/split DNS, 공유 파일의 Unix socket/xattrs/소유권.
+- **성능(완료):** warm `docker run` 차이는 데이터 디스크 barrier flush 때문이에요. 전원 차단 안전을 위해 유지하기로 했어요(PLAN Decisions, benchmark.md).
+- **Phase 6 확장(다음):** 부팅 fsck부터, 그다음 디스크 확장, IPv6/split DNS, 공유 파일의 Unix socket/xattrs/소유권.
 - **비교 재측정:** 조용한 Mac에서 다시 측정하면 범위가 좁아져요.
 - **서명:** Developer ID·공증은 브라우저/GUI 배포가 필요해질 때 maintainer 계정으로 해요.
 - **지속 결정:** GitHub CI와 Homebrew 의존성은 추가하지 않아요. Phase 8 자체 런타임은 미착수예요.

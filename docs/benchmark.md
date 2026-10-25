@@ -88,5 +88,32 @@ ID signatures checked), configured only for CPUs, memory and shares, and removed
 What this shows: dmx holds the least at idle and under load and gives freed memory back within
 seconds; OrbStack also returns memory, from a higher baseline; the two Virtualization
 framework engines keep what the guest touched until their VM stops. dmx's warm `docker run`
-(118 ms) is behind Colima (73 ms) and Docker Desktop (99 ms), a lead worth chasing; the SHA-256
-work was fastest on Colima and dmx. A quiet-Mac rerun would tighten the ranges.
+(118 ms) is behind Colima (73 ms) and Docker Desktop (99 ms); the SHA-256 work was fastest on
+Colima and dmx. The `docker run` gap is the data disk's flushes (profiled 2026-10-25, below). A quiet-Mac rerun would tighten the ranges.
+
+## Warm `docker run` profile (2026-10-25)
+
+Same command as the benchmark (`--network none --memory 1g --cpus 2 --pids-limit 256`, then
+`docker rm -fv`), 2 CPUs/4 GiB, host load 3–8. Through a logging proxy on the host: create
+35–38 ms, start 48–54 ms, exit to `wait` reply ~16 ms; every API round trip through dmx's proxy
+and vsock is ~0.3 ms, so the transport is not the cost. The 1 ms WFI cap is not either: 100 µs
+and 20 ms caps give the same times.
+
+The guest issues ~80 flushes per run and remove (`/sys/block/vda/stat`): ext4 makes two per
+journal commit, and the fsyncs are containerd's `meta.db` (24), dockerd's network store
+`local-kv.db` (14, even with `--network none`), the overlay snapshotter's `metadata.db` (12) and
+~11 file fsyncs (ftrace on `ext4_sync_file_enter`). dmx answers each flush with
+`F_BARRIERFSYNC`, ~0.35 ms on the host (plain `fsync` 15 µs, `F_FULLFSYNC` 3.7 ms on this Mac),
+~0.85 ms as the guest sees it. Medians of 10 runs, three alternating rounds:
+
+| Flush | Warm `docker run` |
+|---|---|
+| `F_BARRIERFSYNC` (dmx) | 122–137 ms |
+| Answer at once, barrier before the next request | 115–130 ms |
+| Plain `fsync` | 75–78 ms |
+| None (upper bound) | 69 ms |
+
+Lima, and so Colima, uses plain `fsync` (`DiskImageSynchronizationModeFsync`), which explains its
+73 ms. dmx keeps the barrier (maintainer, 2026-10-25): with plain `fsync` the SSD may reorder
+writes across a power cut and leave the ext4 data disk (images, volumes) corrupt, and dmx does
+not fsck at boot yet. Answering early only moved the wait to the next write.

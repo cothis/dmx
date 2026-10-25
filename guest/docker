@@ -79,6 +79,11 @@ EOF
 rm -rf "$lib/tmp"
 mkdir -m 0700 "$lib/tmp"
 export TMPDIR=$lib/tmp
+# dockerd and containerd run in a cgroup of their own, as under systemd. dockerd supports swap
+# limits only if its own cgroup has memory.swap.max, which the root cgroup never has; from the
+# root every `docker run --memory` warned and set no swap limit. Containers go to /docker/<id>.
+mkdir -p /sys/fs/cgroup/dmx-docker
+echo $$ >/sys/fs/cgroup/dmx-docker/cgroup.procs
 exec unshare -m --propagation slave sh -c "
 	set -e
 	mount -t overlay overlay -o lowerdir=$root/usr:/usr /usr
