@@ -156,18 +156,31 @@ final class HostDNS {
 
         /// An address as the guest can use it: the Mac's loopback (mDNSResponder answers the Mac's
         /// own `.local` name with it) is the gateway's host address; other loopback and link-local
-        /// addresses lead nowhere from the guest and are left out.
+        /// addresses lead nowhere from the guest and are left out, and so are IPv6 addresses the
+        /// Mac has no route to (as Docker Desktop leaves out AAAA records on a Mac without IPv6),
+        /// so programs that try addresses in order do not start with one that cannot work.
         static func forGuest(type: UInt16, _ rdata: Data) -> Data? {
             switch (type, rdata.count) {
             case (1, 4):
-                if rdata == Data([127, 0, 0, 1]) { return withUnsafeBytes(of: UserNet.host.bigEndian) { Data($0) } }
+                if rdata == Data([127, 0, 0, 1]) { return withUnsafeBytes(of: UserNet.host.v4.bigEndian) { Data($0) } }
                 return rdata.first == 127 ? nil : rdata
             case (28, 16):
-                if rdata == Data(repeating: 0, count: 15) + [1] { return nil }
-                return rdata[rdata.startIndex] == 0xfe && rdata[rdata.startIndex + 1] & 0xc0 == 0x80 ? nil : rdata
+                if rdata == Data(repeating: 0, count: 15) + [1] { return Data(UserNet.host6.bytes) }
+                if rdata[rdata.startIndex] == 0xfe && rdata[rdata.startIndex + 1] & 0xc0 == 0x80 { return nil }
+                return routable(rdata) ? rdata : nil
             default:
                 return rdata
             }
+        }
+
+        /// Whether the Mac has a route to an IPv6 address: connecting a UDP socket looks the
+        /// route up and sends nothing.
+        static func routable(_ address: Data) -> Bool {
+            let fd = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP)
+            guard fd >= 0 else { return false }
+            defer { close(fd) }
+            let endpoint = address.withUnsafeBytes { HostEndpoint.v6(IPAddress($0, at: 0), 53) }
+            return endpoint.withSockaddr { connect(fd, $0, $1) } == 0
         }
 
         /// The reply: header, the question as asked, the records found; truncated (TC) when it

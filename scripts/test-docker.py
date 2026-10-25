@@ -578,14 +578,22 @@ try:
         def log_message(self, *args):
             pass
 
+    class Server6(http.server.ThreadingHTTPServer):
+        address_family = socket.AF_INET6
+
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 20090), Handler)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
+    server6 = Server6(("::1", 20090), Handler)
+    for s in (server, server6):
+        threading.Thread(target=s.serve_forever, daemon=True).start()
     r = docker("run", "--rm", "alpine", "wget", "-qO-", "http://host.docker.internal:20090/")
     check("host_docker_internal", r.stdout == b"hello from the mac\n", f"{r.stdout!r} {r.stderr!r}")
-    docker("network", "create", "dmx-test-net")
+    docker("network", "create", "--ipv6", "dmx-test-net")
     r = docker("run", "--rm", "--network", "dmx-test-net", "alpine", "sh", "-c",
                "wget -qO- http://host.docker.internal:20090/ && nslookup gateway.docker.internal | grep -c 192.168.127.1")
     check("host_docker_internal_network", r.stdout == b"hello from the mac\n1\n", f"{r.stdout!r} {r.stderr!r}")
+    # IPv6: a container on an IPv6 network reaches the Mac's ::1 through dockerd's NAT and dmx's.
+    r = docker("run", "--rm", "--network", "dmx-test-net", "alpine", "wget", "-qO-", "http://[fd64:646d:7800::254]:20090/")
+    check("ipv6_network_to_host", r.stdout == b"hello from the mac\n", f"{r.stdout!r} {r.stderr!r}")
     r = docker("run", "--rm", "--add-host", "mac:host-gateway", "alpine", "wget", "-qO-", "http://mac:20090/")
     check("host_gateway", r.stdout == b"hello from the mac\n", f"{r.stdout!r} {r.stderr!r}")
     docker("network", "rm", "dmx-test-net")

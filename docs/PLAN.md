@@ -57,6 +57,7 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | Drop dmx's own mappings of guest RAM after device traffic (2026-10-24) | macOS charges a page to `ri_phys_footprint` once per mapping; guest RAM is mapped by dmx and by stage 2, so pages a device filled counted twice (1 GB read = +2 GB). Remapping dmx's view onto itself (`mach_vm_remap` overwrite) after traffic leaves one mapping; devices fault pages back in. |
 | Transparent huge pages off in the guest (2026-10-24) | With 16K pages a huge page is 32 MB. `madvise` (2026-10-23) still let qemu's 128 MB code buffer take 32 MB per x86 process (`sleep` 38 MB RSS, 5.4 MB without); nothing in dmx needs huge pages. Replaces the `madvise` choice. |
 | Guest network is a user space NAT inside dmx, not vmnet (2026-10-24) | vmnet needs root or `com.apple.vm.networking`, which Apple grants on request (verified: an ad-hoc process gets VMNET_FAILURE, the entitlement gets it killed). Guest flows map onto host sockets like passt: no TCP stack, no second process, bounded buffers, and traffic is dmx's own so VPNs and firewalls apply. Costs: IPv4 only, no ICMP errors; inbound goes through vsock port forwarding. |
+| Guest IPv6 is a unique local prefix behind dmx's NAT (2026-10-25) | The guest cannot have the Mac's own prefix without a bridge (vmnet, which needs root). With fd64:646d:7800::/64 the guest's resolvers keep IPv4 first for names with both families (RFC 6724 label matching), so IPv6 adds IPv6-only destinations without making anything that works over IPv4 depend on the Mac's IPv6. AAAA records the Mac cannot route to are left out, as Docker Desktop does on a Mac without IPv6. |
 | Defaults and security follow Docker Desktop (2026-10-24) | Maintainer's rule: Docker must just work, and security choices match standard tools. So: host directories shared read-write at the same path (/Users, /Volumes, /private, /tmp, /var/folders), containers reach host services through `host.docker.internal` (`host.dmx.internal` also works), dmx port forwards bind 127.0.0.1 unless asked (Docker published ports follow their bindings), host user ↔ guest root on shares, `init_on_alloc` on as in stock kernels, no TLS tools in the base guest (dockerd does its own TLS). Port forwards persist and keep the 4 MB daemon up while they exist. MCP tools are `dmx_*`, argv-based, 8 KiB/120 s defaults. |
 | No GitHub CI, no Homebrew dependency (2026-10-24) | Maintainer's choice: GitHub is only for distribution (source and releases). Checks run locally before a release (`make build`, `swift test`, selftest, daemontest, dockertest). dmx ships its own pinned Docker CLI tools instead of relying on Homebrew. |
 | dmx ships the docker CLI, Compose, Buildx and the keychain credential helper (2026-10-24) | Docker Desktop does, and users should not need Homebrew. Pinned upstream darwin-arm64 builds (the static CLI is trust-on-first-download: Docker publishes no checksum for it). Plugins through `cliPluginsExtraDirs`; no shell rc files edited. All Apache-2.0. |
@@ -309,7 +310,12 @@ Follow-ups beyond the completed acceptance criteria:
 - [x] Network: split DNS (2026-10-25): guest DNS over UDP is answered by macOS's resolver
       (`DNSServiceQueryRecord`, `HostDNS.swift`): VPN per-domain servers, `.local` names, network
       changes. Missing names get an empty NOERROR (mDNSResponder does not tell them apart).
-- [ ] Network: IPv6 and ICMP errors.
+- [x] Network: IPv6 (2026-10-25): the guest has fd64:646d:7800::2/64 next to its IPv4 address;
+      the gateway answers neighbor solicitations and ping on ::1, DNS on ::1 port 53, and ::254 is
+      the Mac's ::1. TCP, UDP and ICMPv6 echo map onto the Mac's IPv6 sockets. AAAA records the
+      Mac has no route to are left out. dockerd keeps Docker's default `ip6tables` (no longer
+      forced off), so `docker network create --ipv6` networks reach out through NAT66.
+- [ ] Network: ICMP errors to the guest (unreachable, too big, time exceeded).
 - [x] File sharing: Unix sockets, xattrs and stored ownership (2026-10-25). A guest `bind()` in a
       share leaves a host socket file (bound with `pthread_fchdir_np`, as macOS has no bindat) and
       guest programs connect through the guest kernel. `user.*` xattrs only, stored under the same
@@ -486,9 +492,11 @@ Done when: on a Mac whose only way out is an HTTP proxy (no authentication) with
 
 For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md).
 
-v0.2.1 is published (signed and notarized, 2026-10-25). In order:
+v0.2.1 is published (signed and notarized, 2026-10-25); main has IPv6 in the guest network on
+top of it (unreleased). In order:
 
-1. IPv6 in the guest network (phase 6).
+1. ICMP errors to the guest (phase 6): a failed connect now comes back as a TCP RST
+   ("connection refused") even when the Mac said "network unreachable".
 2. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
    ~120 ms by choice (data disk barrier flushes, see Decisions).
 3. Community announcement (Show HN, Reddit, GeekNews): phase 11 is out in 0.2.0, so this waits only
@@ -623,6 +631,7 @@ complete by the finished acceptance suites.
 | 2026-10-25 | The Mac's SSH agent in containers | A non-root container user (`-u 1000`) lists the keys of an agent the daemon's `SSH_AUTH_SOCK` names; with no `SSH_AUTH_SOCK` and `launchctl getenv` empty (a shell outside the login session), the socket of macOS's `com.openssh.ssh-agent` job answers ("The agent has no identities"). Old / new guest, same host binary, three rounds after one exec: host 82/82, 79/79, 84/84 MB, guest used 37/36, 33/34, 39/44 MB (noise); selftest 86–93 MB. dockertest 66/66 (new `ssh_agent`), daemontest 48/48. |
 | 2026-10-25 | CNAME answers without the address | daemontest's `dns_cname_chain` failed once: `www.github.com` came back with its CNAME and no address, for A and AAAA alike. After a CNAME, HostDNS waited only 1.5 s for the record it leads to, so a slow uncached target was answered with the chain alone. On a working network mDNSResponder sends the target's record, or that it has none, at once (A, AAAA and NXDOMAIN all 0.00 s in the guest), so the grace bought nothing: a CNAME now waits up to the query's 5 s timeout. Also: dockertest's `one_container` footprint read 478–530 MB with the new bind and SSH checks running just before it; measured before them again it is 270 MB (0.2.0: 257). |
 | 2026-10-25 | 0.2.1 release checks, load 1.2–3.3 | Unit 42/42, selftest ok (86 MB), daemon 48/48 (one run before the CNAME fix failed `dns_cname_chain`; after it 48/48), MCP 30/30, x86 16/16, Docker 66/66 (idle without Docker 79 MB, dockerd idle 285, one container 270; warm hello-world 180 ms), sandbox 41/41. Release directory: guest 61.8 MB, binary tarball 1.8 MB (signed, notarized), sources 467 MiB (21 packages). |
+| 2026-10-25 | IPv6 in the guest network, load 5–6.5 | On this Mac (no IPv6 default route, a Tailscale ULA only): ping fd64:646d:7800::1 0.12 ms, ::254 0.15 ms, the Mac's Tailscale address 0.35 ms; 64 MB over HTTP from the Mac's ::1 at 250–528 MB/s (IPv4 the same run 434–540); UDP echo and AAAA lookups over the gateway's IPv6 address; google.com's AAAA left out (no route). Neighbor entries for ::1 and ::254 REACHABLE. Containers: on a `--ipv6` network a container reaches the Mac's ::1 through dockerd's NAT66 (`ip6tables` on by default now), `getent ahosts host.docker.internal` lists IPv4 first; default-bridge containers unchanged. The first UDP replies were dropped by the guest (Udp6InCsumErrors): IPv6 forbids a zero UDP checksum, so dmx now computes it for UDP over IPv6. Memory: selftest 88–92 MB (86–93 before); dockerd idle 267/266 MB with `ip6tables` on, 267/266 with it off, guest used 79–85 vs 82–84 MB: no cost. Unit 42/42, daemon 50/50 (one earlier run failed with its output lost; three runs after it passed), MCP 30/30, x86 16/16, Docker 67/67, sandbox 41/41. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -685,3 +694,4 @@ complete by the finished acceptance suites.
 - 2026-10-25: The Mac's SSH agent is at `/run/host-services/ssh-auth.sock` in the VM, as on Docker Desktop; the vsock device accepts guest-initiated connections. Next: IPv6 in the guest network.
 - 2026-10-25: A CNAME answer waits for the address it leads to (up to the query's 5 s), instead of answering with the CNAME alone after 1.5 s. Next: release 0.2.1.
 - 2026-10-25: Released v0.2.1 (signed, notarized); installed and booted from GitHub as a user would. Next: IPv6 in the guest network.
+- 2026-10-25: IPv6 in the guest network: a ULA prefix behind the NAT, NDP and ICMPv6 echo from the gateway, TCP/UDP onto the Mac's IPv6 sockets, unroutable AAAA records left out; Docker `--ipv6` networks work. Next: ICMP errors to the guest.

@@ -37,6 +37,12 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
     경로). vsock 장치가 게스트에서 먼저 여는 연결을 받아요(`VirtioVsock.listen`, 포트 1025,
     `HostServices.swift`, 에이전트 `host_services.rs`).
   - CNAME 뒤 주소를 1.5초가 아니라 쿼리 제한(5초)까지 기다려요(느린 네트워크에서 주소 없는 답 방지).
+- **v0.2.1 이후 main(미배포):** VM 네트워크 IPv6. 게스트 `fd64:646d:7800::2/64`, 게이트웨이
+  `::1`(NDP·ping·DNS), `::254`는 Mac의 `::1`. TCP/UDP/ICMPv6 echo를 Mac의 IPv6 소켓으로 보내요
+  (`UserNet.swift`의 `IPAddress`, `ipFrame`). Mac에 경로가 없는 AAAA는 걸러요(`HostDNS.routable`).
+  dockerd의 `ip6tables`를 더 이상 끄지 않아 `--ipv6` 네트워크가 NAT66으로 나가요. ULA라서
+  듀얼스택 이름은 계속 IPv4가 먼저예요. 이 Mac에는 IPv6 기본 경로가 없어 인터넷 IPv6는 시험하지
+  못했어요(Mac의 `::1`, Tailscale ULA로 확인).
 - **마지막 검증**(0.2.1 릴리스, load 1.2–3.3): 단위 42/42, selftest 86 MB, daemontest 48/48,
   mcptest 30/30, x86test 16/16, dockertest 66/66, sandboxtest 41/41. GitHub에서 설치한 0.2.1
   selftest 96 MB.
@@ -67,6 +73,6 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
 
 ## 남은 작업
 
-PLAN.md의 Next up 순서를 따라요. 요약하면: VM 네트워크 IPv6, 조용한 Mac에서 엔진 비교 재측정,
+PLAN.md의 Next up 순서를 따라요. 요약하면: 게스트로 ICMP 오류 전달, 조용한 Mac에서 엔진 비교 재측정,
 커뮤니티 홍보(maintainer 결정), 한 번 본 게스트 커널 oops(재현 안 됨), 실제 회사망에서 Phase 11
 확인. 0.2.1 릴리스는 maintainer가 원할 때 release.md 절차로 내요.

@@ -133,16 +133,20 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
         }
 
         // Network, offline: ICMP to the gateway, and 4 MB over HTTP from the host's loopback
-        // (192.168.127.254 in the guest) through the user space NAT. After the footprint
-        // measurements, so network buffers do not count in them.
-        let ping = try await agent.run(["ping", "-c", "1", "-W", "2", "192.168.127.1"])
-        check("net_icmp", ping.exit.code == 0, "ping the gateway: exit \(ping.exit.code.map(String.init) ?? "by signal")")
+        // (192.168.127.254 in the guest) through the user space NAT, over IPv4 and IPv6. After
+        // the footprint measurements, so network buffers do not count in them.
         var body = Data(count: 4 << 20)
         body.withUnsafeMutableBytes { arc4random_buf($0.baseAddress!, $0.count) }
-        let port = try serveOnce(body)
-        let get = try await agent.run(["sh", "-c", "wget -q -O - http://192.168.127.254:\(port)/ | sha256sum"])
         let want = SHA256.hash(data: body).map { String(format: "%02x", $0) }.joined()
-        check("net_tcp", text(get.stdout).hasPrefix(want), "4 MB over HTTP from the host: \(text(get.stdout + get.stderr).prefix(80).debugDescription)")
+        for (suffix, gateway, host, v6) in [("", "192.168.127.1", "192.168.127.254", false),
+                                            ("6", "fd64:646d:7800::1", "[fd64:646d:7800::254]", true)] {
+            let ping = try await agent.run(["ping", "-c", "1", "-W", "2", gateway])
+            check("net_icmp" + suffix, ping.exit.code == 0, "ping \(gateway): exit \(ping.exit.code.map(String.init) ?? "by signal")")
+            let port = try serveOnce(body, v6: v6)
+            let get = try await agent.run(["sh", "-c", "wget -q -O - http://\(host):\(port)/ | sha256sum"])
+            check("net_tcp" + suffix, text(get.stdout).hasPrefix(want),
+                  "4 MB over HTTP from the host's \(v6 ? "::1" : "127.0.0.1"): \(text(get.stdout + get.stderr).prefix(80).debugDescription)")
+        }
 
         // After the memory checks, so the page cache this fills does not count as idle memory.
         let d = try await measureDisk(agent: agent, image: scratchDisk)
@@ -247,15 +251,27 @@ private func measureReclaim(machine: Machine, agent: AgentClient, idle: HostFoot
                          returnedMs: returnedMs, reports: stats.reports, reportedMb: Int(stats.bytes >> 20))
 }
 
-/// Answers one HTTP request on 127.0.0.1 with `body`, from a background thread; returns the port.
-/// Gives up after 30 s without a connection.
-private func serveOnce(_ body: Data) throws -> UInt16 {
-    let fd = socket(AF_INET, SOCK_STREAM, 0)
-    var address = sockaddr_in()
-    address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
-    address.sin_family = sa_family_t(AF_INET)
-    address.sin_addr.s_addr = UInt32(0x7f00_0001).bigEndian
-    var length = socklen_t(MemoryLayout<sockaddr_in>.size)
+/// Answers one HTTP request on 127.0.0.1 (or ::1) with `body`, from a background thread; returns
+/// the port. Gives up after 30 s without a connection.
+private func serveOnce(_ body: Data, v6: Bool = false) throws -> UInt16 {
+    let fd = socket(v6 ? AF_INET6 : AF_INET, SOCK_STREAM, 0)
+    var address = sockaddr_storage()
+    if v6 {
+        withUnsafeMutableBytes(of: &address) { raw in
+            let a = raw.baseAddress!.assumingMemoryBound(to: sockaddr_in6.self)
+            a.pointee.sin6_len = UInt8(MemoryLayout<sockaddr_in6>.size)
+            a.pointee.sin6_family = sa_family_t(AF_INET6)
+            a.pointee.sin6_addr = in6addr_loopback
+        }
+    } else {
+        withUnsafeMutableBytes(of: &address) { raw in
+            let a = raw.baseAddress!.assumingMemoryBound(to: sockaddr_in.self)
+            a.pointee.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+            a.pointee.sin_family = sa_family_t(AF_INET)
+            a.pointee.sin_addr.s_addr = UInt32(0x7f00_0001).bigEndian
+        }
+    }
+    var length = socklen_t(address.ss_len)
     let bound = withUnsafeMutablePointer(to: &address) {
         $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
             bind(fd, $0, length) == 0 && listen(fd, 1) == 0 && getsockname(fd, $0, &length) == 0
@@ -263,7 +279,7 @@ private func serveOnce(_ body: Data) throws -> UInt16 {
     }
     guard fd >= 0, bound else {
         if fd >= 0 { close(fd) }
-        throw DMXError("selftest_failed", "cannot listen on 127.0.0.1: \(String(cString: strerror(errno)))")
+        throw DMXError("selftest_failed", "cannot listen on \(v6 ? "::1" : "127.0.0.1"): \(String(cString: strerror(errno)))")
     }
     let response = Data("HTTP/1.0 200 OK\r\nContent-Length: \(body.count)\r\n\r\n".utf8) + body
     Thread.detachNewThread {
@@ -284,7 +300,9 @@ private func serveOnce(_ body: Data) throws -> UInt16 {
             }
         }
     }
-    return UInt16(bigEndian: address.sin_port)
+    // sin_port and sin6_port are at the same offset.
+    let port = withUnsafeBytes(of: &address) { $0.load(fromByteOffset: 2, as: UInt16.self) }
+    return UInt16(bigEndian: port)
 }
 
 /// A 163-byte static x86_64 Linux ELF: one PT_LOAD at 0x400000, then `write(1, "x86_64 ok\n", 10)`

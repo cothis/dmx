@@ -58,9 +58,12 @@ extension UserNet {
     static let sendLimit = 256 << 10
     static let windowScale: UInt8 = 7
 
+    /// The largest segment one frame carries: the MTU less the IP and TCP headers.
+    static func mss(_ key: FlowKey) -> Int { VirtioNet.mtu - (key.remote.isV4 ? 40 : 60) }
+
     // MARK: From the guest
 
-    func tcpSegment(_ p: UnsafeRawBufferPointer, to destination: UInt32) {
+    func tcpSegment(_ p: UnsafeRawBufferPointer, to destination: IPAddress) {
         guard p.count >= 20 else { return }
         let offset = Int(p[12] >> 4) * 4
         guard offset >= 20, offset <= p.count else { return }
@@ -158,7 +161,7 @@ extension UserNet {
             }
             i += Int(options[i + 1])
         }
-        flow.mss = max(64, min(flow.mss, VirtioNet.mtu - 40))
+        flow.mss = max(64, min(flow.mss, Self.mss(key)))
 
         let fd = Darwin.socket(endpoint.family, SOCK_STREAM, IPPROTO_TCP)
         guard fd >= 0 else { return send(key, seq: 0, ack: seq &+ 1, flags: Self.rst | Self.ack, window: 0) }
@@ -225,7 +228,7 @@ extension UserNet {
 
     private func sendSynAck(_ flow: TCPFlow) {
         var options: [UInt8] = [2, 4]
-        options.be16(UInt16(VirtioNet.mtu - 40))
+        options.be16(UInt16(Self.mss(flow.key)))
         if flow.ourScale > 0 { options += [1, 3, 3, flow.ourScale] }
         send(flow, seq: flow.iss, flags: Self.syn | Self.ack, options: options)
         flow.sndNext = flow.iss &+ 1
@@ -367,6 +370,6 @@ extension UserNet {
         h.append(UInt8((20 + options.count) / 4) << 4); h.append(flags); h.be16(window)
         h.be16(0); h.be16(0)  // checksum, urgent pointer
         h += options
-        device.send(ipv4Frame(protocol: 6, from: key.remote, transport: h, payload: payload))
+        device.send(ipFrame(protocol: 6, from: key.remote, transport: h, payload: payload))
     }
 }

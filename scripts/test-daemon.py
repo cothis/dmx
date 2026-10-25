@@ -422,6 +422,21 @@ try:
     r = dmx("exec", "--", "nslookup", f"{local}.local", "192.168.127.1")
     check("dns_host_resolver", r.returncode == 0 and b"192.168.127.254" in r.stdout and b"127.0.0.1" not in r.stdout.split(b"answer:")[-1],
           repr(r.stdout[-300:]))
+    # IPv6: DNS from the gateway's IPv6 address, the Mac's names as its IPv6 address, and UDP to
+    # the Mac's ::1 (UDP over IPv6 must carry a checksum).
+    r = dmx("exec", "--", "nslookup", "-type=AAAA", "host.docker.internal", "fd64:646d:7800::1")
+    check("dns_ipv6", b"Address: fd64:646d:7800::254" in r.stdout, repr(r.stdout[-200:] + r.stderr[-200:]))
+    echo = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+    echo.bind(("::1", 0))
+
+    def reverse():
+        data, peer = echo.recvfrom(65536)
+        echo.sendto(data[::-1], peer)
+
+    threading.Thread(target=reverse, daemon=True).start()
+    r = dmx("exec", "--", "sh", "-c", f"printf hello | nc -u -w2 fd64:646d:7800::254 {echo.getsockname()[1]}")
+    echo.close()
+    check("udp_ipv6", r.stdout == b"olleh", repr(r.stdout + r.stderr))
     r = dmx("exec", "--", "nslookup", "www.github.com", "192.168.127.1")
     check("dns_cname_chain", b"canonical name = github.com" in r.stdout and b"Name:\tgithub.com\nAddress: " in r.stdout, repr(r.stdout[-300:]))
 

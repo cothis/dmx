@@ -112,7 +112,7 @@ docker CLI ──▶ ~/.dmx/docker.sock ──▶ dmx daemon ──vsock──�
   under `$DOCKER_CONFIG`), where Docker Desktop keeps its Docker Engine settings: registry
   mirrors, insecure registries, proxies, labels, BuildKit's `builder` options and anything else
   dockerd reads. The daemon merges it under dmx's keys when dockerd starts, once per boot, so
-  `dmx stop` applies a change. Keys dmx sets itself (`hosts`, `host-gateway-ips`, `ip6tables`,
+  `dmx stop` applies a change. Keys dmx sets itself (`hosts`, `host-gateway-ips`,
   `shutdown-timeout`, `data-root`, `exec-root`, `pidfile`, `containerd`) are ignored, with a line
   in the daemon's log. A file that is not a JSON object fails the Docker client with
   `docker_config_invalid` and the file's path; a key dockerd rejects shows in dockerd's log.
@@ -133,9 +133,9 @@ docker CLI ──▶ ~/.dmx/docker.sock ──▶ dmx daemon ──vsock──�
   `/run/dmx/host-ca.pem` with `docker_start`; `guest/docker` then gives dockerd a copy of the
   bundle with them appended at `/etc/ssl/certs/ca-certificates.crt`, which Go's TLS (dockerd,
   BuildKit) reads. Read when dockerd starts; containers keep their images' own bundles.
-- **Configuration** (`/run/dmx/daemon.json`): `host-gateway-ips` 192.168.127.254 (the Mac, so
-  `--add-host x:host-gateway` works as on Docker Desktop), `ip6tables` false (the guest network
-  has no IPv6), `shutdown-timeout` 5 s (the host powers the guest off within 10 s; the agent
+- **Configuration** (`/run/dmx/daemon.json`): `host-gateway-ips` 192.168.127.254 and
+  fd64:646d:7800::254 (the Mac, so `--add-host x:host-gateway` works as on Docker Desktop),
+  `shutdown-timeout` 5 s (the host powers the guest off within 10 s; the agent
   sends dockerd SIGTERM and waits up to 7 s so containers stop cleanly). Everything else is
   Docker's default: overlayfs, the containerd image store, json-file logs, the userland proxy,
   cgroup v2 with cgroupfs. dockerd and its containerd run in the `/dmx-docker` cgroup and

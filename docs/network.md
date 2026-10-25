@@ -43,16 +43,26 @@ treat it like any app's.
 
 ## How it works
 
-Addresses (static, set by `guest/init`; no DHCP, so eth0 is up before the agent):
+Addresses (static, set by `guest/init`; no DHCP or router advertisements, so eth0 is up before
+the agent):
 
 | Address | What |
 |---|---|
-| 192.168.127.2 | the guest (eth0, MAC 02:64:6d:78:00:02) |
-| 192.168.127.1 | gateway. DNS over UDP is answered by macOS's own resolver through `DNSServiceQueryRecord` (`HostDNS.swift`), so the guest sees what Mac apps see: a VPN's per-domain servers (split DNS), `.local` names over multicast DNS, and the current network's servers after the Mac moves. CNAMEs come back as part of the answer; the Mac's loopback (its own `.local` name) becomes 192.168.127.254, other loopback and link-local addresses are left out; replies too large for the client's UDP limit (512 bytes, or its EDNS size) are truncated, and the retry over TCP goes to the first `nameserver` of `/etc/resolv.conf`, read at each boot. mDNSResponder reports a missing name and a missing record type alike, so a name that does not exist gets an empty NOERROR rather than NXDOMAIN. `host.docker.internal`, `host.dmx.internal` (192.168.127.254) and `gateway.docker.internal` (192.168.127.1) the gateway answers itself (`UserNetDNS.swift`). Answers ping. |
-| 192.168.127.254 | the host: connections go to the host's 127.0.0.1 (`host.dmx.internal` and `host.docker.internal` in the guest's /etc/hosts) |
+| 192.168.127.2, fd64:646d:7800::2 | the guest (eth0, MAC 02:64:6d:78:00:02) |
+| 192.168.127.1, fd64:646d:7800::1 | gateway. DNS over UDP is answered by macOS's own resolver through `DNSServiceQueryRecord` (`HostDNS.swift`), so the guest sees what Mac apps see: a VPN's per-domain servers (split DNS), `.local` names over multicast DNS, and the current network's servers after the Mac moves. CNAMEs come back as part of the answer; the Mac's loopback (its own `.local` name) becomes 192.168.127.254 or fd64:646d:7800::254, other loopback and link-local addresses are left out, and so are IPv6 addresses the Mac has no route to (a UDP `connect` looks the route up without sending anything), as Docker Desktop leaves out AAAA records on a Mac without IPv6; replies too large for the client's UDP limit (512 bytes, or its EDNS size) are truncated, and the retry over TCP goes to the first `nameserver` of `/etc/resolv.conf`, read at each boot. mDNSResponder reports a missing name and a missing record type alike, so a name that does not exist gets an empty NOERROR rather than NXDOMAIN. `host.docker.internal`, `host.dmx.internal` (192.168.127.254, fd64:646d:7800::254) and `gateway.docker.internal` (192.168.127.1, fd64:646d:7800::1) the gateway answers itself (`UserNetDNS.swift`). Answers ping. |
+| 192.168.127.254, fd64:646d:7800::254 | the host: connections go to the host's 127.0.0.1 and ::1 (`host.dmx.internal` and `host.docker.internal` in the guest's /etc/hosts, IPv4 only) |
 | anything else | the outside world, through host sockets |
 
 - **ARP**: answered for .1 and .254 with the gateway's MAC.
+- **IPv6**: the prefix is unique local (fd64:646d:7800::/64), so the guest's resolvers sort by
+  RFC 6724 as they would behind any NAT66: a name with both A and AAAA records is reached over
+  IPv4 first (a ULA source does not match a global destination's label), a name with only AAAA
+  over IPv6. A Mac without IPv6 gets no AAAA records (above), so nothing changes there. Neighbor
+  solicitations for ::1 and ::254 are answered with the gateway's MAC; duplicate address detection
+  and router solicitations are off in the guest (no one else is on the link). Other ICMPv6
+  messages and extension headers other than hop-by-hop, routing and destination options are
+  dropped. Docker networks created with `--ipv6` reach out through dockerd's ip6tables NAT and
+  then this one.
 - **TCP**: a guest SYN opens a non-blocking host socket; the SYN-ACK goes back once `connect`
   succeeds (RST if it fails). Guest data is written to the socket as it arrives in order and
   acknowledged only as far as the socket took it; the window we advertise is the room left in the
@@ -64,14 +74,15 @@ Addresses (static, set by `guest/init`; no DHCP, so eth0 is up before the agent)
 - **UDP**: one connected host socket per guest flow, closed after 60 s idle (10 s for DNS); at most
   512, the least recently used goes first.
 - **ICMP**: echo requests go out through an unprivileged ICMP socket (`SOCK_DGRAM`,
-  `IPPROTO_ICMP`), which keeps the identifier and sequence; the gateway answers its own.
-- **Not handled**: IPv6 (the guest has only a link-local address, so connects fail fast and fall
-  back to IPv4), IP fragments (the MTU makes them unnecessary), ICMP errors to the guest.
+  `IPPROTO_ICMP` or `IPPROTO_ICMPV6`), which keeps the identifier and sequence; the gateway
+  answers its own. macOS fills in ICMPv6 checksums and hands back no IPv6 header; an ICMPv6
+  socket also receives its own requests to the loopback, so only replies are passed on.
+- **Not handled**: IP fragments (the MTU makes them unnecessary), ICMP errors to the guest.
 
 The device:
 
 - **MTU 65520** (like passt): a 64 KB TCP segment crosses as one frame, with no TSO or
-  segmentation code on either side.
+  segmentation code on either side. IPv6 headers are 20 bytes longer, so its MSS is 65460.
 - **Mergeable receive buffers**: a large frame spans several small guest buffers, so the guest
   does not preallocate 64 KB per ring slot. All buffers of a frame are published to the used ring
   with one index update; publishing them one by one let the guest see a partial frame and drop
@@ -83,7 +94,9 @@ The device:
   in a median 0.37 s with 256, 0.28 s with 64, 12 runs each, interleaved).
 - **Checksums skipped both ways** (`CSUM`, `GUEST_CSUM`; frames to the guest carry
   `DATA_VALID`): the NAT ends every flow, so no one would check them. IP header checksums are
-  still computed. If containers ever forward these frames somewhere that checks, compute them
+  still computed, and UDP over IPv6 always gets one: a zero UDP checksum is invalid in IPv6 and
+  Linux drops the datagram before it looks at `DATA_VALID` (the first IPv6 DNS replies went
+  missing this way). If containers ever forward these frames somewhere that checks, compute them
   (the code path exists for drivers without `GUEST_CSUM`; with both offloads off, 500 MB took
   0.53 to 0.57 s down and 2.9 s up through busybox nc, against 0.25 to 0.5 s and 2.4 to 3 s, on a
   noisy host).

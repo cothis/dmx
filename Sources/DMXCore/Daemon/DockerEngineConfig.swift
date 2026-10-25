@@ -6,13 +6,12 @@ import Foundation
 /// registries, proxies or BuildKit's garbage collection carry over. Read when dockerd starts,
 /// once per boot: `dmx stop` applies a change.
 enum DockerEngineConfig {
-    /// What dmx needs dockerd to do. `host-gateway-ips` is the Mac, so `--add-host x:host-gateway`
-    /// works as on Docker Desktop; the guest network has no IPv6; the host powers the guest off
-    /// within 10 s, so containers get 5 s to stop.
+    /// What dmx needs dockerd to do. `host-gateway-ips` is the Mac (its IPv4 and IPv6 address in
+    /// the guest network), so `--add-host x:host-gateway` works as on Docker Desktop; the host
+    /// powers the guest off within 10 s, so containers get 5 s to stop.
     static var required: [String: Any] { [
         "hosts": ["unix:///var/run/docker.sock"],
-        "host-gateway-ips": ["192.168.127.254"],
-        "ip6tables": false,
+        "host-gateway-ips": ["192.168.127.254", "fd64:646d:7800::254"],
         "shutdown-timeout": 5,
     ] }
     /// Keys only dmx sets: the ones above, and the guest's own paths and sockets.

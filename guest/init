@@ -95,10 +95,19 @@ fi
 
 # Network: eth0 is dmx's virtio-net, behind a user space NAT in the dmx process (docs/network.md).
 # Static, so it is up before the agent starts. These addresses are fixed in UserNet.swift:
-# 192.168.127.1 is the gateway and DNS, 192.168.127.254 the host's own 127.0.0.1.
+# 192.168.127.1 and fd64:646d:7800::1 are the gateway and DNS, 192.168.127.254 and
+# fd64:646d:7800::254 the host's own 127.0.0.1 and ::1. No one else is on the link, so no
+# duplicate address detection (it would hold the address back for a second) and no router
+# solicitations.
+if [ -d /proc/sys/net/ipv6/conf/eth0 ]; then
+	echo 0 >/proc/sys/net/ipv6/conf/eth0/accept_dad
+	echo 0 >/proc/sys/net/ipv6/conf/eth0/accept_ra
+fi
 if ip link set eth0 up 2>/dev/null; then
 	ip addr add 192.168.127.2/24 dev eth0
 	ip route add default via 192.168.127.1
+	ip -6 addr add fd64:646d:7800::2/64 dev eth0
+	ip -6 route add default via fd64:646d:7800::1
 	echo "nameserver 192.168.127.1" >/etc/resolv.conf
 	# Docker Desktop's names too; containers get them from the gateway's DNS (UserNetDNS.swift).
 	printf '192.168.127.254\thost.dmx.internal host.docker.internal\n192.168.127.1\tgateway.docker.internal\n' >>/etc/hosts

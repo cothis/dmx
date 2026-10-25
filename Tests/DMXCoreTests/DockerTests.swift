@@ -211,7 +211,10 @@ import Testing
             #expect(Array(a.suffix(4)) == [192, 168, 127, 254])
         }
         let aaaa = query("gateway.docker.internal", type: 28).withUnsafeBytes { LocalDNS.answer($0) }
-        #expect(aaaa.map { Array($0[6..<8]) } == [0, 0])     // no IPv6 address, no error
+        #expect(aaaa.map { Array($0[6..<8]) } == [0, 1])
+        #expect(aaaa.map { Array($0.suffix(16)) } == [0xfd, 0x64, 0x64, 0x6d, 0x78, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1])
+        let txt = query("host.dmx.internal", type: 16).withUnsafeBytes { LocalDNS.answer($0) }
+        #expect(txt.map { Array($0[6..<8]) } == [0, 0])      // no such record, no error
         #expect(query("example.com", type: 1).withUnsafeBytes { LocalDNS.answer($0) } == nil)
     }
 
@@ -235,6 +238,13 @@ import Testing
         #expect(reply.count > 0 && sent == nil)
         let bytes = Data(reply)
         #expect(bytes.range(of: Data([192, 168, 127, 254])) != nil && bytes.range(of: Data([127, 0, 1, 1])) == nil)
+
+        // IPv6: the Mac's ::1 is the host's address in the guest network; link-local goes.
+        #expect(HostDNS.Lookup.forGuest(type: 28, Data(repeating: 0, count: 15) + [1]) == Data(UserNet.host6.bytes))
+        #expect(HostDNS.Lookup.forGuest(type: 28, Data([0xfe, 0x80] + [UInt8](repeating: 0, count: 13) + [1])) == nil)
+        #expect(HostDNS.Lookup.routable(Data(repeating: 0, count: 15) + [1]))
+        #expect(UserNet.host6.bytes == [0xfd, 0x64, 0x64, 0x6d, 0x78, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x02, 0x54])
+        #expect(IPAddress(v4: 0xc0a8_7f01).isV4 && !UserNet.gateway6.isV4 && UserNet.gateway.v4 == 0xc0a8_7f01)
 
         // Without EDNS a reply larger than 512 bytes is cut and marked truncated.
         var plain = query("big.example.com", type: 16)

@@ -74,8 +74,9 @@ into the sandbox's namespace from the guest, so nothing is added to the image.
 - **Names are resolved once.** A hostname in the list is resolved on the Mac when the sandbox
   starts (the guest's DNS forwards to the Mac's resolver, so the answers match) and the addresses
   go into the rules (`allowed` in the output). A service whose addresses rotate (CDNs) can move
-  off them; a rollback or fork resolves again. Use CIDRs for such services. IPv4 only, like the
-  guest network.
+  off them; a rollback or fork resolves again. Use CIDRs for such services. IPv4 only: the sandbox network has
+  no IPv6 (Docker turns IPv6 off on a container's interface when its network has none, so a
+  sandbox has only `::1`), so there is nothing to allow or refuse over IPv6.
 - **DNS works**, through Docker's resolver on 127.0.0.11 (loopback, then forwarded from outside
   the sandbox), so a program can look up any name even if it cannot connect. That is also a
   channel out: data can be encoded into DNS queries. With `none` there is no DNS.
