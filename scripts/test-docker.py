@@ -357,6 +357,23 @@ services:
     image: dmx-test-compose-build
 """
 
+# Run in a bind mount as root: prints "hi [value, names] uid gid" (a file uid 1000 made).
+BIND_EXTRAS = """\
+import os, socket
+s = socket.socket(socket.AF_UNIX); s.bind("s.sock"); s.listen()
+c = socket.socket(socket.AF_UNIX); c.connect("s.sock"); a, _ = s.accept(); c.sendall(b"hi")
+os.setxattr("from-mac", "user.k", b"v")
+os.mkdir("own"); os.chown("own", 1000, 1000)
+pid = os.fork()
+if pid == 0:
+    os.setgid(1000); os.setuid(1000)
+    os.mkdir("own/d"); open("own/d/y", "w").write("y")
+    os._exit(0)
+os.waitpid(pid, 0)
+st = os.stat("own/d/y")
+print(a.recv(2).decode(), [os.getxattr("from-mac", "user.k"), os.listxattr("from-mac")], st.st_uid, st.st_gid)
+"""
+
 # A short path: Unix socket paths are limited to 104 bytes.
 HOME = Path(tempfile.mkdtemp(prefix="dmx-dt-", dir="/tmp"))
 DOCKER_CONFIG = HOME / "docker-config"
@@ -493,6 +510,16 @@ try:
     check("bind_private", r.stdout == b"container\n", f"{r.stdout!r} {r.stderr!r}")
     r = docker("run", "--rm", "-v", f"{REPO}:/repo:ro", "-w", "/repo", "alpine", "head", "-1", "AGENTS.md")
     check("bind_users_ro", r.stdout == b"# Working on dmx\n", f"{r.stdout!r} {r.stderr!r}")
+
+    # In a bind mount: a Unix socket bound and connected inside the guest, user.* xattrs, and
+    # ownership that chown stores (a non-root user can then write there, as postgres needs).
+    r = docker("run", "--rm", "-v", f"{bind}:/b", "-w", "/b", "python:3-alpine", "python3", "-c", BIND_EXTRAS)
+    owner = subprocess.run(["xattr", "-p", "com.dmx.owner", bind / "own"], capture_output=True, text=True).stdout.strip()
+    user_attr = subprocess.run(["xattr", "-p", "user.k", bind / "from-mac"], capture_output=True, text=True).stdout.strip()
+    check("bind_socket_xattr_owner", r.stdout == b"hi [b'v', ['user.k']] 1000 1000\n" and (bind / "s.sock").is_socket()
+          and owner == "1000:1000" and user_attr == "v", f"{r.stdout!r} {r.stderr[-300:]!r} {owner!r} {user_attr!r}")
+    r = docker("run", "--rm", "-v", f"{bind}:/b", "alpine", "stat", "-c", "%u:%g", "/b/own/d/y")
+    check("bind_owner_persists", r.stdout == b"1000:1000\n", f"{r.stdout!r} {r.stderr!r}")
 
     # Published ports: forwarded on the Mac while the container runs, where it asked (0.0.0.0 by
     # default, like Docker Desktop), never saved in ports.json.

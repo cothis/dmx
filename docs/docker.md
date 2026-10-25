@@ -247,7 +247,15 @@ example under `/opt/homebrew`) does not exist in the guest, so dockerd creates i
 it does for any missing `-v` source; Docker Desktop refuses such a mount ("Mounts denied").
 
 Programs under dockerd keep their temporary files in `/var/lib/dmx/tmp` (`TMPDIR`), on the data
-disk: virtio-fs has no Unix sockets, and runc's console socket for `docker run -t` lives there.
+disk rather than in the Mac's `/tmp` (a share): runc's console socket for `docker run -t` lives
+there, and would leave a socket file on the Mac.
+
+In bind mounts, files owned by the Mac user appear owned by root. `chown` works and is kept (in the
+Mac file's `com.dmx.owner` extended attribute), and files a non-root container user creates are
+its own, so images that run as another user (postgres, node) can use a directory they were given.
+Access is still checked as the Mac user on the Mac. Unix sockets can be bound in a bind mount and
+used between containers; a Mac program cannot connect to them, nor a container to a Mac socket.
+Only `user.*` extended attributes are visible.
 
 ## Host names
 

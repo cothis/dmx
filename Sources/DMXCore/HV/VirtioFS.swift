@@ -156,6 +156,7 @@ final class VirtioFS: VirtioDevice, @unchecked Sendable {
         let opcode = (try? header.u32()) ?? 0
         let unique = (try? header.u64()) ?? 0
         let nodeid = (try? header.u64()) ?? 0
+        let caller = FUSEServer.Caller(uid: (try? header.u32()) ?? 0, gid: (try? header.u32()) ?? 0)
 
         let isWrite = opcode == FUSE.Opcode.write.rawValue
         let argsLength = isWrite ? 40 : min(max(length, FUSE.inHeaderSize), readableBytes) - FUSE.inHeaderSize
@@ -166,7 +167,7 @@ final class VirtioFS: VirtioDevice, @unchecked Sendable {
             let args = gather(readable, from: FUSE.inHeaderSize, count: argsLength)
             let input = isWrite ? slice(readable, from: FUSE.inHeaderSize + 40, count: Int.max) : []
             let output = slice(writable, from: FUSE.outHeaderSize, count: Int.max)
-            reply = server.handle(opcode: opcode, node: nodeid, args: args, input: input, output: output)
+            reply = server.handle(opcode: opcode, node: nodeid, caller: caller, args: args, input: input, output: output)
         }
 
         var body = Data(), direct = 0, error: Int32 = 0

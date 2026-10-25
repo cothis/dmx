@@ -29,8 +29,12 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
     `EXT4_IOC_RESIZE_FS`)
   - 게스트 DNS를 macOS 리졸버로 처리(`HostDNS.swift`, `DNSServiceQueryRecord`): split DNS,
     `.local`, 네트워크 변경. 없는 이름은 NXDOMAIN 대신 빈 NOERROR예요.
-- **마지막 검증**(load 1.3–3): daemontest 48/48, dockertest 63/63, sandboxtest 41/41,
-  mcptest 30/30, 단위 38/38, selftest 89 MB.
+  - 공유 폴더: 게스트가 Unix 소켓을 bind할 수 있고(게스트끼리 연결), `user.*` xattr만 보이며,
+    chown과 non-root 사용자가 만든 파일의 소유자를 호스트 xattr `com.dmx.owner`에 저장해요.
+    virtio-fs는 늘 default_permissions라 이게 있어야 non-root 컨테이너가 바인드 마운트에 써요
+    (postgres 데이터 디렉터리). FUSE 7.33 + `HANDLE_KILLPRIV_V2`(`FUSEServer.swift`).
+- **마지막 검증**(load 3–4, 공유 폴더 변경 후): daemontest 48/48, dockertest 65/65, 단위 42/42,
+  selftest 89 MB. sandboxtest 41/41, mcptest 30/30은 그 전 변경(DNS) 때 결과예요.
 
 ## 서명·공증 (저장소 밖)
 
@@ -50,12 +54,15 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
   디렉터리의 guest를 쓰는데, 지우고 나면 끊긴 링크가 돼요. `env -u DMX_HOME make ...`로 돌려요.
 - `test-daemon.py`는 바이너리 경로로 데몬을 찾아요(`pgrep -f`). 심볼릭 링크가 낀 경로
   (`/tmp/...`)의 바이너리를 넘기지 말고 저장소 안 경로(`.build/...`)를 써요.
+- `swift build`만 하면 엔타이틀먼트 서명이 빠져 `hv_vm_create failed: 0xfae94007`가 나요. `make build`로
+  빌드해요. 서명된 바이너리를 `cp`로 제자리에 덮어쓰면 다음 실행이 SIGKILL(137)돼요. 지우고 복사해요.
+- VM과 데몬을 끄는 건 `dmx stop`이에요(`dmx daemon stop`은 없는 명령이라 데몬이 남아요).
 - 시스템 프록시 변경이나 VPN 도메인별 DNS 서버 생성은 관리자 권한이 필요해서 자동 테스트에서
   안 해요. 대신 로컬 프록시, 사설 CA, `.local` 이름으로 같은 경로를 시험해요.
 
 ## 남은 작업
 
-PLAN.md의 Next up 순서를 따라요. 요약하면: 공유 폴더(Unix socket·xattr·소유권, 특히
-`$SSH_AUTH_SOCK` 같은 호스트 소켓 전달), VM 네트워크 IPv6, 조용한 Mac에서 엔진 비교 재측정,
+PLAN.md의 Next up 순서를 따라요. 요약하면: Mac의 SSH 에이전트를 컨테이너에 전달(Docker Desktop의
+`/run/host-services/ssh-auth.sock`, 게스트가 먼저 여는 vsock 연결 필요), VM 네트워크 IPv6, 조용한 Mac에서 엔진 비교 재측정,
 커뮤니티 홍보(maintainer 결정), 한 번 본 게스트 커널 oops(재현 안 됨), 실제 회사망에서 Phase 11
 확인. 0.2.1 릴리스는 maintainer가 원할 때 release.md 절차로 내요.

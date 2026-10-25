@@ -49,6 +49,7 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | x86_64 images through QEMU user mode + binfmt, not Rosetta (2026-10-23) | Rosetta for Linux exists only inside Virtualization.framework. Most images are multi-arch; emulation is a fallback. |
 | First release choices (maintainer, 2026-10-25) | `v0.1.0`, SemVer, an ordinary GitHub release; GPL source attached to every release as `dmx-sources-<version>.tar` (3a) instead of a three-year written offer; ad-hoc signing for v0.1.0, Developer ID signing and notarization from the next release (maintainer, 2026-10-25); the name stays "dmx", described as Docker-compatible, with a trademark notice. See [release.md](release.md#decisions-maintainer-2026-10-25). |
 | dmx builds its own qemu-x86_64 with a 2^47 guest base (2026-10-25) | Upstream QEMU gives a 64-bit guest any host address; on the 48-bit aarch64 guest kernel that includes addresses above x86-64's 47-bit user space, and jemalloc (Redis) crashed. A default in the binfmt interpreter covers run, exec, fork and chroots; an environment variable would leak into containers and a wrapper breaks binfmt's `F`/`O`/`C`. Same pinned source, Alpine patches and configure line, one small patch; `QEMU_GUEST_BASE` still overrides. |
+| Shared-file ownership stored in a host xattr; guests see only `user.*` xattrs (2026-10-25) | virtio-fs always mounts with default_permissions, so the guest kernel checks the owner it is told: with every host file shown as root's, non-root container users could not write to bind mounts or even to directories they had just made (postgres's initdb failed). chown and non-root creations store `uid:gid` in `com.dmx.owner`, as Docker's osxfs did with `com.docker.owner`; the host still checks access as the host user. Only `user.*` xattrs pass, so the guest cannot clear `com.apple.quarantine` or plant `security.capability`. |
 | Data disk flushes stay `F_BARRIERFSYNC` (maintainer, 2026-10-25) | Plain `fsync`, as Lima/Colima use, makes warm `docker run` 125 → 76 ms, but the SSD may reorder writes across a power cut and corrupt the ext4 data disk (images, volumes); with the barrier a power cut loses only the last writes. See [benchmark.md](benchmark.md#warm-docker-run-profile-2026-10-25). |
 | One long lived VM, not one VM per container | One kernel's overhead instead of N. Revisit per-container VMs for sandboxes (phase 9). |
 | The daemon exits when idle; the CLI starts it if launchd does not (2026-10-24) | An idle dmx should cost nothing, not even a 4 MB daemon. `dmx install` is optional: without it `dmx exec` still just works, which matters for agents. One daemon per `DMX_HOME`, enforced by a lock file. |
@@ -289,10 +290,10 @@ Result: verified with launchd and without; see Findings for timings and memory.
 - [x] Our virtio-fs device (`HV/VirtioFS.swift`, FUSE server `HV/FUSEServer.swift`): `shares` config
       (default `~` read-write; `path:ro`, `none`) mounted at the same path by `/init`. Containment:
       every lookup is relative to the share root's descriptor with `O_NOFOLLOW_ANY`, host symlinks
-      are returned as links, never followed; read-only enforced on the host; setuid/setgid dropped,
-      chown a no-op. Host user ↔ guest root, others nobody. 1 s attribute cache (like virtiofsd
-      cache=auto) plus a re-lookup when opening a file the host changed. `make test` covers hostile
-      requests. Left: Unix sockets in a share, xattrs, ACLs, DAX, stored ownership.
+      are returned as links, never followed; read-only enforced on the host; setuid/setgid dropped.
+      Host user ↔ guest root, others nobody, unless an owner is stored (below). 1 s attribute cache
+      (like virtiofsd cache=auto) plus a re-lookup when opening a file the host changed. `make test`
+      covers hostile requests. Left: ACLs, DAX.
 
 Done when: the guest can `wget` from the internet, a guest web server is reachable on `localhost`, and a host directory is readable/writable in the guest.
 
@@ -309,7 +310,18 @@ Follow-ups beyond the completed acceptance criteria:
       (`DNSServiceQueryRecord`, `HostDNS.swift`): VPN per-domain servers, `.local` names, network
       changes. Missing names get an empty NOERROR (mDNSResponder does not tell them apart).
 - [ ] Network: IPv6 and ICMP errors.
-- [ ] File sharing: Unix sockets, xattrs, ACLs, DAX and stored ownership.
+- [x] File sharing: Unix sockets, xattrs and stored ownership (2026-10-25). A guest `bind()` in a
+      share leaves a host socket file (bound with `pthread_fchdir_np`, as macOS has no bindat) and
+      guest programs connect through the guest kernel. `user.*` xattrs only, stored under the same
+      names; host namespaces (quarantine, provenance) stay hidden and unchangeable. chown by guest
+      root, and files a non-root guest user creates, store `uid:gid` in the host xattr
+      `com.dmx.owner`; virtio-fs mounts with default_permissions, so this is what lets a non-root
+      container user write to a bind mount it was given (postgres's data directory). Owner reads
+      are cached per node by ctime. FUSE 7.33 with `HANDLE_KILLPRIV_V2`: dmx clears setuid/setgid
+      on write, truncate and chown, and the guest stops asking for `security.capability` before
+      every write.
+- [ ] File sharing: ACLs and DAX; host Unix sockets reachable from containers (Docker Desktop's
+      `/run/host-services/ssh-auth.sock` for the Mac's SSH agent).
 
 ### Phase 7: Docker compatibility (done)
 
@@ -466,10 +478,13 @@ Done when: on a Mac whose only way out is an HTTP proxy (no authentication) with
 For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md).
 
 v0.2.0 is published (signed and notarized). Changes since then (agent timeout, boot-time
-e2fsck, growing the data disk, DNS through macOS's resolver) are on main, unreleased: 0.2.1 when
-the maintainer wants it (release.md, "Cutting a release"). In order:
+e2fsck, growing the data disk, DNS through macOS's resolver, sockets/xattrs/ownership on shared
+files) are on main, unreleased: 0.2.1 when the maintainer wants it (release.md, "Cutting a
+release"). In order:
 
-1. Shared files (phase 6): Unix sockets, xattrs and stored ownership on virtio-fs.
+1. The Mac's SSH agent in containers (phase 6), as Docker Desktop does: a guest socket at
+   `/run/host-services/ssh-auth.sock` forwarded to the host's `$SSH_AUTH_SOCK`. Needs
+   guest-initiated vsock connections (today only the host connects).
 2. IPv6 in the guest network (phase 6).
 3. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
    ~120 ms by choice (data disk barrier flushes, see Decisions).
@@ -601,6 +616,7 @@ complete by the finished acceptance suites.
 | 2026-10-25 | Boot-time e2fsck | Initramfs 2.06 → 2.19 MB (e2fsck and its config, deleted after mount with mke2fs). Selftest before/after, three runs each: footprint 87–89 / 89–90 MB, boot 231–248 / 227–247 ms (load ~1.3). An error recorded with `trigger_fs_error` forced a check at the next boot that cleared it; a superblock with a bad checksum made `e2fsck -p` give up (exit 8) and `e2fsck -fy` repaired it from a backup in a 1.07 s boot, files intact. Without `broken_system_clock` every boot would force a full check: the guest clock reads 1970 until the host sets it. daemontest 44/44. |
 | 2026-10-25 | Growing the data disk | 2G → 64G with a file on it: grown at boot, file kept, `df` 64,367 MB, host allocation 8 MB, boot + first exec 190 ms (120 without growth). Growing in a thread let the first command still see the old size, so the agent grows before it listens. daemontest 46/46 (64G → 80G; 16G afterwards leaves 80G). Selftest 88–90 MB, boot 231–250 ms. |
 | 2026-10-25 | Guest DNS through macOS's resolver | The Mac's own `cothis-mac.local` (multicast DNS only) resolves in the guest to its LAN address and 192.168.127.254 (its loopback, translated); `www.github.com` returns the CNAME and the address; glibc (debian:13-slim `getent`) and musl containers resolve both. A name that does not exist: empty NOERROR (`getent` exit 2). 20 lookups in one exec: 1.7 ms each for github.com, 2.2 ms for a two-CNAME chain (cached by mDNSResponder). daemontest 48/48, Docker 63/63, sandbox 41/41, MCP 30/30, unit 38/38, selftest 89 MB. A VPN's per-domain resolver could not be created without admin rights; mDNS names exercise the same path (answers only mDNSResponder has). |
+| 2026-10-25 | Sockets, xattrs and stored ownership on shares | Host costs (C, APFS): fstatat 1.0 µs; `listxattr` 1.6 µs; `getxattr` ~8 µs whether the attribute exists or not; open + `fsetxattr` + close 50 µs. So the owner is looked for with `listxattr` first (lookup in the server 1.8 → 3.6 µs, 2.3 µs once cached by ctime) and stored only when it differs from the default. A first version mapped the host group separately, so in `/tmp` (group wheel) tar's chown to 0:0 stored an xattr on every file: untar 3.1 → 4.0 s, `find` 0.06 → 0.19 s. With the host user's files always 0:0 and the cache: 9,200 files in a share, old / new, load 4: untar 2.5–4.1 / 2.5–3.7 s, `find` 0.07–0.08 / 0.06–0.08, `ls -lR` 0.09–0.10 / 0.08–0.09, read all 0.9–1.4 / 0.8–1.4, rm 0.7–1.5 / 0.7–1.0; cold (caches dropped) `find` 0.05–0.12 / 0.07–0.10. Answering GETXATTR made the guest ask for `security.capability` before every write (2 extra round trips per file); `HANDLE_KILLPRIV_V2` removes them (untar 3.5 → 3.0 s). postgres:17-alpine with its data directory in a share: before, `initdb: could not access directory: Permission denied`; after, starts and serves queries. Selftest 89 MB, daemontest 48/48 (one earlier run had 3 network timeouts that did not recur), dockertest 65/65 (2 new), unit 42/42. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -659,3 +675,4 @@ complete by the finished acceptance suites.
 - 2026-10-25: The data disk is checked with e2fsck at every boot and repaired unattended when needed. Next: data disk resizing.
 - 2026-10-25: Raising `disk_size` grows an existing data disk at the next boot, online. Next: split DNS for company VPNs.
 - 2026-10-25: Guest DNS goes through macOS's resolver: split DNS from VPNs, `.local` names, network changes. Next: Unix sockets and xattrs on shared files.
+- 2026-10-25: Shared files: Unix sockets bind in shares, `user.*` xattrs, and ownership stored by chown and by non-root creators, so non-root containers can write to bind mounts (postgres data directory works). Next: the Mac's SSH agent in containers.

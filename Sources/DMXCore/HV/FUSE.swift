@@ -7,10 +7,10 @@ enum FUSE {
     static let rootID: UInt64 = 1
     static let inHeaderSize = 40
     static let outHeaderSize = 16
-    /// Protocol 7.31: everything dmx uses (max_pages, cache_symlinks, rename2) without the
-    /// request extensions of later minors.
+    /// Protocol 7.33: everything dmx uses (max_pages, cache_symlinks, rename2, killpriv_v2)
+    /// without the request extensions of later minors.
     static let major: UInt32 = 7
-    static let minor: UInt32 = 31
+    static let minor: UInt32 = 33
 
     enum Opcode: UInt32 {
         case lookup = 1, forget, getattr, setattr, readlink, symlink
@@ -33,6 +33,7 @@ enum FUSE {
         static let parallelDirops: UInt32 = 1 << 18
         static let maxPages: UInt32 = 1 << 22
         static let cacheSymlinks: UInt32 = 1 << 23
+        static let handleKillprivV2: UInt32 = 1 << 28
     }
 
     /// fuse_setattr_in.valid
@@ -46,7 +47,12 @@ enum FUSE {
         static let fh: UInt32 = 1 << 6
         static let atimeNow: UInt32 = 1 << 7
         static let mtimeNow: UInt32 = 1 << 8
+        static let killSUIDGID: UInt32 = 1 << 11
     }
+
+    /// fuse_write_in.write_flags and fuse_open_in.open_flags
+    static let writeKillSUIDGID: UInt32 = 1 << 2
+    static let openKillSUIDGID: UInt32 = 1 << 0
 
     static let getattrFH: UInt32 = 1
     static let attrSize = 88
@@ -71,7 +77,10 @@ enum Linux {
     static let ENOENT: Int32 = 2, EIO: Int32 = 5, EBADF: Int32 = 9, EACCES: Int32 = 13, EEXIST: Int32 = 17
     static let ENOTDIR: Int32 = 20, EISDIR: Int32 = 21, EINVAL: Int32 = 22, ENFILE: Int32 = 23
     static let EROFS: Int32 = 30, ERANGE: Int32 = 34, ENAMETOOLONG: Int32 = 36, ENOSYS: Int32 = 38
-    static let EPERM: Int32 = 1, ESTALE: Int32 = 116
+    static let EPERM: Int32 = 1, ESTALE: Int32 = 116, ENODATA: Int32 = 61, EOPNOTSUPP: Int32 = 95
+
+    static let XATTR_CREATE: UInt32 = 1
+    static let XATTR_REPLACE: UInt32 = 2
 
     /// macOS errno to Linux. 1 to 34 match except 11 (EDEADLK on macOS, EAGAIN on Linux).
     static func errno(_ e: Int32) -> Int32 {
@@ -148,6 +157,12 @@ struct FUSEReader {
 
     mutating func u32() throws -> UInt32 { try value(UInt32.self) }
     mutating func u64() throws -> UInt64 { try value(UInt64.self) }
+
+    mutating func bytes(_ n: Int) throws -> Data {
+        guard n >= 0, remaining >= n else { throw FUSEError(Linux.EINVAL) }
+        defer { offset += n }
+        return data.subdata(in: data.startIndex + offset..<data.startIndex + offset + n)
+    }
 
     mutating func skip(_ n: Int) throws {
         guard remaining >= n else { throw FUSEError(Linux.EINVAL) }
