@@ -481,10 +481,9 @@ Done when: on a Mac whose only way out is an HTTP proxy (no authentication) with
 
 For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md).
 
-v0.2.0 is published (signed and notarized). Changes since then (agent timeout, boot-time
+v0.2.1 is being released (maintainer's go-ahead 2026-10-25): the agent timeout, boot-time
 e2fsck, growing the data disk, DNS through macOS's resolver, sockets/xattrs/ownership on shared
-files, the Mac's SSH agent in containers) are on main, unreleased: 0.2.1 when the maintainer
-wants it (release.md, "Cutting a release"). In order:
+files and the Mac's SSH agent in containers since 0.2.0. Then, in order:
 
 1. IPv6 in the guest network (phase 6).
 2. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
@@ -620,6 +619,7 @@ complete by the finished acceptance suites.
 | 2026-10-25 | Sockets, xattrs and stored ownership on shares | Host costs (C, APFS): fstatat 1.0 µs; `listxattr` 1.6 µs; `getxattr` ~8 µs whether the attribute exists or not; open + `fsetxattr` + close 50 µs. So the owner is looked for with `listxattr` first (lookup in the server 1.8 → 3.6 µs, 2.3 µs once cached by ctime) and stored only when it differs from the default. A first version mapped the host group separately, so in `/tmp` (group wheel) tar's chown to 0:0 stored an xattr on every file: untar 3.1 → 4.0 s, `find` 0.06 → 0.19 s. With the host user's files always 0:0 and the cache: 9,200 files in a share, old / new, load 4: untar 2.5–4.1 / 2.5–3.7 s, `find` 0.07–0.08 / 0.06–0.08, `ls -lR` 0.09–0.10 / 0.08–0.09, read all 0.9–1.4 / 0.8–1.4, rm 0.7–1.5 / 0.7–1.0; cold (caches dropped) `find` 0.05–0.12 / 0.07–0.10. Answering GETXATTR made the guest ask for `security.capability` before every write (2 extra round trips per file); `HANDLE_KILLPRIV_V2` removes them (untar 3.5 → 3.0 s). postgres:17-alpine with its data directory in a share: before, `initdb: could not access directory: Permission denied`; after, starts and serves queries. Selftest 89 MB, daemontest 48/48 (one earlier run had 3 network timeouts that did not recur), dockertest 65/65 (2 new), unit 42/42. |
 | 2026-10-25 | The Mac's SSH agent in containers | A non-root container user (`-u 1000`) lists the keys of an agent the daemon's `SSH_AUTH_SOCK` names; with no `SSH_AUTH_SOCK` and `launchctl getenv` empty (a shell outside the login session), the socket of macOS's `com.openssh.ssh-agent` job answers ("The agent has no identities"). Old / new guest, same host binary, three rounds after one exec: host 82/82, 79/79, 84/84 MB, guest used 37/36, 33/34, 39/44 MB (noise); selftest 86–93 MB. dockertest 66/66 (new `ssh_agent`), daemontest 48/48. |
 | 2026-10-25 | CNAME answers without the address | daemontest's `dns_cname_chain` failed once: `www.github.com` came back with its CNAME and no address, for A and AAAA alike. After a CNAME, HostDNS waited only 1.5 s for the record it leads to, so a slow uncached target was answered with the chain alone. On a working network mDNSResponder sends the target's record, or that it has none, at once (A, AAAA and NXDOMAIN all 0.00 s in the guest), so the grace bought nothing: a CNAME now waits up to the query's 5 s timeout. Also: dockertest's `one_container` footprint read 478–530 MB with the new bind and SSH checks running just before it; measured before them again it is 270 MB (0.2.0: 257). |
+| 2026-10-25 | 0.2.1 release checks, load 1.2–3.3 | Unit 42/42, selftest ok (86 MB), daemon 48/48 (one run before the CNAME fix failed `dns_cname_chain`; after it 48/48), MCP 30/30, x86 16/16, Docker 66/66 (idle without Docker 79 MB, dockerd idle 285, one container 270; warm hello-world 180 ms), sandbox 41/41. Release directory: guest 61.8 MB, binary tarball 1.8 MB (signed, notarized), sources 467 MiB (21 packages). |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
