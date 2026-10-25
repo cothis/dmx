@@ -1,4 +1,4 @@
-# 다음 세션 인계 — 2026-10-25 (v0.2.0 이후)
+# 다음 세션 인계 — 2026-10-25 (v0.2.1 이후)
 
 `이어서 진행해`라는 요청을 받으면 [PLAN.md](PLAN.md)의 **Next up**과 이 문서를 읽어요.
 대화 이력이나 `/tmp` 파일은 필요 없어요. 계획·결정·측정의 기준은 `PLAN.md`예요.
@@ -20,9 +20,9 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
 
 ## 현재 상태
 
-- **게시된 릴리스:** [v0.2.0](https://github.com/cothis/dmx/releases/tag/v0.2.0). 처음으로
-  Developer ID 서명·공증된 릴리스이고, 회사 Mac 대응(Phase 11)이 들어 있어요.
-- **v0.2.0 이후 main에만 있는 변경**(아직 미릴리스, 0.2.1 후보):
+- **게시된 릴리스:** [v0.2.1](https://github.com/cothis/dmx/releases/tag/v0.2.1)(서명·공증).
+  GitHub에서 받아 설치·부팅까지 확인했어요. main은 v0.2.1 태그와 같아요(문서 커밋만 뒤에 있어요).
+- **v0.2.0 → v0.2.1 변경:**
   - 에이전트 control 호출 60초 타임아웃과 연결 교체(`AgentClient`)
   - 부팅 시 `e2fsck -p`, 실패하면 `-fy`(`guest/init`)
   - `disk_size`를 올리면 데이터 디스크를 온라인으로 확장(호스트 `ftruncate`, 에이전트
@@ -36,8 +36,10 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
   - Mac의 SSH 에이전트를 VM의 `/run/host-services/ssh-auth.sock`으로 제공(Docker Desktop과 같은
     경로). vsock 장치가 게스트에서 먼저 여는 연결을 받아요(`VirtioVsock.listen`, 포트 1025,
     `HostServices.swift`, 에이전트 `host_services.rs`).
-- **마지막 검증**(load 3–4, SSH 에이전트 변경 후): daemontest 48/48, dockertest 66/66, 단위 42/42,
-  selftest 86–93 MB. sandboxtest 41/41, mcptest 30/30은 그 전 변경(DNS) 때 결과예요.
+  - CNAME 뒤 주소를 1.5초가 아니라 쿼리 제한(5초)까지 기다려요(느린 네트워크에서 주소 없는 답 방지).
+- **마지막 검증**(0.2.1 릴리스, load 1.2–3.3): 단위 42/42, selftest 86 MB, daemontest 48/48,
+  mcptest 30/30, x86test 16/16, dockertest 66/66, sandboxtest 41/41. GitHub에서 설치한 0.2.1
+  selftest 96 MB.
 
 ## 서명·공증 (저장소 밖)
 

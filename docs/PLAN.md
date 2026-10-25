@@ -439,6 +439,11 @@ BuildKit through dmx's Buildx; the deprecated legacy builder remains available t
       notarized one, with phase 11. Verified from GitHub: assets match SHA256SUMS, `curl … | sh`
       installs a notarized 0.2.0, a fresh `DMX_HOME` fetched the v0.2.0 guest and passed the
       selftest (91 MB).
+- [x] Release [v0.2.1](https://github.com/cothis/dmx/releases/tag/v0.2.1) (2026-10-25): shared-file
+      sockets, xattrs and ownership, the Mac's SSH agent, DNS through macOS's resolver, boot-time
+      e2fsck, disk growth. Verified from GitHub: assets match SHA256SUMS (sources by size),
+      `curl … | sh` installs a notarized 0.2.1, a fresh `DMX_HOME` fetched the v0.2.1 guest and
+      passed the selftest (96 MB).
 - [x] Developer ID signing and notarization (2026-10-25, applies from the next release): `release.py`
       signs a copy with "Developer ID Application: MINHO YUN (V4YA23448U)", hardened runtime and
       secure timestamp, and submits it to `notarytool`; settings live in `~/.dmx-signing/release.json`.
@@ -481,9 +486,7 @@ Done when: on a Mac whose only way out is an HTTP proxy (no authentication) with
 
 For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md).
 
-v0.2.1 is being released (maintainer's go-ahead 2026-10-25): the agent timeout, boot-time
-e2fsck, growing the data disk, DNS through macOS's resolver, sockets/xattrs/ownership on shared
-files and the Mac's SSH agent in containers since 0.2.0. Then, in order:
+v0.2.1 is published (signed and notarized, 2026-10-25). In order:
 
 1. IPv6 in the guest network (phase 6).
 2. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
@@ -681,3 +684,4 @@ complete by the finished acceptance suites.
 - 2026-10-25: Shared files: Unix sockets bind in shares, `user.*` xattrs, and ownership stored by chown and by non-root creators, so non-root containers can write to bind mounts (postgres data directory works). Next: the Mac's SSH agent in containers.
 - 2026-10-25: The Mac's SSH agent is at `/run/host-services/ssh-auth.sock` in the VM, as on Docker Desktop; the vsock device accepts guest-initiated connections. Next: IPv6 in the guest network.
 - 2026-10-25: A CNAME answer waits for the address it leads to (up to the query's 5 s), instead of answering with the CNAME alone after 1.5 s. Next: release 0.2.1.
+- 2026-10-25: Released v0.2.1 (signed, notarized); installed and booted from GitHub as a user would. Next: IPv6 in the guest network.
