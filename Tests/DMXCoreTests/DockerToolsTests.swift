@@ -80,6 +80,36 @@ import Testing
         #expect(DockerTools.status(paths: f.paths, configDir: f.configDir, environment: f.environment, tools: f.tools).tools.map(\.state) == ["missing", "missing"])
     }
 
+    @Test func mirrorServesTheSameFiles() async throws {
+        let f = try Fixture()
+        defer { try? FileManager.default.removeItem(at: f.root) }
+        // Upstream is unreachable; the mirror has the files under their upstream names.
+        let gone = f.tools.map { t in
+            DockerTools.Tool(name: t.name, version: t.version, url: URL(fileURLWithPath: "/nonexistent/\(t.url.lastPathComponent)"),
+                             sha256: t.sha256, size: t.size, member: t.member, file: t.file, plugin: t.plugin)
+        }
+        let mirror = f.root.appendingPathComponent("src").absoluteString
+        var environment = f.environment
+        environment["DMX_TOOLS_URL"] = mirror
+        let report = try await DockerTools.install(paths: f.paths, configDir: f.configDir, environment: environment, tools: gone)
+        #expect(report.tools.map(\.state) == ["installed", "installed"])
+        #expect(report.tools.allSatisfy { $0.url.hasPrefix(mirror.trimmingCharacters(in: CharacterSet(charactersIn: "/"))) })
+
+        // The setting does the same when the variable is unset; the variable wins over it.
+        var config = Config()
+        try config.set("tools_url", "https://mirror.example.com/dmx-tools/")
+        #expect(config.toolsUrl == "https://mirror.example.com/dmx-tools")
+        try config.save(f.paths)
+        let listed = DockerTools.status(paths: f.paths, configDir: f.configDir, environment: f.environment, tools: gone)
+        #expect(listed.tools.first?.url == "https://mirror.example.com/dmx-tools/docker.tgz")
+        #expect(DockerTools.status(paths: f.paths, configDir: f.configDir, environment: environment, tools: gone).tools.first?.url.hasPrefix("file:") == true)
+        #expect(throws: DMXError.self) { try config.set("release_url", "ftp://mirror.example.com") }
+        #expect(GuestStore(paths: f.paths, environment: [:]).baseURL == GuestRelease.defaultBaseURL)
+        try config.set("release_url", "https://mirror.example.com/dmx")
+        try config.save(f.paths)
+        #expect(GuestStore(paths: f.paths, environment: [:]).baseURL == "https://mirror.example.com/dmx")
+    }
+
     @Test func checksumMismatchDeletesTheDownload() async throws {
         let f = try Fixture()
         defer { try? FileManager.default.removeItem(at: f.root) }

@@ -8,7 +8,8 @@ struct GuestCommand: AsyncParsableCommand {
         abstract: "Show or download the Linux guest (kernel, initramfs, Docker image).",
         discussion: """
             A released dmx knows the sha256 of the guest it was released with and downloads it into
-            ~/.dmx/guest on the first boot, or after an upgrade. DMX_RELEASE_URL replaces the base
+            ~/.dmx/guest on the first boot, or after an upgrade. The release_url setting (or
+            DMX_RELEASE_URL) replaces the base
             URL (default \(GuestRelease.defaultBaseURL); files are <base>/<tag>/<archive>).
             A guest built from source with `make guest` is never replaced unless --force is given.
             """,

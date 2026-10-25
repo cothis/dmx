@@ -178,7 +178,7 @@ struct ConfigCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "config",
         abstract: "Read or change settings in ~/.dmx/config.json.",
-        discussion: "Settings: cpus, memory (ceiling, e.g. 8G), idle_timeout (e.g. 5m), disk_size (default 64G; used when ~/.dmx/data.img is created, an existing disk keeps its size). They apply the next time the VM boots.",
+        discussion: "Settings: cpus, memory (ceiling, e.g. 8G), idle_timeout (e.g. 5m), disk_size (default 64G; used when ~/.dmx/data.img is created, an existing disk keeps its size). They apply the next time the VM boots. Mirrors for company networks: release_url (the guest, GitHub's layout <url>/<tag>/<asset>) and tools_url (the docker CLI tools, <url>/<upstream file name>); downloads are still checked against their pinned sha256.",
         subcommands: [Get.self, Set.self, Unset.self]
     )
 
@@ -253,6 +253,8 @@ func configReport(_ paths: Paths, only key: String?) throws -> (ConfigReport, St
         case "memory": config.memory != nil
         case "shares": config.shares != nil
         case "disk_size": config.diskSize != nil
+        case "release_url": config.releaseUrl != nil
+        case "tools_url": config.toolsUrl != nil
         default: config.idleTimeout != nil
         }
     }

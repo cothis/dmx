@@ -432,8 +432,11 @@ mirrors, managed software policies, and an open-source review before adoption.
       Mac's exceptions join `no-proxy` in Go's syntax. PAC files and proxy passwords: not yet.
 - [x] Certificates with trust settings in the keychain's admin/user domains, plus
       `$DMX_HOME/ca-certificates.pem`, appended to dockerd's CA bundle (`HostCertificates.swift`).
-- [ ] Mirrors for dmx's own downloads: the docker CLI tools as well as the guest
-      (`DMX_RELEASE_URL` covers only the guest).
+- [x] Mirrors for dmx's own downloads: settings `release_url` (the guest, GitHub's layout) and
+      `tools_url` (the docker CLI tools under their upstream file names), so they also reach a
+      launchd-started daemon; `DMX_RELEASE_URL`/`DMX_TOOLS_URL` override them. Downloads are still
+      checked against the pinned sha256; `dmx tools ls --json` lists each URL for whoever fills the
+      mirror.
 - [x] Developer ID signing and notarization (phase 10), so managed Macs that allow only
       notarized software can run dmx; first signed binary ships with the next release.
 
@@ -451,9 +454,10 @@ For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDO
 v0.1.0 is published. Improvements go out as 0.1.x/0.2 releases (release.md, "Cutting a release";
 publishing still needs the maintainer's go-ahead). In order:
 
-1. Phase 11 (work Macs): a mirror for the docker CLI tool downloads (like `DMX_RELEASE_URL`);
-   then cut 0.2.0 (first Developer ID signed and notarized release; publishing needs the
-   maintainer's go-ahead).
+1. Cut 0.2.0: the first Developer ID signed and notarized release, with phase 11's proxy,
+   certificates, engine settings and mirrors (release.md, "Cutting a release"; tagging and
+   publishing need the maintainer's go-ahead). Phase 11's acceptance (a Mac whose only way out is
+   an inspecting proxy) has been met piecewise in tests, not on a real corporate network.
 2. The guest kernel oops seen once (2026-10-25, Findings): `dmx-agent` reading a sysfs file hit a
    NULL `sysfs_ops` in `sysfs_kf_seq_show`; the agent hung and every later control call with it.
    Find the file (likely `page_reporting_order` during the idle sweep) and make the daemon notice
@@ -581,6 +585,7 @@ complete by the finished acceptance suites.
 | 2026-10-25 | The Mac's proxy and certificates for dockerd | dockertest 63/63 at load ~4.5: a CONNECT proxy on the Mac's loopback named in daemon.json carried `registry-1.docker.io:443` and `auth.docker.io:443`; a registry stub with a self-signed CA on the Mac failed with `x509: certificate signed by unknown authority`, then answered `not found` (TLS accepted) after the CA went into `DMX_HOME/ca-certificates.pem` and `dmx stop`. Changing the Mac's system proxy needs admin rights and changes the whole Mac's network, so `HostProxy.parse` is unit-tested instead (36 unit tests). Footprints: idle without Docker 75 MB, dockerd idle 275, one container 404 (other runs today 252–460; noisy at this step). |
 | 2026-10-25 | Guest kernel oops (once) | dockertest, ~31 s after boot (idle sweep time): `Unable to handle kernel NULL pointer dereference` in `sysfs_kf_seq_show+0x50` from `dmx-agent` reading a sysfs file (`kobj->ktype->sysfs_ops` NULL). The agent stopped answering and `dmx status` waited 120 s. Not reproduced by 20,000 reads of `page_reporting_order`. `dmx status` now gives up on guest memory after 2 s. Open. |
 | 2026-10-25 | Developer ID signing and notarization | New "Developer ID Application" certificate (G2, until 2027-11-24) from a CSR made on this Mac, in a signing keychain. Signed with hardened runtime + timestamp; `notarytool` accepted in 29 s. Gatekeeper: `spctl` said "Unnotarized" for the first minute, then "valid but not an app" (normal for a tool); a quarantined copy then asked "downloaded from the Internet … Open?" instead of refusing. Hardened-runtime binary: selftest ok (88 MB), daemontest 41/41. |
+| 2026-10-25 | Download mirrors | `release_url` set to a local server: `dmx guest fetch` took `/v0.1.0/dmx-guest-0.1.0.tar.gz` from it; `tools_url` lists and installs from `<url>/<upstream name>` (unit test with an unreachable upstream, 37 unit tests); a non-http URL is refused with `bad_config_value`. Selftest ok. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -633,3 +638,4 @@ complete by the finished acceptance suites.
 - 2026-10-25: Phase 11 (work Macs) started: README rewritten for users and company reviewers, SECURITY.md and private vulnerability reporting, repository topics. Maintainer: announce to communities after more improvements.
 - 2026-10-25: dockerd reads the user's Docker Engine settings from `~/.docker/daemon.json` like Docker Desktop (mirrors, insecure registries, proxies), under dmx's own keys.
 - 2026-10-25: dockerd uses the Mac's proxy and its added root certificates; `dmx status` no longer hangs on a stuck agent; a dangling guest link no longer loops guest downloads. Developer ID certificate created and release.py signs and notarizes; the next release is the first notarized one.
+- 2026-10-25: Download mirrors as settings (`release_url`, `tools_url`) for company networks. Phase 11 done except a test on a real corporate network; next is the 0.2.0 release.

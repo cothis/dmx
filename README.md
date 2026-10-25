@@ -89,8 +89,10 @@ using them carries no obligation, and every release attaches their complete sour
 lists every component and its license. Docker Hub's own terms and pull limits still apply to
 images pulled from it, whatever engine pulls them.
 
-**What dmx contacts.** Only GitHub Releases (the guest, unless `DMX_RELEASE_URL` points at a
-mirror), and `download.docker.com` and GitHub for the docker CLI tools. No telemetry. Containers
+**What dmx contacts.** Only GitHub Releases for the guest, and `download.docker.com` and GitHub
+for the docker CLI tools; `dmx config set release_url …` and `tools_url …` point both at a
+company mirror (files keep their upstream names; `dmx tools ls --json` lists the URLs), and dmx
+checks every download against the sha256 built into it. No telemetry. Containers
 and image pulls reach the network through dmx's own host sockets, so the Mac's VPN, firewall and
 routing apply to them as to any app.
 

@@ -21,7 +21,7 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
   `<base>/<tag>/dmx-guest-<version>.tar.gz` when `~/.dmx/guest` is missing or came from another
   release, checks the archive and each boot file against the pin, unpacks it next to the old guest
   and swaps the directories. One process downloads at a time (`~/.dmx/guest.lock`).
-- `<base>` is `https://github.com/cothis/dmx/releases/download`; `DMX_RELEASE_URL` replaces it
+- `<base>` is `https://github.com/cothis/dmx/releases/download`; the `release_url` setting or `DMX_RELEASE_URL` replaces it
   (a mirror, or a local server when testing).
 - A guest built with `make guest` is never replaced by itself: dmx tells it apart because
   `~/.dmx/guest/release.json` (written after a download) no longer matches `manifest.json`.

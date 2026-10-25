@@ -22,7 +22,8 @@ public struct GuestRelease: Codable, Sendable, Equatable {
         self.files = files
     }
 
-    /// GitHub's layout: <base>/<tag>/<asset>. `DMX_RELEASE_URL` replaces the base (a mirror, or a
+    /// GitHub's layout: <base>/<tag>/<asset>. `DMX_RELEASE_URL` or the `release_url` setting
+    /// replaces the base (a company mirror, or a
     /// local `python3 -m http.server` when testing a release directory).
     public static let defaultBaseURL = "https://github.com/cothis/dmx/releases/download"
 }
@@ -67,7 +68,7 @@ public struct GuestStore: Sendable {
                 environment: [String: String] = ProcessInfo.processInfo.environment) {
         self.paths = paths
         self.pin = pin
-        let custom = environment["DMX_RELEASE_URL"].flatMap { $0.isEmpty ? nil : $0 }
+        let custom = Config.mirror("DMX_RELEASE_URL", \.releaseUrl, paths: paths, environment: environment)
         baseURL = (custom ?? GuestRelease.defaultBaseURL).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     }
 
@@ -137,7 +138,7 @@ public struct GuestStore: Sendable {
             throw DMXError("no_guest_release", "this dmx was built without a pinned guest release", hint: "build the guest from source: `make guest`")
         }
         guard let url = url(of: pin) else {
-            throw DMXError("guest_download_failed", "bad release URL \(baseURL)", hint: "fix or unset DMX_RELEASE_URL")
+            throw DMXError("guest_download_failed", "bad release URL \(baseURL)", hint: "fix DMX_RELEASE_URL or `dmx config set release_url`")
         }
         let fm = FileManager.default
         try fm.createDirectory(at: paths.home, withIntermediateDirectories: true)
@@ -158,10 +159,10 @@ public struct GuestStore: Sendable {
             try await downloadVerified(url, to: archive, sha256: pin.sha256)
         } catch let error as DMXError where error.code == "download_failed" {
             throw DMXError("guest_download_failed", error.message,
-                           hint: "check the network (or DMX_RELEASE_URL), then `dmx guest fetch`; or build the guest from source: `make guest`")
+                           hint: "check the network (or the mirror: release_url, DMX_RELEASE_URL), then `dmx guest fetch`; or build the guest from source: `make guest`")
         } catch let error as DMXError where error.code == "checksum_mismatch" {
             throw DMXError("checksum_mismatch", error.message,
-                           hint: "the server did not send the guest this dmx was built for; retry `dmx guest fetch`, or check DMX_RELEASE_URL")
+                           hint: "the server did not send the guest this dmx was built for; retry `dmx guest fetch`, or check the mirror (release_url, DMX_RELEASE_URL)")
         }
 
         // The archive matched the pin, so unpacking it is safe; the files are checked again anyway.
@@ -176,7 +177,7 @@ public struct GuestStore: Sendable {
             throw DMXError("guest_download_failed", "cannot unpack \(pin.archive) (tar exited with \(tar.terminationStatus))", hint: "retry `dmx guest fetch`")
         }
         for (name, want) in pin.files where (try? sha256Hex(of: unpacked.appendingPathComponent(name))) != want {
-            throw DMXError("checksum_mismatch", "\(name) in \(pin.archive) does not match this dmx's pin", hint: "retry `dmx guest fetch`, or check DMX_RELEASE_URL")
+            throw DMXError("checksum_mismatch", "\(name) in \(pin.archive) does not match this dmx's pin", hint: "retry `dmx guest fetch`, or check the mirror (release_url, DMX_RELEASE_URL)")
         }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

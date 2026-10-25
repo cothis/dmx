@@ -24,6 +24,16 @@ public enum DockerTools {
 
         /// The sha256 of the installed file.
         var installedSHA256: String { member?.sha256 ?? sha256 }
+
+        /// Where to download it: `url`, or the file of that name under a mirror.
+        func source(mirror: String?) -> URL {
+            mirror.flatMap { URL(string: "\($0)/\(url.lastPathComponent)") } ?? url
+        }
+    }
+
+    /// The mirror for the tools: `DMX_TOOLS_URL`, or the `tools_url` setting.
+    static func mirror(paths: Paths, environment: [String: String]) -> String? {
+        Config.mirror("DMX_TOOLS_URL", \.toolsUrl, paths: paths, environment: environment)
     }
 
     /// Pinned on 2026-10-24. Compose, Buildx and the credential helper match the checksums.txt of
@@ -54,6 +64,8 @@ public enum DockerTools {
         public let name: String
         public let version: String
         public let path: String
+        /// Where it is (or would be) downloaded from.
+        public let url: String
         /// `installed` (just now), `present` (already there, sha256 checked), `missing`, or
         /// `changed` (a file with another sha256; `dmx tools install` replaces it).
         public let state: String
@@ -92,17 +104,19 @@ public enum DockerTools {
                                tools: [Tool] = pinned,
                                progress: @Sendable (String) -> Void = { _ in }) async throws -> Report {
         var installed: [Installed] = []
+        let mirror = mirror(paths: paths, environment: environment)
         for tool in tools {
             let dest = destination(tool, paths)
+            let source = tool.source(mirror: mirror)
             if (try? sha256Hex(of: dest)) == tool.installedSHA256 {
-                installed.append(Installed(name: tool.name, version: tool.version, path: dest.path, state: "present"))
+                installed.append(Installed(name: tool.name, version: tool.version, path: dest.path, url: source.absoluteString, state: "present"))
                 continue
             }
-            progress("downloading \(tool.name) \(tool.version) (\(tool.size >> 20) MB) from \(tool.url.host ?? tool.url.absoluteString)")
+            progress("downloading \(tool.name) \(tool.version) (\(tool.size >> 20) MB) from \(source.host ?? source.absoluteString)")
             let part = paths.downloads.appendingPathComponent(tool.url.lastPathComponent + ".part")
-            let fetched = try await fetch(tool, to: part)
+            let fetched = try await fetch(tool, from: source, to: part)
             try place(tool, from: part, at: dest, scratch: paths.downloads)
-            installed.append(Installed(name: tool.name, version: tool.version, path: dest.path, state: "installed", downloadedBytes: fetched))
+            installed.append(Installed(name: tool.name, version: tool.version, path: dest.path, url: source.absoluteString, state: "installed", downloadedBytes: fetched))
         }
         try? FileManager.default.removeItem(at: paths.downloads)
 
@@ -129,6 +143,7 @@ public enum DockerTools {
     public static func status(paths: Paths, configDir: URL = DockerContext.configDir(),
                               environment: [String: String] = ProcessInfo.processInfo.environment,
                               tools: [Tool] = pinned) -> Report {
+        let mirror = mirror(paths: paths, environment: environment)
         let installed = tools.map { tool in
             let dest = destination(tool, paths)
             let state: String
@@ -137,7 +152,7 @@ public enum DockerTools {
             case tool.installedSHA256: state = "present"
             default: state = "changed"
             }
-            return Installed(name: tool.name, version: tool.version, path: dest.path, state: state)
+            return Installed(name: tool.name, version: tool.version, path: dest.path, url: tool.source(mirror: mirror).absoluteString, state: state)
         }
         let dir = linkDir(environment)
         let links = tools.filter { !$0.plugin }.compactMap { tool -> Link? in
@@ -233,7 +248,7 @@ public enum DockerTools {
 
     /// Downloads `tool` into `part`, resuming what an earlier attempt left, retrying network
     /// failures, and checks size and sha256. Returns the bytes transferred.
-    static func fetch(_ tool: Tool, to part: URL) async throws -> Int {
+    static func fetch(_ tool: Tool, from url: URL, to part: URL) async throws -> Int {
         let fm = FileManager.default
         try fm.createDirectory(at: part.deletingLastPathComponent(), withIntermediateDirectories: true)
         var transferred = 0
@@ -248,12 +263,12 @@ public enum DockerTools {
             if have == tool.size { break }
             attempt += 1
             if attempt > 4 {
-                throw DMXError("download_failed", "cannot download \(tool.url.absoluteString): \(lastError)",
+                throw DMXError("download_failed", "cannot download \(url.absoluteString): \(lastError)",
                                hint: "check the network (and a proxy, if any), then run `dmx tools install` again; it resumes where this stopped")
             }
             if attempt > 1 { try await Task.sleep(for: .seconds(attempt - 1)) }
             do {
-                transferred += try await Transfer.run(tool.url, to: part, from: have)
+                transferred += try await Transfer.run(url, to: part, from: have)
             } catch let error as Transfer.Failure {
                 lastError = error.message
                 if error.restart { try? fm.removeItem(at: part) }
@@ -262,7 +277,7 @@ public enum DockerTools {
         }
         guard (try? sha256Hex(of: part)) == tool.sha256 else {
             try? fm.removeItem(at: part)
-            throw DMXError("checksum_mismatch", "\(tool.url.absoluteString) does not have the sha256 dmx pins for \(tool.name) \(tool.version); deleted it",
+            throw DMXError("checksum_mismatch", "\(url.absoluteString) does not have the sha256 dmx pins for \(tool.name) \(tool.version); deleted it",
                            hint: "run `dmx tools install` again; if this repeats, the file changed upstream: do not use it, report it to dmx")
         }
         return transferred

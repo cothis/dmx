@@ -16,9 +16,16 @@ public struct Config: Codable, Sendable, Equatable {
     /// Size of the data disk when it is created, e.g. "64G": a ceiling, the image is sparse.
     public var diskSize: String?
 
+    /// Where dmx downloads its guest, for a company mirror: GitHub's layout under it
+    /// (`<release_url>/<tag>/<asset>`). `DMX_RELEASE_URL` overrides it.
+    public var releaseUrl: String?
+    /// Where dmx downloads the docker CLI tools: `<tools_url>/<upstream file name>`, each still
+    /// checked against its pinned sha256. `DMX_TOOLS_URL` overrides it.
+    public var toolsUrl: String?
+
     public static let defaultIdleTimeout = 300
     public static let defaultDiskSize: UInt64 = 64 << 30
-    public static let keys = ["cpus", "memory", "idle_timeout", "shares", "disk_size"]
+    public static let keys = ["cpus", "memory", "idle_timeout", "shares", "disk_size", "release_url", "tools_url"]
 
     public init() {}
 
@@ -64,6 +71,8 @@ public struct Config: Codable, Sendable, Equatable {
             "idle_timeout": formatDuration(idleTimeoutSeconds),
             "shares": (try? shareList).map { $0.isEmpty ? "none" : $0.map(\.text).joined(separator: ",") } ?? "invalid",
             "disk_size": diskSize ?? formatSize(Self.defaultDiskSize),
+            "release_url": releaseUrl ?? GuestRelease.defaultBaseURL,
+            "tools_url": toolsUrl ?? "upstream",
         ]
     }
 
@@ -96,9 +105,31 @@ public struct Config: Codable, Sendable, Equatable {
                 throw DMXError("bad_config_value", "disk_size must be at least 1G, not \"\(value)\"")
             }
             diskSize = value.uppercased()
+        case "release_url":
+            releaseUrl = try value.map(Self.mirror)
+        case "tools_url":
+            toolsUrl = try value.map(Self.mirror)
         default:
             throw DMXError("unknown_config_key", "no setting named \"\(key)\"", hint: "settings are \(Self.keys.joined(separator: ", ")); run `dmx config get`")
         }
+    }
+}
+
+extension Config {
+    /// A mirror's base URL, without a trailing slash.
+    static func mirror(_ text: String) throws -> String {
+        let base = text.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+        guard let url = URL(string: base), ["http", "https"].contains(url.scheme?.lowercased() ?? ""), url.host != nil else {
+            throw DMXError("bad_config_value", "a mirror must be an http or https URL, not \"\(text)\"",
+                           hint: "for example https://mirror.example.com/dmx")
+        }
+        return base
+    }
+
+    /// A mirror from the environment variable, or else the setting; nil means upstream.
+    static func mirror(_ variable: String, _ setting: KeyPath<Config, String?>, paths: Paths, environment: [String: String]) -> String? {
+        if let value = environment[variable], !value.isEmpty { return value.trimmingCharacters(in: CharacterSet(charactersIn: "/")) }
+        return (try? Config.load(paths))?[keyPath: setting]
     }
 }
 
