@@ -13,7 +13,8 @@ public struct Config: Codable, Sendable, Equatable {
     /// Docker Desktop's list (`Share.defaults`). An empty list shares nothing.
     public var shares: [String]?
 
-    /// Size of the data disk when it is created, e.g. "64G": a ceiling, the image is sparse.
+    /// Size of the data disk, e.g. "64G": a ceiling, the image is sparse. Raising it grows an
+    /// existing disk at the next boot; disks never shrink.
     public var diskSize: String?
 
     /// Where dmx downloads its guest, for a company mirror: GitHub's layout under it
@@ -99,7 +100,7 @@ public struct Config: Codable, Sendable, Equatable {
             guard let value else { shares = nil; return }
             shares = try Share.parseList(value).map(\.text)
         case "disk_size":
-            // Applies when the image is created; an existing data.img keeps its size.
+            // Applies at the next boot: a new data.img is made this size, a smaller one grows.
             guard let value else { diskSize = nil; return }
             guard try parseSize(value) >= 1 << 30 else {
                 throw DMXError("bad_config_value", "disk_size must be at least 1G, not \"\(value)\"")

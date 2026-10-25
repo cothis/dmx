@@ -126,8 +126,7 @@ and marked trusted (a TLS-inspecting proxy, an internal registry's CA) are trust
 BuildKit in the VM, as on Docker Desktop. Certificates handed out as a file go in
 `~/.dmx/ca-certificates.pem`. Both apply at the VM's next start.
 
-**Known gaps:** IPv6, split DNS (names only a VPN's DNS server knows), and growing an existing
-data disk. Progress is tracked in [docs/PLAN.md](docs/PLAN.md#next-up).
+**Known gaps:** IPv6, and split DNS (names only a VPN's DNS server knows). Progress is tracked in [docs/PLAN.md](docs/PLAN.md#next-up).
 
 **Uninstalling.**
 

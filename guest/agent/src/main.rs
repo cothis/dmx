@@ -31,6 +31,12 @@ fn main() {
         return;
     }
     forward::raise_fd_limit();
+    // Before the host can use the disk: a raised disk_size is there from the first command.
+    match sys::grow_data_disk() {
+        Ok(Some((from, to))) => eprintln!("dmx-agent: grew the data disk from {from} to {to} blocks"),
+        Ok(None) => {}
+        Err(e) => eprintln!("dmx-agent: cannot grow the data disk: {e}"),
+    }
     let listener = match vsock::Listener::bind(PORT) {
         Ok(l) => l,
         Err(e) => {

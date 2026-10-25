@@ -5,7 +5,8 @@ import Foundation
 /// punch them out again.
 public struct DataDisk: Sendable {
     public var url: URL
-    /// Size of a new image. An existing image keeps its size.
+    /// Size of the image: a new one is created this size, a smaller one grows to it, a larger one
+    /// keeps its size.
     public var size: UInt64
     /// A read-only disk is never created or written, and the guest sees it as read-only.
     public var readOnly: Bool
@@ -107,8 +108,10 @@ final class VirtioBlock: VirtioDevice, @unchecked Sendable {
         }
         var st = stat()
         guard fstat(file, &st) == 0 else { throw fail(DMXError("disk_error", "cannot stat \(path): \(String(cString: strerror(errno)))")) }
-        if st.st_size == 0 && !readOnly {
-            // ftruncate on APFS makes a sparse file: nothing is allocated until written.
+        if !readOnly && UInt64(st.st_size) < disk.size {
+            // ftruncate on APFS makes a sparse file: nothing is allocated until written. A disk
+            // made bigger (disk_size raised) is grown the same way; the guest agent then grows
+            // its file system online. Disks never shrink.
             guard ftruncate(file, off_t(disk.size)) == 0 else {
                 throw fail(DMXError("disk_error", "cannot size \(path) to \(formatSize(disk.size)): \(String(cString: strerror(errno)))"))
             }

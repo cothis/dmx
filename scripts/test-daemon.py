@@ -519,6 +519,21 @@ try:
     check("fsck_repaired", r.stdout.startswith(b"kept\n") and b"FILE SYSTEM WAS MODIFIED" in r.stdout and "running e2fsck -fy" in console,
           f"{r.stdout[-300:]!r}")
 
+    # A raised disk_size grows the disk (host file, then ext4 online) at the next boot; a smaller
+    # one leaves it alone.
+    dmx("stop")
+    dmx("config", "set", "disk_size", "80G")
+    r = dmx("exec", "--", "sh", "-c", "cat /var/lib/marker; df -k /var/lib | tail -1")
+    grown = (status().get("disk") or {}).get("size_mb")
+    fields = r.stdout.split()
+    check("disk_grows", r.stdout.startswith(b"kept\n") and grown == 81920 and len(fields) > 2 and int(fields[2]) > 75 << 20,
+          f"{r.stdout!r} {grown}")
+    dmx("stop")
+    dmx("config", "set", "disk_size", "16G")
+    dmx("exec", "--", "true")
+    check("disk_never_shrinks", (status().get("disk") or {}).get("size_mb") == 81920, str(status().get("disk")))
+    dmx("config", "unset", "disk_size")
+
     fixed_memory_checks()
 
     # Idle: the VM stops after idle_timeout, then the daemon exits after 10 s.

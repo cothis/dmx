@@ -263,6 +263,11 @@ public final class Daemon {
                 var spec = try config.spec
                 spec.kernelArgs.append("quiet")
                 spec.dataDisk = DataDisk(url: paths.dataDisk, size: try config.diskSizeBytes)
+                if let disk = DataDisk.usage(paths.dataDisk), UInt64(disk.sizeMb) << 20 > (try config.diskSizeBytes) {
+                    log("disk: data.img is \(disk.sizeMb) MB, more than disk_size; a disk does not shrink")
+                } else if let disk = DataDisk.usage(paths.dataDisk), UInt64(disk.sizeMb) << 20 < (try config.diskSizeBytes) {
+                    log("disk: growing data.img from \(disk.sizeMb) MB to disk_size")
+                }
                 // A missing guest, or one from an older release, is downloaded first (GuestStore).
                 try await GuestStore(paths: paths).ensure(log: log)
                 if FileManager.default.fileExists(atPath: paths.dockerImage.path) {

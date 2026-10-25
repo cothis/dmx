@@ -315,3 +315,37 @@ fn freeze_data_disk() {
 pub fn kernel_release() -> String {
     fs::read_to_string("/proc/sys/kernel/osrelease").map(|s| s.trim().to_string()).unwrap_or_default()
 }
+
+/// Grows the data disk's ext4 to fill /dev/vda when the host made the disk bigger (`disk_size`
+/// raised for an existing data.img). Online, by the kernel, as resize2fs does for a mounted file
+/// system (`EXT4_IOC_RESIZE_FS`). Returns the old and new size in blocks, or nil if it fits.
+pub fn grow_data_disk() -> io::Result<Option<(u64, u64)>> {
+    use std::os::unix::fs::FileExt;
+    use std::os::unix::io::AsRawFd;
+    const BLKGETSIZE64: libc::c_ulong = 0x8008_1272; // _IOR(0x12, 114, size_t)
+    const EXT4_IOC_RESIZE_FS: libc::c_ulong = 0x4008_6610; // _IOW('f', 16, __u64)
+    let device = fs::File::open("/dev/vda")?;
+    let mut bytes: u64 = 0;
+    if unsafe { libc::ioctl(device.as_raw_fd(), BLKGETSIZE64 as _, &mut bytes) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let mut sb = [0u8; 1024];
+    device.read_exact_at(&mut sb, 1024)?;
+    let le32 = |at: usize| u32::from_le_bytes(sb[at..at + 4].try_into().unwrap()) as u64;
+    if sb[0x38..0x3a] != [0x53, 0xef] {
+        return Ok(None);
+    }
+    let block_size = 1024u64 << le32(0x18);
+    let is_64bit = le32(0x60) & 0x80 != 0;
+    let blocks = le32(0x04) | if is_64bit { le32(0x150) << 32 } else { 0 };
+    let want = bytes / block_size;
+    if want <= blocks {
+        return Ok(None);
+    }
+    let dir = fs::File::open("/var/lib")?;
+    if unsafe { libc::ioctl(dir.as_raw_fd(), EXT4_IOC_RESIZE_FS as _, &want) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(Some((blocks, want)))
+}
+
