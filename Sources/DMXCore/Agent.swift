@@ -143,6 +143,15 @@ public final class FrameConnection: @unchecked Sendable {
 
     deinit { close() }
 
+    /// Ends the connection even while a call waits on it: the waiting read sees the end of the
+    /// stream (closing alone does not wake it).
+    func abort() {
+        closeLock.lock()
+        if !closed { Darwin.shutdown(fd, SHUT_RDWR) }
+        closeLock.unlock()
+        close()
+    }
+
     /// Closes once; later calls do nothing, so a reused descriptor number is never closed.
     public func close() {
         closeLock.lock()
@@ -153,12 +162,20 @@ public final class FrameConnection: @unchecked Sendable {
     }
 
     public func call<P: Encodable & Sendable, R: Decodable>(_ method: String, _ params: P) async throws -> R {
-        let data = try await onQueue { () throws -> Data in
+        try decodeReply(method, try await reply(method, params))
+    }
+
+    /// The raw reply to a request, not yet decoded.
+    func reply<P: Encodable & Sendable>(_ method: String, _ params: P) async throws -> Data {
+        try await onQueue { () throws -> Data in
             let id = self.nextID
             self.nextID += 1
             try self.writeJSON(Request(id: id, method: method, params: params))
             return try self.readReply(method: method)
         }
+    }
+
+    func decodeReply<R: Decodable>(_ method: String, _ data: Data) throws -> R {
         do {
             return try Self.decoder.decode(Reply<R>.self, from: data).result
         } catch {
@@ -316,27 +333,83 @@ public final class FrameConnection: @unchecked Sendable {
 
 /// Talks to dmx-agent: control calls share one connection, each exec opens its own
 /// (the agent hands an exec's connection over to that process's streams).
-public final class AgentClient: Sendable {
-    private let control: FrameConnection
+///
+/// A control call that gets no answer within `callTimeout` fails with `agent_timeout`, and the
+/// connection is replaced: once a guest kernel oops killed the agent's thread in the middle of a
+/// call, which left that connection, and every call queued behind it, waiting forever.
+public final class AgentClient: @unchecked Sendable {
+    private let lock = NSLock()
+    private var connection: FrameConnection
     /// Opens a new connection to the agent (exec and connect take theirs over).
     let open: @MainActor @Sendable () async throws -> FrameConnection
+    static let callTimeout: Duration = .seconds(60)
 
     init(control: FrameConnection, open: @escaping @MainActor @Sendable () async throws -> FrameConnection) {
-        self.control = control
+        connection = control
         self.open = open
+    }
+
+    private var control: FrameConnection {
+        lock.lock()
+        defer { lock.unlock() }
+        return connection
     }
 
     public func close() { control.close() }
 
     public func call<P: Encodable & Sendable, R: Decodable>(_ method: String, _ params: P) async throws -> R {
-        try await control.call(method, params)
+        let current = control
+        guard let data = try await firstOf(within: Self.callTimeout, { try await current.reply(method, params) }) else {
+            replace(current)
+            throw DMXError("agent_timeout", "the guest agent did not answer \(method) within \(Int(Self.callTimeout.components.seconds)) s",
+                           hint: "the guest may be in trouble: see ~/.dmx/logs/console.log; `dmx stop` powers it off")
+        }
+        return try current.decodeReply(method, data)
     }
 
-    public func hello() async throws -> AgentHello { try await control.call("hello", Empty()) }
-    public func stats() async throws -> AgentStats { try await control.call("stats", Empty()) }
+    /// Drops a connection that stopped answering (which also ends the call stuck on it) and opens
+    /// another for the calls after it.
+    private func replace(_ stuck: FrameConnection) {
+        stuck.abort()
+        guard isCurrent(stuck), !reconnecting(true) else { return }  // another call saw it first
+        log("agent: no answer on the control connection; opening another")
+        Task { @MainActor in
+            defer { _ = reconnecting(false) }
+            guard let fresh = try? await open() else { return log("agent: cannot reconnect") }
+            if !swap(stuck, for: fresh) { fresh.close() }
+        }
+    }
+
+    private var isReconnecting = false
+
+    /// Sets whether a reconnect runs; returns what it was.
+    private func reconnecting(_ value: Bool) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        let was = isReconnecting
+        isReconnecting = value
+        return was
+    }
+
+    private func isCurrent(_ connection: FrameConnection) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return self.connection === connection
+    }
+
+    private func swap(_ stuck: FrameConnection, for fresh: FrameConnection) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard connection === stuck else { return false }
+        connection = fresh
+        return true
+    }
+
+    public func hello() async throws -> AgentHello { try await call("hello", Empty()) }
+    public func stats() async throws -> AgentStats { try await call("stats", Empty()) }
 
     public func dropCaches(level: Int = 3) async throws -> DropCachesResult {
-        try await control.call("drop_caches", ["level": level])
+        try await call("drop_caches", ["level": level])
     }
 
     /// Asks the guest kernel to reclaim `bytes` through the root cgroup's `memory.reclaim`.
@@ -344,13 +417,13 @@ public final class AgentClient: Sendable {
     /// and tmpfs pages may go to zram too.
     public func reclaim(bytes: UInt64, swappiness: Int? = nil) async throws -> ReclaimResult {
         struct Params: Encodable, Sendable { let bytes: UInt64; let swappiness: Int? }
-        return try await control.call("reclaim", Params(bytes: bytes, swappiness: swappiness))
+        return try await call("reclaim", Params(bytes: bytes, swappiness: swappiness))
     }
 
     /// Turns on zram swap in the guest if it is not on yet; returns its size in bytes.
     public func swapOn() async throws -> UInt64 {
         struct Result: Decodable { let size: UInt64 }
-        let result: Result = try await control.call("swap_on", Empty())
+        let result: Result = try await call("swap_on", Empty())
         return result.size
     }
 
@@ -358,14 +431,14 @@ public final class AgentClient: Sendable {
     /// (0: one guest page); returns the order it replaced.
     public func setReportingOrder(_ order: Int) async throws -> Int {
         struct Result: Decodable { let previous: Int }
-        let result: Result = try await control.call("reporting_order", ["order": order])
+        let result: Result = try await call("reporting_order", ["order": order])
         return result.previous
     }
 
     /// Has every guest slab cache free its empty slabs; returns the guest's MemFree before and after.
     public func shrinkSlabs() async throws -> (freeBefore: UInt64, freeAfter: UInt64) {
         struct Result: Decodable { let freeBefore: UInt64; let freeAfter: UInt64 }
-        let result: Result = try await control.call("shrink_slabs", Empty())
+        let result: Result = try await call("shrink_slabs", Empty())
         return (result.freeBefore, result.freeAfter)
     }
 
@@ -374,13 +447,13 @@ public final class AgentClient: Sendable {
         struct Params: Encodable { let unixNs: Int64 }
         struct Result: Decodable { let offsetNs: Int64 }
         let now = Int64(Date().timeIntervalSince1970 * 1e9)
-        let result: Result = try await control.call("time_sync", Params(unixNs: now))
+        let result: Result = try await call("time_sync", Params(unixNs: now))
         return result.offsetNs
     }
 
     /// Asks the guest to sync and power off. The VM stops shortly after this returns.
     public func shutdown() async throws {
-        let _: Empty = try await control.call("shutdown", Empty())
+        let _: Empty = try await call("shutdown", Empty())
     }
 
     /// Starts a process in the guest on a new connection.
@@ -493,6 +566,33 @@ private struct Envelope: Decodable {
 
 private struct Reply<R: Decodable>: Decodable {
     let result: R
+}
+
+/// Resumes a continuation with the first result it is given; later ones are dropped.
+private final class ResumeOnce<T: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    var continuation: CheckedContinuation<T, Error>?
+    func resume(_ result: Result<T, Error>) {
+        lock.lock()
+        let c = continuation
+        continuation = nil
+        lock.unlock()
+        c?.resume(with: result)
+    }
+}
+
+/// The value of `operation`, or nil if `limit` passes first. The operation is not cancelled; it
+/// runs on until it ends by itself.
+func firstOf<T: Sendable>(within limit: Duration, _ operation: @escaping @Sendable () async throws -> T) async throws -> T? {
+    let once = ResumeOnce<T?>()
+    return try await withCheckedThrowingContinuation { continuation in
+        once.continuation = continuation
+        Task { once.resume(await Result { try await operation() }) }
+        Task {
+            try? await Task.sleep(for: limit)
+            once.resume(.success(nil))
+        }
+    }
 }
 
 /// Connects to dmx-agent, retrying until it listens (it starts a few hundred ms into boot).

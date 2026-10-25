@@ -73,7 +73,10 @@ open does not delay `exit` forever. Output still waiting for a host that reads s
 quiet: it goes out before `exit`.
 
 Because an exec takes over its connection, the host opens one connection for control calls and
-a new one per exec (`AgentClient` does this).
+a new one per exec (`AgentClient` does this). A control call unanswered after 60 s fails with
+`agent_timeout`; the host then shuts that connection down (ending the calls queued on it) and
+opens another, so an agent thread that died or hung mid-call (a guest kernel oops did this once)
+does not leave every later call waiting. `dmx status` waits at most 2 s for guest memory.
 
 ## connect
 

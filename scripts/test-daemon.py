@@ -455,6 +455,29 @@ try:
     ])
     check("shell_tty", code == 3 and "42" in out and "^C" in out and "after-2" in out, f"rc {code} {out[-200:]!r}")
 
+    # A stuck agent (paused with SIGSTOP from inside the guest, as a kernel oops once left it):
+    # status still answers, the control connection is replaced after a minute, and once the agent
+    # runs again everything works.
+    dmx("exec", "--", "sh", "-c", "pid=$(pidof dmx-agent); setsid sh -c \"sleep 1; kill -STOP $pid; sleep 75; kill -CONT $pid\" "
+        "</dev/null >/dev/null 2>&1 &")
+    time.sleep(3)
+    slowest = 0
+    for _ in range(4):
+        started = time.monotonic()
+        stuck = status()
+        slowest = max(slowest, time.monotonic() - started)
+        time.sleep(15)
+    def runs():
+        try:
+            return dmx("exec", "--", "true", timeout=30).returncode == 0
+        except subprocess.TimeoutExpired:
+            return False
+    resumed = wait_for(runs, 90)
+    log = (HOME / "logs" / "daemon.log").read_text()
+    results["stuck_agent_status_max_s"] = round(slowest, 2)
+    check("stuck_agent", slowest < 5 and stuck.get("state") == "running" and "opening another" in log and resumed
+          and status().get("guest_used_mb"), f"status {slowest:.1f} s, reconnect logged {'opening another' in log}, resumed {resumed}")
+
     # Memory controller (MemoryController.swift), with the host's pressure level simulated.
     memory_checks(results)
     portfwd(results)

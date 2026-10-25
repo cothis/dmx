@@ -458,18 +458,17 @@ For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDO
 v0.1.0 is published. Improvements go out as 0.1.x/0.2 releases (release.md, "Cutting a release";
 publishing still needs the maintainer's go-ahead). In order:
 
-1. The guest kernel oops seen once (2026-10-25, Findings): `dmx-agent` reading a sysfs file hit a
-   NULL `sysfs_ops` in `sysfs_kf_seq_show`; the agent hung and every later control call with it.
-   Find the file (likely `page_reporting_order` during the idle sweep) and make the daemon notice
-   a dead agent instead of waiting.
-2. Boot-time fsck of the data disk (phase 6): an unclean stop or a power cut should be repaired
+1. Boot-time fsck of the data disk (phase 6): an unclean stop or a power cut should be repaired
    before ext4 mounts, not found later. Then data disk resize.
-3. Other phase 6 extensions most likely to bite users: IPv6 and split DNS, Unix sockets/xattrs/
+2. Other phase 6 extensions most likely to bite users: IPv6 and split DNS, Unix sockets/xattrs/
    ownership on shared files.
-4. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
+3. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
    ~120 ms by choice (data disk barrier flushes, see Decisions).
-5. Community announcement (Show HN, Reddit, GeekNews): phase 11 is out in 0.2.0, so this waits only
+4. Community announcement (Show HN, Reddit, GeekNews): phase 11 is out in 0.2.0, so this waits only
    on the maintainer's word (maintainer, 2026-10-25: after more improvements).
+5. The guest kernel oops seen once (Findings, 2026-10-25): cause still unknown and not reproduced
+   in 25 rounds. A stuck agent no longer wedges the daemon; look again if it recurs (the console
+   log keeps the trace).
 6. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
 
 Phase 8 (own runtime) remains unstarted; Docker currently uses dockerd/containerd/runc. Storage,
@@ -589,6 +588,7 @@ complete by the finished acceptance suites.
 | 2026-10-25 | Developer ID signing and notarization | New "Developer ID Application" certificate (G2, until 2027-11-24) from a CSR made on this Mac, in a signing keychain. Signed with hardened runtime + timestamp; `notarytool` accepted in 29 s. Gatekeeper: `spctl` said "Unnotarized" for the first minute, then "valid but not an app" (normal for a tool); a quarantined copy then asked "downloaded from the Internet … Open?" instead of refusing. Hardened-runtime binary: selftest ok (88 MB), daemontest 41/41. |
 | 2026-10-25 | Download mirrors | `release_url` set to a local server: `dmx guest fetch` took `/v0.1.0/dmx-guest-0.1.0.tar.gz` from it; `tools_url` lists and installs from `<url>/<upstream name>` (unit test with an unreachable upstream, 37 unit tests); a non-http URL is refused with `bad_config_value`. Selftest ok. |
 | 2026-10-25 | 0.2.0 release checks, load 2.6–3.4 | Unit 37/37, selftest ok, daemon 41/41, MCP 30/30, x86 16/16, Docker 63/63 (idle without Docker 75 MB, dockerd idle 283, one container 257; warm hello-world 195 ms), sandbox 41/41. Oops reproduction: 25 rounds of boot, first Docker use and the idle sweep at load 2.3–27, no oops, `dmx status` always answered. Release directory: guest 61.7 MB, binary tarball 1.7 MB (signed, notarized), sources 467 MiB. |
+| 2026-10-25 | Stuck agent | Control calls time out after 60 s (`agent_timeout`) and the connection is shut down and replaced. With the agent paused 75 s by SIGSTOP from inside the guest: `dmx status` answered in at most 2.1 s, the daemon logged the reconnect, and exec and guest stats worked once the agent ran again. Now a daemontest check (42/42). Selftest ok, MCP 30/30, Docker 63/63, sandbox 41/41, unit 37/37 at load 1.3–3. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -643,3 +643,4 @@ complete by the finished acceptance suites.
 - 2026-10-25: dockerd uses the Mac's proxy and its added root certificates; `dmx status` no longer hangs on a stuck agent; a dangling guest link no longer loops guest downloads. Developer ID certificate created and release.py signs and notarizes; the next release is the first notarized one.
 - 2026-10-25: Download mirrors as settings (`release_url`, `tools_url`) for company networks. Phase 11 done except a test on a real corporate network; next is the 0.2.0 release.
 - 2026-10-25: Released v0.2.0, the first Developer ID signed and notarized release, with the work-Mac features; installed and booted from GitHub as a user would.
+- 2026-10-25: A stuck guest agent no longer wedges the daemon: control calls time out after 60 s and the connection is replaced (daemontest pauses the agent to check). The oops's cause stays open. Next: boot-time fsck.
