@@ -38,7 +38,7 @@ slower than Colima's because dmx keeps write ordering on the data disk across a 
 Requires macOS 15 or later on Apple Silicon.
 
 ```sh
-curl -fsSL https://github.com/cothis/dmx/releases/download/v0.1.0/install.sh | sh
+curl -fsSL https://github.com/cothis/dmx/releases/download/v0.2.0/install.sh | sh
 dmx install                      # launchd starts dmx on demand; installs docker, compose, buildx
                                  # and selects the docker context "dmx"
 docker run --rm hello-world      # the first run downloads the Linux guest (~62 MB, sha256-checked)
@@ -109,10 +109,9 @@ sandboxes share one VM and its kernel: their isolation is Docker's, not a VM per
 sandboxes with a host allowlist can still resolve any DNS name. Report vulnerabilities as
 described in [SECURITY.md](SECURITY.md).
 
-**Signing.** From the next release, dmx is signed with a Developer ID and notarized by Apple,
-so Macs that allow only notarized software run it, and a copy downloaded with a browser asks
-once before its first launch. v0.1.0 is ad-hoc signed: install it with the script, or run
-`xattr -d com.apple.quarantine dmx` on a browser download.
+**Signing.** From 0.2.0, dmx is signed with a Developer ID and notarized by Apple, so Macs that
+allow only notarized software run it, and a copy downloaded with a browser asks once before its
+first launch. (0.1.0 was ad-hoc signed.)
 
 **Proxies and Docker Engine settings.** dockerd pulls through the HTTP and HTTPS proxy set in
 System Settings (Network, Proxies), with its exceptions; a proxy on the Mac's own loopback is

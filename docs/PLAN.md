@@ -454,10 +454,10 @@ For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDO
 v0.1.0 is published. Improvements go out as 0.1.x/0.2 releases (release.md, "Cutting a release";
 publishing still needs the maintainer's go-ahead). In order:
 
-1. Cut 0.2.0: the first Developer ID signed and notarized release, with phase 11's proxy,
-   certificates, engine settings and mirrors (release.md, "Cutting a release"; tagging and
-   publishing need the maintainer's go-ahead). Phase 11's acceptance (a Mac whose only way out is
-   an inspecting proxy) has been met piecewise in tests, not on a real corporate network.
+1. Release 0.2.0 (in progress, maintainer's go-ahead 2026-10-25 after the oops reproduction
+   came back clean): the first Developer ID signed and notarized release. Phase 11's acceptance
+   (a Mac whose only way out is an inspecting proxy) is met piecewise in tests, not yet on a real
+   corporate network.
 2. The guest kernel oops seen once (2026-10-25, Findings): `dmx-agent` reading a sysfs file hit a
    NULL `sysfs_ops` in `sysfs_kf_seq_show`; the agent hung and every later control call with it.
    Find the file (likely `page_reporting_order` during the idle sweep) and make the daemon notice
@@ -586,6 +586,7 @@ complete by the finished acceptance suites.
 | 2026-10-25 | Guest kernel oops (once) | dockertest, ~31 s after boot (idle sweep time): `Unable to handle kernel NULL pointer dereference` in `sysfs_kf_seq_show+0x50` from `dmx-agent` reading a sysfs file (`kobj->ktype->sysfs_ops` NULL). The agent stopped answering and `dmx status` waited 120 s. Not reproduced by 20,000 reads of `page_reporting_order`. `dmx status` now gives up on guest memory after 2 s. Open. |
 | 2026-10-25 | Developer ID signing and notarization | New "Developer ID Application" certificate (G2, until 2027-11-24) from a CSR made on this Mac, in a signing keychain. Signed with hardened runtime + timestamp; `notarytool` accepted in 29 s. Gatekeeper: `spctl` said "Unnotarized" for the first minute, then "valid but not an app" (normal for a tool); a quarantined copy then asked "downloaded from the Internet … Open?" instead of refusing. Hardened-runtime binary: selftest ok (88 MB), daemontest 41/41. |
 | 2026-10-25 | Download mirrors | `release_url` set to a local server: `dmx guest fetch` took `/v0.1.0/dmx-guest-0.1.0.tar.gz` from it; `tools_url` lists and installs from `<url>/<upstream name>` (unit test with an unreachable upstream, 37 unit tests); a non-http URL is refused with `bad_config_value`. Selftest ok. |
+| 2026-10-25 | 0.2.0 release checks, load 2.6–3.4 | Unit 37/37, selftest ok, daemon 41/41, MCP 30/30, x86 16/16, Docker 63/63 (idle without Docker 75 MB, dockerd idle 283, one container 257; warm hello-world 195 ms), sandbox 41/41. Oops reproduction: 25 rounds of boot, first Docker use and the idle sweep at load 2.3–27, no oops, `dmx status` always answered. Release directory: guest 61.7 MB, binary tarball 1.7 MB (signed, notarized), sources 467 MiB. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
