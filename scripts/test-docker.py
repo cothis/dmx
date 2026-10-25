@@ -526,22 +526,6 @@ try:
     r = docker("run", "--rm", "-v", f"{REPO}:/repo:ro", "-w", "/repo", "alpine", "head", "-1", "AGENTS.md")
     check("bind_users_ro", r.stdout == b"# Working on dmx\n", f"{r.stdout!r} {r.stderr!r}")
 
-    # In a bind mount: a Unix socket bound and connected inside the guest, user.* xattrs, and
-    # ownership that chown stores (a non-root user can then write there, as postgres needs).
-    r = docker("run", "--rm", "-v", f"{bind}:/b", "-w", "/b", "python:3-alpine", "python3", "-c", BIND_EXTRAS)
-    owner = subprocess.run(["xattr", "-p", "com.dmx.owner", bind / "own"], capture_output=True, text=True).stdout.strip()
-    user_attr = subprocess.run(["xattr", "-p", "user.k", bind / "from-mac"], capture_output=True, text=True).stdout.strip()
-    check("bind_socket_xattr_owner", r.stdout == b"hi [b'v', ['user.k']] 1000 1000\n" and (bind / "s.sock").is_socket()
-          and owner == "1000:1000" and user_attr == "v", f"{r.stdout!r} {r.stderr[-300:]!r} {owner!r} {user_attr!r}")
-    r = docker("run", "--rm", "-v", f"{bind}:/b", "alpine", "stat", "-c", "%u:%g", "/b/own/d/y")
-    check("bind_owner_persists", r.stdout == b"1000:1000\n", f"{r.stdout!r} {r.stderr!r}")
-
-    # The Mac's SSH agent, as on Docker Desktop: list its keys from a non-root container user.
-    wait_for(lambda: subprocess.run(["ssh-add", HOME / "key"], env=ENV, capture_output=True).returncode == 0, 5)
-    r = docker("run", "--rm", "-u", "1000", "-v", "/run/host-services/ssh-auth.sock:/run/host-services/ssh-auth.sock",
-               "python:3-alpine", "python3", "-c", SSH_AGENT_LIST)
-    check("ssh_agent", r.stdout == b"12 1 True\n", f"{r.stdout!r} {r.stderr[-300:]!r}")
-
     # Published ports: forwarded on the Mac while the container runs, where it asked (0.0.0.0 by
     # default, like Docker Desktop), never saved in ports.json.
     r = docker("run", "-d", "--name", "web", "-p", "20081:80", "-p", "127.0.0.1:20082:80", "busybox",
@@ -559,6 +543,24 @@ try:
     docker("rm", "-f", "web")
     gone = wait_for(lambda: not any(x["host_port"] in (20081, 20082) for x in forwards()), 10)
     check("unpublished", gone and not http_get(20081).startswith(b"published"), forwards())
+
+    # In a bind mount: a Unix socket bound and connected inside the guest, user.* xattrs, and
+    # ownership that chown stores (a non-root user can then write there, as postgres needs).
+    # After the footprint above, so that it stays comparable with earlier runs.
+    r = docker("run", "--rm", "-v", f"{bind}:/b", "-w", "/b", "python:3-alpine", "python3", "-c", BIND_EXTRAS)
+    owner = subprocess.run(["xattr", "-p", "com.dmx.owner", bind / "own"], capture_output=True, text=True).stdout.strip()
+    user_attr = subprocess.run(["xattr", "-p", "user.k", bind / "from-mac"], capture_output=True, text=True).stdout.strip()
+    check("bind_socket_xattr_owner", r.stdout == b"hi [b'v', ['user.k']] 1000 1000\n" and (bind / "s.sock").is_socket()
+          and owner == "1000:1000" and user_attr == "v", f"{r.stdout!r} {r.stderr[-300:]!r} {owner!r} {user_attr!r}")
+    r = docker("run", "--rm", "-v", f"{bind}:/b", "alpine", "stat", "-c", "%u:%g", "/b/own/d/y")
+    check("bind_owner_persists", r.stdout == b"1000:1000\n", f"{r.stdout!r} {r.stderr!r}")
+
+    # The Mac's SSH agent, as on Docker Desktop: list its keys from a non-root container user.
+    wait_for(lambda: subprocess.run(["ssh-add", HOME / "key"], env=ENV, capture_output=True).returncode == 0, 5)
+    r = docker("run", "--rm", "-u", "1000", "-v", "/run/host-services/ssh-auth.sock:/run/host-services/ssh-auth.sock",
+               "python:3-alpine", "python3", "-c", SSH_AGENT_LIST)
+    check("ssh_agent", r.stdout == b"12 1 True\n", f"{r.stdout!r} {r.stderr[-300:]!r}")
+
     check_udp()
     check_port_taken()
     check_amd64()

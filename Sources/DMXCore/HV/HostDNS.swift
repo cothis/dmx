@@ -14,9 +14,6 @@ final class HostDNS {
     private var pending: [ObjectIdentifier: Lookup] = [:]
     /// A query unanswered for this long gets SERVFAIL; the client then retries or gives up.
     static let timeout: Duration = .seconds(5)
-    /// After a CNAME, the record it leads to normally follows at once; this long without it, the
-    /// chain so far is the answer.
-    static let chainGrace: Duration = .milliseconds(1500)
     static let maxPending = 256
 
     init(queue: DispatchQueue) { self.queue = queue }
@@ -141,8 +138,10 @@ final class HostDNS {
             case kDNSServiceErr_NoError:
                 rcode = 0
                 if let rdata = Self.forGuest(type: type, rdata) { records.append((name ?? question.name, type, qclass, ttl, rdata)) }
-                // A CNAME for another type: the record it leads to is still to come.
-                if type == 5 && question.type != 5 && !more { return arm(HostDNS.chainGrace) }
+                // A CNAME for another type: the record it leads to, or word that there is none,
+                // is still to come. It can take as long as any lookup (a target not cached on a
+                // slow network); a shorter wait answered with the CNAME alone and no address.
+                if type == 5 && question.type != 5 && !more { return }
             case kDNSServiceErr_NoSuchRecord:
                 // The name has no such record, or does not exist: mDNSResponder reports both this
                 // way, so the reply is an empty NOERROR rather than NXDOMAIN.
