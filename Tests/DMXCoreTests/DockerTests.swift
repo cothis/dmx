@@ -1,4 +1,5 @@
 import Foundation
+import dnssd
 import Testing
 @testable import DMXCore
 
@@ -212,5 +213,45 @@ import Testing
         let aaaa = query("gateway.docker.internal", type: 28).withUnsafeBytes { LocalDNS.answer($0) }
         #expect(aaaa.map { Array($0[6..<8]) } == [0, 0])     // no IPv6 address, no error
         #expect(query("example.com", type: 1).withUnsafeBytes { LocalDNS.answer($0) } == nil)
+    }
+
+    @Test func hostResolverReplies() throws {
+        let question = try #require(query("www.Example.com", type: 1).withUnsafeBytes { HostDNS.Question($0) })
+        #expect(question.name == "www.Example.com." && question.type == 1 && question.udpLimit == 1232)
+        var sent: [UInt8]?
+        let lookup = HostDNS.Lookup(question: question, queue: .main) { sent = $0 }
+        let add = DNSServiceFlags(kDNSServiceFlagsAdd), more = DNSServiceFlags(kDNSServiceFlagsMoreComing)
+        var cname: [UInt8] = []
+        for label in ["example", "com"] { cname.append(UInt8(label.count)); cname += Array(label.utf8) }
+        cname.append(0)
+        lookup.received(flags: add | more, error: 0, name: "www.Example.com.", type: 5, qclass: 1, rdata: Data(cname), ttl: 60)
+        lookup.received(flags: add | more, error: 0, name: "example.com.", type: 1, qclass: 1, rdata: Data([127, 0, 0, 1]), ttl: 60)
+        lookup.received(flags: add | more, error: 0, name: "example.com.", type: 1, qclass: 1, rdata: Data([127, 0, 1, 1]), ttl: 60)
+        lookup.received(flags: add | more, error: 0, name: "example.com.", type: 1, qclass: 1, rdata: Data([93, 184, 215, 14]), ttl: 60)
+        let reply = lookup.response()
+        #expect(Array(reply[0..<2]) == [0x12, 0x34])
+        #expect(reply[2] == 0x81 && reply[3] == 0x80)  // response, RD, RA, NOERROR
+        #expect(Array(reply[6..<8]) == [0, 3])          // the CNAME, the Mac's loopback as the host, the address
+        #expect(reply.count > 0 && sent == nil)
+        let bytes = Data(reply)
+        #expect(bytes.range(of: Data([192, 168, 127, 254])) != nil && bytes.range(of: Data([127, 0, 1, 1])) == nil)
+
+        // Without EDNS a reply larger than 512 bytes is cut and marked truncated.
+        var plain = query("big.example.com", type: 16)
+        plain[11] = 0
+        plain.removeLast(11)
+        let small = try #require(plain.withUnsafeBytes { HostDNS.Question($0) })
+        #expect(small.udpLimit == 512)
+        let txt = HostDNS.Lookup(question: small, queue: .main) { _ in }
+        for _ in 0..<5 { txt.received(flags: add | more, error: 0, name: "big.example.com.", type: 16, qclass: 1, rdata: Data(repeating: 0x41, count: 200), ttl: 60) }
+        let cut = txt.response()
+        #expect(cut.count <= 512 && cut[2] & 0x02 != 0)
+
+        // No such record (or name): an empty NOERROR.
+        let none = HostDNS.Lookup(question: question, queue: .main) { _ in }
+        none.received(flags: add, error: DNSServiceErrorType(kDNSServiceErr_NoSuchRecord), name: "www.Example.com.", type: 1, qclass: 1, rdata: Data(), ttl: 60)
+        let empty = none.response()
+        #expect(empty[3] & 0x0f == 0 && Array(empty[6..<8]) == [0, 0])
+        #expect(query("a.b", type: 1).withUnsafeBytes { bytes in Array(bytes).withUnsafeBytes { HostDNS.Question($0) } } != nil)
     }
 }

@@ -8,7 +8,8 @@ import Foundation
 ///
 /// Addresses, as the guest sees them (static, set by guest/init):
 /// - 192.168.127.2: the guest.
-/// - 192.168.127.1: the gateway. Port 53 goes to the host's DNS server (from /etc/resolv.conf).
+/// - 192.168.127.1: the gateway. DNS on port 53 is answered by macOS's resolver (HostDNS); DNS over
+///   TCP goes to the host's DNS server (from /etc/resolv.conf).
 /// - 192.168.127.254: the host itself; connections go to the host's 127.0.0.1.
 /// Everything else is the outside world, reached from the host's sockets.
 final class UserNet: @unchecked Sendable {
@@ -31,8 +32,11 @@ final class UserNet: @unchecked Sendable {
     private var udp: [FlowKey: UDPFlow] = [:]
     private var icmp: (socket: NetSocket, lastUsed: ContinuousClock.Instant)?
     private var timer: DispatchSourceTimer?
-    /// The host's DNS server, read when the device is created (each boot).
+    /// The host's DNS server, read when the device is created (each boot), for DNS over TCP and
+    /// queries `dns` does not take.
     private let resolver: HostEndpoint?
+    /// UDP queries to the gateway, answered by macOS's resolver.
+    private lazy var dns = HostDNS(queue: queue)
     /// Scratch space for what is read from host sockets.
     var scratch = [UInt8](repeating: 0, count: 65536)
 
@@ -84,6 +88,7 @@ final class UserNet: @unchecked Sendable {
         udp.removeAll()
         icmp?.socket.close()
         icmp = nil
+        dns.reset()
         timer?.cancel()
         timer = nil
     }
@@ -213,6 +218,15 @@ final class UserNet: @unchecked Sendable {
             var header: [UInt8] = []
             header.be16(53); header.be16(key.guestPort); header.be16(UInt16(8 + answer.count)); header.be16(0)
             answer.withUnsafeBytes { device.send(ipv4Frame(protocol: 17, from: destination, transport: header, payload: $0)) }
+            return
+        }
+        if destination == Self.gateway, key.remotePort == 53,
+           dns.resolve(UnsafeRawBufferPointer(rebasing: p[8..<length]), reply: { [weak self] answer in
+               guard let self else { return }
+               var header: [UInt8] = []
+               header.be16(53); header.be16(key.guestPort); header.be16(UInt16(8 + answer.count)); header.be16(0)
+               answer.withUnsafeBytes { self.device.send(self.ipv4Frame(protocol: 17, from: destination, transport: header, payload: $0)) }
+           }) {
             return
         }
         let flow: UDPFlow

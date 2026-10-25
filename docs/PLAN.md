@@ -305,7 +305,10 @@ Follow-ups beyond the completed acceptance criteria:
       (sparse `ftruncate`) before the next boot, and the agent grows ext4 online
       (`EXT4_IOC_RESIZE_FS`) before it answers the host. A smaller `disk_size` is ignored with a
       log line: disks do not shrink.
-- [ ] Network: IPv6, ICMP errors and split DNS.
+- [x] Network: split DNS (2026-10-25): guest DNS over UDP is answered by macOS's resolver
+      (`DNSServiceQueryRecord`, `HostDNS.swift`): VPN per-domain servers, `.local` names, network
+      changes. Missing names get an empty NOERROR (mDNSResponder does not tell them apart).
+- [ ] Network: IPv6 and ICMP errors.
 - [ ] File sharing: Unix sockets, xattrs, ACLs, DAX and stored ownership.
 
 ### Phase 7: Docker compatibility (done)
@@ -465,10 +468,8 @@ For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDO
 v0.1.0 is published. Improvements go out as 0.1.x/0.2 releases (release.md, "Cutting a release";
 publishing still needs the maintainer's go-ahead). In order:
 
-1. Split DNS (phase 6): names only a VPN's DNS server knows (company intranets) fail in the guest,
-   which asks only the Mac's first nameserver. Resolve through the Mac's resolver configuration
-   (scoped resolvers in `scutil --dns`) or ask macOS itself. Then IPv6.
-2. Shared files (phase 6): Unix sockets, xattrs and stored ownership on virtio-fs.
+1. Shared files (phase 6): Unix sockets, xattrs and stored ownership on virtio-fs.
+2. IPv6 in the guest network (phase 6).
 3. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
    ~120 ms by choice (data disk barrier flushes, see Decisions).
 4. Community announcement (Show HN, Reddit, GeekNews): phase 11 is out in 0.2.0, so this waits only
@@ -598,6 +599,7 @@ complete by the finished acceptance suites.
 | 2026-10-25 | Stuck agent | Control calls time out after 60 s (`agent_timeout`) and the connection is shut down and replaced. With the agent paused 75 s by SIGSTOP from inside the guest: `dmx status` answered in at most 2.1 s, the daemon logged the reconnect, and exec and guest stats worked once the agent ran again. Now a daemontest check (42/42). Selftest ok, MCP 30/30, Docker 63/63, sandbox 41/41, unit 37/37 at load 1.3–3. |
 | 2026-10-25 | Boot-time e2fsck | Initramfs 2.06 → 2.19 MB (e2fsck and its config, deleted after mount with mke2fs). Selftest before/after, three runs each: footprint 87–89 / 89–90 MB, boot 231–248 / 227–247 ms (load ~1.3). An error recorded with `trigger_fs_error` forced a check at the next boot that cleared it; a superblock with a bad checksum made `e2fsck -p` give up (exit 8) and `e2fsck -fy` repaired it from a backup in a 1.07 s boot, files intact. Without `broken_system_clock` every boot would force a full check: the guest clock reads 1970 until the host sets it. daemontest 44/44. |
 | 2026-10-25 | Growing the data disk | 2G → 64G with a file on it: grown at boot, file kept, `df` 64,367 MB, host allocation 8 MB, boot + first exec 190 ms (120 without growth). Growing in a thread let the first command still see the old size, so the agent grows before it listens. daemontest 46/46 (64G → 80G; 16G afterwards leaves 80G). Selftest 88–90 MB, boot 231–250 ms. |
+| 2026-10-25 | Guest DNS through macOS's resolver | The Mac's own `cothis-mac.local` (multicast DNS only) resolves in the guest to its LAN address and 192.168.127.254 (its loopback, translated); `www.github.com` returns the CNAME and the address; glibc (debian:13-slim `getent`) and musl containers resolve both. A name that does not exist: empty NOERROR (`getent` exit 2). 20 lookups in one exec: 1.7 ms each for github.com, 2.2 ms for a two-CNAME chain (cached by mDNSResponder). daemontest 48/48, Docker 63/63, sandbox 41/41, MCP 30/30, unit 38/38, selftest 89 MB. A VPN's per-domain resolver could not be created without admin rights; mDNS names exercise the same path (answers only mDNSResponder has). |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -655,3 +657,4 @@ complete by the finished acceptance suites.
 - 2026-10-25: A stuck guest agent no longer wedges the daemon: control calls time out after 60 s and the connection is replaced (daemontest pauses the agent to check). The oops's cause stays open. Next: boot-time fsck.
 - 2026-10-25: The data disk is checked with e2fsck at every boot and repaired unattended when needed. Next: data disk resizing.
 - 2026-10-25: Raising `disk_size` grows an existing data disk at the next boot, online. Next: split DNS for company VPNs.
+- 2026-10-25: Guest DNS goes through macOS's resolver: split DNS from VPNs, `.local` names, network changes. Next: Unix sockets and xattrs on shared files.

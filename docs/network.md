@@ -48,7 +48,7 @@ Addresses (static, set by `guest/init`; no DHCP, so eth0 is up before the agent)
 | Address | What |
 |---|---|
 | 192.168.127.2 | the guest (eth0, MAC 02:64:6d:78:00:02) |
-| 192.168.127.1 | gateway. UDP/TCP port 53 goes to the host's DNS server, the first `nameserver` in `/etc/resolv.conf` (IPv4 or IPv6), read at each boot, except for `host.docker.internal`, `host.dmx.internal` (192.168.127.254) and `gateway.docker.internal` (192.168.127.1), which the gateway answers itself over UDP so containers resolve them (`UserNetDNS.swift`). Answers ping. |
+| 192.168.127.1 | gateway. DNS over UDP is answered by macOS's own resolver through `DNSServiceQueryRecord` (`HostDNS.swift`), so the guest sees what Mac apps see: a VPN's per-domain servers (split DNS), `.local` names over multicast DNS, and the current network's servers after the Mac moves. CNAMEs come back as part of the answer; the Mac's loopback (its own `.local` name) becomes 192.168.127.254, other loopback and link-local addresses are left out; replies too large for the client's UDP limit (512 bytes, or its EDNS size) are truncated, and the retry over TCP goes to the first `nameserver` of `/etc/resolv.conf`, read at each boot. mDNSResponder reports a missing name and a missing record type alike, so a name that does not exist gets an empty NOERROR rather than NXDOMAIN. `host.docker.internal`, `host.dmx.internal` (192.168.127.254) and `gateway.docker.internal` (192.168.127.1) the gateway answers itself (`UserNetDNS.swift`). Answers ping. |
 | 192.168.127.254 | the host: connections go to the host's 127.0.0.1 (`host.dmx.internal` and `host.docker.internal` in the guest's /etc/hosts) |
 | anything else | the outside world, through host sockets |
 

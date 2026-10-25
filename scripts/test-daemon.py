@@ -416,6 +416,15 @@ try:
     check("net_http_64mb", r.stdout.split()[:1] == [hashlib.md5(body).hexdigest().encode()], repr(r.stdout[:40] + r.stderr[:80]))
     results["footprint_after_net_mb"] = status().get("host_footprint_mb")
 
+    # DNS goes through macOS's resolver: the Mac's own .local name is known only to multicast DNS
+    # (no unicast server has it), and its loopback answer becomes the gateway's host address.
+    local = subprocess.run(["scutil", "--get", "LocalHostName"], capture_output=True, text=True).stdout.strip()
+    r = dmx("exec", "--", "nslookup", f"{local}.local", "192.168.127.1")
+    check("dns_host_resolver", r.returncode == 0 and b"192.168.127.254" in r.stdout and b"127.0.0.1" not in r.stdout.split(b"answer:")[-1],
+          repr(r.stdout[-300:]))
+    r = dmx("exec", "--", "nslookup", "www.github.com", "192.168.127.1")
+    check("dns_cname_chain", b"canonical name = github.com" in r.stdout and b"Name:\tgithub.com\nAddress: " in r.stdout, repr(r.stdout[-300:]))
+
     r = dmx("exec", "--", "nosuch")
     check("missing_binary", r.returncode == 1 and b"nosuch" in r.stderr, repr(r.stderr))
 
