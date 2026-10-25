@@ -73,16 +73,22 @@ maintainer 승인(2026-10-25)으로 Docker Desktop 4.96.3, OrbStack 2.2.5, Colim
 OrbStack 528, Colima 1097, Docker Desktop 1176 MB예요. 호스트 load가 2–6이라 잠정치예요.
 다시 측정할 때도 설치한 엔진은 끝나고 지우고, 약관·관리자 암호 창은 maintainer가 처리해요.
 
+## v0.1.0 공개 릴리스 (완료)
+
+maintainer가 추천안을 모두 승인했어요: `v0.1.0`, GPL 소스 번들 첨부(3a), ad-hoc 서명, 이름 dmx.
+`release.py`가 `dmx-sources-<version>.tar`를 만들어요(467 MiB, 재현 가능, aports 코드 실행 없음).
+<https://github.com/cothis/dmx/releases/tag/v0.1.0>에 15개 파일을 올렸고, GitHub에서 받은
+파일이 SHA256SUMS와 일치하며, `curl … | sh` 설치와 새 `DMX_HOME`의 게스트 다운로드(5.4 s)·
+selftest(유휴 90 MB)가 통과했어요. 다음 릴리스도 release.md 절차를 따르고, 태그·게시는
+maintainer 확인 후에만 해요.
+
 ## 남은 작업과 경계
 
-- **릴리스:** [release.md의 추천](release.md#recommendation-2026-10-25)(v0.1.0, 소스 첨부(3a),
-  v0.1.0은 ad-hoc 서명, 이름은 dmx 유지)에 대한 maintainer 답을 기다려요. 승인되면 `release.py`에
-  소스 번들 단계를 추가하고, 로컬 서버 dry run 후 maintainer가 허락할 때만 태그·게시해요.
-- **성능 후속:** warm `docker run`이 dmx 118 ms, Colima 73 ms예요. 컨테이너 시작 경로를 profiling해요.
-- **지속 결정:** GitHub CI와 Homebrew 의존성은 추가하지 않아요. 예전 고부하 soft lockup은
-  재현되지 않은 열린 관찰 사항이에요.
-- **별도 backlog:** Phase 8 자체 런타임은 미착수예요. Phase 6의 fsck/디스크 확장,
-  IPv6/ICMP errors/split DNS, 공유 파일의 Unix socket/xattrs/ACL/DAX/소유권도 남아 있어요.
+- **성능:** warm `docker run`이 dmx 118 ms, Colima 73 ms예요. 컨테이너 시작 경로를 profiling해요.
+- **Phase 6 확장:** 디스크 확장·부팅 fsck, IPv6/split DNS, 공유 파일의 Unix socket/xattrs/소유권.
+- **비교 재측정:** 조용한 Mac에서 다시 측정하면 범위가 좁아져요.
+- **서명:** Developer ID·공증은 브라우저/GUI 배포가 필요해질 때 maintainer 계정으로 해요.
+- **지속 결정:** GitHub CI와 Homebrew 의존성은 추가하지 않아요. Phase 8 자체 런타임은 미착수예요.
 
 ## 근거와 코드 위치
 

@@ -397,9 +397,12 @@ BuildKit through dmx's Buildx; the deprecated legacy builder remains available t
       `release.py` builds `dmx-sources-<version>.tar` (467 MiB, byte-identical for the same
       inputs): aports directories and sha512-checked distfiles of all 21 Alpine source packages,
       kernel and QEMU tarballs, patches, config and recipes. No written offer.
-- [ ] First public release v0.1.0: binary, guest archive and source bundle on GitHub Releases,
-      downloaded and verified by `dmx`, so users need no Xcode, Python or Rust. dmx stays
-      Apache-2.0: the GPL programs run as separate programs in the guest.
+- [x] First public release [v0.1.0](https://github.com/cothis/dmx/releases/tag/v0.1.0)
+      (2026-10-25): binary, guest archive and source bundle on GitHub Releases, downloaded and
+      verified by `dmx`, so users need no Xcode, Python or Rust. Verified from GitHub: all assets
+      match SHA256SUMS; `curl … | sh` installs 0.1.0 without quarantine; a fresh `DMX_HOME`
+      fetched the guest in 5.4 s and passed the selftest (idle 90 MB). dmx stays Apache-2.0: the
+      GPL programs run as separate programs in the guest.
 - [ ] Developer ID signing and notarization when distributing binaries (no Homebrew tap).
 
 ### Later, maybe
@@ -410,17 +413,16 @@ BuildKit through dmx's Buildx; the deprecated legacy builder remains available t
 
 For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md).
 
-Phases 1–7 and 9 meet their acceptance criteria; the image matrix is 18/18 and the cross-engine
-comparison is recorded. The first release waits on the maintainer's answer to the
-recommendation in [release.md](release.md#recommendation-2026-10-25). After that:
+v0.1.0 is published. Improvements go out as 0.1.x/0.2 releases (release.md, "Cutting a release";
+publishing still needs the maintainer's go-ahead). In order:
 
-1. If attached sources are chosen: teach `release.py` to write `dmx-sources-<version>.tar`
-   (kernel.org and qemu.org tarballs, the aports directories and distfiles of every shipped
-   Alpine package, dmx's patches and recipes) and drop the written offer from NOTES.md.
-2. Cut v0.1.0 as release.md describes, including the local-server dry run; publish only with
-   the maintainer's go-ahead.
-3. Performance follow-up: warm `docker run` is 118 ms on dmx vs 73 ms on Colima; profile the
-   container start path. A quiet-Mac rerun of the comparison would tighten its ranges.
+1. Warm `docker run` is 118 ms on dmx vs 73 ms on Colima at the same settings: profile the
+   container start path (daemon → vsock → dockerd → runc) and remove the gap.
+2. Phase 6 extensions most likely to bite users: data disk resize and boot-time fsck, IPv6 and
+   split DNS, Unix sockets/xattrs/ownership on shared files.
+3. Rerun the engine comparison on a quiet Mac to tighten its ranges.
+4. Developer ID signing and notarization once a browser or GUI download needs it (paid Apple
+   account in the maintainer's name).
 
 Phase 8 (own runtime) remains unstarted; Docker currently uses dockerd/containerd/runc. Storage,
 network and sharing extensions are explicitly tracked under phase 6. None is silently marked
@@ -578,4 +580,4 @@ complete by the finished acceptance suites.
 - 2026-10-25: Added HANDOFF.md and linked it from Next up so a new session can continue directly with the pinned amd64 Redis reproduction, verified memory gates and remaining release work. Documentation only; no new runtime validation claimed.
 - 2026-10-25: Fixed the default amd64 Redis crash: dmx builds qemu-x86_64 from pinned QEMU 11.0.3 with Alpine's patches and a 2^47 x86_64 guest base (`make qemu`). Image matrix 18/18; x86test checks the address range and jemalloc/mimalloc; release packager ships the QEMU recipe and its static libraries' licenses. Remaining phase 10 work needs maintainer decisions.
 - 2026-10-25: Cross-engine comparison against Docker Desktop, OrbStack and Colima (installed briefly, then removed); dmx lowest at idle and under load and returns memory within seconds. README gained a Docker trademark notice. Release recommendation written for the maintainer.
-- 2026-10-25: Release v0.1.0 cut: version 0.1.0, guest pin, README install text; release directory built and tried from a local server.
+- 2026-10-25: Released v0.1.0 on GitHub (binary, guest, 467 MiB source bundle); installed and booted from GitHub as a user would.
