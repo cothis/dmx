@@ -315,7 +315,12 @@ Follow-ups beyond the completed acceptance criteria:
       the Mac's ::1. TCP, UDP and ICMPv6 echo map onto the Mac's IPv6 sockets. AAAA records the
       Mac has no route to are left out. dockerd keeps Docker's default `ip6tables` (no longer
       forced off), so `docker network create --ipv6` networks reach out through NAT66.
-- [ ] Network: ICMP errors to the guest (unreachable, too big, time exceeded).
+- [x] Network: ICMP errors to the guest (2026-10-25): destination unreachable when the Mac
+      cannot reach a TCP or UDP destination (network, host, prohibited) or a UDP port is closed,
+      so connects fail with the real reason and UDP clients do not wait. Time exceeded and
+      packet too big are not generated (see network.md).
+- [ ] Port forwarding on the Mac's IPv6 too: `-p 8080:80` listens on `::` as well as 0.0.0.0, and
+      `dmx port add` on ::1 as well as 127.0.0.1, as Docker Desktop does.
 - [x] File sharing: Unix sockets, xattrs and stored ownership (2026-10-25). A guest `bind()` in a
       share leaves a host socket file (bound with `pthread_fchdir_np`, as macOS has no bindat) and
       guest programs connect through the guest kernel. `user.*` xattrs only, stored under the same
@@ -492,11 +497,11 @@ Done when: on a Mac whose only way out is an HTTP proxy (no authentication) with
 
 For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md).
 
-v0.2.1 is published (signed and notarized, 2026-10-25); main has IPv6 in the guest network on
-top of it (unreleased). In order:
+v0.2.1 is published (signed and notarized, 2026-10-25); main has IPv6 in the guest network and
+ICMP errors to the guest on top of it (unreleased). In order:
 
-1. ICMP errors to the guest (phase 6): a failed connect now comes back as a TCP RST
-   ("connection refused") even when the Mac said "network unreachable".
+1. Port forwarding on the Mac's IPv6 (phase 6): `localhost` on the Mac tries ::1 first, which
+   now gets "connection refused" before the IPv4 fallback.
 2. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
    ~120 ms by choice (data disk barrier flushes, see Decisions).
 3. Community announcement (Show HN, Reddit, GeekNews): phase 11 is out in 0.2.0, so this waits only
@@ -632,6 +637,7 @@ complete by the finished acceptance suites.
 | 2026-10-25 | CNAME answers without the address | daemontest's `dns_cname_chain` failed once: `www.github.com` came back with its CNAME and no address, for A and AAAA alike. After a CNAME, HostDNS waited only 1.5 s for the record it leads to, so a slow uncached target was answered with the chain alone. On a working network mDNSResponder sends the target's record, or that it has none, at once (A, AAAA and NXDOMAIN all 0.00 s in the guest), so the grace bought nothing: a CNAME now waits up to the query's 5 s timeout. Also: dockertest's `one_container` footprint read 478–530 MB with the new bind and SSH checks running just before it; measured before them again it is 270 MB (0.2.0: 257). |
 | 2026-10-25 | 0.2.1 release checks, load 1.2–3.3 | Unit 42/42, selftest ok (86 MB), daemon 48/48 (one run before the CNAME fix failed `dns_cname_chain`; after it 48/48), MCP 30/30, x86 16/16, Docker 66/66 (idle without Docker 79 MB, dockerd idle 285, one container 270; warm hello-world 180 ms), sandbox 41/41. Release directory: guest 61.8 MB, binary tarball 1.8 MB (signed, notarized), sources 467 MiB (21 packages). |
 | 2026-10-25 | IPv6 in the guest network, load 5–6.5 | On this Mac (no IPv6 default route, a Tailscale ULA only): ping fd64:646d:7800::1 0.12 ms, ::254 0.15 ms, the Mac's Tailscale address 0.35 ms; 64 MB over HTTP from the Mac's ::1 at 250–528 MB/s (IPv4 the same run 434–540); UDP echo and AAAA lookups over the gateway's IPv6 address; google.com's AAAA left out (no route). Neighbor entries for ::1 and ::254 REACHABLE. Containers: on a `--ipv6` network a container reaches the Mac's ::1 through dockerd's NAT66 (`ip6tables` on by default now), `getent ahosts host.docker.internal` lists IPv4 first; default-bridge containers unchanged. The first UDP replies were dropped by the guest (Udp6InCsumErrors): IPv6 forbids a zero UDP checksum, so dmx now computes it for UDP over IPv6. Memory: selftest 88–92 MB (86–93 before); dockerd idle 267/266 MB with `ip6tables` on, 267/266 with it off, guest used 79–85 vs 82–84 MB: no cost. Unit 42/42, daemon 50/50 (one earlier run failed with its output lost; three runs after it passed), MCP 30/30, x86 16/16, Docker 67/67, sandbox 41/41. |
+| 2026-10-25 | ICMP errors to the guest, load 6–10 | A TCP connect to 2001:4860:4860::8888 (no IPv6 route on this Mac) and to 240.0.0.1 fails in the guest at once with "Host is unreachable" (before: "Connection refused"); a closed port on the Mac's 127.0.0.1 and ::1 over connected UDP raises ConnectionRefusedError in 0.0 s in a python:3-alpine container on an IPv6 network (through Docker's NAT and NAT66), instead of the 3 s timeout. TCP to a closed port is still refused by reset. Unit 42/42, selftest 87 MB, daemon 52/52 (new `icmp_errors`, `tcp_unreachable`), MCP 30/30, x86 16/16, Docker 67/67 (idle without Docker 78 MB, dockerd idle 214, one container 284), sandbox 41/41. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -695,3 +701,4 @@ complete by the finished acceptance suites.
 - 2026-10-25: A CNAME answer waits for the address it leads to (up to the query's 5 s), instead of answering with the CNAME alone after 1.5 s. Next: release 0.2.1.
 - 2026-10-25: Released v0.2.1 (signed, notarized); installed and booted from GitHub as a user would. Next: IPv6 in the guest network.
 - 2026-10-25: IPv6 in the guest network: a ULA prefix behind the NAT, NDP and ICMPv6 echo from the gateway, TCP/UDP onto the Mac's IPv6 sockets, unroutable AAAA records left out; Docker `--ipv6` networks work. Next: ICMP errors to the guest.
+- 2026-10-25: ICMP errors to the guest: destination unreachable for TCP and UDP flows the Mac cannot reach and for closed UDP ports. Next: port forwarding on the Mac's IPv6.

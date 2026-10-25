@@ -123,6 +123,12 @@ final class UserNet: @unchecked Sendable {
         }
     }
 
+    /// Why a flow to `address` that `endpoint` does not carry fails: the gateway has no such port;
+    /// other addresses (the guest's own network, loopback, multicast, reserved) lead nowhere.
+    func nowhere(_ address: IPAddress) -> Int32 {
+        address == Self.gateway || address == Self.gateway6 ? ECONNREFUSED : EHOSTUNREACH
+    }
+
     /// A host address as the guest should see it: the host's loopback is the gateway's host address.
     static func fromHost(_ address: IPAddress) -> IPAddress {
         switch address {
@@ -312,7 +318,10 @@ final class UserNet: @unchecked Sendable {
         if let existing = udp[key] {
             flow = existing
         } else {
-            guard let endpoint = endpoint(for: destination, port: key.remotePort) else { return }
+            guard let endpoint = endpoint(for: destination, port: key.remotePort) else {
+                unreachable(key, protocol: 17, error: nowhere(destination), quoting: Array(p[0..<8]))
+                return
+            }
             // Full: the least recently used flow goes (each DNS query comes from a new port).
             if udp.count >= Self.maxUDP, let oldest = udp.min(by: { $0.value.lastUsed < $1.value.lastUsed }) {
                 oldest.value.socket.close()
@@ -320,7 +329,12 @@ final class UserNet: @unchecked Sendable {
             }
             let fd = socket(endpoint.family, SOCK_DGRAM, IPPROTO_UDP)
             guard fd >= 0 else { return }
-            guard endpoint.withSockaddr({ connect(fd, $0, $1) }) == 0 else { close(fd); return }
+            guard endpoint.withSockaddr({ connect(fd, $0, $1) }) == 0 else {
+                let failure = errno
+                close(fd)
+                unreachable(key, protocol: 17, error: failure, quoting: Array(p[0..<8]))
+                return
+            }
             let socket = NetSocket(fd: fd, queue: queue, onRead: { [unowned self] in self.udpReply(key) })
             socket.reading = true
             flow = UDPFlow(socket: socket, idle: key.remotePort == 53 ? Self.dnsIdle : Self.udpIdle)
@@ -328,14 +342,22 @@ final class UserNet: @unchecked Sendable {
             startTimer()
         }
         flow.lastUsed = .now
-        _ = Darwin.send(flow.socket.fd, p.baseAddress! + 8, length - 8, 0)
+        if Darwin.send(flow.socket.fd, p.baseAddress! + 8, length - 8, 0) < 0 {
+            unreachable(key, protocol: 17, error: errno, quoting: Array(p[0..<8]))
+        }
     }
 
     private func udpReply(_ key: FlowKey) {
         guard let flow = udp[key] else { return }
         while true {
             let n = recv(flow.socket.fd, &scratch, scratch.count, 0)
-            guard n >= 0 else { return }
+            guard n >= 0 else {
+                // An ICMP error the host received for this flow (a closed port answers with one).
+                var head: [UInt8] = []
+                head.be16(key.guestPort); head.be16(key.remotePort); head.be16(8); head.be16(0)
+                unreachable(key, protocol: 17, error: errno, quoting: head)
+                return
+            }
             guard n <= VirtioNet.mtu - (key.remote.isV4 ? 28 : 48) else { continue }
             flow.lastUsed = .now
             var header: [UInt8] = []
@@ -344,6 +366,43 @@ final class UserNet: @unchecked Sendable {
                 device.send(ipFrame(protocol: 17, from: key.remote, transport: header, payload: UnsafeRawBufferPointer(rebasing: raw[..<n])))
             }
         }
+    }
+
+    // MARK: ICMP errors
+
+    /// Tells the guest that a flow's destination cannot be reached, as a router or the far host
+    /// would: an ICMP destination unreachable quoting the start of the guest's packet, which the
+    /// guest matches to the socket, so a connect fails with "network unreachable" or "no route
+    /// to host" at once, and a UDP client learns that nothing listens. False for errors that are
+    /// not about reaching the destination; the caller answers those itself.
+    @discardableResult
+    func unreachable(_ key: FlowKey, protocol proto: UInt8, error: Int32, quoting head: [UInt8]) -> Bool {
+        let v4 = key.remote.isV4
+        let codes: (v4: UInt8, v6: UInt8)
+        switch error {
+        case ENETUNREACH: codes = (0, 0)                         // network unreachable, no route
+        case EHOSTUNREACH, EHOSTDOWN, ETIMEDOUT: codes = (1, 3)  // host, address unreachable
+        case ECONNREFUSED where proto == 17: codes = (3, 4)      // port unreachable
+        case EACCES, EPERM: codes = (13, 1)                      // prohibited: a firewall on the Mac
+        default: return false
+        }
+        var m: [UInt8] = [v4 ? 3 : 1, v4 ? codes.v4 : codes.v6, 0, 0, 0, 0, 0, 0]
+        if v4 {
+            var ip: [UInt8] = [0x45, 0]
+            ip.be16(UInt16(20 + head.count)); ip.be16(0); ip.be16(0x4000)
+            ip.append(64); ip.append(proto); ip.be16(0); ip.be32(Self.guest.v4); ip.be32(key.remote.v4)
+            let sum = ip.withUnsafeBytes { checksum($0) }
+            ip[10] = UInt8(sum >> 8); ip[11] = UInt8(sum & 0xff)
+            m += ip
+        } else {
+            m.be32(0x6000_0000); m.be16(UInt16(head.count)); m.append(proto); m.append(64)
+            m += Self.guest6.bytes; m += key.remote.bytes
+        }
+        m += head
+        // A closed port answers from the far host; the rest comes from the gateway, as from a router.
+        let source = error == ECONNREFUSED ? key.remote : (v4 ? Self.gateway : Self.gateway6)
+        device.send(ipFrame(protocol: v4 ? 1 : 58, from: source, transport: m, payload: UnsafeRawBufferPointer(start: nil, count: 0)))
+        return true
     }
 
     // MARK: Timer

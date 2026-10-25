@@ -77,7 +77,18 @@ the agent):
   `IPPROTO_ICMP` or `IPPROTO_ICMPV6`), which keeps the identifier and sequence; the gateway
   answers its own. macOS fills in ICMPv6 checksums and hands back no IPv6 header; an ICMPv6
   socket also receives its own requests to the loopback, so only replies are passed on.
-- **Not handled**: IP fragments (the MTU makes them unnecessary), ICMP errors to the guest.
+- **ICMP errors to the guest**: when the host cannot reach a flow's destination, the guest gets
+  a destination unreachable quoting the start of its packet (`unreachable` in `UserNet.swift`),
+  as a router would send: a TCP connect the Mac fails with `ENETUNREACH`, `EHOSTUNREACH`,
+  `EHOSTDOWN` or `ETIMEDOUT` fails in the guest with "network unreachable" or "host
+  unreachable" (a refused one still gets a reset), `EACCES`/`EPERM` (a firewall on the Mac)
+  becomes "administratively prohibited", and a closed UDP port (the host socket's
+  `ECONNREFUSED`) comes back as port unreachable, so a connected UDP client fails at once
+  instead of waiting. Addresses the NAT does not carry (reserved, multicast, the guest's own
+  network) are host unreachable; the gateway's ports other than DNS are refused. Docker's NAT in
+  the guest relays these to containers (conntrack matches the quoted header).
+- **Not handled**: IP fragments (the MTU makes them unnecessary); time exceeded (traceroute
+  shows only the gateway) and packet too big (the host's sockets do path MTU themselves).
 
 The device:
 

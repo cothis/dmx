@@ -42,7 +42,9 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
   (`UserNet.swift`의 `IPAddress`, `ipFrame`). Mac에 경로가 없는 AAAA는 걸러요(`HostDNS.routable`).
   dockerd의 `ip6tables`를 더 이상 끄지 않아 `--ipv6` 네트워크가 NAT66으로 나가요. ULA라서
   듀얼스택 이름은 계속 IPv4가 먼저예요. 이 Mac에는 IPv6 기본 경로가 없어 인터넷 IPv6는 시험하지
-  못했어요(Mac의 `::1`, Tailscale ULA로 확인).
+  못했어요(Mac의 `::1`, Tailscale ULA로 확인). 이어서 게스트로 ICMP 오류(destination unreachable)를
+  전달해요(`UserNet.unreachable`): 연결 실패가 "connection refused" 대신 실제 사유로 보이고, 닫힌
+  UDP 포트는 바로 오류가 나요.
 - **마지막 검증**(0.2.1 릴리스, load 1.2–3.3): 단위 42/42, selftest 86 MB, daemontest 48/48,
   mcptest 30/30, x86test 16/16, dockertest 66/66, sandboxtest 41/41. GitHub에서 설치한 0.2.1
   selftest 96 MB.
@@ -73,6 +75,6 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
 
 ## 남은 작업
 
-PLAN.md의 Next up 순서를 따라요. 요약하면: 게스트로 ICMP 오류 전달, 조용한 Mac에서 엔진 비교 재측정,
+PLAN.md의 Next up 순서를 따라요. 요약하면: Mac 쪽 IPv6 포트 포워딩, 조용한 Mac에서 엔진 비교 재측정,
 커뮤니티 홍보(maintainer 결정), 한 번 본 게스트 커널 oops(재현 안 됨), 실제 회사망에서 Phase 11
 확인. 0.2.1 릴리스는 maintainer가 원할 때 release.md 절차로 내요.

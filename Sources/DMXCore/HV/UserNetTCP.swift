@@ -144,9 +144,8 @@ extension UserNet {
 
     private func open(_ key: FlowKey, seq: UInt32, options: UnsafeRawBufferPointer) {
         let flow = TCPFlow(key: key, irs: seq)
-        guard tcp.count < Self.maxTCP, let endpoint = endpoint(for: key.remote, port: key.remotePort) else {
-            return send(key, seq: 0, ack: seq &+ 1, flags: Self.rst | Self.ack, window: 0)
-        }
+        guard tcp.count < Self.maxTCP else { return send(key, seq: 0, ack: seq &+ 1, flags: Self.rst | Self.ack, window: 0) }
+        guard let endpoint = endpoint(for: key.remote, port: key.remotePort) else { return refuse(flow, error: nowhere(key.remote)) }
         // Options: MSS and window scale; SACK and timestamps are left off.
         var i = 0
         while i < options.count {
@@ -178,8 +177,7 @@ extension UserNet {
         if endpoint.withSockaddr({ Darwin.connect(fd, $0, $1) }) == 0 || errno == EINPROGRESS {
             flow.socket.writing = true  // fires once connected, or failed
         } else {
-            send(key, seq: 0, ack: seq &+ 1, flags: Self.rst | Self.ack, window: 0)
-            remove(flow, reset: false)
+            refuse(flow, error: errno)
         }
     }
 
@@ -218,12 +216,21 @@ extension UserNet {
         var error: Int32 = 0
         var length = socklen_t(MemoryLayout<Int32>.size)
         getsockopt(flow.socket.fd, SOL_SOCKET, SO_ERROR, &error, &length)
-        if error != 0 {
-            send(flow.key, seq: 0, ack: flow.rcvNext, flags: Self.rst | Self.ack, window: 0)
-            return remove(flow, reset: false)
-        }
+        if error != 0 { return refuse(flow, error: error) }
         flow.state = .synReceived
         sendSynAck(flow)
+    }
+
+    /// The host could not connect: an ICMP error when the destination could not be reached (the
+    /// guest's connect fails with "network unreachable" or "no route to host"), else a reset
+    /// ("connection refused").
+    private func refuse(_ flow: TCPFlow, error: Int32) {
+        var head: [UInt8] = []  // the start of the guest's SYN
+        head.be16(flow.key.guestPort); head.be16(flow.key.remotePort); head.be32(flow.irs)
+        if !unreachable(flow.key, protocol: 6, error: error, quoting: head) {
+            send(flow.key, seq: 0, ack: flow.rcvNext, flags: Self.rst | Self.ack, window: 0)
+        }
+        remove(flow, reset: false)
     }
 
     private func sendSynAck(_ flow: TCPFlow) {

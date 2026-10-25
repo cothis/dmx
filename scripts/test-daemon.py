@@ -437,6 +437,16 @@ try:
     r = dmx("exec", "--", "sh", "-c", f"printf hello | nc -u -w2 fd64:646d:7800::254 {echo.getsockname()[1]}")
     echo.close()
     check("udp_ipv6", r.stdout == b"olleh", repr(r.stdout + r.stderr))
+    # ICMP errors: a closed UDP port on the Mac comes back as port unreachable (counted by the
+    # guest's ICMP and ICMPv6 stacks; busybox nc does not report it), and a TCP connect to an
+    # address that leads nowhere fails with "host unreachable" rather than "connection refused".
+    r = dmx("exec", "--", "sh", "-c",
+            "u() { grep -A1 '^Icmp: ' /proc/net/snmp | awk 'NR==2{print $5}'; awk '/Icmp6InDestUnreachs/{print $2}' /proc/net/snmp6; }; "
+            "a=$(u); echo x | nc -u -w1 192.168.127.254 9; echo x | nc -u -w1 fd64:646d:7800::254 9; sleep 0.5; echo $a $(u); "
+            "wget -T 5 -q -O /dev/null http://240.0.0.1/")
+    counts = [int(x) for x in r.stdout.split()] if len(r.stdout.split()) == 4 else []
+    check("icmp_errors", bool(counts) and counts[2:] == [counts[0] + 1, counts[1] + 1], repr(r.stdout + r.stderr))
+    check("tcp_unreachable", b"Host is unreachable" in r.stderr, repr(r.stderr))
     r = dmx("exec", "--", "nslookup", "www.github.com", "192.168.127.1")
     check("dns_cname_chain", b"canonical name = github.com" in r.stdout and b"Name:\tgithub.com\nAddress: " in r.stdout, repr(r.stdout[-300:]))
 
