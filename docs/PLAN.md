@@ -465,8 +465,9 @@ Done when: on a Mac whose only way out is an HTTP proxy (no authentication) with
 
 For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md).
 
-v0.1.0 is published. Improvements go out as 0.1.x/0.2 releases (release.md, "Cutting a release";
-publishing still needs the maintainer's go-ahead). In order:
+v0.2.0 is published (signed and notarized). Changes since then (agent timeout, boot-time
+e2fsck, growing the data disk, DNS through macOS's resolver) are on main, unreleased: 0.2.1 when
+the maintainer wants it (release.md, "Cutting a release"). In order:
 
 1. Shared files (phase 6): Unix sockets, xattrs and stored ownership on virtio-fs.
 2. IPv6 in the guest network (phase 6).
