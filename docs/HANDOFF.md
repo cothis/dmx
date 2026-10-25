@@ -87,7 +87,7 @@ maintainer 확인 후에만 해요.
 - **성능(완료):** warm `docker run` 차이는 데이터 디스크 barrier flush 때문이에요. 전원 차단 안전을 위해 유지하기로 했어요(PLAN Decisions, benchmark.md).
 - **Phase 6 확장(다음):** 부팅 fsck부터, 그다음 디스크 확장, IPv6/split DNS, 공유 파일의 Unix socket/xattrs/소유권.
 - **비교 재측정:** 조용한 Mac에서 다시 측정하면 범위가 좁아져요.
-- **서명(완료):** Developer ID 인증서와 서명 전용 키체인이 `~/.dmx-signing`에 있고, `release.py`가 서명·공증해요(설정 `~/.dmx-signing/release.json`, 저장소 밖). 다음 릴리스가 첫 공증 릴리스예요.
+- **서명(완료):** Developer ID 인증서와 서명 전용 키체인이 `~/.dmx-signing`에 있고, `release.py`가 서명·공증해요(설정 `~/.dmx-signing/release.json`, 저장소 밖). v0.2.0이 첫 서명·공증 릴리스예요(2026-10-25 게시).
 - **지속 결정:** GitHub CI와 Homebrew 의존성은 추가하지 않아요. Phase 8 자체 런타임은 미착수예요.
 
 ## 근거와 코드 위치

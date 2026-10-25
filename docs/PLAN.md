@@ -409,6 +409,10 @@ BuildKit through dmx's Buildx; the deprecated legacy builder remains available t
       matches Colima (75–78 ms) but loses write ordering on a power cut; kept the barrier
       (maintainer). Found on the way: dockerd ran in the root cgroup, so every `--memory` warned
       "no swap limit support" and swap stayed unlimited; dockerd now has its own cgroup.
+- [x] Release [v0.2.0](https://github.com/cothis/dmx/releases/tag/v0.2.0) (2026-10-25): the first signed and
+      notarized one, with phase 11. Verified from GitHub: assets match SHA256SUMS, `curl … | sh`
+      installs a notarized 0.2.0, a fresh `DMX_HOME` fetched the v0.2.0 guest and passed the
+      selftest (91 MB).
 - [x] Developer ID signing and notarization (2026-10-25, applies from the next release): `release.py`
       signs a copy with "Developer ID Application: MINHO YUN (V4YA23448U)", hardened runtime and
       secure timestamp, and submits it to `notarytool`; settings live in `~/.dmx-signing/release.json`.
@@ -454,21 +458,19 @@ For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDO
 v0.1.0 is published. Improvements go out as 0.1.x/0.2 releases (release.md, "Cutting a release";
 publishing still needs the maintainer's go-ahead). In order:
 
-1. Release 0.2.0 (in progress, maintainer's go-ahead 2026-10-25 after the oops reproduction
-   came back clean): the first Developer ID signed and notarized release. Phase 11's acceptance
-   (a Mac whose only way out is an inspecting proxy) is met piecewise in tests, not yet on a real
-   corporate network.
-2. The guest kernel oops seen once (2026-10-25, Findings): `dmx-agent` reading a sysfs file hit a
+1. The guest kernel oops seen once (2026-10-25, Findings): `dmx-agent` reading a sysfs file hit a
    NULL `sysfs_ops` in `sysfs_kf_seq_show`; the agent hung and every later control call with it.
    Find the file (likely `page_reporting_order` during the idle sweep) and make the daemon notice
    a dead agent instead of waiting.
-3. Boot-time fsck of the data disk (phase 6): an unclean stop or a power cut should be repaired
+2. Boot-time fsck of the data disk (phase 6): an unclean stop or a power cut should be repaired
    before ext4 mounts, not found later. Then data disk resize.
-4. Other phase 6 extensions most likely to bite users: IPv6 and split DNS, Unix sockets/xattrs/
+3. Other phase 6 extensions most likely to bite users: IPv6 and split DNS, Unix sockets/xattrs/
    ownership on shared files.
-5. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
+4. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
    ~120 ms by choice (data disk barrier flushes, see Decisions).
-6. Community announcement (Show HN, Reddit, GeekNews) after phase 11 (maintainer, 2026-10-25).
+5. Community announcement (Show HN, Reddit, GeekNews): phase 11 is out in 0.2.0, so this waits only
+   on the maintainer's word (maintainer, 2026-10-25: after more improvements).
+6. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
 
 Phase 8 (own runtime) remains unstarted; Docker currently uses dockerd/containerd/runc. Storage,
 network and sharing extensions are explicitly tracked under phase 6. None is silently marked
@@ -640,3 +642,4 @@ complete by the finished acceptance suites.
 - 2026-10-25: dockerd reads the user's Docker Engine settings from `~/.docker/daemon.json` like Docker Desktop (mirrors, insecure registries, proxies), under dmx's own keys.
 - 2026-10-25: dockerd uses the Mac's proxy and its added root certificates; `dmx status` no longer hangs on a stuck agent; a dangling guest link no longer loops guest downloads. Developer ID certificate created and release.py signs and notarizes; the next release is the first notarized one.
 - 2026-10-25: Download mirrors as settings (`release_url`, `tools_url`) for company networks. Phase 11 done except a test on a real corporate network; next is the 0.2.0 release.
+- 2026-10-25: Released v0.2.0, the first Developer ID signed and notarized release, with the work-Mac features; installed and booted from GitHub as a user would.
