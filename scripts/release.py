@@ -8,8 +8,9 @@ the cache it used, and this checkout. Steps:
   2. Sources/DMXCore/GuestPin.swift: the archive's sha256 and the hash of each boot file, so the
      dmx binary verifies the guest it downloads against itself (GuestStore.swift).
   3. `make build`, then dmx-<version>-darwin-arm64.tar.gz (dmx, LICENSE, THIRD_PARTY.md).
-  4. <asset>.sha256 next to each archive, SHA256SUMS, install.sh with the version and the
-     binary's sha256 written in, the kernel config, and NOTES.md (release text and source offer).
+  4. dmx-sources-<version>.tar: the complete corresponding source of the guest (source_bundle).
+  5. <asset>.sha256 next to each archive, SHA256SUMS, install.sh with the version and the
+     binary's sha256 written in, the kernel config, and NOTES.md (release text).
 Nothing is uploaded, tagged or pushed: docs/release.md says how the maintainer publishes it.
 
 Only the Python standard library is used (plus cargo, for the agent's crate licenses).
@@ -26,6 +27,7 @@ import re
 import subprocess
 import sys
 import tarfile
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -90,6 +92,7 @@ def apk_info(path: Path) -> dict:
 
 def inventory(cache: Path, kernel_tar: Path) -> list:
     """Everything shipped in the guest with its license and where its source is."""
+    kernel_build.CACHE = cache  # its fetch() reads the build scripts' pinned inputs from here
     items = []
 
     def alpine(name, version, license, origin, commit, url, repo):
@@ -229,6 +232,115 @@ def deterministic_targz(path: Path, members: list):
     path.write_bytes(gzip.compress(buf.getvalue(), compresslevel=9, mtime=0))
 
 
+def download(url: str, path: Path, sha: str = None, algo: str = "sha256") -> Path:
+    """url to path unless it is there; checked against sha (hex, of `algo`) when given."""
+    if not path.exists():
+        print(f"download {url}", file=sys.stderr)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(path.name + ".part")
+        with urllib.request.urlopen(url, timeout=120) as r, open(tmp, "wb") as f:
+            while chunk := r.read(1 << 20):
+                f.write(chunk)
+        tmp.rename(path)
+    if sha:
+        h = hashlib.new(algo)
+        with open(path, "rb") as f:
+            while chunk := f.read(1 << 20):
+                h.update(chunk)
+        if h.hexdigest() != sha:
+            path.unlink()
+            sys.exit(f"{algo} mismatch for {path.name} from {url}")
+    return path
+
+
+def source_bundle(path: Path, items: list, cache: Path, store: Path, kernel_tar: Path, version: str):
+    """The complete corresponding source of the guest, as one uncompressed tar (its contents are
+    compressed already), so the release page itself carries it (GPL-2.0 section 3, last
+    paragraph). Each Alpine package: its aports directory at the commit it was built from plus
+    every upstream file the APKBUILD's sha512sums names, from Alpine's distfiles mirror and
+    checked against those sums; nothing from the APKBUILD is executed. Then dmx's kernel and
+    qemu-x86_64: upstream tarballs, patches, config and the build scripts that apply them."""
+    members = []  # (name in the tar, file on disk or bytes)
+    dirs = sorted({(i["aports_commit"], i["source"].split("/")[-2], i["origin"]) for i in items if "aports_commit" in i})
+    for commit, repo, origin in dirs:
+        archive = download(f"https://gitlab.alpinelinux.org/alpine/aports/-/archive/{commit}/aports-{commit}.tar.gz?path={repo}/{origin}",
+                           store / f"aports-{commit[:12]}-{repo}-{origin}.tar.gz")
+        prefix = f"aports-{commit}-{repo}-{origin}/{repo}/{origin}/"
+        local = {}
+        with tarfile.open(archive, "r:gz") as tar:
+            for m in tar.getmembers():
+                if m.isfile() and m.name.startswith(prefix) and "/" not in m.name[len(prefix):]:
+                    local[m.name[len(prefix):]] = tar.extractfile(m).read()
+        if "APKBUILD" not in local:
+            sys.exit(f"no APKBUILD in aports {commit} {repo}/{origin}")
+        sums = re.search(r'^sha512sums="(.*?)"', local["APKBUILD"].decode(), re.M | re.S)
+        for line in (sums.group(1).strip().splitlines() if sums else []):
+            digest, name = line.split(None, 1)
+            if name in local:
+                if hashlib.sha512(local[name]).hexdigest() != digest:
+                    sys.exit(f"aports {repo}/{origin}: {name} does not match its sha512sums entry")
+                continue
+            local[name] = download(f"{ALPINE_DISTFILES}{urllib.parse.quote(name)}", store / "distfiles" / name, digest, "sha512")
+        members += [(f"alpine/{repo}/{origin}/{name}", data) for name, data in local.items()]
+        members.append((f"alpine/{repo}/{origin}/.aports-commit", f"{commit}\n".encode()))
+
+    release = guest.DMX_KERNEL_RELEASE
+    members.append((f"linux/{Path(kernel_build.SOURCE['url']).name}", kernel_build.fetch(kernel_build.SOURCE["url"], kernel_build.SOURCE["sha256"])))
+    members.append((f"linux/kernel-{release}.build.py", (ROOT / "scripts/build-kernel.py").read_bytes()))
+    with tarfile.open(kernel_tar) as tar:
+        members.append((f"linux/kernel-{release}.config", tar.extractfile("boot/config").read()))
+    members.append((f"qemu/{Path(qemu_build.SOURCE['url']).name}", kernel_build.fetch(qemu_build.SOURCE["url"], qemu_build.SOURCE["sha256"])))
+    for name, digest in qemu_build.ALPINE_PATCHES.items():
+        members.append((f"qemu/alpine-patches/{name}", kernel_build.fetch(f"{qemu_build.APORTS}/{name}", digest)))
+    members.append(("qemu/dmx-guest-base.patch", qemu_build.GUEST_BASE_PATCH.encode()))
+    members.append((f"qemu/{guest.DMX_QEMU}.build.py", (ROOT / "scripts/build-qemu.py").read_bytes()))
+    members.append(("README.md", f"""# Source of the dmx {version} guest
+
+The complete corresponding source of the programs in dmx-guest-{version}.tar.gz (see its
+THIRD_PARTY.md for licenses).
+
+- `alpine/<repo>/<package>/`: each Alpine Linux 3.24 package the guest ships, or whose static
+  libraries are linked into qemu-x86_64: the aports directory at the commit in `.aports-commit`
+  (APKBUILD, patches, configs) and the upstream files it names, checked against its sha512sums.
+  `abuild` rebuilds a package from such a directory.
+- `linux/`: the kernel.org source, the exact config, and `kernel-{release}.build.py`, which holds
+  the free-page-reporting patch and the build steps.
+- `qemu/`: the qemu.org source, Alpine's patches, dmx's guest-base patch, and
+  `{guest.DMX_QEMU}.build.py` with the configure line and build steps.
+
+dmx itself (dmx-agent, /init, the host program) is Apache-2.0; its source is the {REPO}
+repository at tag v{version}.
+""".encode()))
+
+    names = [n for n, _ in members]
+    if len(names) != len(set(names)):
+        sys.exit("duplicate names in the source bundle")
+    tmp = path.with_name(path.name + ".part")
+    with tarfile.open(tmp, "w", format=tarfile.PAX_FORMAT) as tar:
+        added = set()
+        for name, data in sorted(members, key=lambda m: m[0]):
+            name = f"dmx-sources-{version}/{name}"
+            parts = name.split("/")[:-1]
+            for i in range(1, len(parts) + 1):
+                d = "/".join(parts[:i])
+                if d not in added:
+                    added.add(d)
+                    ti = tarfile.TarInfo(d)
+                    ti.type, ti.mode, ti.mtime = tarfile.DIRTYPE, 0o755, 0
+                    tar.addfile(ti)
+            ti = tarfile.TarInfo(name)
+            ti.mode, ti.mtime = 0o644, 0
+            if isinstance(data, Path):
+                ti.size = data.stat().st_size
+                with open(data, "rb") as f:
+                    tar.addfile(ti, f)
+            else:
+                ti.size = len(data)
+                tar.addfile(ti, io.BytesIO(data))
+    tmp.rename(path)
+    return {"name": path.name, "bytes": path.stat().st_size, "packages": len(dirs)}
+
+
 def write_pin(tag: str, archive: str, data: bytes, files: dict) -> bool:
     """Writes GuestPin.swift; returns whether it changed."""
     entries = "\n".join(f'            "{name}": "{digest}",' for name, digest in sorted(files.items()))
@@ -263,7 +375,8 @@ def main():
     ap.add_argument("--version", required=True, help="e.g. 0.1.0; must match `version` in Sources/dmx/DMX.swift")
     ap.add_argument("--out", type=Path, help="default .build/dist/v<version>")
     ap.add_argument("--guest", type=Path, default=home / "guest", help="what `make guest` wrote")
-    ap.add_argument("--cache", type=Path, default=home / "cache", help="the cache `make guest` used (read only)")
+    ap.add_argument("--cache", type=Path, default=home / "cache",
+                    help="the cache `make guest` used; its inputs are only read, sources download to <cache>/release-sources")
     ap.add_argument("--no-build", action="store_true", help="package .build/release/dmx as it is")
     args = ap.parse_args()
 
@@ -295,7 +408,7 @@ def main():
         f"budget patch in kernel-{guest.DMX_KERNEL_RELEASE}.build.py and the config in this release. "
         f"qemu-x86_64 is qemu.org source with Alpine's patches and a guest-base patch, built by "
         f"{guest.DMX_QEMU}.build.py, which pins every input. "
-        f"Source is also available on request for three years: see NOTES.md of the release.",
+        f"The complete corresponding source of all of it is dmx-sources-{args.version}.tar on the same release page.",
         items)
 
     # 1. The guest archive.
@@ -306,6 +419,11 @@ def main():
     archive = out / archive_name
     deterministic_targz(archive, members)
     archive_sha = write_sha256(archive)
+
+    # The guest's source, next to it on the release page.
+    sources = source_bundle(out / f"dmx-sources-{args.version}.tar", items, args.cache, args.cache / "release-sources",
+                            kernel_tar, args.version)
+    write_sha256(out / sources["name"])
 
     # 2. The pin, then 3. the binary that carries it.
     pin_changed = write_pin(tag, archive_name, archive.read_bytes(), {name: sha256(data) for name, data, _ in members if name in BOOT_FILES})
@@ -343,7 +461,7 @@ def main():
     print(json.dumps({"ok": True, "out": str(out), "tag": tag, "pin_changed": pin_changed,
                       "guest": {"name": archive_name, "bytes": archive.stat().st_size, "sha256": archive_sha},
                       "binary": {"name": binary_name, "bytes": (out / binary_name).stat().st_size, "sha256": binary_sha},
-                      "licenses": sorted(texts), "packages": len(items)}))
+                      "sources": sources, "licenses": sorted(texts), "packages": len(items)}))
     if pin_changed:
         print(f"GuestPin.swift changed: commit it (and the version) before tagging {tag}, so the tag builds this binary",
               file=sys.stderr)
@@ -370,20 +488,18 @@ into dmx; `dmx guest fetch` does it ahead of time.
 - `kernel-{guest.DMX_KERNEL_RELEASE}.config`: the configuration the guest kernel was built with
 - `kernel-{guest.DMX_KERNEL_RELEASE}.build.py`: pinned inputs and the exact kernel source patch
 - `{guest.DMX_QEMU}.build.py`: pinned inputs, patches and configure line of qemu-x86_64
+- `dmx-sources-{version}.tar`: the complete corresponding source of everything in the guest
 - `third-party.json`: every package in the guest and the binary, with license and source
 - `SHA256SUMS`, `*.sha256`: checksums
 
 ## Source code
 
 dmx is Apache-2.0; its source is this tag. The guest contains programs under the GPL and LGPL,
-among them {", ".join(gpl)}. The Alpine Linux 3.24 packages are unmodified
-(corresponding source: the Alpine aports directory at the commit listed in THIRD_PARTY.md and the
-upstream files it names). The kernel uses kernel.org Linux source with the reporting-budget
-patch in the build script and the config above. qemu-x86_64 uses qemu.org source with Alpine's
-patches and the guest-base patch in its build script above.
-For three years from this release, the maintainer provides the complete corresponding source of
-these programs on request (open an issue at {REPO}/issues), for no more than the cost of
-distribution.
+among them {", ".join(gpl)}. Their complete corresponding source is
+`dmx-sources-{version}.tar` on this page: for each Alpine Linux 3.24 package (unmodified) the
+aports directory at the commit it was built from and the upstream files it names; the kernel.org
+Linux source with dmx's reporting-budget patch, config and build script; the qemu.org source with
+Alpine's patches, dmx's guest-base patch and build script.
 """
 
 

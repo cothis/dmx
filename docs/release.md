@@ -77,7 +77,8 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
 | `kernel-<release>.build.py` | the build recipe, pinned inputs and exact reporting-budget source patch |
 | `qemu-x86_64-<version>.build.py` | qemu-x86_64's recipe: pinned source, Alpine patches, guest-base patch, configure line |
 | `third-party.json` | every package in the guest and the binary: version, license, upstream, source |
-| `NOTES.md` | release text: install line, assets, source offer |
+| `dmx-sources-<version>.tar` (+ `.sha256`) | the complete corresponding source of the guest (README inside) |
+| `NOTES.md` | release text: install line, assets, where the source is |
 | `SHA256SUMS` | all of the above |
 
 Both archives are byte-identical for the same inputs (fixed order, owner and mtime), so the pin
@@ -117,48 +118,34 @@ still carries obligations. What `release.py` does for them:
     its modified source must be included when delivering the corresponding kernel source.
 
   Pointing at Alpine's and kernel.org's servers is not enough on its own: the distributor must
-  make sure the source stays available as long as it offers the binaries. `NOTES.md` therefore
-  carries a written offer (3b). The alternative is to attach the sources to each release (3a; about
-  300 MB: kernel ~150 MB, QEMU ~130 MB, the rest small), which ends the obligation with the upload.
-  Choosing between the two is the maintainer's decision; see below.
+  make sure the source stays available as long as it offers the binaries. So every release
+  attaches `dmx-sources-<version>.tar` (3a; 467 MiB for v0.1.0: kernel 148 MiB, QEMU 135 MiB,
+  GCC 96 MiB, the rest small). `release.py` builds it without running anything from aports:
+  each package's aports directory at its commit, plus every upstream file named in the
+  APKBUILD's `sha512sums`, fetched from Alpine's distfiles mirror and checked against those
+  sums; then the kernel and QEMU tarballs, patches, config and build scripts. The tar is
+  byte-identical for the same inputs; downloads are cached in `<cache>/release-sources`.
 - **Notices.** MIT and BSD licenses ask that the copyright notice travel with binaries. The SPDX
   texts carry placeholders, not each project's copyright line; those lines are in each package's
-  source. Attaching sources covers this; otherwise `THIRD_PARTY.md` should grow the copyright lines.
+  source, which the attached bundle carries.
 
-## Decisions before the first public release
+## Decisions (maintainer, 2026-10-25)
 
-- **Version and tag scheme**: `v0.1.0` and SemVer are assumed; the guest archive is named after the
-  dmx version and republished with each release (62 MB), even when unchanged.
-- **Source offer or attached sources** for the GPL/LGPL programs (above).
-- **Signing**: binaries are ad-hoc signed. `curl` does not quarantine files, so `install.sh` works;
-  a tarball downloaded in a browser is quarantined and Gatekeeper refuses the binary until
-  `xattr -d com.apple.quarantine dmx`. Developer ID signing and notarization remove that and need a
-  paid Apple Developer account; the hypervisor entitlement is allowed with Developer ID and the
-  hardened runtime.
+- **Version and tag scheme:** `v0.1.0`, SemVer, an ordinary GitHub release (not a draft). 0.x
+  already says "early"; `install.sh` pins its own version. The guest archive carries the dmx
+  version in its name and is re-uploaded with each release (62 MB), even when unchanged.
+- **GPL source: attached (3a), no written offer.** `dmx-sources-<version>.tar` on the same release
+  page counts as "equivalent access to copy the source code from the same place" (GPL-2.0
+  section 3), so the obligation ends with the upload and nobody has to answer source requests
+  for three years. It also carries the copyright notices MIT and BSD ask for. Attached to every
+  release, whether or not the guest changed, so each release page is complete on its own.
+- **Signing:** v0.1.0 is ad-hoc signed. The supported install is `curl … | sh`, which does not
+  quarantine, so Gatekeeper is not involved; a tarball downloaded in a browser needs
+  `xattr -d com.apple.quarantine dmx`. Developer ID signing and notarization (a paid Apple
+  Developer account in the maintainer's name; the hypervisor entitlement is allowed with the
+  hardened runtime) come when there is a browser or GUI download to support.
+- **Name:** "dmx", described as Docker-compatible. No name containing "Docker" (Docker, Inc.'s
+  trademark guidelines forbid names implying affiliation, and "Docker for Mac" was its own
+  product); README carries the trademark notice.
 - **CI**: none, by choice (2026-10-24). Hosted macOS runners could build and run `swift test`, but
   not the VM tests.
-
-## Recommendation (2026-10-25)
-
-Waiting for the maintainer's approval; nothing has been tagged or published.
-
-- **Version:** `v0.1.0`, SemVer, an ordinary GitHub release (not a draft). 0.x already says
-  "early"; `install.sh` pins its own version, so "latest" pointing at it costs nothing. The guest
-  archive keeps the dmx version in its name and is re-uploaded with each release.
-- **GPL source: attach it (3a), don't rely on the written offer (3b).** A `dmx-sources-<version>.tar`
-  (~300 MB: the kernel.org and qemu.org tarballs, the aports directories and distfiles of every
-  shipped Alpine package, dmx's patches and recipes) on the same release page counts as
-  "equivalent access from the same place". That ends the obligation with the upload, avoids a
-  three-year personal promise to answer source requests, and carries the copyright notices the
-  MIT/BSD texts need. The kernel and qemu-x86_64 are now modified builds, so pointing at Alpine
-  alone is not enough for them anyway. GitHub allows 2 GiB per asset; re-attach only when the
-  guest changes and link the earlier bundle otherwise. Needs a `release.py` step (not written yet).
-- **Signing: ship v0.1.0 ad-hoc signed.** The supported install is `curl … | sh`, which does not
-  quarantine, so Gatekeeper is not involved; README tells browser downloaders the `xattr` step.
-  Developer ID and notarization need a paid Apple account in the maintainer's name ($99/year);
-  get it when there is a browser or GUI download to support.
-- **Name and wording:** keep "dmx". Never "Docker for Mac" or any name containing "Docker":
-  Docker, Inc.'s trademark guidelines forbid names implying affiliation, and Docker for Mac was
-  its own product. Describe it as Docker-compatible; README carries the trademark notice.
-- **Before tagging:** replace README's "no public release yet", run the local-server dry run in
-  "Cutting a release", and quote the benchmark numbers only with their caveats (load 2–6).

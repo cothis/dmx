@@ -47,6 +47,7 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | The VMM is Swift, in DMXCore (2026-10-23) | One language and one binary for all host code; Hypervisor.framework is a C API Swift calls directly. Maintainer's choice over a Rust VMM process. |
 | macOS 15 or later (2026-10-23) | Hypervisor.framework has an in-kernel GICv3 (`hv_gic_create`) from macOS 15, so dmx does not emulate an interrupt controller. |
 | x86_64 images through QEMU user mode + binfmt, not Rosetta (2026-10-23) | Rosetta for Linux exists only inside Virtualization.framework. Most images are multi-arch; emulation is a fallback. |
+| First release choices (maintainer, 2026-10-25) | `v0.1.0`, SemVer, an ordinary GitHub release; GPL source attached to every release as `dmx-sources-<version>.tar` (3a) instead of a three-year written offer; ad-hoc signing while `curl \| sh` is the supported install (Developer ID later); the name stays "dmx", described as Docker-compatible, with a trademark notice. See [release.md](release.md#decisions-maintainer-2026-10-25). |
 | dmx builds its own qemu-x86_64 with a 2^47 guest base (2026-10-25) | Upstream QEMU gives a 64-bit guest any host address; on the 48-bit aarch64 guest kernel that includes addresses above x86-64's 47-bit user space, and jemalloc (Redis) crashed. A default in the binfmt interpreter covers run, exec, fork and chroots; an environment variable would leak into containers and a wrapper breaks binfmt's `F`/`O`/`C`. Same pinned source, Alpine patches and configure line, one small patch; `QEMU_GUEST_BASE` still overrides. |
 | One long lived VM, not one VM per container | One kernel's overhead instead of N. Revisit per-container VMs for sandboxes (phase 9). |
 | The daemon exits when idle; the CLI starts it if launchd does not (2026-10-24) | An idle dmx should cost nothing, not even a 4 MB daemon. `dmx install` is optional: without it `dmx exec` still just works, which matters for agents. One daemon per `DMX_HOME`, enforced by a lock file. |
@@ -392,13 +393,13 @@ BuildKit through dmx's Buildx; the deprecated legacy builder remains available t
       idle 180 / 528 / 1097 / 1176 MB (dmx / OrbStack / Colima / Docker Desktop); after freeing
       2 GiB dmx and OrbStack return within seconds, the VZ engines keep it. Provisional until a
       quiet-Mac rerun. dmx's warm `docker run` (118 ms) trails Colima (73) and Docker Desktop (99).
-- [ ] First public release. Before it: versioning (SemVer `v0.1.0`?), GPL source (written offer
-      vs attaching ~300 MB of sources), Developer ID signing (browser downloads are quarantined).
-- [ ] Guest artifacts published as GitHub Releases, downloaded and verified by `dmx`, so users do not need Python.
-      They contain GPL software (kernel, busybox, qemu-x86_64 "GPL-2.0-only AND LGPL-2.1-only"):
-      ship license texts and the corresponding source or a written offer (kernel and qemu are
-      modified builds; their recipes `build-kernel.py`/`build-qemu.py` pin every input and patch).
-      dmx stays Apache-2.0: these run as separate programs in the guest.
+- [x] Release decisions (2026-10-25): `v0.1.0`, attached sources, ad-hoc signing, name "dmx".
+      `release.py` builds `dmx-sources-<version>.tar` (467 MiB, byte-identical for the same
+      inputs): aports directories and sha512-checked distfiles of all 21 Alpine source packages,
+      kernel and QEMU tarballs, patches, config and recipes. No written offer.
+- [ ] First public release v0.1.0: binary, guest archive and source bundle on GitHub Releases,
+      downloaded and verified by `dmx`, so users need no Xcode, Python or Rust. dmx stays
+      Apache-2.0: the GPL programs run as separate programs in the guest.
 - [ ] Developer ID signing and notarization when distributing binaries (no Homebrew tap).
 
 ### Later, maybe
