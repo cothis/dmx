@@ -315,6 +315,10 @@ try:
     r = docker("buildx", "version")
     check("buildx_version", b" v0.38.1 " in r.stdout, f"{r.stdout!r} {r.stderr!r}")
 
+    # The user's Docker Engine settings, where Docker Desktop keeps them; dmx's own keys win.
+    (DOCKER_CONFIG / "daemon.json").write_text(json.dumps({"labels": ["dmx-test=engine-settings"],
+        "insecure-registries": ["registry.dmx-test.invalid:5000"], "hosts": ["tcp://0.0.0.0:2375"]}))
+
     # Docker's socket is there once a daemon runs; nothing of Docker runs in the guest yet.
     r = dmx("start", "--json")
     check("start", r.returncode == 0 and (HOME / "docker.sock").is_socket(), r.stderr)
@@ -327,6 +331,8 @@ try:
     results["first_docker_version_ms"] = ms
     check("docker_version", r.returncode == 0 and r.stdout.strip(), f"{r.stdout!r} {r.stderr!r}")
     results["server_version"] = r.stdout.decode().strip()
+    r = docker("info", "--format", "{{json .Labels}} {{json .RegistryConfig.IndexConfigs}}")
+    check("engine_settings", b"dmx-test=engine-settings" in r.stdout and b"registry.dmx-test.invalid:5000" in r.stdout, f"{r.stdout!r} {r.stderr!r}")
     footprint("dockerd_idle")
 
     r, ms = timed(docker, "run", "--rm", "hello-world")
@@ -495,6 +501,12 @@ try:
     # Without launchd nothing else would answer on docker.sock, so the daemon stays (VM stopped).
     time.sleep(12)
     check("standalone_daemon_stays", daemon_pids() and (HOME / "docker.sock").is_socket(), daemon_pids())
+    # A broken daemon.json fails the Docker client with the file and a hint, not a dead dockerd.
+    settings = (DOCKER_CONFIG / "daemon.json").read_text()
+    (DOCKER_CONFIG / "daemon.json").write_text("{\"labels\": [")
+    r = docker("version")
+    check("engine_settings_invalid", r.returncode != 0 and b"daemon.json: it is not valid JSON" in r.stderr, r.stderr[-400:])
+    (DOCKER_CONFIG / "daemon.json").write_text(settings)
     r, ms = timed(docker, "run", "--rm", "hello-world")
     results["hello_world_cold_ms"] = ms
     check("hello_world_cold", b"Hello from Docker!" in r.stdout, r.stderr)

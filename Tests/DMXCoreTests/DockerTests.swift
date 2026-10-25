@@ -5,6 +5,34 @@ import Testing
 /// The host side of Docker support that needs no VM: the docker context, the launchd job,
 /// which published ports become forwards, and the names the gateway's DNS answers.
 @Suite struct DockerTests {
+    @Test func engineConfigKeepsUserSettingsUnderDmxKeys() throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory() + "dmx-daemon-json-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = DockerEngineConfig.file(configDir: dir)
+
+        // No file: dmx's keys alone.
+        let none = try DockerEngineConfig.build(userFile: file)
+        let bare = try JSONSerialization.jsonObject(with: Data(none.json.utf8)) as? [String: Any]
+        #expect(bare?["hosts"] as? [String] == ["unix:///var/run/docker.sock"])
+        #expect(bare?["shutdown-timeout"] as? Int == 5)
+        #expect(none.ignored.isEmpty)
+
+        try Data(#"{"registry-mirrors": ["https://mirror.example"], "hosts": ["tcp://0.0.0.0:2375"], "data-root": "/x", "builder": {"gc": {"enabled": true}}}"#.utf8).write(to: file)
+        let merged = try DockerEngineConfig.build(userFile: file)
+        let object = try JSONSerialization.jsonObject(with: Data(merged.json.utf8)) as? [String: Any]
+        #expect(object?["registry-mirrors"] as? [String] == ["https://mirror.example"])
+        #expect(object?["builder"] != nil)
+        #expect(object?["hosts"] as? [String] == ["unix:///var/run/docker.sock"])
+        #expect(object?["data-root"] == nil)
+        #expect(merged.ignored == ["data-root", "hosts"])
+
+        for bad in ["{\"registry-mirrors\": [", "[1, 2]"] {
+            try Data(bad.utf8).write(to: file)
+            #expect(throws: DMXError.self) { try DockerEngineConfig.build(userFile: file) }
+        }
+    }
+
     @Test func contextInstallAndUninstall() throws {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory() + "dmx-docker-config-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }

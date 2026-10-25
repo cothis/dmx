@@ -134,8 +134,8 @@ fn dispatch(method: &str, params: Value) -> Result<Value, Failure> {
         "reporting_order" => to_value(sys::reporting_order(params_of(params)?).map_err(io)?),
         "shrink_slabs" => to_value(sys::shrink_slabs().map_err(io)?),
         "time_sync" => to_value(sys::time_sync(params_of(params)?).map_err(io)?),
-        "docker_start" => to_value(docker::start(false).map_err(|e| ("docker_failed", e.to_string()))?),
-        "docker_autostart" => to_value(docker::start(true).map_err(|e| ("docker_failed", e.to_string()))?),
+        "docker_start" => to_value(docker::start(false, params_of(params)?).map_err(|e| ("docker_failed", e.to_string()))?),
+        "docker_autostart" => to_value(docker::start(true, params_of(params)?).map_err(|e| ("docker_failed", e.to_string()))?),
         _ => Err(("unknown_method", format!("unknown method {method:?}"))),
     }
 }

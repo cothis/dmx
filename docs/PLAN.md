@@ -419,9 +419,11 @@ mirrors, managed software policies, and an open-source review before adoption.
 - [x] README for users and reviewers (comparison, quick start, "Using dmx at work": licensing,
       what dmx contacts, data, security model, signing, known gaps, uninstalling), `SECURITY.md`
       with GitHub private vulnerability reporting (enabled 2026-10-25), repository topics.
-- [ ] dockerd settings of the user's own (`registry-mirrors`, `insecure-registries`, `proxies`,
-      ...) from a file in `DMX_HOME`, merged under dmx's required keys, as Docker Desktop's
-      Docker Engine settings.
+- [x] The user's Docker Engine settings (`registry-mirrors`, `insecure-registries`, `proxies`,
+      ...) from `~/.docker/daemon.json` (`$DOCKER_CONFIG`), where Docker Desktop keeps them,
+      merged under dmx's keys (`DockerEngineConfig.swift`) and passed with agent `docker_start`;
+      keys dmx owns are ignored with a log line, an invalid file fails the client with
+      `docker_config_invalid`. dockertest checks both.
 - [ ] HTTP(S) proxy: the Mac's system proxy (or `HTTPS_PROXY` given to dmx) used by dockerd for
       pulls, with a proxy on the Mac's loopback reached through the gateway address.
 - [ ] Certificates trusted in the macOS keychain (TLS inspection, internal registries) trusted by
@@ -445,8 +447,9 @@ For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDO
 v0.1.0 is published. Improvements go out as 0.1.x/0.2 releases (release.md, "Cutting a release";
 publishing still needs the maintainer's go-ahead). In order:
 
-1. Phase 11 (work Macs), in order: dockerd settings from `DMX_HOME`, the system proxy, keychain
-   certificates, a mirror for the tool downloads. Each needs a test that runs without a corporate
+1. Phase 11 (work Macs), in order: the system proxy (into dockerd's `proxies` unless
+   daemon.json sets them; a loopback proxy through 192.168.127.254), keychain certificates, a
+   mirror for the tool downloads. Each needs a test that runs without a corporate
    network (a local proxy and a local registry with its own CA).
 2. Boot-time fsck of the data disk (phase 6): an unclean stop or a power cut should be repaired
    before ext4 mounts, not found later. Then data disk resize.
@@ -569,6 +572,7 @@ complete by the finished acceptance suites.
 | 2026-10-25 | Engine comparison, 2 CPUs/4 GiB, three alternating rounds, load 2.4–6.4 | Median idle: dmx 180, OrbStack 528, Colima 1097, Docker Desktop 1176 MB. Holding 2 GiB: 2373 / 2621 / 3172 / 3373 MB. 10 s after freeing: 332 / 618 / 3180 / 3362 MB; dmx back in 5.9 s, OrbStack 4.2 s; Docker Desktop fell to 365 MB only when Resource Saver stopped its VM (2–5 min), Colima still 3394 MB at 6 min. Warm `docker run` 118 / 123 / 73 / 99 ms; SHA-256 of 256 MiB 954 / 1469 / 912 / 1739 ms ([raw](measurements/2026-10-25-engine-comparison.json)). Engines installed temporarily and removed. |
 | 2026-10-25 | Warm `docker run` profile, 2 CPUs/4 GiB, load 3–8 | Create 35–38 ms, start 48–54, exit to `wait` reply ~16; proxy/vsock round trips ~0.3 ms; WFI cap 100 µs or 20 ms: no change. ~80 guest flushes per run + rm (containerd meta.db 24 fdatasyncs, dockerd local-kv.db 14, snapshotter metadata.db 12, ~11 files). Host flush: `F_BARRIERFSYNC` ~0.35 ms, `fsync` 15 µs, `F_FULLFSYNC` 3.7 ms; guest fsync of 4 KB 2.1 ms vs 0.46 ms with flushes skipped. Medians, three alternating rounds: barrier 122–137 ms, early answer + barrier 115–130, plain fsync 75–78, no flush 69. Barrier kept ([benchmark.md](benchmark.md#warm-docker-run-profile-2026-10-25)). |
 | 2026-10-25 | dockerd in its own cgroup | `--memory 256m` now sets `memory.swap.max` 256 MB (was `max`, with the "no swap limit support" warning); `docker info` SwapLimit true. Warm `docker run` at load ~17, dockerd/containerd moved between cgroups live, three rounds: 200–218 vs 210–231 ms in the root (no cost). Idle after a container and 45 s: 144–154 MB vs 145 before (single runs). dockertest 58/58 (dockerd idle 289 MB, one container 266), daemontest 41/41, sandboxtest 41/41, selftest ok (92 MB). |
+| 2026-10-25 | User daemon.json | Labels and an insecure registry from `$DOCKER_CONFIG/daemon.json` show in `docker info`; its `hosts` is ignored; a truncated file fails `docker version` with the path and hint. dockertest 60/60 at load ~12 (idle without Docker 75 MB, dockerd idle 270, one container 252), sandboxtest 41/41, selftest 22/22 checks ok, unit tests 34/34. |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 
 ## Progress log
@@ -619,3 +623,4 @@ complete by the finished acceptance suites.
 - 2026-10-25: Released v0.1.0 on GitHub (binary, guest, 467 MiB source bundle); installed and booted from GitHub as a user would.
 - 2026-10-25: Profiled warm `docker run`: the gap to Colima is data disk barrier flushes; plain fsync would close it but risks the disk on a power cut, so the barrier stays (maintainer). dockerd now runs in its own cgroup, so `--memory` limits swap without a warning. Next: boot-time fsck.
 - 2026-10-25: Phase 11 (work Macs) started: README rewritten for users and company reviewers, SECURITY.md and private vulnerability reporting, repository topics. Maintainer: announce to communities after more improvements.
+- 2026-10-25: dockerd reads the user's Docker Engine settings from `~/.docker/daemon.json` like Docker Desktop (mirrors, insecure registries, proxies), under dmx's own keys.

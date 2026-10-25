@@ -112,9 +112,13 @@ install script is not affected by Gatekeeper; a tarball downloaded with a browse
 `xattr -d com.apple.quarantine dmx`. Managed Macs that allow only notarized software cannot run
 dmx yet.
 
-**Known gaps** that matter on company networks: dockerd does not yet use an HTTP(S) proxy set on
-the Mac, and does not trust certificates added to the macOS keychain (TLS inspection), so image
-pulls behind either fail today. Also missing: IPv6, split DNS, data disk resizing and boot-time
+**Docker Engine settings** such as registry mirrors, insecure registries and an HTTP(S) proxy go
+in `~/.docker/daemon.json`, as with Docker Desktop, and apply at the VM's next start (`dmx stop`).
+A proxy listening on the Mac's own loopback is reached from the VM as `host.docker.internal`.
+
+**Known gaps** that matter on company networks: dockerd does not yet pick up the Mac's system
+proxy by itself, and does not trust certificates added to the macOS keychain (TLS inspection), so
+image pulls through an inspecting proxy fail today. Also missing: IPv6, split DNS, data disk resizing and boot-time
 fsck. Progress is tracked in [docs/PLAN.md](docs/PLAN.md#next-up).
 
 **Uninstalling.**

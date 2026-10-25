@@ -108,6 +108,14 @@ docker CLI ──▶ ~/.dmx/docker.sock ──▶ dmx daemon ──vsock──�
   (without the move) was not enough: `docker exec` enters a container's mount namespace with
   `setns`, which roots the process at the topmost mount on the namespace's `/`; with nothing
   mounted there, exec'd processes landed in the guest's initramfs instead of the container.
+- **Your settings.** `daemon.json` in the docker config directory (`~/.docker/daemon.json`, or
+  under `$DOCKER_CONFIG`), where Docker Desktop keeps its Docker Engine settings: registry
+  mirrors, insecure registries, proxies, labels, BuildKit's `builder` options and anything else
+  dockerd reads. The daemon merges it under dmx's keys when dockerd starts, once per boot, so
+  `dmx stop` applies a change. Keys dmx sets itself (`hosts`, `host-gateway-ips`, `ip6tables`,
+  `shutdown-timeout`, `data-root`, `exec-root`, `pidfile`, `containerd`) are ignored, with a line
+  in the daemon's log. A file that is not a JSON object fails the Docker client with
+  `docker_config_invalid` and the file's path; a key dockerd rejects shows in dockerd's log.
 - **Configuration** (`/run/dmx/daemon.json`): `host-gateway-ips` 192.168.127.254 (the Mac, so
   `--add-host x:host-gateway` works as on Docker Desktop), `ip6tables` false (the guest network
   has no IPv6), `shutdown-timeout` 5 s (the host powers the guest off within 10 s; the agent

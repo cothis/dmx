@@ -52,9 +52,11 @@ for m in nf_tables nft_compat nft_chain_nat; do
 done
 
 mkdir -p /run/dmx "$lib/log" /etc/ssl /var/folders
-# host-gateway (`--add-host x:host-gateway`) is the host, as host.docker.internal is. No IPv6:
-# the guest network has none. A short shutdown timeout fits the host's 10 s power-off limit.
-cat >/run/dmx/daemon.json <<EOF
+# The agent writes daemon.json as the host built it (DockerEngineConfig.swift: the user's
+# ~/.docker/daemon.json under dmx's keys). Without one, dmx's keys alone: host-gateway
+# (`--add-host x:host-gateway`) is the host, no IPv6 (the guest network has none), and a short
+# shutdown timeout for the host's 10 s power-off limit.
+[ -f /run/dmx/daemon.json ] || cat >/run/dmx/daemon.json <<EOF
 {
 	"hosts": ["unix:///var/run/docker.sock"],
 	"host-gateway-ips": ["192.168.127.254"],

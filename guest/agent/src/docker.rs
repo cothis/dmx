@@ -3,9 +3,11 @@
 //! runs before that, so a VM that never sees a Docker client does not pay for it, unless a
 //! container would come back by its restart policy: the host asks at boot (`docker_autostart`).
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::io::{self, Read};
+use std::fs::OpenOptions;
+use std::io::{self, Read, Write};
+use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::net::UnixStream;
 use std::os::unix::process::CommandExt;
 use std::process::{Command, Stdio};
@@ -15,6 +17,7 @@ use std::time::{Duration, Instant};
 const SCRIPT: &str = "/sbin/dmx-docker";
 pub const SOCKET: &str = "/var/run/docker.sock";
 const PIDFILE: &str = "/var/run/docker.pid";
+const CONFIG: &str = "/run/dmx/daemon.json";
 const LOG: &str = "/var/lib/dmx/log/dockerd.log";
 const CONTAINERS: &str = "/var/lib/docker/containers";
 /// The first start unpacks Docker onto the data disk; a loaded host slows everything down.
@@ -32,9 +35,17 @@ pub struct Started {
     pub restartable: Option<usize>,
 }
 
+#[derive(Deserialize)]
+pub struct StartParams {
+    /// dockerd's daemon.json as the host built it: the user's Docker Engine settings under dmx's
+    /// own keys. Without it the script writes dmx's keys alone.
+    #[serde(default)]
+    config: Option<String>,
+}
+
 /// Starts dockerd unless it answers; with `only_restartable`, only if a container would come
 /// back by its restart policy. Concurrent calls wait for the one start.
-pub fn start(only_restartable: bool) -> io::Result<Started> {
+pub fn start(only_restartable: bool, params: StartParams) -> io::Result<Started> {
     static LOCK: Mutex<()> = Mutex::new(());
     let _held = LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let begun = Instant::now();
@@ -48,6 +59,12 @@ pub fn start(only_restartable: bool) -> io::Result<Started> {
             return Ok(Started { started: false, ms: begun.elapsed().as_millis() as u64, running: false, restartable: Some(0) });
         }
         restartable = Some(n);
+    }
+    if let Some(config) = &params.config {
+        std::fs::create_dir_all("/run/dmx")?;
+        // Proxy settings may carry credentials.
+        let mut file = OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(CONFIG)?;
+        file.write_all(config.as_bytes())?;
     }
     let mut cmd = Command::new(SCRIPT);
     cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped());

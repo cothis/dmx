@@ -268,6 +268,18 @@ final class DockerBridge {
             starting = Task { @MainActor in
                 defer { if epoch == self.epoch { starting = nil } }
                 let begun = ContinuousClock.now
+                let config: (json: String, ignored: [String])
+                do {
+                    config = try DockerEngineConfig.build(userFile: DockerEngineConfig.file())
+                } catch let error as DMXError where onlyRestartable {
+                    // The first client gets the error.
+                    log("docker: at boot: \(error.message)")
+                    return
+                }
+                if !config.ignored.isEmpty {
+                    log("docker: \(DockerEngineConfig.file().path): ignoring \(config.ignored.joined(separator: ", ")), which dmx sets")
+                }
+                struct StartParams: Encodable, Sendable { let config: String }
                 // Its own connection: the first start may take seconds, and the control connection
                 // serves the memory controller meanwhile.
                 let connection = try await agent.open()
@@ -275,7 +287,7 @@ final class DockerBridge {
                 struct Started: Decodable { let started: Bool; let running: Bool?; let restartable: Int? }
                 let result: Started
                 do {
-                    result = try await connection.call(onlyRestartable ? "docker_autostart" : "docker_start", NoParams())
+                    result = try await connection.call(onlyRestartable ? "docker_autostart" : "docker_start", StartParams(config: config.json))
                 } catch let error as DMXError where onlyRestartable {
                     // A client waiting on this start starts dockerd itself; an older guest has
                     // no `docker_autostart` and keeps Docker for its first client.
