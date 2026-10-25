@@ -411,6 +411,29 @@ BuildKit through dmx's Buildx; the deprecated legacy builder remains available t
       "no swap limit support" and swap stayed unlimited; dockerd now has its own cgroup.
 - [ ] Developer ID signing and notarization when distributing binaries (no Homebrew tap).
 
+### Phase 11: Work Macs
+
+Company Macs differ from personal ones: proxies, TLS inspection, internal registries and
+mirrors, managed software policies, and an open-source review before adoption.
+
+- [x] README for users and reviewers (comparison, quick start, "Using dmx at work": licensing,
+      what dmx contacts, data, security model, signing, known gaps, uninstalling), `SECURITY.md`
+      with GitHub private vulnerability reporting (enabled 2026-10-25), repository topics.
+- [ ] dockerd settings of the user's own (`registry-mirrors`, `insecure-registries`, `proxies`,
+      ...) from a file in `DMX_HOME`, merged under dmx's required keys, as Docker Desktop's
+      Docker Engine settings.
+- [ ] HTTP(S) proxy: the Mac's system proxy (or `HTTPS_PROXY` given to dmx) used by dockerd for
+      pulls, with a proxy on the Mac's loopback reached through the gateway address.
+- [ ] Certificates trusted in the macOS keychain (TLS inspection, internal registries) trusted by
+      dockerd and BuildKit in the guest, as Docker Desktop does.
+- [ ] Mirrors for dmx's own downloads: the docker CLI tools as well as the guest
+      (`DMX_RELEASE_URL` covers only the guest).
+- [ ] Developer ID signing and notarization (phase 10 task; the maintainer's Apple account), so
+      managed Macs that allow only notarized software can run dmx.
+
+Done when: on a Mac whose only way out is an HTTP proxy (no authentication) with TLS inspection,
+`docker pull` and `docker build` work after `dmx install`, with no file edited by hand.
+
 ### Later, maybe
 
 - macOS-native mode without a VM: sandbox profiles + APFS clones to isolate macOS programs (cannot run Linux images; weaker isolation).
@@ -422,14 +445,18 @@ For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDO
 v0.1.0 is published. Improvements go out as 0.1.x/0.2 releases (release.md, "Cutting a release";
 publishing still needs the maintainer's go-ahead). In order:
 
-1. Boot-time fsck of the data disk (phase 6): an unclean stop or a power cut should be repaired
+1. Phase 11 (work Macs), in order: dockerd settings from `DMX_HOME`, the system proxy, keychain
+   certificates, a mirror for the tool downloads. Each needs a test that runs without a corporate
+   network (a local proxy and a local registry with its own CA).
+2. Boot-time fsck of the data disk (phase 6): an unclean stop or a power cut should be repaired
    before ext4 mounts, not found later. Then data disk resize.
-2. Other phase 6 extensions most likely to bite users: IPv6 and split DNS, Unix sockets/xattrs/
+3. Other phase 6 extensions most likely to bite users: IPv6 and split DNS, Unix sockets/xattrs/
    ownership on shared files.
-3. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
+4. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
    ~120 ms by choice (data disk barrier flushes, see Decisions).
-4. Developer ID signing and notarization once a browser or GUI download needs it (paid Apple
-   account in the maintainer's name).
+5. Developer ID signing and notarization once a managed Mac, a browser or a GUI download needs it
+   (paid Apple account in the maintainer's name).
+6. Community announcement (Show HN, Reddit, GeekNews) after phase 11 (maintainer, 2026-10-25).
 
 Phase 8 (own runtime) remains unstarted; Docker currently uses dockerd/containerd/runc. Storage,
 network and sharing extensions are explicitly tracked under phase 6. None is silently marked
@@ -591,3 +618,4 @@ complete by the finished acceptance suites.
 - 2026-10-25: Cross-engine comparison against Docker Desktop, OrbStack and Colima (installed briefly, then removed); dmx lowest at idle and under load and returns memory within seconds. README gained a Docker trademark notice. Release recommendation written for the maintainer.
 - 2026-10-25: Released v0.1.0 on GitHub (binary, guest, 467 MiB source bundle); installed and booted from GitHub as a user would.
 - 2026-10-25: Profiled warm `docker run`: the gap to Colima is data disk barrier flushes; plain fsync would close it but risks the disk on a power cut, so the barrier stays (maintainer). dockerd now runs in its own cgroup, so `--memory` limits swap without a warning. Next: boot-time fsck.
+- 2026-10-25: Phase 11 (work Macs) started: README rewritten for users and company reviewers, SECURITY.md and private vulnerability reporting, repository topics. Maintainer: announce to communities after more improvements.

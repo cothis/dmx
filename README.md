@@ -1,129 +1,160 @@
 # dmx
 
-A container engine for macOS that stays out of your memory, built to be driven by AI agents as easily as by people.
+A Docker-compatible container engine for Apple Silicon Macs that gives memory back, built to be
+driven by AI agents as easily as by people.
 
-> Early development (0.x). `dmx` runs Docker, Compose and BuildKit in its own Linux VM on Hypervisor.framework, with storage, networking and host file sharing. An on-demand daemon boots the VM and stops it when idle. Memory the guest frees goes back to macOS within seconds, and virtio-mem adds RAM as needed. Agents can use MCP tools and disposable sandboxes with checkpoints, resource limits and TTLs.
+> Early development (0.x). dmx runs dockerd, Compose and BuildKit in its own small Linux VM on
+> Hypervisor.framework. The VM starts on first use, stops when idle, and returns memory the guest
+> frees within seconds.
 
-## Why
+| Same Mac, 2 CPUs / 4 GiB VM | dmx | OrbStack | Colima | Docker Desktop |
+|---|---|---|---|---|
+| Idle | **180 MB** | 528 MB | 1097 MB | 1176 MB |
+| While a container holds 2 GiB | 2373 MB | 2621 MB | 3172 MB | 3373 MB |
+| 10 s after it frees the 2 GiB | **332 MB** | 618 MB | 3180 MB | 3362 MB |
+| Warm `docker run --rm alpine true` | 118 ms | 123 ms | 73 ms | 99 ms |
 
-Linux containers need a Linux kernel, so every container tool on macOS runs a VM. CPU inside that VM is close to native on Apple Silicon. Memory is where it hurts: most VMs grow to their limit and never give memory back. dmx aims for:
+Medians of three rounds on a moderately busy Mac; whole engine, VM included. Method, raw data
+and caveats: [docs/benchmark.md](docs/benchmark.md#results-2026-10-25). dmx's `docker run` is
+slower than Colima's because dmx keeps write ordering on the data disk across a power cut
+([why](docs/benchmark.md#warm-docker-run-profile-2026-10-25)).
 
-- **Memory that comes back.** A memory balloon returns pages the guest no longer uses, the guest itself is tiny, and the VM stops entirely when nothing is running.
-- **Docker compatible.** A Docker Engine API socket, so the `docker` CLI and Compose keep working.
-- **AI native.** Every command has `--json` output and structured errors with a hint for the next step. `dmx mcp` serves the same core to AI clients over MCP.
+## Why dmx
 
-## Status
+- **Memory that comes back.** Most engines grow their VM to its limit and keep it. dmx's own VMM
+  returns freed guest pages to macOS, adds RAM to the guest only as it needs it, trims caches when
+  idle, and powers the VM off after 5 minutes with nothing running (the daemon then exits).
+- **Docker compatible.** The stock `docker` CLI, Compose and BuildKit against a Docker Engine API
+  socket; published ports, bind mounts of Mac paths, `host.docker.internal`, restart policies and
+  amd64 images (through QEMU) work as on Docker Desktop. dmx installs pinned copies of the CLI
+  tools, so neither Homebrew nor Docker Desktop is needed.
+- **AI native.** Every command has `--json` and structured errors with a hint naming the next
+  command; nothing prompts. `dmx mcp` gives AI clients the engine itself over MCP, with capped
+  output, and disposable sandboxes with a network and file policy, resource limits, a TTL, and
+  checkpoints to roll back to or fork from.
 
-See [docs/PLAN.md](docs/PLAN.md) for the detailed plan.
+## Quick start
 
-| Phase | | |
-|---|---|---|
-| 1 | Boot a Linux VM with Virtualization.framework, debug console | done |
-| 2 | Guest agent (Rust) and vsock control channel | done |
-| 3 | Own VMM on Hypervisor.framework, so freed guest memory goes back to macOS | done |
-| 4 | Memory: footprint tracking, smaller baseline, memory controller, on-demand RAM | done |
-| 5 | Daemon, launchd socket activation, idle stop | done |
-| 6 | Data disk, networking, port forwarding, file sharing | done; extensions remain |
-| 7 | Docker compatibility (dockerd in the guest first) | done; image workloads and remaining emulation limits in [compatibility](docs/compatibility.md) |
-| 8 | Own runtime, replacing dockerd piece by piece | not started |
-| 9 | `dmx mcp`, sandboxes, checkpoints and logs | done |
-| 10 | Release: install script, guest downloads verified by dmx | v0.1.0 |
-
-Measured on an M-series Mac (10 cores, 16 GB): the current 4K guest costs about 78 MB at idle with 2 vCPUs / a 4G ceiling, and about 89–90 MB with 10 vCPUs / an 8G ceiling. The whole dmx process is counted, guest RAM included; Docker adds memory after it starts. The guest boots with 1 GB and hotplugs more as needed, so unused ceiling RAM has no memmap cost. The first Virtualization.framework build cost 170 MB at 2G and 356 MB at 8G. With the VM stopped the daemon costs about 4 MB, and an idle daemon exits. Free page reporting returns data pages within seconds; spare hotplug RAM is removed after 5 seconds of surplus. Under host pressure dmx also trims caches and uses a balloon for memory that cannot be removed. Against Docker Desktop, OrbStack and Colima at the same 2 CPUs / 4 GiB, dmx used 180 MB at idle (528, 1097 and 1176 MB) and gave back a freed 2 GiB within seconds, as only OrbStack also did; this ran on a moderately busy Mac, see [the comparison](docs/benchmark.md#results-2026-10-25) and [the dated measurements](docs/PLAN.md#findings-and-measurements).
-
-The guest uses 4K pages for x86 shared mappings, guard pages and partial `msync`; virtio-mem keeps unused ceiling RAM free. amd64 images run through dmx's own qemu-x86_64 build; nine popular images pass real workloads on both architectures ([the image matrix](docs/compatibility.md)). Gaps include IPv6 and split DNS, data disk resizing and boot-time fsck, and extended file-sharing metadata. See [Next up](docs/PLAN.md#next-up) for release validation and the remaining runtime work.
-
-## Install
-
-Releases need no Xcode, Python, Rust or Homebrew: one script installs `dmx` into `~/.local/bin`
-(no sudo), and dmx downloads its Linux guest on first use, checked against the sha256 built into
-the binary. A tarball downloaded with a browser is quarantined: the binary is not yet signed with
-a Developer ID, so run `xattr -d com.apple.quarantine dmx` on it, or use the script.
+Requires macOS 15 or later on Apple Silicon.
 
 ```sh
 curl -fsSL https://github.com/cothis/dmx/releases/download/v0.1.0/install.sh | sh
-dmx install            # optional: launchd starts dmx on demand; adds a docker context
-dmx guest fetch        # optional: download the guest now instead of on the first boot
+dmx install                      # launchd starts dmx on demand; installs docker, compose, buildx
+                                 # and selects the docker context "dmx"
+docker run --rm hello-world      # the first run downloads the Linux guest (~62 MB, sha256-checked)
 ```
 
-See [docs/release.md](docs/release.md) for what a release contains and how one is cut.
+The script installs `dmx` into `~/.local/bin` without sudo. `dmx install` is optional: without it,
+`dmx exec` and `dmx start` start the daemon themselves.
 
-## Build
+```sh
+dmx status                       # VM state, guest memory, host footprint (--json for scripts)
+dmx exec -- uname -a             # run a command in the VM, booting it if needed
+dmx shell                        # interactive shell in the VM
+dmx stop                         # power off now instead of waiting for the idle timeout
+dmx config set memory 8G         # also: cpus, idle_timeout, disk_size, shares; next boot
+dmx port add 8080:80             # forward a host port to the VM (Docker's -p needs no command)
+dmx doctor                       # check this Mac and the installation
+```
 
-Requires macOS 15+ on Apple Silicon, Xcode (Swift 6), Python 3, and Rust via rustup with the
-guest target: `rustup target add aarch64-unknown-linux-musl` (it links with the bundled `rust-lld`).
+### From an AI agent
+
+```sh
+claude mcp add dmx -- dmx mcp    # or any MCP client: the command is `dmx mcp` on stdio
+```
+
+The agent gets `dmx_exec`, `dmx_status`, `dmx_sandbox_create/exec/checkpoint/rollback/fork/rm`
+and `dmx_logs`. A sandbox starts with no network and no host files; it gets only what it is
+granted:
+
+```sh
+dmx sandbox create build --mount ~/src/app:/src --network dl-cdn.alpinelinux.org --ttl 1h
+dmx sandbox exec build -- apk add --no-cache make gcc musl-dev
+dmx sandbox checkpoint build tools
+dmx sandbox exec build -- make -C /src     # /src is read-only unless granted
+dmx sandbox rollback build                 # back to "tools"
+```
+
+See [docs/mcp.md](docs/mcp.md) and [docs/sandbox.md](docs/sandbox.md).
+
+## Using dmx at work
+
+**Licensing.** dmx is Apache-2.0: free for commercial use, modification and internal
+redistribution, with a patent grant. It does not use Docker Desktop, so Docker Desktop's
+subscription terms for larger companies do not apply; the docker CLI, Compose, Buildx, dockerd,
+containerd and runc it uses are Apache-2.0 open source. The Linux guest also contains GPL programs
+(the Linux kernel, QEMU, BusyBox, iptables and others), which run as separate programs in the VM;
+using them carries no obligation, and every release attaches their complete source
+(`dmx-sources-<version>.tar`) for anyone who redistributes dmx. `third-party.json` in each release
+lists every component and its license. Docker Hub's own terms and pull limits still apply to
+images pulled from it, whatever engine pulls them.
+
+**What dmx contacts.** Only GitHub Releases (the guest, unless `DMX_RELEASE_URL` points at a
+mirror), and `download.docker.com` and GitHub for the docker CLI tools. No telemetry. Containers
+and image pulls reach the network through dmx's own host sockets, so the Mac's VPN, firewall and
+routing apply to them as to any app.
+
+**Where data lives.** Everything is under `~/.dmx` (`DMX_HOME` to change): the guest, the
+settings, and the data disk `data.img` (a sparse file, 64 GB at most by default, holding images,
+containers and volumes).
+
+**Security model.** Defaults follow Docker Desktop. `/Users`, `/Volumes`, `/private`, `/tmp` and
+`/var/folders` are shared read-write with the VM at the same paths (`dmx config set shares` to
+narrow them); the Mac user maps to root in the guest. `~/.dmx/docker.sock` is readable only by the
+user. `dmx port` forwards bind 127.0.0.1 unless told otherwise; Docker's published ports follow
+their bindings (`-p 8080:80` listens on all interfaces, as on Docker Desktop). Containers and
+sandboxes share one VM and its kernel: their isolation is Docker's, not a VM per sandbox, and
+sandboxes with a host allowlist can still resolve any DNS name. Report vulnerabilities as
+described in [SECURITY.md](SECURITY.md).
+
+**Signing.** Releases are ad-hoc signed, not yet signed with a Developer ID or notarized. The
+install script is not affected by Gatekeeper; a tarball downloaded with a browser needs
+`xattr -d com.apple.quarantine dmx`. Managed Macs that allow only notarized software cannot run
+dmx yet.
+
+**Known gaps** that matter on company networks: dockerd does not yet use an HTTP(S) proxy set on
+the Mac, and does not trust certificates added to the macOS keychain (TLS inspection), so image
+pulls behind either fail today. Also missing: IPv6, split DNS, data disk resizing and boot-time
+fsck. Progress is tracked in [docs/PLAN.md](docs/PLAN.md#next-up).
+
+**Uninstalling.**
+
+```sh
+dmx uninstall          # remove the launchd agent and the docker context; powers the VM off
+dmx tools uninstall    # remove dmx's docker, compose and buildx and their links
+rm -rf ~/.dmx ~/.local/bin/dmx    # the guest, settings, and all images, containers and volumes
+```
+
+## Build from source
+
+Requires Xcode (Swift 6), Python 3, and Rust via rustup with the guest target
+(`rustup target add aarch64-unknown-linux-musl`; it links with the bundled `rust-lld`). Guest
+inputs are pinned by sha256.
 
 ```sh
 make build     # swift build + ad-hoc sign with the hypervisor entitlement
-make kernel    # build the trimmed 4K page guest kernel inside a dmx VM (once per kernel version)
-make qemu      # build the guest's qemu-x86_64 inside a dmx VM (under a minute, once per version)
-make guest     # fetch pinned Alpine Linux artifacts, build ~/.dmx/guest/{Image,initramfs.gz}
+make kernel    # build the guest kernel inside a dmx VM (once per kernel version)
+make qemu      # build the guest's qemu-x86_64 inside a dmx VM (once per version)
+make guest     # build ~/.dmx/guest from pinned Alpine Linux packages, the kernel and qemu
 make install   # copy dmx to ~/.local/bin (PREFIX=... to change)
-.build/release/dmx doctor
-.build/release/dmx boot --selftest --json
-make daemontest                  # the daemon end to end, in a throwaway DMX_HOME
-make mcptest                     # dmx mcp driven like an MCP client
-make dockertest                  # Docker, Compose and BuildKit, using dmx's bundled tools
-make sandboxtest                 # sandbox policies, checkpoints, logs and TTLs
-make x86test                     # x86_64 binaries through QEMU and binfmt_misc
-make imagetest                   # workloads in nine digest-pinned images, arm64 and amd64
-make benchmark                   # local measurements; comparison protocol in docs/benchmark.md
+make selftest  # boot, agent, memory return; then daemontest, dockertest, mcptest,
+               # sandboxtest, x86test, imagetest, benchmark (see the Makefile)
 ```
 
-## Use
-
-```sh
-dmx exec -- uname -a             # boots the VM (and the daemon) if needed; exits with the command's status
-dmx shell                        # interactive shell in the VM
-dmx status --json                # state, uptime, guest memory, host footprint
-dmx stop                         # power off now instead of waiting for the idle timeout
-dmx config set idle_timeout 10m  # also: cpus, memory (the ceiling, e.g. 8G), disk_size
-dmx install                      # optional: launchd starts the daemon on the first connection,
-                                 # and docker, docker compose and docker buildx are installed
-docker run --rm hello-world      # the docker context "dmx" points at ~/.dmx/docker.sock
-dmx boot                         # debugging: a VM in the foreground with its console, Ctrl-] powers off
-```
-
-### From an AI agent (MCP)
-
-`dmx mcp` is a stdio MCP server with VM and config tools, `dmx_exec`, `dmx_sandbox_*` for
-disposable environments and checkpoints, and `dmx_logs`. Command output is capped per stream (head and tail, 8 KiB
-by default) so a large log does not flood the agent's context. Register it with Claude Code:
-
-```sh
-claude mcp add dmx -- dmx mcp
-```
-
-See [docs/mcp.md](docs/mcp.md) for other clients and the tool reference.
-
-Docker needs no Homebrew and no Docker Desktop: dmx installs pinned, sha256-checked copies of the
-docker CLI and the Compose and Buildx plugins into `~/.dmx` (`dmx tools install`, also part of
-`dmx install`), links `docker` into `~/.local/bin` when that is on PATH, and `docker build` uses
-BuildKit. See [docs/docker.md](docs/docker.md).
-
-The VM stops after 5 minutes with nothing using it, and the daemon exits 10 s later.
-The guest's `/var/lib` is a data disk, `~/.dmx/data.img`: a sparse file of 64G (`disk_size`, set
-before the first boot) that takes only what the guest stores, and shrinks again when it deletes.
-State lives in `~/.dmx` (override with `DMX_HOME`). The control socket is described in
-[docs/daemon-protocol.md](docs/daemon-protocol.md).
+How it works and what has been measured: [docs/PLAN.md](docs/PLAN.md) (goal, decisions,
+phases, measurements), [docs/docker.md](docs/docker.md), [docs/network.md](docs/network.md),
+[docs/compatibility.md](docs/compatibility.md), [docs/release.md](docs/release.md).
 
 ## Layout
 
-- `Sources/DMXCore`: VM, console, doctor and selftest logic, shared by the CLI, daemon and MCP server
-- `Sources/DMXCore/Daemon`: the daemon, its client, exec through it, and the launchd agent
-- `Sources/DMXCore/MCP`: `dmx mcp`, the MCP server on stdio, and exec with capped output
-- `Sources/DMXCore/HV`: the VMM: vCPUs, device tree, GIC setup, PL011, virtio-mmio devices (console, rng, vsock, balloon with free page reporting, mem for on-demand RAM, blk for the data disk, net, fs)
-- `Sources/DMXCore/Sandbox`: sandbox policies, lifecycle, checkpoints, fork, rollback, TTL and logs
-- `Sources/dmx`: the command line
-- `guest/init`: PID 1 inside the VM
-- `guest/agent`: `dmx-agent`, the Rust guest agent on vsock ([protocol](docs/agent-protocol.md))
-- `scripts/build-kernel.py`: builds the guest kernel in a dmx VM from pinned, checksummed sources and toolchain
-- `scripts/build-qemu.py`: builds the guest's qemu-x86_64 in a dmx VM from pinned QEMU source, Alpine's patches and toolchain
-- `scripts/build-guest.py`: builds the guest from pinned, checksummed Alpine Linux packages and that kernel
-- `scripts/test-daemon.py`: end to end test of the daemon on the real VM (`make daemontest`)
-- `scripts/test-mcp.py`: `dmx mcp` driven over pipes on the real VM (`make mcptest`)
-- `scripts/release.py`, `scripts/install.sh`: a release directory (`make release`) and the script users install it with
-- `docs/PLAN.md`: full plan, decisions, progress and measurements
+- `Sources/DMXCore`: all logic, shared by the CLI, the daemon and the MCP server
+  - `HV`: the VMM on Hypervisor.framework: vCPUs, GIC, virtio devices (console, rng, vsock,
+    balloon with free page reporting, mem, blk, net with a user space NAT, fs)
+  - `Daemon`: the daemon, memory controller, port forwarding, Docker socket proxy, launchd
+  - `MCP`, `Sandbox`: `dmx mcp`, capped exec, sandbox policies and lifecycle
+- `Sources/dmx`: the command line (argument parsing and output only)
+- `guest/init`, `guest/agent`, `guest/docker`: PID 1, the Rust guest agent, Docker's start-up
+- `scripts/`: guest, kernel and qemu builds, release packaging, end-to-end tests on the real VM
 
 ## License
 
