@@ -190,6 +190,27 @@ VM stops.
 - **I1. 32-bit x86 images (`linux/386`).** FEX runs them; register `FEX-x86` too (FEX's own magic
   and mask), add a 386 case to x86test and the image matrix. QEMU users keep x86_64 only, or add
   qemu-i386 if it is cheap.
+  **Tried 2026-10-26, blocked on FEX.** The binfmt side works: `:FEX-x86:M::` with the 64-bit
+  mask, ELFCLASS32 and `EM_386` in the magic registers and matches, and `/init` can add it for
+  FEX only (qemu-x86_64 cannot run those programs, so with that emulator a 386 binary should fail
+  to exec instead). But no 32-bit program runs in this build: every one dies with
+  `E NoExec instruction in entry block: FFFFF000` and SIGSEGV, which is FEX starting at the page
+  its 32-bit allocator marks as taken, i.e. the program's ELF was never mapped. Same for a static
+  PIE (Alpine's `busybox-static` for x86 is ET_DYN, entry 0x1b44f) and for the dynamically linked
+  busybox of the x86 minirootfs in a chroot with `/proc` mounted, and unchanged by
+  `FEX_MAXINST=5000`, `FEX_MULTIBLOCK=0`, `FEX_SMCCHECKS=0`/`=2`, `FEX_TSOENABLED=0` and
+  `FEX_ROOTFS`. Next step is FEX's 32-bit loader path (`ELFCodeLoader::LoadElfFile` with
+  `ELFLoadHint = 2/3 of 2^32` and `MemAllocator32Bit`): find which mapping returns `MAP_FAILED`
+  and why, which needs a debug build or a printf in `FEX_PATCH`. The code changes were reverted so
+  main keeps a green x86test; the inputs are already pinned and checked, ready to use:
+  `alpine-minirootfs-3.24.3-x86.tar.gz`
+  sha256 `a73bd9ed20a5ed1503a0688957add539e10340c7ca1d9e8c06c34a76ddc5f715` and
+  `main/x86/busybox-static-1.37.0-r31.apk`
+  sha256 `26d45cc895b3fa99ba7500d0860c3934a363e74e464eeb5fc623f08147c33cfd`, whose apk signature
+  verifies with the x86 key in that minirootfs (RSA/SHA-1 over the control segment, whose
+  `datahash` covers the data segment). The image matrix also needs per-image platforms before a
+  `linux/386` case fits: `pin_images` requires every platform for every image, and most official
+  images publish no 386 manifest.
 - **I2. cephes license.** The THIRD_PARTY entry quotes FEX's "BSD licensed" note. Find the exact
   terms of the cephes files FEX vendors and record them precisely.
   **Done (2026-10-26).** Ten files are linked into dmx's FEX (the symbols are in the binary):
