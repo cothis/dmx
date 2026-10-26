@@ -1,4 +1,4 @@
-# 다음 세션 인계 — 2026-10-26 (v0.2.2 이후, FEX 기본화)
+# 다음 세션 인계 — 2026-10-26 (작업 지시서 완료, 0.3.0 대기)
 
 `이어서 진행해`라는 요청을 받으면 [PLAN.md](PLAN.md)의 **Next up**과 이 문서를 읽어요.
 대화 이력이나 `/tmp` 파일은 필요 없어요. 계획·결정·측정의 기준은 `PLAN.md`예요.
@@ -24,17 +24,20 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
   GitHub에서 받아 설치·부팅까지 확인했어요.
 - **main의 미배포 변경(v0.2.2 이후):**
   - idle CPU 수정(idle trim을 idle 구간마다 한 번, 1.4 → 0.57 %).
-  - x86_64 기본 에뮬레이터가 FEX-Emu(FEX-2610)예요. `make fex`(`scripts/build-fex.py`)가 고정된 소스와
-    Alpine clang으로 정적 musl PIE를 빌드해요. dmx 패치는 FEXServer 없이 실행하는 것과 glibc 가정 네 곳
-    (rwlock 재잠금, `PTHREAD_STACK_MIN`, 이중 detach, `getdents64`)이에요. 커널에는 Asahi의 TSO 패치 4개와,
-    ACTLR_EL1을 값이 바뀔 때만 쓰는 dmx 수정이 들어가요(VM에서는 접근마다 트랩돼서, 그대로 두면 문맥 전환이
-    4배 느려져요). VMM은 CPU_ON 때 ACTLR_EL1을 초기화해요. `dmx config set x86_emulator qemu`로 QEMU를 쓸 수
-    있어요(`dmx.x86=` 커널 인자). docker.img는 형식 3이고, 끝에 FEX와 qemu를 담은 xz tar가 붙어요. /init은
-    고른 에뮬레이터 하나만 `/var/lib/dmx/x86`에 풀어요.
-  - FEX에는 `/proc`가 필요해요(2^47 위 주소 예약). 맨 chroot에서는 높은 주소가 나와요. x86test는 chroot에
-    `/proc`를 마운트하고 두 에뮬레이터를 모두 돌려요.
-  - `release.py`가 FEX 소스·라이선스(BSL-1.0, 0BSD 추가)와 Asahi 패치를 패키징하지만, 아직 `make release`로
-    돌려 보지 않았어요.
+  - x86_64 기본 에뮬레이터가 FEX-Emu(`fex-2610-dmx4`)예요. `make fex`(`scripts/build-fex.py`)가 고정된 소스와
+    Alpine clang으로 정적 musl PIE를 빌드해요. dmx 패치는 (1) FEXServer 없이 실행, (2) glibc 가정 네 곳
+    (rwlock 재잠금, `PTHREAD_STACK_MIN`, 이중 detach, `getdents64`), (3) `AT_SECURE`면 호출자 설정을 무시
+    (setuid x86 프로그램 보안), (4) `/proc` 없을 때 `MAP_FIXED_NOREPLACE` 프로브로 2^47 위를 예약, (5) 번역 블록
+    상한 `MaxInst` 5000 → 150(node 시작 650 → 246 ms)이에요. 커널에는 Asahi의 TSO 패치 4개와 ACTLR_EL1을 값이
+    바뀔 때만 쓰는 dmx 수정이 들어가요. `dmx config set x86_emulator qemu`로 QEMU를 쓸 수 있어요. docker.img는 형식 3.
+  - `make release`가 FEX 도입 이후 깨져 있던 것(`source_bundle`의 `path` 섀도잉)을 고쳤어요. 0.3.0-rc 리허설로
+    확인(소스 묶음 496 MB, `fex/`·`linux/asahi-tso/`, 라이선스 15종)했고 결과물은 지웠어요.
+  - `benchmark.py`가 유휴 메모리를 35·50·65·80·95초에 재요(`idle_at_35s`, `idle_min`, `idle`). 예전의 "유휴가
+    ~100 MB 높게 읽히는" 현상은 트림 직전에 재던 것이었어요.
+  - THIRD_PARTY의 cephes 항목에 정확한 조건(파일 10개, Moshier 저작권, Netlib 조건, 저자의 BSD 허락)을 적었어요.
+- **작업 지시서([WORKORDER.md](WORKORDER.md))는 I1만 남았어요**: 32비트 x86(`linux/386`). binfmt 등록은 되지만
+  FEX가 32비트 ELF를 매핑하지 못해요(`NoExec instruction in entry block: FFFFF000`). 재현 방법, 고정·서명 확인한
+  32비트 Alpine 입력의 sha256, 다음 디버깅 지점이 I1 항목에 적혀 있어요. 개선 항목이라 0.3.0은 기다리지 않아요.
 - **v0.2.1 → v0.2.2 변경:**
   - 게스트 메모리 손상 수정: Mac이 스왑할 때 virtio-blk의 direct I/O(`F_NOCACHE`)가 게스트
     페이지에 직접 닿아 게스트 메모리가 0으로 보였어요(커널 oops, 파일 유실). 이제 virtio-blk는
@@ -50,12 +53,9 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
 - **v0.2.0 → v0.2.1 변경**(요약): 에이전트 control 호출 타임아웃, 부팅 시 e2fsck, 데이터 디스크
   온라인 확장, macOS 리졸버로 DNS, 공유 폴더의 Unix 소켓·`user.*` xattr·소유자 저장
   (`com.dmx.owner`), Mac SSH 에이전트(`/run/host-services/ssh-auth.sock`).
-- **마지막 검증**(0.2.2 릴리스, load 1.2–2.0): 단위 42/42, selftest 91 MB, daemontest 53/53,
-  mcptest 30/30, x86test 16/16, dockertest 69/69, sandboxtest 41/41, pressuretest 12/12.
-  GitHub에서 설치한 0.2.2 selftest 97 MB.
-- **main 검증**(2026-10-26, FEX·TSO 커널, load 1–6): 단위 테스트 통과, selftest 94 MB, daemontest 53/53,
-  x86test 36/36(FEX·QEMU 각각), dockertest 69/69, mcptest 30/30, sandboxtest 41/41, 이미지 매트릭스 18/18.
-  pressuretest는 돌리지 않았어요.
+- **마지막 검증**(2026-10-26, main, load 1–10): 단위 42/42, selftest 95–97 MB, daemontest 53/53, x86test 40/40,
+  dockertest 69/69, mcptest 30/30, sandboxtest 41/41, pressuretest 12/12, 이미지 매트릭스 amd64 9/9(node 0.76 s,
+  Temurin 2.08 s), 벤치마크 유휴 바닥 191–204 MB·정상상태 216–225 MB·유휴 CPU 0.44–0.53 %.
 - **릴리스 노트:** `release.py`가 만드는 NOTES.md에는 변경 요약이 없어요. 0.2.2는 "Changes since
   0.2.1" 절을 손으로 넣고 SHA256SUMS의 NOTES.md 줄을 다시 계산했어요.
 
@@ -85,10 +85,12 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
 
 ## 남은 작업
 
-버그와 회귀부터 고쳐요(maintainer, 2026-10-26). [WORKORDER.md](WORKORDER.md)를 위에서부터 진행해요:
-P0(setuid x86 프로그램에서 FEX가 `FEX_*` 환경 변수를 따르는지 확인, `/proc` 없을 때 2^47 위 주소,
-pressuretest·TSO hotplug·릴리스 리허설), P1(node 시작, FEX 메모리, TSO 전환 비용, 첫 부팅 압축 해제),
-P2(가끔 ~100 MB 높은 idle), 그다음 개선. 0.3.0 릴리스는 그 뒤예요(태그·게시는 maintainer 결정).
+작업 지시서는 I1(32비트 x86, FEX 쪽 막힘)만 남았어요. 그다음은 **0.3.0 릴리스**인데 maintainer 결정이 필요해요:
+
+1. 태그·게시 여부(`make release VERSION=0.3.0` → 서명·공증 → GitHub).
+2. NOTES.md의 "Changes since 0.2.2"는 손으로 써야 해요(0.2.2처럼; SHA256SUMS의 NOTES.md 줄 재계산).
+3. 공개된 유휴 수치(README·benchmark.md의 198 MB)는 35초 정의예요. 정상상태는 ~20 MB 높아서, 네 엔진 비교를
+   다시 돌릴지가 maintainer 결정이에요([PLAN.md](PLAN.md)의 O1 행).
 
 무거운 빌드·측정(make kernel, make fex, 이미지 매트릭스, 데몬 VM 안 컨테이너 빌드)은 동시에 돌리지 않아요.
 두 VM이 코어를 나눠 쓰면 둘 다 몇 배 느려지고 측정값도 못 믿어요(커널 315초 → 3110초). 실험 컨테이너는
