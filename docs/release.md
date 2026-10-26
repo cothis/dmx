@@ -7,7 +7,7 @@ maintainer's Mac by `make release`; nothing is uploaded by a script.
 ## What a user gets
 
 ```sh
-curl -fsSL https://github.com/cothis/dmx/releases/download/v0.1.0/install.sh | sh
+curl -fsSL https://github.com/cothis/dmx/releases/download/v0.3.0/install.sh | sh
 dmx install            # optional: launchd and the docker context
 dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks it
 ```
@@ -59,7 +59,9 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
    PREFIX=$(mktemp -d) sh .build/dist/v0.1.0/install.sh             # installs from the tarball
    ```
 
-6. Tag and publish (the only steps that make anything public):
+6. Point README's install line at the new tag (`releases/download/v<version>/install.sh`): it is
+   the first thing a reader copies, and nothing generates it. Commit it with the release.
+7. Tag and publish (the only steps that make anything public):
 
    ```sh
    git tag -a v0.1.0 -m "dmx 0.1.0" && git push origin main v0.1.0
