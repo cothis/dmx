@@ -1,0 +1,6526 @@
+{
+ "what": "dmx 0.3.0 against OrbStack, Colima and Docker Desktop on one quiet Mac (macOS 26.6.1, M4, 10 cores, 16 GB), one engine at a time, three rounds in alternating order, 2 CPUs and a 4 GiB ceiling each, no host shares. Idle memory is sampled at 35, 50, 65, 80 and 95 s after the image pull, so each engine is read both at the 35 s mark every earlier comparison used and at its steady state.",
+ "engines": {
+  "dmx": "v0.3.0 (c563567), Docker 29.9.2",
+  "colima": "Colima 0.10.3 + Lima 2.2.1 (vz, --mount none), Docker 29.5.2",
+  "orbstack": "OrbStack 2.2.5 (21124), Docker 29.8.2, headless (orbctl start); setup.use_admin and docker.set_context off",
+  "docker-desktop": "Docker Desktop 4.96.3 (244472), Docker 29.9.2, Apple Virtualization framework, Resource Saver left on (its default); EnableDefaultDockerSocket, RequireVmnetd and EnablePrivilegedPorts off and CLI tools in ~/.docker/bin, which avoids password prompts and does not change memory reclamation"
+ },
+ "installers": {
+  "Docker.dmg": "a3ac78b7de67af169ca58f33a4fa4c26007840870574c80c59a7ab0c7f68d954",
+  "OrbStack_v2.2.5_21124_arm64.dmg": "f2b887d26a21e0a12147eb005297782794b26f461f77c6b9cdfb57f576ad5e6d",
+  "note": "the same files as the 2026-10-26 comparison, by sha256; Colima from Homebrew"
+ },
+ "runs": [
+  {
+   "ok": true,
+   "engine": "dmx",
+   "at": "2026-10-26T10:51:30.875741+00:00",
+   "host": {
+    "macos": "26.6.1",
+    "arch": "arm64",
+    "cores": 10
+   },
+   "host_load_start": [
+    1.458984375,
+    3.9501953125,
+    3.40576171875
+   ],
+   "host_pressure_start": 1,
+   "mach_timebase": {
+    "numer": 125,
+    "denom": 3
+   },
+   "cpu_reader_check": {
+    "getrusage_s": 0.050003000000000006,
+    "reader_s": 0.050016875
+   },
+   "settings": {
+    "cpus": 2,
+    "ceiling_mb": 4096,
+    "container_cpus": 2,
+    "shares": "none"
+   },
+   "vm_start_ms": 349,
+   "before_docker": {
+    "footprint_mb": 86.64,
+    "cpu_s": 0.33071358333333334,
+    "processes": [
+     {
+      "pid": 79436,
+      "footprint_mb": 86.64,
+      "cpu_s": 0.33071358333333334
+     }
+    ]
+   },
+   "docker_versions": "29.9.2 / 29.9.2",
+   "first_docker_ms": 1273,
+   "process_commands": {
+    "79436": "/Users/cothis/dockermax/.build/out/Products/Release/dmx"
+   },
+   "docker_info": {
+    "ServerVersion": "29.9.2",
+    "KernelVersion": "6.18.58-dmx-4k",
+    "NCPU": 2,
+    "MemTotal": 1305063424,
+    "Architecture": "aarch64",
+    "Driver": "overlayfs"
+   },
+   "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+   "idle_samples": [
+    {
+     "at_s": 35,
+     "footprint_mb": 194.99,
+     "cpu_s": 2.5726220833333335,
+     "processes": [
+      {
+       "pid": 79436,
+       "footprint_mb": 194.99,
+       "cpu_s": 2.5726220833333335
+      }
+     ]
+    },
+    {
+     "at_s": 50,
+     "footprint_mb": 207.55,
+     "cpu_s": 2.652359375,
+     "processes": [
+      {
+       "pid": 79436,
+       "footprint_mb": 207.55,
+       "cpu_s": 2.652359375
+      }
+     ]
+    },
+    {
+     "at_s": 65,
+     "footprint_mb": 223.08,
+     "cpu_s": 2.7390508333333337,
+     "processes": [
+      {
+       "pid": 79436,
+       "footprint_mb": 223.08,
+       "cpu_s": 2.7390508333333337
+      }
+     ]
+    },
+    {
+     "at_s": 80,
+     "footprint_mb": 222.63,
+     "cpu_s": 2.8017384166666663,
+     "processes": [
+      {
+       "pid": 79436,
+       "footprint_mb": 222.63,
+       "cpu_s": 2.8017384166666663
+      }
+     ]
+    },
+    {
+     "at_s": 95,
+     "footprint_mb": 222.56,
+     "cpu_s": 2.8607763333333334,
+     "processes": [
+      {
+       "pid": 79436,
+       "footprint_mb": 222.56,
+       "cpu_s": 2.8607763333333334
+      }
+     ]
+    }
+   ],
+   "idle_at_35s": {
+    "at_s": 35,
+    "footprint_mb": 194.99,
+    "cpu_s": 2.5726220833333335,
+    "processes": [
+     {
+      "pid": 79436,
+      "footprint_mb": 194.99,
+      "cpu_s": 2.5726220833333335
+     }
+    ]
+   },
+   "idle_min": {
+    "at_s": 35,
+    "footprint_mb": 194.99,
+    "cpu_s": 2.5726220833333335,
+    "processes": [
+     {
+      "pid": 79436,
+      "footprint_mb": 194.99,
+      "cpu_s": 2.5726220833333335
+     }
+    ]
+   },
+   "idle": {
+    "at_s": 95,
+    "footprint_mb": 222.56,
+    "cpu_s": 2.8607763333333334,
+    "processes": [
+     {
+      "pid": 79436,
+      "footprint_mb": 222.56,
+      "cpu_s": 2.8607763333333334
+     }
+    ]
+   },
+   "idle_cpu_percent_of_one_core": 0.396,
+   "run_true_ms": {
+    "samples": [
+     206.22,
+     103.91,
+     99.43,
+     105.71,
+     99.0
+    ],
+    "median": 103.91
+   },
+   "sha256_256m_ms": 864,
+   "holding_2g": {
+    "footprint_mb": 2390.75,
+    "cpu_s": 5.21681375,
+    "processes": [
+     {
+      "pid": 79436,
+      "footprint_mb": 2390.75,
+      "cpu_s": 5.21681375
+     }
+    ]
+   },
+   "return_after_2g": {
+    "baseline_mb": 293.31,
+    "after": {
+     "footprint_mb": 355.89,
+     "cpu_s": 5.61037925,
+     "processes": [
+      {
+       "pid": 79436,
+       "footprint_mb": 355.89,
+       "cpu_s": 5.61037925
+      }
+     ]
+    },
+    "elapsed_s": 5.18
+   },
+   "peak_2g_footprint_mb": 2397.52,
+   "host_load_end": [
+    1.2294921875,
+    3.080078125,
+    3.12890625
+   ],
+   "host_pressure_end": 1
+  },
+  {
+   "ok": true,
+   "engine": "dmx",
+   "at": "2026-10-26T11:14:19.544623+00:00",
+   "host": {
+    "macos": "26.6.1",
+    "arch": "arm64",
+    "cores": 10
+   },
+   "host_load_start": [
+    0.9990234375,
+    1.2216796875,
+    1.68310546875
+   ],
+   "host_pressure_start": 1,
+   "mach_timebase": {
+    "numer": 125,
+    "denom": 3
+   },
+   "cpu_reader_check": {
+    "getrusage_s": 0.05000399999999999,
+    "reader_s": 0.05001708333333334
+   },
+   "settings": {
+    "cpus": 2,
+    "ceiling_mb": 4096,
+    "container_cpus": 2,
+    "shares": "none"
+   },
+   "vm_start_ms": 328,
+   "before_docker": {
+    "footprint_mb": 88.03,
+    "cpu_s": 0.3327259583333333,
+    "processes": [
+     {
+      "pid": 81589,
+      "footprint_mb": 88.03,
+      "cpu_s": 0.3327259583333333
+     }
+    ]
+   },
+   "docker_versions": "29.9.2 / 29.9.2",
+   "first_docker_ms": 1299,
+   "process_commands": {
+    "81589": "/Users/cothis/dockermax/.build/out/Products/Release/dmx"
+   },
+   "docker_info": {
+    "ServerVersion": "29.9.2",
+    "KernelVersion": "6.18.58-dmx-4k",
+    "NCPU": 2,
+    "MemTotal": 1439281152,
+    "Architecture": "aarch64",
+    "Driver": "overlayfs"
+   },
+   "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+   "idle_samples": [
+    {
+     "at_s": 35,
+     "footprint_mb": 193.99,
+     "cpu_s": 2.5666307916666664,
+     "processes": [
+      {
+       "pid": 81589,
+       "footprint_mb": 193.99,
+       "cpu_s": 2.5666307916666664
+      }
+     ]
+    },
+    {
+     "at_s": 50,
+     "footprint_mb": 202.45,
+     "cpu_s": 2.6435523333333335,
+     "processes": [
+      {
+       "pid": 81589,
+       "footprint_mb": 202.45,
+       "cpu_s": 2.6435523333333335
+      }
+     ]
+    },
+    {
+     "at_s": 65,
+     "footprint_mb": 222.47,
+     "cpu_s": 2.7266224583333334,
+     "processes": [
+      {
+       "pid": 81589,
+       "footprint_mb": 222.47,
+       "cpu_s": 2.7266224583333334
+      }
+     ]
+    },
+    {
+     "at_s": 80,
+     "footprint_mb": 221.89,
+     "cpu_s": 2.785943125,
+     "processes": [
+      {
+       "pid": 81589,
+       "footprint_mb": 221.89,
+       "cpu_s": 2.785943125
+      }
+     ]
+    },
+    {
+     "at_s": 95,
+     "footprint_mb": 221.99,
+     "cpu_s": 2.8443988333333334,
+     "processes": [
+      {
+       "pid": 81589,
+       "footprint_mb": 221.99,
+       "cpu_s": 2.8443988333333334
+      }
+     ]
+    }
+   ],
+   "idle_at_35s": {
+    "at_s": 35,
+    "footprint_mb": 193.99,
+    "cpu_s": 2.5666307916666664,
+    "processes": [
+     {
+      "pid": 81589,
+      "footprint_mb": 193.99,
+      "cpu_s": 2.5666307916666664
+     }
+    ]
+   },
+   "idle_min": {
+    "at_s": 35,
+    "footprint_mb": 193.99,
+    "cpu_s": 2.5666307916666664,
+    "processes": [
+     {
+      "pid": 81589,
+      "footprint_mb": 193.99,
+      "cpu_s": 2.5666307916666664
+     }
+    ]
+   },
+   "idle": {
+    "at_s": 95,
+    "footprint_mb": 221.99,
+    "cpu_s": 2.8443988333333334,
+    "processes": [
+     {
+      "pid": 81589,
+      "footprint_mb": 221.99,
+      "cpu_s": 2.8443988333333334
+     }
+    ]
+   },
+   "idle_cpu_percent_of_one_core": 0.391,
+   "run_true_ms": {
+    "samples": [
+     206.15,
+     103.96,
+     97.85,
+     95.93,
+     95.64
+    ],
+    "median": 97.85
+   },
+   "sha256_256m_ms": 847,
+   "holding_2g": {
+    "footprint_mb": 2389.78,
+    "cpu_s": 5.161458125,
+    "processes": [
+     {
+      "pid": 81589,
+      "footprint_mb": 2389.78,
+      "cpu_s": 5.161458125
+     }
+    ]
+   },
+   "return_after_2g": {
+    "baseline_mb": 297.34,
+    "after": {
+     "footprint_mb": 358.38,
+     "cpu_s": 5.352105125,
+     "processes": [
+      {
+       "pid": 81589,
+       "footprint_mb": 358.38,
+       "cpu_s": 5.352105125
+      }
+     ]
+    },
+    "elapsed_s": 1.95
+   },
+   "peak_2g_footprint_mb": 2396.94,
+   "host_load_end": [
+    1.31396484375,
+    1.26806640625,
+    1.64111328125
+   ],
+   "host_pressure_end": 1
+  },
+  {
+   "ok": true,
+   "engine": "dmx",
+   "at": "2026-10-26T11:17:24.493594+00:00",
+   "host": {
+    "macos": "26.6.1",
+    "arch": "arm64",
+    "cores": 10
+   },
+   "host_load_start": [
+    1.07958984375,
+    1.19580078125,
+    1.5810546875
+   ],
+   "host_pressure_start": 1,
+   "mach_timebase": {
+    "numer": 125,
+    "denom": 3
+   },
+   "cpu_reader_check": {
+    "getrusage_s": 0.050005999999999995,
+    "reader_s": 0.050021166666666686
+   },
+   "settings": {
+    "cpus": 2,
+    "ceiling_mb": 4096,
+    "container_cpus": 2,
+    "shares": "none"
+   },
+   "vm_start_ms": 321,
+   "before_docker": {
+    "footprint_mb": 86.94,
+    "cpu_s": 0.3293415416666667,
+    "processes": [
+     {
+      "pid": 81786,
+      "footprint_mb": 86.94,
+      "cpu_s": 0.3293415416666667
+     }
+    ]
+   },
+   "docker_versions": "29.9.2 / 29.9.2",
+   "first_docker_ms": 1226,
+   "process_commands": {
+    "81786": "/Users/cothis/dockermax/.build/out/Products/Release/dmx"
+   },
+   "docker_info": {
+    "ServerVersion": "29.9.2",
+    "KernelVersion": "6.18.58-dmx-4k",
+    "NCPU": 2,
+    "MemTotal": 1439281152,
+    "Architecture": "aarch64",
+    "Driver": "overlayfs"
+   },
+   "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+   "idle_samples": [
+    {
+     "at_s": 35,
+     "footprint_mb": 188.28,
+     "cpu_s": 2.6849512916666667,
+     "processes": [
+      {
+       "pid": 81786,
+       "footprint_mb": 188.28,
+       "cpu_s": 2.6849512916666667
+      }
+     ]
+    },
+    {
+     "at_s": 50,
+     "footprint_mb": 206.31,
+     "cpu_s": 2.7783642083333335,
+     "processes": [
+      {
+       "pid": 81786,
+       "footprint_mb": 206.31,
+       "cpu_s": 2.7783642083333335
+      }
+     ]
+    },
+    {
+     "at_s": 65,
+     "footprint_mb": 218.67,
+     "cpu_s": 2.8583682916666664,
+     "processes": [
+      {
+       "pid": 81786,
+       "footprint_mb": 218.67,
+       "cpu_s": 2.8583682916666664
+      }
+     ]
+    },
+    {
+     "at_s": 80,
+     "footprint_mb": 218.63,
+     "cpu_s": 2.9228051666666666,
+     "processes": [
+      {
+       "pid": 81786,
+       "footprint_mb": 218.63,
+       "cpu_s": 2.9228051666666666
+      }
+     ]
+    },
+    {
+     "at_s": 95,
+     "footprint_mb": 218.69,
+     "cpu_s": 2.9822801666666665,
+     "processes": [
+      {
+       "pid": 81786,
+       "footprint_mb": 218.69,
+       "cpu_s": 2.9822801666666665
+      }
+     ]
+    }
+   ],
+   "idle_at_35s": {
+    "at_s": 35,
+    "footprint_mb": 188.28,
+    "cpu_s": 2.6849512916666667,
+    "processes": [
+     {
+      "pid": 81786,
+      "footprint_mb": 188.28,
+      "cpu_s": 2.6849512916666667
+     }
+    ]
+   },
+   "idle_min": {
+    "at_s": 35,
+    "footprint_mb": 188.28,
+    "cpu_s": 2.6849512916666667,
+    "processes": [
+     {
+      "pid": 81786,
+      "footprint_mb": 188.28,
+      "cpu_s": 2.6849512916666667
+     }
+    ]
+   },
+   "idle": {
+    "at_s": 95,
+    "footprint_mb": 218.69,
+    "cpu_s": 2.9822801666666665,
+    "processes": [
+     {
+      "pid": 81786,
+      "footprint_mb": 218.69,
+      "cpu_s": 2.9822801666666665
+     }
+    ]
+   },
+   "idle_cpu_percent_of_one_core": 0.42,
+   "run_true_ms": {
+    "samples": [
+     205.56,
+     103.98,
+     95.99,
+     100.7,
+     105.51
+    ],
+    "median": 103.98
+   },
+   "sha256_256m_ms": 838,
+   "holding_2g": {
+    "footprint_mb": 2389.39,
+    "cpu_s": 5.220898333333333,
+    "processes": [
+     {
+      "pid": 81786,
+      "footprint_mb": 2389.39,
+      "cpu_s": 5.220898333333333
+     }
+    ]
+   },
+   "return_after_2g": {
+    "baseline_mb": 294.78,
+    "after": {
+     "footprint_mb": 351.89,
+     "cpu_s": 5.413174541666667,
+     "processes": [
+      {
+       "pid": 81786,
+       "footprint_mb": 351.89,
+       "cpu_s": 5.413174541666667
+      }
+     ]
+    },
+    "elapsed_s": 1.93
+   },
+   "peak_2g_footprint_mb": 2395.74,
+   "host_load_end": [
+    1.43505859375,
+    1.251953125,
+    1.552734375
+   ],
+   "host_pressure_end": 1
+  },
+  {
+   "ok": false,
+   "engine": "orbstack",
+   "at": "2026-10-26T10:54:39.552399+00:00",
+   "host": {
+    "macos": "26.6.1",
+    "arch": "arm64",
+    "cores": 10
+   },
+   "host_load_start": [
+    1.294921875,
+    2.705078125,
+    2.97998046875
+   ],
+   "host_pressure_start": 1,
+   "mach_timebase": {
+    "numer": 125,
+    "denom": 3
+   },
+   "cpu_reader_check": {
+    "getrusage_s": 0.050004,
+    "reader_s": 0.05001683333333333
+   },
+   "settings": {
+    "cpus": 2,
+    "ceiling_mb": 4096,
+    "container_cpus": 2,
+    "shares": "none"
+   },
+   "docker_versions": "29.9.2 / 29.8.2",
+   "process_commands": {
+    "79587": "/Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper"
+   },
+   "docker_info": {
+    "ServerVersion": "29.8.2",
+    "KernelVersion": "7.2.12-orbstack-00394-gbecdd6130068",
+    "NCPU": 2,
+    "MemTotal": 4180803584,
+    "Architecture": "aarch64",
+    "Driver": "overlayfs"
+   },
+   "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+   "idle_samples": [
+    {
+     "at_s": 35,
+     "footprint_mb": 445.44,
+     "cpu_s": 1.2820234166666666,
+     "processes": [
+      {
+       "pid": 79587,
+       "footprint_mb": 445.44,
+       "cpu_s": 1.2820234166666666
+      }
+     ]
+    },
+    {
+     "at_s": 50,
+     "footprint_mb": 445.05,
+     "cpu_s": 1.3584456666666667,
+     "processes": [
+      {
+       "pid": 79587,
+       "footprint_mb": 445.05,
+       "cpu_s": 1.3584456666666667
+      }
+     ]
+    },
+    {
+     "at_s": 65,
+     "footprint_mb": 377.72,
+     "cpu_s": 1.4381387916666668,
+     "processes": [
+      {
+       "pid": 79587,
+       "footprint_mb": 377.72,
+       "cpu_s": 1.4381387916666668
+      }
+     ]
+    },
+    {
+     "at_s": 80,
+     "footprint_mb": 378.22,
+     "cpu_s": 1.4865555416666667,
+     "processes": [
+      {
+       "pid": 79587,
+       "footprint_mb": 378.22,
+       "cpu_s": 1.4865555416666667
+      }
+     ]
+    },
+    {
+     "at_s": 95,
+     "footprint_mb": 378.56,
+     "cpu_s": 1.6020656666666668,
+     "processes": [
+      {
+       "pid": 79587,
+       "footprint_mb": 378.56,
+       "cpu_s": 1.6020656666666668
+      }
+     ]
+    }
+   ],
+   "idle_at_35s": {
+    "at_s": 35,
+    "footprint_mb": 445.44,
+    "cpu_s": 1.2820234166666666,
+    "processes": [
+     {
+      "pid": 79587,
+      "footprint_mb": 445.44,
+      "cpu_s": 1.2820234166666666
+     }
+    ]
+   },
+   "idle_min": {
+    "at_s": 65,
+    "footprint_mb": 377.72,
+    "cpu_s": 1.4381387916666668,
+    "processes": [
+     {
+      "pid": 79587,
+      "footprint_mb": 377.72,
+      "cpu_s": 1.4381387916666668
+     }
+    ]
+   },
+   "idle": {
+    "at_s": 95,
+    "footprint_mb": 378.56,
+    "cpu_s": 1.6020656666666668,
+    "processes": [
+     {
+      "pid": 79587,
+      "footprint_mb": 378.56,
+      "cpu_s": 1.6020656666666668
+     }
+    ]
+   },
+   "idle_cpu_percent_of_one_core": 0.572,
+   "run_true_ms": {
+    "samples": [
+     205.03,
+     102.32,
+     96.9,
+     95.46,
+     95.65
+    ],
+    "median": 96.9
+   },
+   "sha256_256m_ms": 1285,
+   "holding_2g": {
+    "footprint_mb": 2692.53,
+    "cpu_s": 3.743579625,
+    "processes": [
+     {
+      "pid": 79587,
+      "footprint_mb": 2692.53,
+      "cpu_s": 3.743579625
+     }
+    ]
+   },
+   "return_after_2g": {
+    "baseline_mb": 642.24,
+    "after": {
+     "footprint_mb": 2695.46,
+     "cpu_s": 3.8823816666666664,
+     "processes": [
+      {
+       "pid": 79587,
+       "footprint_mb": 2695.46,
+       "cpu_s": 3.8823816666666664
+      }
+     ]
+    },
+    "elapsed_s": 10.02
+   },
+   "peak_2g_footprint_mb": 2695.49,
+   "host_load_end": [
+    1.19873046875,
+    2.2041015625,
+    2.7412109375
+   ],
+   "host_pressure_end": 1
+  },
+  {
+   "ok": false,
+   "engine": "orbstack",
+   "at": "2026-10-26T11:11:09.724449+00:00",
+   "host": {
+    "macos": "26.6.1",
+    "arch": "arm64",
+    "cores": 10
+   },
+   "host_load_start": [
+    1.53369140625,
+    1.43408203125,
+    1.85888671875
+   ],
+   "host_pressure_start": 1,
+   "mach_timebase": {
+    "numer": 125,
+    "denom": 3
+   },
+   "cpu_reader_check": {
+    "getrusage_s": 0.05000600000000001,
+    "reader_s": 0.050021083333333334
+   },
+   "settings": {
+    "cpus": 2,
+    "ceiling_mb": 4096,
+    "container_cpus": 2,
+    "shares": "none"
+   },
+   "docker_versions": "29.9.2 / 29.8.2",
+   "process_commands": {
+    "81305": "/Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper"
+   },
+   "docker_info": {
+    "ServerVersion": "29.8.2",
+    "KernelVersion": "7.2.12-orbstack-00394-gbecdd6130068",
+    "NCPU": 2,
+    "MemTotal": 4180803584,
+    "Architecture": "aarch64",
+    "Driver": "overlayfs"
+   },
+   "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+   "idle_samples": [
+    {
+     "at_s": 35,
+     "footprint_mb": 441.92,
+     "cpu_s": 1.27941225,
+     "processes": [
+      {
+       "pid": 81305,
+       "footprint_mb": 441.92,
+       "cpu_s": 1.27941225
+      }
+     ]
+    },
+    {
+     "at_s": 50,
+     "footprint_mb": 441.33,
+     "cpu_s": 1.339353375,
+     "processes": [
+      {
+       "pid": 81305,
+       "footprint_mb": 441.33,
+       "cpu_s": 1.339353375
+      }
+     ]
+    },
+    {
+     "at_s": 65,
+     "footprint_mb": 373.99,
+     "cpu_s": 1.40584575,
+     "processes": [
+      {
+       "pid": 81305,
+       "footprint_mb": 373.99,
+       "cpu_s": 1.40584575
+      }
+     ]
+    },
+    {
+     "at_s": 80,
+     "footprint_mb": 374.42,
+     "cpu_s": 1.4683294583333333,
+     "processes": [
+      {
+       "pid": 81305,
+       "footprint_mb": 374.42,
+       "cpu_s": 1.4683294583333333
+      }
+     ]
+    },
+    {
+     "at_s": 95,
+     "footprint_mb": 374.39,
+     "cpu_s": 1.5753563333333334,
+     "processes": [
+      {
+       "pid": 81305,
+       "footprint_mb": 374.39,
+       "cpu_s": 1.5753563333333334
+      }
+     ]
+    }
+   ],
+   "idle_at_35s": {
+    "at_s": 35,
+    "footprint_mb": 441.92,
+    "cpu_s": 1.27941225,
+    "processes": [
+     {
+      "pid": 81305,
+      "footprint_mb": 441.92,
+      "cpu_s": 1.27941225
+     }
+    ]
+   },
+   "idle_min": {
+    "at_s": 65,
+    "footprint_mb": 373.99,
+    "cpu_s": 1.40584575,
+    "processes": [
+     {
+      "pid": 81305,
+      "footprint_mb": 373.99,
+      "cpu_s": 1.40584575
+     }
+    ]
+   },
+   "idle": {
+    "at_s": 95,
+    "footprint_mb": 374.39,
+    "cpu_s": 1.5753563333333334,
+    "processes": [
+     {
+      "pid": 81305,
+      "footprint_mb": 374.39,
+      "cpu_s": 1.5753563333333334
+     }
+    ]
+   },
+   "idle_cpu_percent_of_one_core": 0.421,
+   "run_true_ms": {
+    "samples": [
+     206.19,
+     92.87,
+     100.29,
+     80.95,
+     93.73
+    ],
+    "median": 93.73
+   },
+   "sha256_256m_ms": 1347,
+   "holding_2g": {
+    "footprint_mb": 2690.24,
+    "cpu_s": 3.7545845,
+    "processes": [
+     {
+      "pid": 81305,
+      "footprint_mb": 2690.24,
+      "cpu_s": 3.7545845
+     }
+    ]
+   },
+   "return_after_2g": {
+    "baseline_mb": 640.55,
+    "after": {
+     "footprint_mb": 2698.77,
+     "cpu_s": 3.9069609166666663,
+     "processes": [
+      {
+       "pid": 81305,
+       "footprint_mb": 2698.77,
+       "cpu_s": 3.9069609166666663
+      }
+     ]
+    },
+    "elapsed_s": 10.03
+   },
+   "peak_2g_footprint_mb": 2698.82,
+   "host_load_end": [
+    0.98193359375,
+    1.2841796875,
+    1.74462890625
+   ],
+   "host_pressure_end": 1
+  },
+  {
+   "ok": false,
+   "engine": "orbstack",
+   "at": "2026-10-26T11:20:29.953860+00:00",
+   "host": {
+    "macos": "26.6.1",
+    "arch": "arm64",
+    "cores": 10
+   },
+   "host_load_start": [
+    1.55859375,
+    1.30615234375,
+    1.5458984375
+   ],
+   "host_pressure_start": 1,
+   "mach_timebase": {
+    "numer": 125,
+    "denom": 3
+   },
+   "cpu_reader_check": {
+    "getrusage_s": 0.050004999999999994,
+    "reader_s": 0.05001916666666667
+   },
+   "settings": {
+    "cpus": 2,
+    "ceiling_mb": 4096,
+    "container_cpus": 2,
+    "shares": "none"
+   },
+   "docker_versions": "29.9.2 / 29.8.2",
+   "process_commands": {
+    "82045": "/Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper"
+   },
+   "docker_info": {
+    "ServerVersion": "29.8.2",
+    "KernelVersion": "7.2.12-orbstack-00394-gbecdd6130068",
+    "NCPU": 2,
+    "MemTotal": 4180803584,
+    "Architecture": "aarch64",
+    "Driver": "overlayfs"
+   },
+   "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+   "idle_samples": [
+    {
+     "at_s": 35,
+     "footprint_mb": 444.61,
+     "cpu_s": 1.2114015833333331,
+     "processes": [
+      {
+       "pid": 82045,
+       "footprint_mb": 444.61,
+       "cpu_s": 1.2114015833333331
+      }
+     ]
+    },
+    {
+     "at_s": 50,
+     "footprint_mb": 444.3,
+     "cpu_s": 1.288850875,
+     "processes": [
+      {
+       "pid": 82045,
+       "footprint_mb": 444.3,
+       "cpu_s": 1.288850875
+      }
+     ]
+    },
+    {
+     "at_s": 65,
+     "footprint_mb": 377.0,
+     "cpu_s": 1.3675254166666668,
+     "processes": [
+      {
+       "pid": 82045,
+       "footprint_mb": 377.0,
+       "cpu_s": 1.3675254166666668
+      }
+     ]
+    },
+    {
+     "at_s": 80,
+     "footprint_mb": 377.49,
+     "cpu_s": 1.4125087916666668,
+     "processes": [
+      {
+       "pid": 82045,
+       "footprint_mb": 377.49,
+       "cpu_s": 1.4125087916666668
+      }
+     ]
+    },
+    {
+     "at_s": 95,
+     "footprint_mb": 379.33,
+     "cpu_s": 1.5270419166666667,
+     "processes": [
+      {
+       "pid": 82045,
+       "footprint_mb": 379.33,
+       "cpu_s": 1.5270419166666667
+      }
+     ]
+    }
+   ],
+   "idle_at_35s": {
+    "at_s": 35,
+    "footprint_mb": 444.61,
+    "cpu_s": 1.2114015833333331,
+    "processes": [
+     {
+      "pid": 82045,
+      "footprint_mb": 444.61,
+      "cpu_s": 1.2114015833333331
+     }
+    ]
+   },
+   "idle_min": {
+    "at_s": 65,
+    "footprint_mb": 377.0,
+    "cpu_s": 1.3675254166666668,
+    "processes": [
+     {
+      "pid": 82045,
+      "footprint_mb": 377.0,
+      "cpu_s": 1.3675254166666668
+     }
+    ]
+   },
+   "idle": {
+    "at_s": 95,
+    "footprint_mb": 379.33,
+    "cpu_s": 1.5270419166666667,
+    "processes": [
+     {
+      "pid": 82045,
+      "footprint_mb": 379.33,
+      "cpu_s": 1.5270419166666667
+     }
+    ]
+   },
+   "idle_cpu_percent_of_one_core": 0.531,
+   "run_true_ms": {
+    "samples": [
+     217.52,
+     102.19,
+     103.25,
+     103.74,
+     100.0
+    ],
+    "median": 103.25
+   },
+   "sha256_256m_ms": 1334,
+   "holding_2g": {
+    "footprint_mb": 2700.1,
+    "cpu_s": 3.737100875,
+    "processes": [
+     {
+      "pid": 82045,
+      "footprint_mb": 2700.1,
+      "cpu_s": 3.737100875
+     }
+    ]
+   },
+   "return_after_2g": {
+    "baseline_mb": 645.0,
+    "after": {
+     "footprint_mb": 2708.05,
+     "cpu_s": 3.8776943333333334,
+     "processes": [
+      {
+       "pid": 82045,
+       "footprint_mb": 2708.05,
+       "cpu_s": 3.8776943333333334
+      }
+     ]
+    },
+    "elapsed_s": 10.03
+   },
+   "peak_2g_footprint_mb": 2708.05,
+   "host_load_end": [
+    1.20166015625,
+    1.263671875,
+    1.494140625
+   ],
+   "host_pressure_end": 1
+  },
+  {
+   "ok": false,
+   "engine": "colima",
+   "at": "2026-10-26T10:58:09.589634+00:00",
+   "host": {
+    "macos": "26.6.1",
+    "arch": "arm64",
+    "cores": 10
+   },
+   "host_load_start": [
+    1.62109375,
+    2.0576171875,
+    2.6298828125
+   ],
+   "host_pressure_start": 1,
+   "mach_timebase": {
+    "numer": 125,
+    "denom": 3
+   },
+   "cpu_reader_check": {
+    "getrusage_s": 0.050003000000000006,
+    "reader_s": 0.05001716666666667
+   },
+   "settings": {
+    "cpus": 2,
+    "ceiling_mb": 4096,
+    "container_cpus": 2,
+    "shares": "none"
+   },
+   "docker_versions": "29.9.2 / 29.5.2",
+   "process_commands": {
+    "79889": "/opt/homebrew/bin/limactl",
+    "79891": "/opt/homebrew/bin/limactl",
+    "79898": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+    "79905": "ssh: /Users/cothis/.colima/_lima/colima/ssh.sock [mux]"
+   },
+   "docker_info": {
+    "ServerVersion": "29.5.2",
+    "KernelVersion": "6.8.0-117-generic",
+    "NCPU": 2,
+    "MemTotal": 4094459904,
+    "Architecture": "aarch64",
+    "Driver": "overlayfs"
+   },
+   "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+   "idle_samples": [
+    {
+     "at_s": 35,
+     "footprint_mb": 1365.87,
+     "cpu_s": 10.487178875,
+     "processes": [
+      {
+       "pid": 79889,
+       "footprint_mb": 38.09,
+       "cpu_s": 0.36529791666666667
+      },
+      {
+       "pid": 79891,
+       "footprint_mb": 60.44,
+       "cpu_s": 0.22737304166666666
+      },
+      {
+       "pid": 79898,
+       "footprint_mb": 1265.64,
+       "cpu_s": 9.88714175
+      },
+      {
+       "pid": 79905,
+       "footprint_mb": 1.7,
+       "cpu_s": 0.007366166666666667
+      }
+     ]
+    },
+    {
+     "at_s": 50,
+     "footprint_mb": 1366.01,
+     "cpu_s": 10.600682083333332,
+     "processes": [
+      {
+       "pid": 79889,
+       "footprint_mb": 38.09,
+       "cpu_s": 0.36858225
+      },
+      {
+       "pid": 79891,
+       "footprint_mb": 60.44,
+       "cpu_s": 0.232769375
+      },
+      {
+       "pid": 79898,
+       "footprint_mb": 1265.78,
+       "cpu_s": 9.991964291666665
+      },
+      {
+       "pid": 79905,
+       "footprint_mb": 1.7,
+       "cpu_s": 0.007366166666666667
+      }
+     ]
+    },
+    {
+     "at_s": 65,
+     "footprint_mb": 1366.06,
+     "cpu_s": 10.680912791666668,
+     "processes": [
+      {
+       "pid": 79889,
+       "footprint_mb": 38.09,
+       "cpu_s": 0.370691125
+      },
+      {
+       "pid": 79891,
+       "footprint_mb": 60.49,
+       "cpu_s": 0.234364875
+      },
+      {
+       "pid": 79898,
+       "footprint_mb": 1265.78,
+       "cpu_s": 10.068490625
+      },
+      {
+       "pid": 79905,
+       "footprint_mb": 1.7,
+       "cpu_s": 0.007366166666666667
+      }
+     ]
+    },
+    {
+     "at_s": 80,
+     "footprint_mb": 1366.06,
+     "cpu_s": 10.792669333333334,
+     "processes": [
+      {
+       "pid": 79889,
+       "footprint_mb": 38.09,
+       "cpu_s": 0.372451125
+      },
+      {
+       "pid": 79891,
+       "footprint_mb": 60.49,
+       "cpu_s": 0.24822958333333334
+      },
+      {
+       "pid": 79898,
+       "footprint_mb": 1265.78,
+       "cpu_s": 10.164622458333334
+      },
+      {
+       "pid": 79905,
+       "footprint_mb": 1.7,
+       "cpu_s": 0.007366166666666667
+      }
+     ]
+    },
+    {
+     "at_s": 95,
+     "footprint_mb": 1366.06,
+     "cpu_s": 10.874422041666667,
+     "processes": [
+      {
+       "pid": 79889,
+       "footprint_mb": 38.09,
+       "cpu_s": 0.3738472916666667
+      },
+      {
+       "pid": 79891,
+       "footprint_mb": 60.49,
+       "cpu_s": 0.24993829166666665
+      },
+      {
+       "pid": 79898,
+       "footprint_mb": 1265.78,
+       "cpu_s": 10.243270291666667
+      },
+      {
+       "pid": 79905,
+       "footprint_mb": 1.7,
+       "cpu_s": 0.007366166666666667
+      }
+     ]
+    }
+   ],
+   "idle_at_35s": {
+    "at_s": 35,
+    "footprint_mb": 1365.87,
+    "cpu_s": 10.487178875,
+    "processes": [
+     {
+      "pid": 79889,
+      "footprint_mb": 38.09,
+      "cpu_s": 0.36529791666666667
+     },
+     {
+      "pid": 79891,
+      "footprint_mb": 60.44,
+      "cpu_s": 0.22737304166666666
+     },
+     {
+      "pid": 79898,
+      "footprint_mb": 1265.64,
+      "cpu_s": 9.88714175
+     },
+     {
+      "pid": 79905,
+      "footprint_mb": 1.7,
+      "cpu_s": 0.007366166666666667
+     }
+    ]
+   },
+   "idle_min": {
+    "at_s": 35,
+    "footprint_mb": 1365.87,
+    "cpu_s": 10.487178875,
+    "processes": [
+     {
+      "pid": 79889,
+      "footprint_mb": 38.09,
+      "cpu_s": 0.36529791666666667
+     },
+     {
+      "pid": 79891,
+      "footprint_mb": 60.44,
+      "cpu_s": 0.22737304166666666
+     },
+     {
+      "pid": 79898,
+      "footprint_mb": 1265.64,
+      "cpu_s": 9.88714175
+     },
+     {
+      "pid": 79905,
+      "footprint_mb": 1.7,
+      "cpu_s": 0.007366166666666667
+     }
+    ]
+   },
+   "idle": {
+    "at_s": 95,
+    "footprint_mb": 1366.06,
+    "cpu_s": 10.874422041666667,
+    "processes": [
+     {
+      "pid": 79889,
+      "footprint_mb": 38.09,
+      "cpu_s": 0.3738472916666667
+     },
+     {
+      "pid": 79891,
+      "footprint_mb": 60.49,
+      "cpu_s": 0.24993829166666665
+     },
+     {
+      "pid": 79898,
+      "footprint_mb": 1265.78,
+      "cpu_s": 10.243270291666667
+     },
+     {
+      "pid": 79905,
+      "footprint_mb": 1.7,
+      "cpu_s": 0.007366166666666667
+     }
+    ]
+   },
+   "idle_cpu_percent_of_one_core": 0.665,
+   "run_true_ms": {
+    "samples": [
+     121.21,
+     50.72,
+     53.16,
+     49.75,
+     49.68
+    ],
+    "median": 50.72
+   },
+   "sha256_256m_ms": 806,
+   "holding_2g": {
+    "footprint_mb": 3369.27,
+    "cpu_s": 13.125698583333334,
+    "processes": [
+     {
+      "pid": 79889,
+      "footprint_mb": 38.09,
+      "cpu_s": 0.3881125
+     },
+     {
+      "pid": 79891,
+      "footprint_mb": 60.49,
+      "cpu_s": 0.25306816666666665
+     },
+     {
+      "pid": 79898,
+      "footprint_mb": 3268.89,
+      "cpu_s": 12.472504833333334
+     },
+     {
+      "pid": 79905,
+      "footprint_mb": 1.8,
+      "cpu_s": 0.012013083333333334
+     }
+    ]
+   },
+   "return_after_2g": {
+    "baseline_mb": 1406.86,
+    "after": {
+     "footprint_mb": 3372.32,
+     "cpu_s": 13.301331791666668,
+     "processes": [
+      {
+       "pid": 79889,
+       "footprint_mb": 38.09,
+       "cpu_s": 0.3908135
+      },
+      {
+       "pid": 79891,
+       "footprint_mb": 60.49,
+       "cpu_s": 0.254616375
+      },
+      {
+       "pid": 79898,
+       "footprint_mb": 3271.94,
+       "cpu_s": 12.643250625
+      },
+      {
+       "pid": 79905,
+       "footprint_mb": 1.8,
+       "cpu_s": 0.012651291666666667
+      }
+     ]
+    },
+    "elapsed_s": 10.09
+   },
+   "peak_2g_footprint_mb": 3372.38,
+   "host_load_end": [
+    1.29345703125,
+    1.7626953125,
+    2.43212890625
+   ],
+   "host_pressure_end": 1
+  },
+  {
+   "ok": false,
+   "engine": "colima",
+   "at": "2026-10-26T11:07:58.548464+00:00",
+   "host": {
+    "macos": "26.6.1",
+    "arch": "arm64",
+    "cores": 10
+   },
+   "host_load_start": [
+    1.45458984375,
+    1.53515625,
+    2.0087890625
+   ],
+   "host_pressure_start": 1,
+   "mach_timebase": {
+    "numer": 125,
+    "denom": 3
+   },
+   "cpu_reader_check": {
+    "getrusage_s": 0.050004999999999994,
+    "reader_s": 0.05002087500000001
+   },
+   "settings": {
+    "cpus": 2,
+    "ceiling_mb": 4096,
+    "container_cpus": 2,
+    "shares": "none"
+   },
+   "docker_versions": "29.9.2 / 29.5.2",
+   "process_commands": {
+    "80903": "/opt/homebrew/bin/limactl",
+    "80905": "/opt/homebrew/bin/limactl",
+    "80912": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+    "80929": "ssh: /Users/cothis/.colima/_lima/colima/ssh.sock [mux]"
+   },
+   "docker_info": {
+    "ServerVersion": "29.5.2",
+    "KernelVersion": "6.8.0-117-generic",
+    "NCPU": 2,
+    "MemTotal": 4094447616,
+    "Architecture": "aarch64",
+    "Driver": "overlayfs"
+   },
+   "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+   "idle_samples": [
+    {
+     "at_s": 35,
+     "footprint_mb": 1083.43,
+     "cpu_s": 5.825868708333333,
+     "processes": [
+      {
+       "pid": 80903,
+       "footprint_mb": 32.03,
+       "cpu_s": 0.06406479166666666
+      },
+      {
+       "pid": 80905,
+       "footprint_mb": 68.25,
+       "cpu_s": 0.21834633333333334
+      },
+      {
+       "pid": 80912,
+       "footprint_mb": 981.46,
+       "cpu_s": 5.537162958333333
+      },
+      {
+       "pid": 80929,
+       "footprint_mb": 1.69,
+       "cpu_s": 0.006294625
+      }
+     ]
+    },
+    {
+     "at_s": 50,
+     "footprint_mb": 1083.54,
+     "cpu_s": 5.9324782083333325,
+     "processes": [
+      {
+       "pid": 80903,
+       "footprint_mb": 32.09,
+       "cpu_s": 0.06721020833333333
+      },
+      {
+       "pid": 80905,
+       "footprint_mb": 68.3,
+       "cpu_s": 0.22387929166666665
+      },
+      {
+       "pid": 80912,
+       "footprint_mb": 981.46,
+       "cpu_s": 5.635094083333333
+      },
+      {
+       "pid": 80929,
+       "footprint_mb": 1.69,
+       "cpu_s": 0.006294625
+      }
+     ]
+    },
+    {
+     "at_s": 65,
+     "footprint_mb": 1083.45,
+     "cpu_s": 6.018425541666666,
+     "processes": [
+      {
+       "pid": 80903,
+       "footprint_mb": 32.09,
+       "cpu_s": 0.06895325
+      },
+      {
+       "pid": 80905,
+       "footprint_mb": 68.25,
+       "cpu_s": 0.22541495833333333
+      },
+      {
+       "pid": 80912,
+       "footprint_mb": 981.42,
+       "cpu_s": 5.717762708333333
+      },
+      {
+       "pid": 80929,
+       "footprint_mb": 1.69,
+       "cpu_s": 0.006294625
+      }
+     ]
+    },
+    {
+     "at_s": 80,
+     "footprint_mb": 1084.09,
+     "cpu_s": 6.136819,
+     "processes": [
+      {
+       "pid": 80903,
+       "footprint_mb": 32.64,
+       "cpu_s": 0.08178879166666667
+      },
+      {
+       "pid": 80905,
+       "footprint_mb": 68.3,
+       "cpu_s": 0.23988191666666667
+      },
+      {
+       "pid": 80912,
+       "footprint_mb": 981.46,
+       "cpu_s": 5.808853666666667
+      },
+      {
+       "pid": 80929,
+       "footprint_mb": 1.69,
+       "cpu_s": 0.006294625
+      }
+     ]
+    },
+    {
+     "at_s": 95,
+     "footprint_mb": 1084.09,
+     "cpu_s": 6.221028333333333,
+     "processes": [
+      {
+       "pid": 80903,
+       "footprint_mb": 32.64,
+       "cpu_s": 0.083334875
+      },
+      {
+       "pid": 80905,
+       "footprint_mb": 68.3,
+       "cpu_s": 0.24146220833333334
+      },
+      {
+       "pid": 80912,
+       "footprint_mb": 981.46,
+       "cpu_s": 5.889936625
+      },
+      {
+       "pid": 80929,
+       "footprint_mb": 1.69,
+       "cpu_s": 0.006294625
+      }
+     ]
+    }
+   ],
+   "idle_at_35s": {
+    "at_s": 35,
+    "footprint_mb": 1083.43,
+    "cpu_s": 5.825868708333333,
+    "processes": [
+     {
+      "pid": 80903,
+      "footprint_mb": 32.03,
+      "cpu_s": 0.06406479166666666
+     },
+     {
+      "pid": 80905,
+      "footprint_mb": 68.25,
+      "cpu_s": 0.21834633333333334
+     },
+     {
+      "pid": 80912,
+      "footprint_mb": 981.46,
+      "cpu_s": 5.537162958333333
+     },
+     {
+      "pid": 80929,
+      "footprint_mb": 1.69,
+      "cpu_s": 0.006294625
+     }
+    ]
+   },
+   "idle_min": {
+    "at_s": 35,
+    "footprint_mb": 1083.43,
+    "cpu_s": 5.825868708333333,
+    "processes": [
+     {
+      "pid": 80903,
+      "footprint_mb": 32.03,
+      "cpu_s": 0.06406479166666666
+     },
+     {
+      "pid": 80905,
+      "footprint_mb": 68.25,
+      "cpu_s": 0.21834633333333334
+     },
+     {
+      "pid": 80912,
+      "footprint_mb": 981.46,
+      "cpu_s": 5.537162958333333
+     },
+     {
+      "pid": 80929,
+      "footprint_mb": 1.69,
+      "cpu_s": 0.006294625
+     }
+    ]
+   },
+   "idle": {
+    "at_s": 95,
+    "footprint_mb": 1084.09,
+    "cpu_s": 6.221028333333333,
+    "processes": [
+     {
+      "pid": 80903,
+      "footprint_mb": 32.64,
+      "cpu_s": 0.083334875
+     },
+     {
+      "pid": 80905,
+      "footprint_mb": 68.3,
+      "cpu_s": 0.24146220833333334
+     },
+     {
+      "pid": 80912,
+      "footprint_mb": 981.46,
+      "cpu_s": 5.889936625
+     },
+     {
+      "pid": 80929,
+      "footprint_mb": 1.69,
+      "cpu_s": 0.006294625
+     }
+    ]
+   },
+   "idle_cpu_percent_of_one_core": 0.585,
+   "run_true_ms": {
+    "samples": [
+     103.54,
+     51.67,
+     52.79,
+     48.79,
+     49.22
+    ],
+    "median": 51.67
+   },
+   "sha256_256m_ms": 795,
+   "holding_2g": {
+    "footprint_mb": 3152.98,
+    "cpu_s": 8.468096666666668,
+    "processes": [
+     {
+      "pid": 80903,
+      "footprint_mb": 32.66,
+      "cpu_s": 0.096379625
+     },
+     {
+      "pid": 80905,
+      "footprint_mb": 68.3,
+      "cpu_s": 0.24582175
+     },
+     {
+      "pid": 80912,
+      "footprint_mb": 3050.22,
+      "cpu_s": 8.11491975
+     },
+     {
+      "pid": 80929,
+      "footprint_mb": 1.8,
+      "cpu_s": 0.010975541666666666
+     }
+    ]
+   },
+   "return_after_2g": {
+    "baseline_mb": 1146.81,
+    "after": {
+     "footprint_mb": 3153.0,
+     "cpu_s": 8.640991875,
+     "processes": [
+      {
+       "pid": 80903,
+       "footprint_mb": 32.66,
+       "cpu_s": 0.09913958333333332
+      },
+      {
+       "pid": 80905,
+       "footprint_mb": 68.3,
+       "cpu_s": 0.24795604166666665
+      },
+      {
+       "pid": 80912,
+       "footprint_mb": 3050.24,
+       "cpu_s": 8.282283958333332
+      },
+      {
+       "pid": 80929,
+       "footprint_mb": 1.8,
+       "cpu_s": 0.011612291666666667
+      }
+     ]
+    },
+    "elapsed_s": 10.07
+   },
+   "peak_2g_footprint_mb": 3153.04,
+   "host_load_end": [
+    1.07861328125,
+    1.3828125,
+    1.88671875
+   ],
+   "host_pressure_end": 1
+  },
+  {
+   "ok": false,
+   "engine": "colima",
+   "at": "2026-10-26T11:23:49.265258+00:00",
+   "host": {
+    "macos": "26.6.1",
+    "arch": "arm64",
+    "cores": 10
+   },
+   "host_load_start": [
+    1.375,
+    1.28173828125,
+    1.4794921875
+   ],
+   "host_pressure_start": 1,
+   "mach_timebase": {
+    "numer": 125,
+    "denom": 3
+   },
+   "cpu_reader_check": {
+    "getrusage_s": 0.05000499999999999,
+    "reader_s": 0.05002070833333333
+   },
+   "settings": {
+    "cpus": 2,
+    "ceiling_mb": 4096,
+    "container_cpus": 2,
+    "shares": "none"
+   },
+   "docker_versions": "29.9.2 / 29.5.2",
+   "process_commands": {
+    "82336": "/opt/homebrew/bin/limactl",
+    "82338": "/opt/homebrew/bin/limactl",
+    "82345": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+    "82372": "ssh: /Users/cothis/.colima/_lima/colima/ssh.sock [mux]"
+   },
+   "docker_info": {
+    "ServerVersion": "29.5.2",
+    "KernelVersion": "6.8.0-117-generic",
+    "NCPU": 2,
+    "MemTotal": 4094451712,
+    "Architecture": "aarch64",
+    "Driver": "overlayfs"
+   },
+   "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+   "idle_samples": [
+    {
+     "at_s": 35,
+     "footprint_mb": 1098.74,
+     "cpu_s": 5.802566958333334,
+     "processes": [
+      {
+       "pid": 82336,
+       "footprint_mb": 32.3,
+       "cpu_s": 0.070922875
+      },
+      {
+       "pid": 82338,
+       "footprint_mb": 59.97,
+       "cpu_s": 0.20969516666666665
+      },
+      {
+       "pid": 82345,
+       "footprint_mb": 1004.78,
+       "cpu_s": 5.516135916666667
+      },
+      {
+       "pid": 82372,
+       "footprint_mb": 1.69,
+       "cpu_s": 0.005813
+      }
+     ]
+    },
+    {
+     "at_s": 50,
+     "footprint_mb": 1098.84,
+     "cpu_s": 5.9035525,
+     "processes": [
+      {
+       "pid": 82336,
+       "footprint_mb": 32.45,
+       "cpu_s": 0.074938625
+      },
+      {
+       "pid": 82338,
+       "footprint_mb": 59.92,
+       "cpu_s": 0.21254004166666665
+      },
+      {
+       "pid": 82345,
+       "footprint_mb": 1004.78,
+       "cpu_s": 5.610260833333333
+      },
+      {
+       "pid": 82372,
+       "footprint_mb": 1.69,
+       "cpu_s": 0.005813
+      }
+     ]
+    },
+    {
+     "at_s": 65,
+     "footprint_mb": 1099.11,
+     "cpu_s": 6.0318639166666665,
+     "processes": [
+      {
+       "pid": 82336,
+       "footprint_mb": 32.72,
+       "cpu_s": 0.08024670833333333
+      },
+      {
+       "pid": 82338,
+       "footprint_mb": 59.92,
+       "cpu_s": 0.21867633333333333
+      },
+      {
+       "pid": 82345,
+       "footprint_mb": 1004.78,
+       "cpu_s": 5.727127875
+      },
+      {
+       "pid": 82372,
+       "footprint_mb": 1.69,
+       "cpu_s": 0.005813
+      }
+     ]
+    },
+    {
+     "at_s": 80,
+     "footprint_mb": 1099.86,
+     "cpu_s": 6.156413125,
+     "processes": [
+      {
+       "pid": 82336,
+       "footprint_mb": 33.47,
+       "cpu_s": 0.09346904166666667
+      },
+      {
+       "pid": 82338,
+       "footprint_mb": 59.92,
+       "cpu_s": 0.22154754166666665
+      },
+      {
+       "pid": 82345,
+       "footprint_mb": 1004.78,
+       "cpu_s": 5.835583541666667
+      },
+      {
+       "pid": 82372,
+       "footprint_mb": 1.69,
+       "cpu_s": 0.005813
+      }
+     ]
+    },
+    {
+     "at_s": 95,
+     "footprint_mb": 1100.08,
+     "cpu_s": 6.2970348750000005,
+     "processes": [
+      {
+       "pid": 82336,
+       "footprint_mb": 33.61,
+       "cpu_s": 0.09995970833333333
+      },
+      {
+       "pid": 82338,
+       "footprint_mb": 60.0,
+       "cpu_s": 0.238250875
+      },
+      {
+       "pid": 82345,
+       "footprint_mb": 1004.78,
+       "cpu_s": 5.953011291666667
+      },
+      {
+       "pid": 82372,
+       "footprint_mb": 1.69,
+       "cpu_s": 0.005813
+      }
+     ]
+    }
+   ],
+   "idle_at_35s": {
+    "at_s": 35,
+    "footprint_mb": 1098.74,
+    "cpu_s": 5.802566958333334,
+    "processes": [
+     {
+      "pid": 82336,
+      "footprint_mb": 32.3,
+      "cpu_s": 0.070922875
+     },
+     {
+      "pid": 82338,
+      "footprint_mb": 59.97,
+      "cpu_s": 0.20969516666666665
+     },
+     {
+      "pid": 82345,
+      "footprint_mb": 1004.78,
+      "cpu_s": 5.516135916666667
+     },
+     {
+      "pid": 82372,
+      "footprint_mb": 1.69,
+      "cpu_s": 0.005813
+     }
+    ]
+   },
+   "idle_min": {
+    "at_s": 35,
+    "footprint_mb": 1098.74,
+    "cpu_s": 5.802566958333334,
+    "processes": [
+     {
+      "pid": 82336,
+      "footprint_mb": 32.3,
+      "cpu_s": 0.070922875
+     },
+     {
+      "pid": 82338,
+      "footprint_mb": 59.97,
+      "cpu_s": 0.20969516666666665
+     },
+     {
+      "pid": 82345,
+      "footprint_mb": 1004.78,
+      "cpu_s": 5.516135916666667
+     },
+     {
+      "pid": 82372,
+      "footprint_mb": 1.69,
+      "cpu_s": 0.005813
+     }
+    ]
+   },
+   "idle": {
+    "at_s": 95,
+    "footprint_mb": 1100.08,
+    "cpu_s": 6.2970348750000005,
+    "processes": [
+     {
+      "pid": 82336,
+      "footprint_mb": 33.61,
+      "cpu_s": 0.09995970833333333
+     },
+     {
+      "pid": 82338,
+      "footprint_mb": 60.0,
+      "cpu_s": 0.238250875
+     },
+     {
+      "pid": 82345,
+      "footprint_mb": 1004.78,
+      "cpu_s": 5.953011291666667
+     },
+     {
+      "pid": 82372,
+      "footprint_mb": 1.69,
+      "cpu_s": 0.005813
+     }
+    ]
+   },
+   "idle_cpu_percent_of_one_core": 0.809,
+   "run_true_ms": {
+    "samples": [
+     118.04,
+     50.06,
+     51.34,
+     54.14,
+     54.39
+    ],
+    "median": 54.14
+   },
+   "sha256_256m_ms": 793,
+   "holding_2g": {
+    "footprint_mb": 3160.14,
+    "cpu_s": 8.577939916666667,
+    "processes": [
+     {
+      "pid": 82336,
+      "footprint_mb": 33.63,
+      "cpu_s": 0.1154145
+     },
+     {
+      "pid": 82338,
+      "footprint_mb": 59.95,
+      "cpu_s": 0.24122745833333334
+     },
+     {
+      "pid": 82345,
+      "footprint_mb": 3064.75,
+      "cpu_s": 8.211019875
+     },
+     {
+      "pid": 82372,
+      "footprint_mb": 1.81,
+      "cpu_s": 0.010278083333333334
+     }
+    ]
+   },
+   "return_after_2g": {
+    "baseline_mb": 1165.14,
+    "after": {
+     "footprint_mb": 3164.36,
+     "cpu_s": 8.787833166666667,
+     "processes": [
+      {
+       "pid": 82336,
+       "footprint_mb": 33.63,
+       "cpu_s": 0.12082191666666667
+      },
+      {
+       "pid": 82338,
+       "footprint_mb": 59.95,
+       "cpu_s": 0.24465483333333335
+      },
+      {
+       "pid": 82345,
+       "footprint_mb": 3068.97,
+       "cpu_s": 8.411410541666667
+      },
+      {
+       "pid": 82372,
+       "footprint_mb": 1.81,
+       "cpu_s": 0.010945875
+      }
+     ]
+    },
+    "elapsed_s": 10.04
+   },
+   "peak_2g_footprint_mb": 3164.46,
+   "host_load_end": [
+    1.140625,
+    1.2138671875,
+    1.4208984375
+   ],
+   "host_pressure_end": 1
+  },
+  {
+   "ok": false,
+   "engine": "docker-desktop",
+   "at": "2026-10-26T11:45:35.149861+00:00",
+   "host": {
+    "macos": "26.6.1",
+    "arch": "arm64",
+    "cores": 10
+   },
+   "host_load_start": [
+    1.21923828125,
+    1.201171875,
+    1.267578125
+   ],
+   "host_pressure_start": 1,
+   "mach_timebase": {
+    "numer": 125,
+    "denom": 3
+   },
+   "cpu_reader_check": {
+    "getrusage_s": 0.05000299999999999,
+    "reader_s": 0.05001591666666668
+   },
+   "settings": {
+    "cpus": 2,
+    "ceiling_mb": 4096,
+    "container_cpus": 2,
+    "shares": "none"
+   },
+   "docker_versions": "29.9.2 / 29.9.2",
+   "process_commands": {
+    "84333": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+    "84334": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+    "84335": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+    "84360": "/Applications/Docker.app/Contents/MacOS/com.docker.build",
+    "84362": "/Applications/Docker.app/Contents/MacOS/com.docker.virtualization",
+    "84363": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/MacOS/Docker Desktop",
+    "84364": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+    "84379": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+    "84380": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+    "84387": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper (Renderer).app/Contents/MacOS/Docker Desktop Helper (Renderer)",
+    "84414": "/Applications/Docker.app/Contents/Resources/cli-plugins/docker-agent"
+   },
+   "docker_info": {
+    "ServerVersion": "29.9.2",
+    "KernelVersion": "7.0.14-linuxkit",
+    "NCPU": 2,
+    "MemTotal": 4107407360,
+    "Architecture": "aarch64",
+    "Driver": "overlay2"
+   },
+   "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+   "idle_samples": [
+    {
+     "at_s": 35,
+     "footprint_mb": 1057.19,
+     "cpu_s": 3.507898083333333,
+     "processes": [
+      {
+       "pid": 84333,
+       "footprint_mb": 30.41,
+       "cpu_s": 0.13180845833333332
+      },
+      {
+       "pid": 84334,
+       "footprint_mb": 66.7,
+       "cpu_s": 0.9663104166666666
+      },
+      {
+       "pid": 84335,
+       "footprint_mb": 29.2,
+       "cpu_s": 0.07565116666666667
+      },
+      {
+       "pid": 84360,
+       "footprint_mb": 16.27,
+       "cpu_s": 0.03154683333333333
+      },
+      {
+       "pid": 84362,
+       "footprint_mb": 38.94,
+       "cpu_s": 0.11741825
+      },
+      {
+       "pid": 84363,
+       "footprint_mb": 49.2,
+       "cpu_s": 0.5671984583333334
+      },
+      {
+       "pid": 84364,
+       "footprint_mb": 764.11,
+       "cpu_s": 1.3709660833333333
+      },
+      {
+       "pid": 84379,
+       "footprint_mb": 9.74,
+       "cpu_s": 0.08870170833333332
+      },
+      {
+       "pid": 84380,
+       "footprint_mb": 6.39,
+       "cpu_s": 0.054490333333333335
+      },
+      {
+       "pid": 84387,
+       "footprint_mb": 11.17,
+       "cpu_s": 0.06116741666666666
+      },
+      {
+       "pid": 84414,
+       "footprint_mb": 35.06,
+       "cpu_s": 0.04263895833333334
+      }
+     ]
+    },
+    {
+     "at_s": 50,
+     "footprint_mb": 1057.4,
+     "cpu_s": 3.6009437083333333,
+     "processes": [
+      {
+       "pid": 84333,
+       "footprint_mb": 30.41,
+       "cpu_s": 0.13245558333333332
+      },
+      {
+       "pid": 84334,
+       "footprint_mb": 66.72,
+       "cpu_s": 0.992867125
+      },
+      {
+       "pid": 84335,
+       "footprint_mb": 29.2,
+       "cpu_s": 0.07565116666666667
+      },
+      {
+       "pid": 84360,
+       "footprint_mb": 16.27,
+       "cpu_s": 0.031658125
+      },
+      {
+       "pid": 84362,
+       "footprint_mb": 38.99,
+       "cpu_s": 0.11774195833333333
+      },
+      {
+       "pid": 84363,
+       "footprint_mb": 49.2,
+       "cpu_s": 0.5710194166666667
+      },
+      {
+       "pid": 84364,
+       "footprint_mb": 764.19,
+       "cpu_s": 1.43027825
+      },
+      {
+       "pid": 84379,
+       "footprint_mb": 9.8,
+       "cpu_s": 0.09024216666666666
+      },
+      {
+       "pid": 84380,
+       "footprint_mb": 6.39,
+       "cpu_s": 0.054997333333333336
+      },
+      {
+       "pid": 84387,
+       "footprint_mb": 11.17,
+       "cpu_s": 0.06130279166666666
+      },
+      {
+       "pid": 84414,
+       "footprint_mb": 35.06,
+       "cpu_s": 0.04272979166666666
+      }
+     ]
+    },
+    {
+     "at_s": 65,
+     "footprint_mb": 1057.41,
+     "cpu_s": 3.6733710416666665,
+     "processes": [
+      {
+       "pid": 84333,
+       "footprint_mb": 30.41,
+       "cpu_s": 0.13277029166666668
+      },
+      {
+       "pid": 84334,
+       "footprint_mb": 66.7,
+       "cpu_s": 1.00511975
+      },
+      {
+       "pid": 84335,
+       "footprint_mb": 29.2,
+       "cpu_s": 0.07565116666666667
+      },
+      {
+       "pid": 84360,
+       "footprint_mb": 16.27,
+       "cpu_s": 0.031658125
+      },
+      {
+       "pid": 84362,
+       "footprint_mb": 38.94,
+       "cpu_s": 0.11807829166666667
+      },
+      {
+       "pid": 84363,
+       "footprint_mb": 49.22,
+       "cpu_s": 0.575980625
+      },
+      {
+       "pid": 84364,
+       "footprint_mb": 764.25,
+       "cpu_s": 1.4838795
+      },
+      {
+       "pid": 84379,
+       "footprint_mb": 9.8,
+       "cpu_s": 0.090968
+      },
+      {
+       "pid": 84380,
+       "footprint_mb": 6.39,
+       "cpu_s": 0.05523270833333334
+      },
+      {
+       "pid": 84387,
+       "footprint_mb": 11.17,
+       "cpu_s": 0.06130279166666666
+      },
+      {
+       "pid": 84414,
+       "footprint_mb": 35.06,
+       "cpu_s": 0.04272979166666666
+      }
+     ]
+    },
+    {
+     "at_s": 80,
+     "footprint_mb": 1058.35,
+     "cpu_s": 3.873922208333333,
+     "processes": [
+      {
+       "pid": 84333,
+       "footprint_mb": 30.58,
+       "cpu_s": 0.1555295
+      },
+      {
+       "pid": 84334,
+       "footprint_mb": 67.16,
+       "cpu_s": 1.0610740416666666
+      },
+      {
+       "pid": 84335,
+       "footprint_mb": 29.36,
+       "cpu_s": 0.10048308333333333
+      },
+      {
+       "pid": 84360,
+       "footprint_mb": 16.27,
+       "cpu_s": 0.031773666666666665
+      },
+      {
+       "pid": 84362,
+       "footprint_mb": 38.99,
+       "cpu_s": 0.11826720833333333
+      },
+      {
+       "pid": 84363,
+       "footprint_mb": 49.27,
+       "cpu_s": 0.58320275
+      },
+      {
+       "pid": 84364,
+       "footprint_mb": 764.3,
+       "cpu_s": 1.5688425833333333
+      },
+      {
+       "pid": 84379,
+       "footprint_mb": 9.8,
+       "cpu_s": 0.09509254166666667
+      },
+      {
+       "pid": 84380,
+       "footprint_mb": 6.39,
+       "cpu_s": 0.05562425
+      },
+      {
+       "pid": 84387,
+       "footprint_mb": 11.17,
+       "cpu_s": 0.06130279166666666
+      },
+      {
+       "pid": 84414,
+       "footprint_mb": 35.06,
+       "cpu_s": 0.04272979166666666
+      }
+     ]
+    },
+    {
+     "at_s": 95,
+     "footprint_mb": 1058.3,
+     "cpu_s": 3.9497337916666666,
+     "processes": [
+      {
+       "pid": 84333,
+       "footprint_mb": 30.58,
+       "cpu_s": 0.155850375
+      },
+      {
+       "pid": 84334,
+       "footprint_mb": 67.16,
+       "cpu_s": 1.0720657083333334
+      },
+      {
+       "pid": 84335,
+       "footprint_mb": 29.36,
+       "cpu_s": 0.10048308333333333
+      },
+      {
+       "pid": 84360,
+       "footprint_mb": 16.27,
+       "cpu_s": 0.031773666666666665
+      },
+      {
+       "pid": 84362,
+       "footprint_mb": 38.94,
+       "cpu_s": 0.1183335
+      },
+      {
+       "pid": 84363,
+       "footprint_mb": 49.27,
+       "cpu_s": 0.5899825
+      },
+      {
+       "pid": 84364,
+       "footprint_mb": 764.3,
+       "cpu_s": 1.6244418333333333
+      },
+      {
+       "pid": 84379,
+       "footprint_mb": 9.8,
+       "cpu_s": 0.09643720833333333
+      },
+      {
+       "pid": 84380,
+       "footprint_mb": 6.39,
+       "cpu_s": 0.056189875
+      },
+      {
+       "pid": 84387,
+       "footprint_mb": 11.17,
+       "cpu_s": 0.06144625
+      },
+      {
+       "pid": 84414,
+       "footprint_mb": 35.06,
+       "cpu_s": 0.04272979166666666
+      }
+     ]
+    }
+   ],
+   "idle_at_35s": {
+    "at_s": 35,
+    "footprint_mb": 1057.19,
+    "cpu_s": 3.507898083333333,
+    "processes": [
+     {
+      "pid": 84333,
+      "footprint_mb": 30.41,
+      "cpu_s": 0.13180845833333332
+     },
+     {
+      "pid": 84334,
+      "footprint_mb": 66.7,
+      "cpu_s": 0.9663104166666666
+     },
+     {
+      "pid": 84335,
+      "footprint_mb": 29.2,
+      "cpu_s": 0.07565116666666667
+     },
+     {
+      "pid": 84360,
+      "footprint_mb": 16.27,
+      "cpu_s": 0.03154683333333333
+     },
+     {
+      "pid": 84362,
+      "footprint_mb": 38.94,
+      "cpu_s": 0.11741825
+     },
+     {
+      "pid": 84363,
+      "footprint_mb": 49.2,
+      "cpu_s": 0.5671984583333334
+     },
+     {
+      "pid": 84364,
+      "footprint_mb": 764.11,
+      "cpu_s": 1.3709660833333333
+     },
+     {
+      "pid": 84379,
+      "footprint_mb": 9.74,
+      "cpu_s": 0.08870170833333332
+     },
+     {
+      "pid": 84380,
+      "footprint_mb": 6.39,
+      "cpu_s": 0.054490333333333335
+     },
+     {
+      "pid": 84387,
+      "footprint_mb": 11.17,
+      "cpu_s": 0.06116741666666666
+     },
+     {
+      "pid": 84414,
+      "footprint_mb": 35.06,
+      "cpu_s": 0.04263895833333334
+     }
+    ]
+   },
+   "idle_min": {
+    "at_s": 35,
+    "footprint_mb": 1057.19,
+    "cpu_s": 3.507898083333333,
+    "processes": [
+     {
+      "pid": 84333,
+      "footprint_mb": 30.41,
+      "cpu_s": 0.13180845833333332
+     },
+     {
+      "pid": 84334,
+      "footprint_mb": 66.7,
+      "cpu_s": 0.9663104166666666
+     },
+     {
+      "pid": 84335,
+      "footprint_mb": 29.2,
+      "cpu_s": 0.07565116666666667
+     },
+     {
+      "pid": 84360,
+      "footprint_mb": 16.27,
+      "cpu_s": 0.03154683333333333
+     },
+     {
+      "pid": 84362,
+      "footprint_mb": 38.94,
+      "cpu_s": 0.11741825
+     },
+     {
+      "pid": 84363,
+      "footprint_mb": 49.2,
+      "cpu_s": 0.5671984583333334
+     },
+     {
+      "pid": 84364,
+      "footprint_mb": 764.11,
+      "cpu_s": 1.3709660833333333
+     },
+     {
+      "pid": 84379,
+      "footprint_mb": 9.74,
+      "cpu_s": 0.08870170833333332
+     },
+     {
+      "pid": 84380,
+      "footprint_mb": 6.39,
+      "cpu_s": 0.054490333333333335
+     },
+     {
+      "pid": 84387,
+      "footprint_mb": 11.17,
+      "cpu_s": 0.06116741666666666
+     },
+     {
+      "pid": 84414,
+      "footprint_mb": 35.06,
+      "cpu_s": 0.04263895833333334
+     }
+    ]
+   },
+   "idle": {
+    "at_s": 95,
+    "footprint_mb": 1058.3,
+    "cpu_s": 3.9497337916666666,
+    "processes": [
+     {
+      "pid": 84333,
+      "footprint_mb": 30.58,
+      "cpu_s": 0.155850375
+     },
+     {
+      "pid": 84334,
+      "footprint_mb": 67.16,
+      "cpu_s": 1.0720657083333334
+     },
+     {
+      "pid": 84335,
+      "footprint_mb": 29.36,
+      "cpu_s": 0.10048308333333333
+     },
+     {
+      "pid": 84360,
+      "footprint_mb": 16.27,
+      "cpu_s": 0.031773666666666665
+     },
+     {
+      "pid": 84362,
+      "footprint_mb": 38.94,
+      "cpu_s": 0.1183335
+     },
+     {
+      "pid": 84363,
+      "footprint_mb": 49.27,
+      "cpu_s": 0.5899825
+     },
+     {
+      "pid": 84364,
+      "footprint_mb": 764.3,
+      "cpu_s": 1.6244418333333333
+     },
+     {
+      "pid": 84379,
+      "footprint_mb": 9.8,
+      "cpu_s": 0.09643720833333333
+     },
+     {
+      "pid": 84380,
+      "footprint_mb": 6.39,
+      "cpu_s": 0.056189875
+     },
+     {
+      "pid": 84387,
+      "footprint_mb": 11.17,
+      "cpu_s": 0.06144625
+     },
+     {
+      "pid": 84414,
+      "footprint_mb": 35.06,
+      "cpu_s": 0.04272979166666666
+     }
+    ]
+   },
+   "idle_cpu_percent_of_one_core": 0.438,
+   "run_true_ms": {
+    "samples": [
+     132.3,
+     61.93,
+     60.99,
+     56.3,
+     62.02
+    ],
+    "median": 61.93
+   },
+   "sha256_256m_ms": 826,
+   "holding_2g": {
+    "footprint_mb": 3154.4,
+    "cpu_s": 6.68699975,
+    "processes": [
+     {
+      "pid": 84333,
+      "footprint_mb": 30.64,
+      "cpu_s": 0.17896879166666665
+     },
+     {
+      "pid": 84334,
+      "footprint_mb": 71.7,
+      "cpu_s": 1.33251375
+     },
+     {
+      "pid": 84335,
+      "footprint_mb": 29.36,
+      "cpu_s": 0.10048308333333333
+     },
+     {
+      "pid": 84360,
+      "footprint_mb": 16.42,
+      "cpu_s": 0.034760458333333334
+     },
+     {
+      "pid": 84362,
+      "footprint_mb": 39.06,
+      "cpu_s": 0.12327320833333333
+     },
+     {
+      "pid": 84363,
+      "footprint_mb": 51.22,
+      "cpu_s": 0.6350137083333334
+     },
+     {
+      "pid": 84364,
+      "footprint_mb": 2853.58,
+      "cpu_s": 4.02443575
+     },
+     {
+      "pid": 84379,
+      "footprint_mb": 9.8,
+      "cpu_s": 0.09700295833333333
+     },
+     {
+      "pid": 84380,
+      "footprint_mb": 6.39,
+      "cpu_s": 0.056372
+     },
+     {
+      "pid": 84387,
+      "footprint_mb": 11.17,
+      "cpu_s": 0.06144625
+     },
+     {
+      "pid": 84414,
+      "footprint_mb": 35.06,
+      "cpu_s": 0.04272979166666666
+     }
+    ]
+   },
+   "return_after_2g": {
+    "baseline_mb": 1115.51,
+    "after": {
+     "footprint_mb": 3157.32,
+     "cpu_s": 7.018335041666667,
+     "processes": [
+      {
+       "pid": 84333,
+       "footprint_mb": 30.64,
+       "cpu_s": 0.18172116666666666
+      },
+      {
+       "pid": 84334,
+       "footprint_mb": 71.72,
+       "cpu_s": 1.3630278333333332
+      },
+      {
+       "pid": 84335,
+       "footprint_mb": 29.36,
+       "cpu_s": 0.10048308333333333
+      },
+      {
+       "pid": 84360,
+       "footprint_mb": 16.42,
+       "cpu_s": 0.035686416666666665
+      },
+      {
+       "pid": 84362,
+       "footprint_mb": 39.06,
+       "cpu_s": 0.12368116666666668
+      },
+      {
+       "pid": 84363,
+       "footprint_mb": 51.24,
+       "cpu_s": 0.6445765416666667
+      },
+      {
+       "pid": 84364,
+       "footprint_mb": 2856.25,
+       "cpu_s": 4.300237
+      },
+      {
+       "pid": 84379,
+       "footprint_mb": 9.8,
+       "cpu_s": 0.09742345833333332
+      },
+      {
+       "pid": 84380,
+       "footprint_mb": 6.39,
+       "cpu_s": 0.056641875
+      },
+      {
+       "pid": 84387,
+       "footprint_mb": 11.17,
+       "cpu_s": 0.06144625
+      },
+      {
+       "pid": 84414,
+       "footprint_mb": 35.27,
+       "cpu_s": 0.05341025
+      }
+     ]
+    },
+    "elapsed_s": 10.05
+   },
+   "peak_2g_footprint_mb": 3157.35,
+   "host_load_end": [
+    1.13037109375,
+    1.1962890625,
+    1.251953125
+   ],
+   "host_pressure_end": 1
+  },
+  {
+   "ok": false,
+   "engine": "docker-desktop",
+   "at": "2026-10-26T11:48:46.053399+00:00",
+   "host": {
+    "macos": "26.6.1",
+    "arch": "arm64",
+    "cores": 10
+   },
+   "host_load_start": [
+    1.25,
+    1.22509765625,
+    1.2548828125
+   ],
+   "host_pressure_start": 1,
+   "mach_timebase": {
+    "numer": 125,
+    "denom": 3
+   },
+   "cpu_reader_check": {
+    "getrusage_s": 0.050008,
+    "reader_s": 0.050021833333333335
+   },
+   "settings": {
+    "cpus": 2,
+    "ceiling_mb": 4096,
+    "container_cpus": 2,
+    "shares": "none"
+   },
+   "docker_versions": "29.9.2 / 29.9.2",
+   "process_commands": {
+    "84601": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+    "84603": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+    "84604": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+    "84647": "/Applications/Docker.app/Contents/MacOS/com.docker.build",
+    "84648": "/Applications/Docker.app/Contents/MacOS/com.docker.virtualization",
+    "84649": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/MacOS/Docker Desktop",
+    "84650": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+    "84665": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+    "84668": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+    "84673": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper (Renderer).app/Contents/MacOS/Docker Desktop Helper (Renderer)",
+    "84700": "/Applications/Docker.app/Contents/Resources/cli-plugins/docker-agent"
+   },
+   "docker_info": {
+    "ServerVersion": "29.9.2",
+    "KernelVersion": "7.0.14-linuxkit",
+    "NCPU": 2,
+    "MemTotal": 4107407360,
+    "Architecture": "aarch64",
+    "Driver": "overlay2"
+   },
+   "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+   "idle_samples": [
+    {
+     "at_s": 35,
+     "footprint_mb": 1020.73,
+     "cpu_s": 3.6146064166666667,
+     "processes": [
+      {
+       "pid": 84601,
+       "footprint_mb": 30.0,
+       "cpu_s": 0.13382520833333333
+      },
+      {
+       "pid": 84603,
+       "footprint_mb": 68.63,
+       "cpu_s": 1.01265775
+      },
+      {
+       "pid": 84604,
+       "footprint_mb": 29.06,
+       "cpu_s": 0.084021625
+      },
+      {
+       "pid": 84647,
+       "footprint_mb": 16.13,
+       "cpu_s": 0.039173208333333334
+      },
+      {
+       "pid": 84648,
+       "footprint_mb": 38.7,
+       "cpu_s": 0.12061141666666667
+      },
+      {
+       "pid": 84649,
+       "footprint_mb": 49.39,
+       "cpu_s": 0.5713880833333334
+      },
+      {
+       "pid": 84650,
+       "footprint_mb": 726.42,
+       "cpu_s": 1.406086625
+      },
+      {
+       "pid": 84665,
+       "footprint_mb": 9.78,
+       "cpu_s": 0.090229375
+      },
+      {
+       "pid": 84668,
+       "footprint_mb": 6.38,
+       "cpu_s": 0.0568475
+      },
+      {
+       "pid": 84673,
+       "footprint_mb": 11.24,
+       "cpu_s": 0.05279508333333333
+      },
+      {
+       "pid": 84700,
+       "footprint_mb": 35.0,
+       "cpu_s": 0.046970541666666664
+      }
+     ]
+    },
+    {
+     "at_s": 50,
+     "footprint_mb": 1020.88,
+     "cpu_s": 3.710610625,
+     "processes": [
+      {
+       "pid": 84601,
+       "footprint_mb": 30.0,
+       "cpu_s": 0.13451079166666666
+      },
+      {
+       "pid": 84603,
+       "footprint_mb": 68.66,
+       "cpu_s": 1.040004375
+      },
+      {
+       "pid": 84604,
+       "footprint_mb": 29.06,
+       "cpu_s": 0.084021625
+      },
+      {
+       "pid": 84647,
+       "footprint_mb": 16.13,
+       "cpu_s": 0.039406583333333335
+      },
+      {
+       "pid": 84648,
+       "footprint_mb": 38.72,
+       "cpu_s": 0.12091883333333332
+      },
+      {
+       "pid": 84649,
+       "footprint_mb": 49.41,
+       "cpu_s": 0.5774627916666666
+      },
+      {
+       "pid": 84650,
+       "footprint_mb": 726.47,
+       "cpu_s": 1.46523
+      },
+      {
+       "pid": 84665,
+       "footprint_mb": 9.81,
+       "cpu_s": 0.09182416666666667
+      },
+      {
+       "pid": 84668,
+       "footprint_mb": 6.38,
+       "cpu_s": 0.05732170833333334
+      },
+      {
+       "pid": 84673,
+       "footprint_mb": 11.24,
+       "cpu_s": 0.052939208333333335
+      },
+      {
+       "pid": 84700,
+       "footprint_mb": 35.0,
+       "cpu_s": 0.046970541666666664
+      }
+     ]
+    },
+    {
+     "at_s": 65,
+     "footprint_mb": 1020.94,
+     "cpu_s": 3.7821660416666667,
+     "processes": [
+      {
+       "pid": 84601,
+       "footprint_mb": 30.0,
+       "cpu_s": 0.134799875
+      },
+      {
+       "pid": 84603,
+       "footprint_mb": 68.64,
+       "cpu_s": 1.0526519583333334
+      },
+      {
+       "pid": 84604,
+       "footprint_mb": 29.06,
+       "cpu_s": 0.084021625
+      },
+      {
+       "pid": 84647,
+       "footprint_mb": 16.13,
+       "cpu_s": 0.039406583333333335
+      },
+      {
+       "pid": 84648,
+       "footprint_mb": 38.72,
+       "cpu_s": 0.121306625
+      },
+      {
+       "pid": 84649,
+       "footprint_mb": 49.41,
+       "cpu_s": 0.5804735416666666
+      },
+      {
+       "pid": 84650,
+       "footprint_mb": 726.55,
+       "cpu_s": 1.5194279166666667
+      },
+      {
+       "pid": 84665,
+       "footprint_mb": 9.81,
+       "cpu_s": 0.09253083333333333
+      },
+      {
+       "pid": 84668,
+       "footprint_mb": 6.38,
+       "cpu_s": 0.057545958333333334
+      },
+      {
+       "pid": 84673,
+       "footprint_mb": 11.24,
+       "cpu_s": 0.052939208333333335
+      },
+      {
+       "pid": 84700,
+       "footprint_mb": 35.0,
+       "cpu_s": 0.04706191666666666
+      }
+     ]
+    },
+    {
+     "at_s": 80,
+     "footprint_mb": 1022.34,
+     "cpu_s": 3.9799153333333335,
+     "processes": [
+      {
+       "pid": 84601,
+       "footprint_mb": 30.17,
+       "cpu_s": 0.15696295833333335
+      },
+      {
+       "pid": 84603,
+       "footprint_mb": 69.05,
+       "cpu_s": 1.10596625
+      },
+      {
+       "pid": 84604,
+       "footprint_mb": 29.25,
+       "cpu_s": 0.106985375
+      },
+      {
+       "pid": 84647,
+       "footprint_mb": 16.13,
+       "cpu_s": 0.039533041666666664
+      },
+      {
+       "pid": 84648,
+       "footprint_mb": 38.77,
+       "cpu_s": 0.12146966666666667
+      },
+      {
+       "pid": 84649,
+       "footprint_mb": 49.44,
+       "cpu_s": 0.58497625
+      },
+      {
+       "pid": 84650,
+       "footprint_mb": 727.1,
+       "cpu_s": 1.609331375
+      },
+      {
+       "pid": 84665,
+       "footprint_mb": 9.81,
+       "cpu_s": 0.09675829166666668
+      },
+      {
+       "pid": 84668,
+       "footprint_mb": 6.38,
+       "cpu_s": 0.057931
+      },
+      {
+       "pid": 84673,
+       "footprint_mb": 11.24,
+       "cpu_s": 0.052939208333333335
+      },
+      {
+       "pid": 84700,
+       "footprint_mb": 35.0,
+       "cpu_s": 0.04706191666666666
+      }
+     ]
+    },
+    {
+     "at_s": 95,
+     "footprint_mb": 1022.37,
+     "cpu_s": 4.052512916666667,
+     "processes": [
+      {
+       "pid": 84601,
+       "footprint_mb": 30.17,
+       "cpu_s": 0.15732133333333334
+      },
+      {
+       "pid": 84603,
+       "footprint_mb": 69.05,
+       "cpu_s": 1.1165422916666667
+      },
+      {
+       "pid": 84604,
+       "footprint_mb": 29.25,
+       "cpu_s": 0.106985375
+      },
+      {
+       "pid": 84647,
+       "footprint_mb": 16.13,
+       "cpu_s": 0.039533041666666664
+      },
+      {
+       "pid": 84648,
+       "footprint_mb": 38.72,
+       "cpu_s": 0.121534875
+      },
+      {
+       "pid": 84649,
+       "footprint_mb": 49.44,
+       "cpu_s": 0.5897943333333334
+      },
+      {
+       "pid": 84650,
+       "footprint_mb": 727.17,
+       "cpu_s": 1.6639545833333333
+      },
+      {
+       "pid": 84665,
+       "footprint_mb": 9.81,
+       "cpu_s": 0.09816395833333333
+      },
+      {
+       "pid": 84668,
+       "footprint_mb": 6.39,
+       "cpu_s": 0.05853108333333334
+      },
+      {
+       "pid": 84673,
+       "footprint_mb": 11.24,
+       "cpu_s": 0.053090125
+      },
+      {
+       "pid": 84700,
+       "footprint_mb": 35.0,
+       "cpu_s": 0.04706191666666666
+      }
+     ]
+    }
+   ],
+   "idle_at_35s": {
+    "at_s": 35,
+    "footprint_mb": 1020.73,
+    "cpu_s": 3.6146064166666667,
+    "processes": [
+     {
+      "pid": 84601,
+      "footprint_mb": 30.0,
+      "cpu_s": 0.13382520833333333
+     },
+     {
+      "pid": 84603,
+      "footprint_mb": 68.63,
+      "cpu_s": 1.01265775
+     },
+     {
+      "pid": 84604,
+      "footprint_mb": 29.06,
+      "cpu_s": 0.084021625
+     },
+     {
+      "pid": 84647,
+      "footprint_mb": 16.13,
+      "cpu_s": 0.039173208333333334
+     },
+     {
+      "pid": 84648,
+      "footprint_mb": 38.7,
+      "cpu_s": 0.12061141666666667
+     },
+     {
+      "pid": 84649,
+      "footprint_mb": 49.39,
+      "cpu_s": 0.5713880833333334
+     },
+     {
+      "pid": 84650,
+      "footprint_mb": 726.42,
+      "cpu_s": 1.406086625
+     },
+     {
+      "pid": 84665,
+      "footprint_mb": 9.78,
+      "cpu_s": 0.090229375
+     },
+     {
+      "pid": 84668,
+      "footprint_mb": 6.38,
+      "cpu_s": 0.0568475
+     },
+     {
+      "pid": 84673,
+      "footprint_mb": 11.24,
+      "cpu_s": 0.05279508333333333
+     },
+     {
+      "pid": 84700,
+      "footprint_mb": 35.0,
+      "cpu_s": 0.046970541666666664
+     }
+    ]
+   },
+   "idle_min": {
+    "at_s": 35,
+    "footprint_mb": 1020.73,
+    "cpu_s": 3.6146064166666667,
+    "processes": [
+     {
+      "pid": 84601,
+      "footprint_mb": 30.0,
+      "cpu_s": 0.13382520833333333
+     },
+     {
+      "pid": 84603,
+      "footprint_mb": 68.63,
+      "cpu_s": 1.01265775
+     },
+     {
+      "pid": 84604,
+      "footprint_mb": 29.06,
+      "cpu_s": 0.084021625
+     },
+     {
+      "pid": 84647,
+      "footprint_mb": 16.13,
+      "cpu_s": 0.039173208333333334
+     },
+     {
+      "pid": 84648,
+      "footprint_mb": 38.7,
+      "cpu_s": 0.12061141666666667
+     },
+     {
+      "pid": 84649,
+      "footprint_mb": 49.39,
+      "cpu_s": 0.5713880833333334
+     },
+     {
+      "pid": 84650,
+      "footprint_mb": 726.42,
+      "cpu_s": 1.406086625
+     },
+     {
+      "pid": 84665,
+      "footprint_mb": 9.78,
+      "cpu_s": 0.090229375
+     },
+     {
+      "pid": 84668,
+      "footprint_mb": 6.38,
+      "cpu_s": 0.0568475
+     },
+     {
+      "pid": 84673,
+      "footprint_mb": 11.24,
+      "cpu_s": 0.05279508333333333
+     },
+     {
+      "pid": 84700,
+      "footprint_mb": 35.0,
+      "cpu_s": 0.046970541666666664
+     }
+    ]
+   },
+   "idle": {
+    "at_s": 95,
+    "footprint_mb": 1022.37,
+    "cpu_s": 4.052512916666667,
+    "processes": [
+     {
+      "pid": 84601,
+      "footprint_mb": 30.17,
+      "cpu_s": 0.15732133333333334
+     },
+     {
+      "pid": 84603,
+      "footprint_mb": 69.05,
+      "cpu_s": 1.1165422916666667
+     },
+     {
+      "pid": 84604,
+      "footprint_mb": 29.25,
+      "cpu_s": 0.106985375
+     },
+     {
+      "pid": 84647,
+      "footprint_mb": 16.13,
+      "cpu_s": 0.039533041666666664
+     },
+     {
+      "pid": 84648,
+      "footprint_mb": 38.72,
+      "cpu_s": 0.121534875
+     },
+     {
+      "pid": 84649,
+      "footprint_mb": 49.44,
+      "cpu_s": 0.5897943333333334
+     },
+     {
+      "pid": 84650,
+      "footprint_mb": 727.17,
+      "cpu_s": 1.6639545833333333
+     },
+     {
+      "pid": 84665,
+      "footprint_mb": 9.81,
+      "cpu_s": 0.09816395833333333
+     },
+     {
+      "pid": 84668,
+      "footprint_mb": 6.39,
+      "cpu_s": 0.05853108333333334
+     },
+     {
+      "pid": 84673,
+      "footprint_mb": 11.24,
+      "cpu_s": 0.053090125
+     },
+     {
+      "pid": 84700,
+      "footprint_mb": 35.0,
+      "cpu_s": 0.04706191666666666
+     }
+    ]
+   },
+   "idle_cpu_percent_of_one_core": 0.494,
+   "run_true_ms": {
+    "samples": [
+     120.16,
+     63.44,
+     63.18,
+     62.44,
+     58.32
+    ],
+    "median": 63.18
+   },
+   "sha256_256m_ms": 819,
+   "holding_2g": {
+    "footprint_mb": 3198.92,
+    "cpu_s": 6.757069166666667,
+    "processes": [
+     {
+      "pid": 84601,
+      "footprint_mb": 30.24,
+      "cpu_s": 0.180361375
+     },
+     {
+      "pid": 84603,
+      "footprint_mb": 71.89,
+      "cpu_s": 1.3504929166666668
+     },
+     {
+      "pid": 84604,
+      "footprint_mb": 29.25,
+      "cpu_s": 0.106985375
+     },
+     {
+      "pid": 84647,
+      "footprint_mb": 16.13,
+      "cpu_s": 0.040680208333333336
+     },
+     {
+      "pid": 84648,
+      "footprint_mb": 38.52,
+      "cpu_s": 0.12610704166666667
+     },
+     {
+      "pid": 84649,
+      "footprint_mb": 51.56,
+      "cpu_s": 0.6359318333333334
+     },
+     {
+      "pid": 84650,
+      "footprint_mb": 2898.89,
+      "cpu_s": 4.058904875
+     },
+     {
+      "pid": 84665,
+      "footprint_mb": 9.81,
+      "cpu_s": 0.09873979166666667
+     },
+     {
+      "pid": 84668,
+      "footprint_mb": 6.39,
+      "cpu_s": 0.058713708333333336
+     },
+     {
+      "pid": 84673,
+      "footprint_mb": 11.24,
+      "cpu_s": 0.053090125
+     },
+     {
+      "pid": 84700,
+      "footprint_mb": 35.0,
+      "cpu_s": 0.04706191666666666
+     }
+    ]
+   },
+   "return_after_2g": {
+    "baseline_mb": 1146.25,
+    "after": {
+     "footprint_mb": 3199.54,
+     "cpu_s": 7.11370025,
+     "processes": [
+      {
+       "pid": 84601,
+       "footprint_mb": 30.25,
+       "cpu_s": 0.18331495833333333
+      },
+      {
+       "pid": 84603,
+       "footprint_mb": 71.91,
+       "cpu_s": 1.407601625
+      },
+      {
+       "pid": 84604,
+       "footprint_mb": 29.25,
+       "cpu_s": 0.106985375
+      },
+      {
+       "pid": 84647,
+       "footprint_mb": 16.13,
+       "cpu_s": 0.0415165
+      },
+      {
+       "pid": 84648,
+       "footprint_mb": 38.52,
+       "cpu_s": 0.12635716666666666
+      },
+      {
+       "pid": 84649,
+       "footprint_mb": 51.45,
+       "cpu_s": 0.6437432083333334
+      },
+      {
+       "pid": 84650,
+       "footprint_mb": 2899.5,
+       "cpu_s": 4.33555275
+      },
+      {
+       "pid": 84665,
+       "footprint_mb": 9.81,
+       "cpu_s": 0.09914233333333333
+      },
+      {
+       "pid": 84668,
+       "footprint_mb": 6.39,
+       "cpu_s": 0.0589775
+      },
+      {
+       "pid": 84673,
+       "footprint_mb": 11.24,
+       "cpu_s": 0.053090125
+      },
+      {
+       "pid": 84700,
+       "footprint_mb": 35.09,
+       "cpu_s": 0.05741870833333334
+      }
+     ]
+    },
+    "elapsed_s": 10.1
+   },
+   "peak_2g_footprint_mb": 3199.7,
+   "host_load_end": [
+    1.59814453125,
+    1.32470703125,
+    1.2822265625
+   ],
+   "host_pressure_end": 1
+  },
+  {
+   "ok": false,
+   "engine": "docker-desktop",
+   "at": "2026-10-26T11:51:56.931667+00:00",
+   "host": {
+    "macos": "26.6.1",
+    "arch": "arm64",
+    "cores": 10
+   },
+   "host_load_start": [
+    1.7431640625,
+    1.46337890625,
+    1.3369140625
+   ],
+   "host_pressure_start": 1,
+   "mach_timebase": {
+    "numer": 125,
+    "denom": 3
+   },
+   "cpu_reader_check": {
+    "getrusage_s": 0.05000399999999999,
+    "reader_s": 0.05001545833333334
+   },
+   "settings": {
+    "cpus": 2,
+    "ceiling_mb": 4096,
+    "container_cpus": 2,
+    "shares": "none"
+   },
+   "docker_versions": "29.9.2 / 29.9.2",
+   "process_commands": {
+    "84937": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+    "84938": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+    "84939": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+    "84981": "/Applications/Docker.app/Contents/MacOS/com.docker.build",
+    "84983": "/Applications/Docker.app/Contents/MacOS/com.docker.virtualization",
+    "84984": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/MacOS/Docker Desktop",
+    "84985": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+    "84999": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+    "85001": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+    "85008": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper (Renderer).app/Contents/MacOS/Docker Desktop Helper (Renderer)",
+    "85035": "/Applications/Docker.app/Contents/Resources/cli-plugins/docker-agent"
+   },
+   "docker_info": {
+    "ServerVersion": "29.9.2",
+    "KernelVersion": "7.0.14-linuxkit",
+    "NCPU": 2,
+    "MemTotal": 4107407360,
+    "Architecture": "aarch64",
+    "Driver": "overlay2"
+   },
+   "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+   "idle_samples": [
+    {
+     "at_s": 35,
+     "footprint_mb": 1024.48,
+     "cpu_s": 3.461146333333333,
+     "processes": [
+      {
+       "pid": 84937,
+       "footprint_mb": 29.83,
+       "cpu_s": 0.13313066666666667
+      },
+      {
+       "pid": 84938,
+       "footprint_mb": 66.05,
+       "cpu_s": 0.9689014166666666
+      },
+      {
+       "pid": 84939,
+       "footprint_mb": 29.27,
+       "cpu_s": 0.07987275
+      },
+      {
+       "pid": 84981,
+       "footprint_mb": 16.24,
+       "cpu_s": 0.03238058333333333
+      },
+      {
+       "pid": 84983,
+       "footprint_mb": 38.59,
+       "cpu_s": 0.10481616666666667
+      },
+      {
+       "pid": 84984,
+       "footprint_mb": 49.64,
+       "cpu_s": 0.5483749166666666
+      },
+      {
+       "pid": 84985,
+       "footprint_mb": 732.02,
+       "cpu_s": 1.3503444583333333
+      },
+      {
+       "pid": 84999,
+       "footprint_mb": 9.8,
+       "cpu_s": 0.08822379166666668
+      },
+      {
+       "pid": 85001,
+       "footprint_mb": 6.41,
+       "cpu_s": 0.06070825
+      },
+      {
+       "pid": 85008,
+       "footprint_mb": 11.22,
+       "cpu_s": 0.05494579166666667
+      },
+      {
+       "pid": 85035,
+       "footprint_mb": 35.41,
+       "cpu_s": 0.03944754166666666
+      }
+     ]
+    },
+    {
+     "at_s": 50,
+     "footprint_mb": 1024.58,
+     "cpu_s": 3.556473875,
+     "processes": [
+      {
+       "pid": 84937,
+       "footprint_mb": 29.84,
+       "cpu_s": 0.13394583333333332
+      },
+      {
+       "pid": 84938,
+       "footprint_mb": 66.06,
+       "cpu_s": 0.9958125833333333
+      },
+      {
+       "pid": 84939,
+       "footprint_mb": 29.27,
+       "cpu_s": 0.07987275
+      },
+      {
+       "pid": 84981,
+       "footprint_mb": 16.24,
+       "cpu_s": 0.03251116666666667
+      },
+      {
+       "pid": 84983,
+       "footprint_mb": 38.61,
+       "cpu_s": 0.105141875
+      },
+      {
+       "pid": 84984,
+       "footprint_mb": 49.64,
+       "cpu_s": 0.5524389166666667
+      },
+      {
+       "pid": 84985,
+       "footprint_mb": 732.05,
+       "cpu_s": 1.411174875
+      },
+      {
+       "pid": 84999,
+       "footprint_mb": 9.83,
+       "cpu_s": 0.08976870833333332
+      },
+      {
+       "pid": 85001,
+       "footprint_mb": 6.41,
+       "cpu_s": 0.061188875
+      },
+      {
+       "pid": 85008,
+       "footprint_mb": 11.22,
+       "cpu_s": 0.055083625
+      },
+      {
+       "pid": 85035,
+       "footprint_mb": 35.41,
+       "cpu_s": 0.03953466666666666
+      }
+     ]
+    },
+    {
+     "at_s": 65,
+     "footprint_mb": 1024.67,
+     "cpu_s": 3.632185708333333,
+     "processes": [
+      {
+       "pid": 84937,
+       "footprint_mb": 29.84,
+       "cpu_s": 0.134143
+      },
+      {
+       "pid": 84938,
+       "footprint_mb": 66.06,
+       "cpu_s": 1.009154875
+      },
+      {
+       "pid": 84939,
+       "footprint_mb": 29.27,
+       "cpu_s": 0.07987275
+      },
+      {
+       "pid": 84981,
+       "footprint_mb": 16.24,
+       "cpu_s": 0.03251116666666667
+      },
+      {
+       "pid": 84983,
+       "footprint_mb": 38.61,
+       "cpu_s": 0.10551091666666668
+      },
+      {
+       "pid": 84984,
+       "footprint_mb": 49.64,
+       "cpu_s": 0.5556192916666667
+      },
+      {
+       "pid": 84985,
+       "footprint_mb": 732.14,
+       "cpu_s": 1.468851875
+      },
+      {
+       "pid": 84999,
+       "footprint_mb": 9.83,
+       "cpu_s": 0.090473125
+      },
+      {
+       "pid": 85001,
+       "footprint_mb": 6.41,
+       "cpu_s": 0.06143041666666666
+      },
+      {
+       "pid": 85008,
+       "footprint_mb": 11.22,
+       "cpu_s": 0.055083625
+      },
+      {
+       "pid": 85035,
+       "footprint_mb": 35.41,
+       "cpu_s": 0.03953466666666666
+      }
+     ]
+    },
+    {
+     "at_s": 80,
+     "footprint_mb": 1025.68,
+     "cpu_s": 3.8366422083333336,
+     "processes": [
+      {
+       "pid": 84937,
+       "footprint_mb": 30.02,
+       "cpu_s": 0.15854829166666665
+      },
+      {
+       "pid": 84938,
+       "footprint_mb": 66.52,
+       "cpu_s": 1.064767875
+      },
+      {
+       "pid": 84939,
+       "footprint_mb": 29.42,
+       "cpu_s": 0.106058
+      },
+      {
+       "pid": 84981,
+       "footprint_mb": 16.24,
+       "cpu_s": 0.032595458333333334
+      },
+      {
+       "pid": 84983,
+       "footprint_mb": 38.66,
+       "cpu_s": 0.105697
+      },
+      {
+       "pid": 84984,
+       "footprint_mb": 49.67,
+       "cpu_s": 0.5602382916666666
+      },
+      {
+       "pid": 84985,
+       "footprint_mb": 732.28,
+       "cpu_s": 1.5576841666666668
+      },
+      {
+       "pid": 84999,
+       "footprint_mb": 9.83,
+       "cpu_s": 0.0946005
+      },
+      {
+       "pid": 85001,
+       "footprint_mb": 6.41,
+       "cpu_s": 0.06183433333333334
+      },
+      {
+       "pid": 85008,
+       "footprint_mb": 11.22,
+       "cpu_s": 0.055083625
+      },
+      {
+       "pid": 85035,
+       "footprint_mb": 35.41,
+       "cpu_s": 0.03953466666666666
+      }
+     ]
+    },
+    {
+     "at_s": 95,
+     "footprint_mb": 1025.62,
+     "cpu_s": 3.91442025,
+     "processes": [
+      {
+       "pid": 84937,
+       "footprint_mb": 30.02,
+       "cpu_s": 0.15891341666666667
+      },
+      {
+       "pid": 84938,
+       "footprint_mb": 66.52,
+       "cpu_s": 1.0764341666666668
+      },
+      {
+       "pid": 84939,
+       "footprint_mb": 29.42,
+       "cpu_s": 0.106058
+      },
+      {
+       "pid": 84981,
+       "footprint_mb": 16.24,
+       "cpu_s": 0.032595458333333334
+      },
+      {
+       "pid": 84983,
+       "footprint_mb": 38.61,
+       "cpu_s": 0.105761375
+      },
+      {
+       "pid": 84984,
+       "footprint_mb": 49.61,
+       "cpu_s": 0.5672367916666666
+      },
+      {
+       "pid": 84985,
+       "footprint_mb": 732.33,
+       "cpu_s": 1.6142903333333332
+      },
+      {
+       "pid": 84999,
+       "footprint_mb": 9.83,
+       "cpu_s": 0.09602995833333333
+      },
+      {
+       "pid": 85001,
+       "footprint_mb": 6.41,
+       "cpu_s": 0.06233529166666667
+      },
+      {
+       "pid": 85008,
+       "footprint_mb": 11.22,
+       "cpu_s": 0.05523079166666667
+      },
+      {
+       "pid": 85035,
+       "footprint_mb": 35.41,
+       "cpu_s": 0.03953466666666666
+      }
+     ]
+    }
+   ],
+   "idle_at_35s": {
+    "at_s": 35,
+    "footprint_mb": 1024.48,
+    "cpu_s": 3.461146333333333,
+    "processes": [
+     {
+      "pid": 84937,
+      "footprint_mb": 29.83,
+      "cpu_s": 0.13313066666666667
+     },
+     {
+      "pid": 84938,
+      "footprint_mb": 66.05,
+      "cpu_s": 0.9689014166666666
+     },
+     {
+      "pid": 84939,
+      "footprint_mb": 29.27,
+      "cpu_s": 0.07987275
+     },
+     {
+      "pid": 84981,
+      "footprint_mb": 16.24,
+      "cpu_s": 0.03238058333333333
+     },
+     {
+      "pid": 84983,
+      "footprint_mb": 38.59,
+      "cpu_s": 0.10481616666666667
+     },
+     {
+      "pid": 84984,
+      "footprint_mb": 49.64,
+      "cpu_s": 0.5483749166666666
+     },
+     {
+      "pid": 84985,
+      "footprint_mb": 732.02,
+      "cpu_s": 1.3503444583333333
+     },
+     {
+      "pid": 84999,
+      "footprint_mb": 9.8,
+      "cpu_s": 0.08822379166666668
+     },
+     {
+      "pid": 85001,
+      "footprint_mb": 6.41,
+      "cpu_s": 0.06070825
+     },
+     {
+      "pid": 85008,
+      "footprint_mb": 11.22,
+      "cpu_s": 0.05494579166666667
+     },
+     {
+      "pid": 85035,
+      "footprint_mb": 35.41,
+      "cpu_s": 0.03944754166666666
+     }
+    ]
+   },
+   "idle_min": {
+    "at_s": 35,
+    "footprint_mb": 1024.48,
+    "cpu_s": 3.461146333333333,
+    "processes": [
+     {
+      "pid": 84937,
+      "footprint_mb": 29.83,
+      "cpu_s": 0.13313066666666667
+     },
+     {
+      "pid": 84938,
+      "footprint_mb": 66.05,
+      "cpu_s": 0.9689014166666666
+     },
+     {
+      "pid": 84939,
+      "footprint_mb": 29.27,
+      "cpu_s": 0.07987275
+     },
+     {
+      "pid": 84981,
+      "footprint_mb": 16.24,
+      "cpu_s": 0.03238058333333333
+     },
+     {
+      "pid": 84983,
+      "footprint_mb": 38.59,
+      "cpu_s": 0.10481616666666667
+     },
+     {
+      "pid": 84984,
+      "footprint_mb": 49.64,
+      "cpu_s": 0.5483749166666666
+     },
+     {
+      "pid": 84985,
+      "footprint_mb": 732.02,
+      "cpu_s": 1.3503444583333333
+     },
+     {
+      "pid": 84999,
+      "footprint_mb": 9.8,
+      "cpu_s": 0.08822379166666668
+     },
+     {
+      "pid": 85001,
+      "footprint_mb": 6.41,
+      "cpu_s": 0.06070825
+     },
+     {
+      "pid": 85008,
+      "footprint_mb": 11.22,
+      "cpu_s": 0.05494579166666667
+     },
+     {
+      "pid": 85035,
+      "footprint_mb": 35.41,
+      "cpu_s": 0.03944754166666666
+     }
+    ]
+   },
+   "idle": {
+    "at_s": 95,
+    "footprint_mb": 1025.62,
+    "cpu_s": 3.91442025,
+    "processes": [
+     {
+      "pid": 84937,
+      "footprint_mb": 30.02,
+      "cpu_s": 0.15891341666666667
+     },
+     {
+      "pid": 84938,
+      "footprint_mb": 66.52,
+      "cpu_s": 1.0764341666666668
+     },
+     {
+      "pid": 84939,
+      "footprint_mb": 29.42,
+      "cpu_s": 0.106058
+     },
+     {
+      "pid": 84981,
+      "footprint_mb": 16.24,
+      "cpu_s": 0.032595458333333334
+     },
+     {
+      "pid": 84983,
+      "footprint_mb": 38.61,
+      "cpu_s": 0.105761375
+     },
+     {
+      "pid": 84984,
+      "footprint_mb": 49.61,
+      "cpu_s": 0.5672367916666666
+     },
+     {
+      "pid": 84985,
+      "footprint_mb": 732.33,
+      "cpu_s": 1.6142903333333332
+     },
+     {
+      "pid": 84999,
+      "footprint_mb": 9.83,
+      "cpu_s": 0.09602995833333333
+     },
+     {
+      "pid": 85001,
+      "footprint_mb": 6.41,
+      "cpu_s": 0.06233529166666667
+     },
+     {
+      "pid": 85008,
+      "footprint_mb": 11.22,
+      "cpu_s": 0.05523079166666667
+     },
+     {
+      "pid": 85035,
+      "footprint_mb": 35.41,
+      "cpu_s": 0.03953466666666666
+     }
+    ]
+   },
+   "idle_cpu_percent_of_one_core": 0.457,
+   "run_true_ms": {
+    "samples": [
+     124.22,
+     67.57,
+     63.24,
+     64.15,
+     57.32
+    ],
+    "median": 64.15
+   },
+   "sha256_256m_ms": 805,
+   "holding_2g": {
+    "footprint_mb": 3151.28,
+    "cpu_s": 6.6134229583333335,
+    "processes": [
+     {
+      "pid": 84937,
+      "footprint_mb": 30.19,
+      "cpu_s": 0.182308625
+     },
+     {
+      "pid": 84938,
+      "footprint_mb": 72.02,
+      "cpu_s": 1.3192123333333332
+     },
+     {
+      "pid": 84939,
+      "footprint_mb": 29.42,
+      "cpu_s": 0.106058
+     },
+     {
+      "pid": 84981,
+      "footprint_mb": 16.24,
+      "cpu_s": 0.033744416666666666
+     },
+     {
+      "pid": 84983,
+      "footprint_mb": 38.64,
+      "cpu_s": 0.11064570833333333
+     },
+     {
+      "pid": 84984,
+      "footprint_mb": 51.41,
+      "cpu_s": 0.6123883333333334
+     },
+     {
+      "pid": 84985,
+      "footprint_mb": 2850.49,
+      "cpu_s": 3.9951467916666665
+     },
+     {
+      "pid": 84999,
+      "footprint_mb": 9.83,
+      "cpu_s": 0.09662445833333333
+     },
+     {
+      "pid": 85001,
+      "footprint_mb": 6.41,
+      "cpu_s": 0.06252883333333334
+     },
+     {
+      "pid": 85008,
+      "footprint_mb": 11.22,
+      "cpu_s": 0.05523079166666667
+     },
+     {
+      "pid": 85035,
+      "footprint_mb": 35.41,
+      "cpu_s": 0.03953466666666666
+     }
+    ]
+   },
+   "return_after_2g": {
+    "baseline_mb": 1095.03,
+    "after": {
+     "footprint_mb": 3152.2,
+     "cpu_s": 6.946054458333333,
+     "processes": [
+      {
+       "pid": 84937,
+       "footprint_mb": 30.19,
+       "cpu_s": 0.18508366666666665
+      },
+      {
+       "pid": 84938,
+       "footprint_mb": 72.03,
+       "cpu_s": 1.3512852916666667
+      },
+      {
+       "pid": 84939,
+       "footprint_mb": 29.42,
+       "cpu_s": 0.106058
+      },
+      {
+       "pid": 84981,
+       "footprint_mb": 16.24,
+       "cpu_s": 0.034590666666666665
+      },
+      {
+       "pid": 84983,
+       "footprint_mb": 38.64,
+       "cpu_s": 0.11098245833333333
+      },
+      {
+       "pid": 84984,
+       "footprint_mb": 51.44,
+       "cpu_s": 0.6204772916666667
+      },
+      {
+       "pid": 84985,
+       "footprint_mb": 2851.22,
+       "cpu_s": 4.272408166666667
+      },
+      {
+       "pid": 84999,
+       "footprint_mb": 9.83,
+       "cpu_s": 0.0970465
+      },
+      {
+       "pid": 85001,
+       "footprint_mb": 6.41,
+       "cpu_s": 0.062777625
+      },
+      {
+       "pid": 85008,
+       "footprint_mb": 11.22,
+       "cpu_s": 0.05523079166666667
+      },
+      {
+       "pid": 85035,
+       "footprint_mb": 35.56,
+       "cpu_s": 0.050114
+      }
+     ]
+    },
+    "elapsed_s": 10.1
+   },
+   "peak_2g_footprint_mb": 3152.39,
+   "host_load_end": [
+    1.34716796875,
+    1.3857421875,
+    1.3203125
+   ],
+   "host_pressure_end": 1
+  }
+ ],
+ "docker_desktop_with_resource_saver_off": [
+  {
+   "ok": false,
+   "engine": "docker-desktop",
+   "at": "2026-10-26T11:01:25.307445+00:00",
+   "host": {
+    "macos": "26.6.1",
+    "arch": "arm64",
+    "cores": 10
+   },
+   "host_load_start": [
+    1.34716796875,
+    1.67919921875,
+    2.341796875
+   ],
+   "host_pressure_start": 1,
+   "mach_timebase": {
+    "numer": 125,
+    "denom": 3
+   },
+   "cpu_reader_check": {
+    "getrusage_s": 0.05000399999999999,
+    "reader_s": 0.05002879166666667
+   },
+   "settings": {
+    "cpus": 2,
+    "ceiling_mb": 4096,
+    "container_cpus": 2,
+    "shares": "none"
+   },
+   "docker_versions": "29.9.2 / 29.9.2",
+   "process_commands": {
+    "80229": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+    "80248": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+    "80249": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+    "80279": "/Applications/Docker.app/Contents/MacOS/com.docker.build",
+    "80280": "/Applications/Docker.app/Contents/MacOS/com.docker.virtualization",
+    "80281": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/MacOS/Docker Desktop",
+    "80291": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+    "80303": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+    "80304": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+    "80307": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper (Renderer).app/Contents/MacOS/Docker Desktop Helper (Renderer)",
+    "80340": "/Applications/Docker.app/Contents/Resources/cli-plugins/docker-agent"
+   },
+   "docker_info": {
+    "ServerVersion": "29.9.2",
+    "KernelVersion": "7.0.14-linuxkit",
+    "NCPU": 2,
+    "MemTotal": 4107407360,
+    "Architecture": "aarch64",
+    "Driver": "overlay2"
+   },
+   "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+   "idle_samples": [
+    {
+     "at_s": 35,
+     "footprint_mb": 1057.7,
+     "cpu_s": 4.0984942916666665,
+     "processes": [
+      {
+       "pid": 80229,
+       "footprint_mb": 30.64,
+       "cpu_s": 0.16402995833333334
+      },
+      {
+       "pid": 80248,
+       "footprint_mb": 69.36,
+       "cpu_s": 1.0971070416666668
+      },
+      {
+       "pid": 80249,
+       "footprint_mb": 29.24,
+       "cpu_s": 0.07530454166666667
+      },
+      {
+       "pid": 80279,
+       "footprint_mb": 16.02,
+       "cpu_s": 0.052969916666666665
+      },
+      {
+       "pid": 80280,
+       "footprint_mb": 36.55,
+       "cpu_s": 0.10746154166666667
+      },
+      {
+       "pid": 80281,
+       "footprint_mb": 49.13,
+       "cpu_s": 0.6009400833333334
+      },
+      {
+       "pid": 80291,
+       "footprint_mb": 764.7,
+       "cpu_s": 1.73646875
+      },
+      {
+       "pid": 80303,
+       "footprint_mb": 9.78,
+       "cpu_s": 0.08975525
+      },
+      {
+       "pid": 80304,
+       "footprint_mb": 6.41,
+       "cpu_s": 0.06599383333333333
+      },
+      {
+       "pid": 80307,
+       "footprint_mb": 11.2,
+       "cpu_s": 0.056512458333333335
+      },
+      {
+       "pid": 80340,
+       "footprint_mb": 34.67,
+       "cpu_s": 0.051950916666666666
+      }
+     ]
+    },
+    {
+     "at_s": 50,
+     "footprint_mb": 1057.78,
+     "cpu_s": 4.192921,
+     "processes": [
+      {
+       "pid": 80229,
+       "footprint_mb": 30.64,
+       "cpu_s": 0.16470195833333334
+      },
+      {
+       "pid": 80248,
+       "footprint_mb": 69.39,
+       "cpu_s": 1.1228227916666667
+      },
+      {
+       "pid": 80249,
+       "footprint_mb": 29.24,
+       "cpu_s": 0.07530454166666667
+      },
+      {
+       "pid": 80279,
+       "footprint_mb": 16.02,
+       "cpu_s": 0.053095166666666666
+      },
+      {
+       "pid": 80280,
+       "footprint_mb": 36.56,
+       "cpu_s": 0.1078445
+      },
+      {
+       "pid": 80281,
+       "footprint_mb": 49.14,
+       "cpu_s": 0.6051048333333334
+      },
+      {
+       "pid": 80291,
+       "footprint_mb": 764.7,
+       "cpu_s": 1.7973742916666668
+      },
+      {
+       "pid": 80303,
+       "footprint_mb": 9.81,
+       "cpu_s": 0.091354125
+      },
+      {
+       "pid": 80304,
+       "footprint_mb": 6.41,
+       "cpu_s": 0.06653166666666667
+      },
+      {
+       "pid": 80307,
+       "footprint_mb": 11.2,
+       "cpu_s": 0.05666491666666666
+      },
+      {
+       "pid": 80340,
+       "footprint_mb": 34.67,
+       "cpu_s": 0.052122208333333336
+      }
+     ]
+    },
+    {
+     "at_s": 65,
+     "footprint_mb": 1057.83,
+     "cpu_s": 4.263365125,
+     "processes": [
+      {
+       "pid": 80229,
+       "footprint_mb": 30.66,
+       "cpu_s": 0.165009875
+      },
+      {
+       "pid": 80248,
+       "footprint_mb": 69.38,
+       "cpu_s": 1.1349354583333333
+      },
+      {
+       "pid": 80249,
+       "footprint_mb": 29.24,
+       "cpu_s": 0.07530454166666667
+      },
+      {
+       "pid": 80279,
+       "footprint_mb": 16.02,
+       "cpu_s": 0.053095166666666666
+      },
+      {
+       "pid": 80280,
+       "footprint_mb": 36.56,
+       "cpu_s": 0.10824529166666667
+      },
+      {
+       "pid": 80281,
+       "footprint_mb": 49.14,
+       "cpu_s": 0.60857
+      },
+      {
+       "pid": 80291,
+       "footprint_mb": 764.74,
+       "cpu_s": 1.8505957916666667
+      },
+      {
+       "pid": 80303,
+       "footprint_mb": 9.81,
+       "cpu_s": 0.09203866666666667
+      },
+      {
+       "pid": 80304,
+       "footprint_mb": 6.41,
+       "cpu_s": 0.06678320833333333
+      },
+      {
+       "pid": 80307,
+       "footprint_mb": 11.2,
+       "cpu_s": 0.05666491666666666
+      },
+      {
+       "pid": 80340,
+       "footprint_mb": 34.67,
+       "cpu_s": 0.052122208333333336
+      }
+     ]
+    },
+    {
+     "at_s": 80,
+     "footprint_mb": 1061.72,
+     "cpu_s": 4.495969166666667,
+     "processes": [
+      {
+       "pid": 80229,
+       "footprint_mb": 30.8,
+       "cpu_s": 0.19025841666666665
+      },
+      {
+       "pid": 80248,
+       "footprint_mb": 72.36,
+       "cpu_s": 1.21553775
+      },
+      {
+       "pid": 80249,
+       "footprint_mb": 29.39,
+       "cpu_s": 0.100884625
+      },
+      {
+       "pid": 80279,
+       "footprint_mb": 16.02,
+       "cpu_s": 0.0532025
+      },
+      {
+       "pid": 80280,
+       "footprint_mb": 36.61,
+       "cpu_s": 0.10850666666666667
+      },
+      {
+       "pid": 80281,
+       "footprint_mb": 49.17,
+       "cpu_s": 0.6148700833333334
+      },
+      {
+       "pid": 80291,
+       "footprint_mb": 765.28,
+       "cpu_s": 1.940434
+      },
+      {
+       "pid": 80303,
+       "footprint_mb": 9.81,
+       "cpu_s": 0.096300875
+      },
+      {
+       "pid": 80304,
+       "footprint_mb": 6.41,
+       "cpu_s": 0.067187125
+      },
+      {
+       "pid": 80307,
+       "footprint_mb": 11.2,
+       "cpu_s": 0.05666491666666666
+      },
+      {
+       "pid": 80340,
+       "footprint_mb": 34.67,
+       "cpu_s": 0.052122208333333336
+      }
+     ]
+    },
+    {
+     "at_s": 95,
+     "footprint_mb": 1061.74,
+     "cpu_s": 4.56932825,
+     "processes": [
+      {
+       "pid": 80229,
+       "footprint_mb": 30.8,
+       "cpu_s": 0.19056504166666666
+      },
+      {
+       "pid": 80248,
+       "footprint_mb": 72.36,
+       "cpu_s": 1.227094125
+      },
+      {
+       "pid": 80249,
+       "footprint_mb": 29.39,
+       "cpu_s": 0.100884625
+      },
+      {
+       "pid": 80279,
+       "footprint_mb": 16.02,
+       "cpu_s": 0.0532025
+      },
+      {
+       "pid": 80280,
+       "footprint_mb": 36.56,
+       "cpu_s": 0.108579125
+      },
+      {
+       "pid": 80281,
+       "footprint_mb": 49.17,
+       "cpu_s": 0.6194812083333334
+      },
+      {
+       "pid": 80291,
+       "footprint_mb": 765.35,
+       "cpu_s": 1.9952279583333332
+      },
+      {
+       "pid": 80303,
+       "footprint_mb": 9.81,
+       "cpu_s": 0.09758320833333332
+      },
+      {
+       "pid": 80304,
+       "footprint_mb": 6.41,
+       "cpu_s": 0.067777875
+      },
+      {
+       "pid": 80307,
+       "footprint_mb": 11.2,
+       "cpu_s": 0.056810375
+      },
+      {
+       "pid": 80340,
+       "footprint_mb": 34.67,
+       "cpu_s": 0.052122208333333336
+      }
+     ]
+    }
+   ],
+   "idle_at_35s": {
+    "at_s": 35,
+    "footprint_mb": 1057.7,
+    "cpu_s": 4.0984942916666665,
+    "processes": [
+     {
+      "pid": 80229,
+      "footprint_mb": 30.64,
+      "cpu_s": 0.16402995833333334
+     },
+     {
+      "pid": 80248,
+      "footprint_mb": 69.36,
+      "cpu_s": 1.0971070416666668
+     },
+     {
+      "pid": 80249,
+      "footprint_mb": 29.24,
+      "cpu_s": 0.07530454166666667
+     },
+     {
+      "pid": 80279,
+      "footprint_mb": 16.02,
+      "cpu_s": 0.052969916666666665
+     },
+     {
+      "pid": 80280,
+      "footprint_mb": 36.55,
+      "cpu_s": 0.10746154166666667
+     },
+     {
+      "pid": 80281,
+      "footprint_mb": 49.13,
+      "cpu_s": 0.6009400833333334
+     },
+     {
+      "pid": 80291,
+      "footprint_mb": 764.7,
+      "cpu_s": 1.73646875
+     },
+     {
+      "pid": 80303,
+      "footprint_mb": 9.78,
+      "cpu_s": 0.08975525
+     },
+     {
+      "pid": 80304,
+      "footprint_mb": 6.41,
+      "cpu_s": 0.06599383333333333
+     },
+     {
+      "pid": 80307,
+      "footprint_mb": 11.2,
+      "cpu_s": 0.056512458333333335
+     },
+     {
+      "pid": 80340,
+      "footprint_mb": 34.67,
+      "cpu_s": 0.051950916666666666
+     }
+    ]
+   },
+   "idle_min": {
+    "at_s": 35,
+    "footprint_mb": 1057.7,
+    "cpu_s": 4.0984942916666665,
+    "processes": [
+     {
+      "pid": 80229,
+      "footprint_mb": 30.64,
+      "cpu_s": 0.16402995833333334
+     },
+     {
+      "pid": 80248,
+      "footprint_mb": 69.36,
+      "cpu_s": 1.0971070416666668
+     },
+     {
+      "pid": 80249,
+      "footprint_mb": 29.24,
+      "cpu_s": 0.07530454166666667
+     },
+     {
+      "pid": 80279,
+      "footprint_mb": 16.02,
+      "cpu_s": 0.052969916666666665
+     },
+     {
+      "pid": 80280,
+      "footprint_mb": 36.55,
+      "cpu_s": 0.10746154166666667
+     },
+     {
+      "pid": 80281,
+      "footprint_mb": 49.13,
+      "cpu_s": 0.6009400833333334
+     },
+     {
+      "pid": 80291,
+      "footprint_mb": 764.7,
+      "cpu_s": 1.73646875
+     },
+     {
+      "pid": 80303,
+      "footprint_mb": 9.78,
+      "cpu_s": 0.08975525
+     },
+     {
+      "pid": 80304,
+      "footprint_mb": 6.41,
+      "cpu_s": 0.06599383333333333
+     },
+     {
+      "pid": 80307,
+      "footprint_mb": 11.2,
+      "cpu_s": 0.056512458333333335
+     },
+     {
+      "pid": 80340,
+      "footprint_mb": 34.67,
+      "cpu_s": 0.051950916666666666
+     }
+    ]
+   },
+   "idle": {
+    "at_s": 95,
+    "footprint_mb": 1061.74,
+    "cpu_s": 4.56932825,
+    "processes": [
+     {
+      "pid": 80229,
+      "footprint_mb": 30.8,
+      "cpu_s": 0.19056504166666666
+     },
+     {
+      "pid": 80248,
+      "footprint_mb": 72.36,
+      "cpu_s": 1.227094125
+     },
+     {
+      "pid": 80249,
+      "footprint_mb": 29.39,
+      "cpu_s": 0.100884625
+     },
+     {
+      "pid": 80279,
+      "footprint_mb": 16.02,
+      "cpu_s": 0.0532025
+     },
+     {
+      "pid": 80280,
+      "footprint_mb": 36.56,
+      "cpu_s": 0.108579125
+     },
+     {
+      "pid": 80281,
+      "footprint_mb": 49.17,
+      "cpu_s": 0.6194812083333334
+     },
+     {
+      "pid": 80291,
+      "footprint_mb": 765.35,
+      "cpu_s": 1.9952279583333332
+     },
+     {
+      "pid": 80303,
+      "footprint_mb": 9.81,
+      "cpu_s": 0.09758320833333332
+     },
+     {
+      "pid": 80304,
+      "footprint_mb": 6.41,
+      "cpu_s": 0.067777875
+     },
+     {
+      "pid": 80307,
+      "footprint_mb": 11.2,
+      "cpu_s": 0.056810375
+     },
+     {
+      "pid": 80340,
+      "footprint_mb": 34.67,
+      "cpu_s": 0.052122208333333336
+     }
+    ]
+   },
+   "idle_cpu_percent_of_one_core": 0.466,
+   "run_true_ms": {
+    "samples": [
+     123.12,
+     68.52,
+     65.47,
+     59.35,
+     63.87
+    ],
+    "median": 65.47
+   },
+   "sha256_256m_ms": 820,
+   "holding_2g": {
+    "footprint_mb": 3171.04,
+    "cpu_s": 7.298729833333333,
+    "processes": [
+     {
+      "pid": 80229,
+      "footprint_mb": 30.95,
+      "cpu_s": 0.21086345833333334
+     },
+     {
+      "pid": 80248,
+      "footprint_mb": 72.91,
+      "cpu_s": 1.458290625
+     },
+     {
+      "pid": 80249,
+      "footprint_mb": 29.39,
+      "cpu_s": 0.100884625
+     },
+     {
+      "pid": 80279,
+      "footprint_mb": 16.2,
+      "cpu_s": 0.056329375
+     },
+     {
+      "pid": 80280,
+      "footprint_mb": 37.06,
+      "cpu_s": 0.113107375
+     },
+     {
+      "pid": 80281,
+      "footprint_mb": 51.72,
+      "cpu_s": 0.66557125
+     },
+     {
+      "pid": 80291,
+      "footprint_mb": 2870.72,
+      "cpu_s": 4.418621583333333
+     },
+     {
+      "pid": 80303,
+      "footprint_mb": 9.81,
+      "cpu_s": 0.09815579166666667
+     },
+     {
+      "pid": 80304,
+      "footprint_mb": 6.41,
+      "cpu_s": 0.06797316666666667
+     },
+     {
+      "pid": 80307,
+      "footprint_mb": 11.2,
+      "cpu_s": 0.056810375
+     },
+     {
+      "pid": 80340,
+      "footprint_mb": 34.67,
+      "cpu_s": 0.052122208333333336
+     }
+    ]
+   },
+   "return_after_2g": {
+    "baseline_mb": 1132.47,
+    "after": {
+     "footprint_mb": 3170.68,
+     "cpu_s": 7.620242666666667,
+     "processes": [
+      {
+       "pid": 80229,
+       "footprint_mb": 30.99,
+       "cpu_s": 0.21307158333333334
+      },
+      {
+       "pid": 80248,
+       "footprint_mb": 72.91,
+       "cpu_s": 1.4862612083333333
+      },
+      {
+       "pid": 80249,
+       "footprint_mb": 29.39,
+       "cpu_s": 0.100884625
+      },
+      {
+       "pid": 80279,
+       "footprint_mb": 16.2,
+       "cpu_s": 0.05644
+      },
+      {
+       "pid": 80280,
+       "footprint_mb": 37.11,
+       "cpu_s": 0.11362516666666667
+      },
+      {
+       "pid": 80281,
+       "footprint_mb": 50.86,
+       "cpu_s": 0.674679125
+      },
+      {
+       "pid": 80291,
+       "footprint_mb": 2871.02,
+       "cpu_s": 4.686692708333333
+      },
+      {
+       "pid": 80303,
+       "footprint_mb": 9.81,
+       "cpu_s": 0.09857345833333332
+      },
+      {
+       "pid": 80304,
+       "footprint_mb": 6.41,
+       "cpu_s": 0.06822725
+      },
+      {
+       "pid": 80307,
+       "footprint_mb": 11.2,
+       "cpu_s": 0.056810375
+      },
+      {
+       "pid": 80340,
+       "footprint_mb": 34.78,
+       "cpu_s": 0.06497716666666667
+      }
+     ]
+    },
+    "elapsed_s": 10.01
+   },
+   "peak_2g_footprint_mb": 3171.54,
+   "host_load_end": [
+    1.18408203125,
+    1.51416015625,
+    2.189453125
+   ],
+   "host_pressure_end": 1
+  },
+  {
+   "ok": false,
+   "engine": "docker-desktop",
+   "at": "2026-10-26T11:04:38.111926+00:00",
+   "host": {
+    "macos": "26.6.1",
+    "arch": "arm64",
+    "cores": 10
+   },
+   "host_load_start": [
+    1.42431640625,
+    1.5146484375,
+    2.130859375
+   ],
+   "host_pressure_start": 1,
+   "mach_timebase": {
+    "numer": 125,
+    "denom": 3
+   },
+   "cpu_reader_check": {
+    "getrusage_s": 0.050008000000000004,
+    "reader_s": 0.05001979166666667
+   },
+   "settings": {
+    "cpus": 2,
+    "ceiling_mb": 4096,
+    "container_cpus": 2,
+    "shares": "none"
+   },
+   "docker_versions": "29.9.2 / 29.9.2",
+   "process_commands": {
+    "80542": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+    "80543": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+    "80544": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+    "80587": "/Applications/Docker.app/Contents/MacOS/com.docker.build",
+    "80588": "/Applications/Docker.app/Contents/MacOS/com.docker.virtualization",
+    "80589": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/MacOS/Docker Desktop",
+    "80590": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+    "80603": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+    "80605": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+    "80613": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper (Renderer).app/Contents/MacOS/Docker Desktop Helper (Renderer)",
+    "80641": "/Applications/Docker.app/Contents/Resources/cli-plugins/docker-agent"
+   },
+   "docker_info": {
+    "ServerVersion": "29.9.2",
+    "KernelVersion": "7.0.14-linuxkit",
+    "NCPU": 2,
+    "MemTotal": 4107407360,
+    "Architecture": "aarch64",
+    "Driver": "overlay2"
+   },
+   "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+   "idle_samples": [
+    {
+     "at_s": 35,
+     "footprint_mb": 1031.81,
+     "cpu_s": 3.518037291666667,
+     "processes": [
+      {
+       "pid": 80542,
+       "footprint_mb": 29.92,
+       "cpu_s": 0.14910570833333334
+      },
+      {
+       "pid": 80543,
+       "footprint_mb": 66.94,
+       "cpu_s": 0.9140732083333334
+      },
+      {
+       "pid": 80544,
+       "footprint_mb": 29.47,
+       "cpu_s": 0.08088033333333333
+      },
+      {
+       "pid": 80587,
+       "footprint_mb": 16.56,
+       "cpu_s": 0.029902583333333333
+      },
+      {
+       "pid": 80588,
+       "footprint_mb": 38.89,
+       "cpu_s": 0.12443083333333332
+      },
+      {
+       "pid": 80589,
+       "footprint_mb": 49.5,
+       "cpu_s": 0.5686770416666667
+      },
+      {
+       "pid": 80590,
+       "footprint_mb": 738.2,
+       "cpu_s": 1.4067496666666668
+      },
+      {
+       "pid": 80603,
+       "footprint_mb": 9.75,
+       "cpu_s": 0.08621704166666667
+      },
+      {
+       "pid": 80605,
+       "footprint_mb": 6.38,
+       "cpu_s": 0.058813083333333335
+      },
+      {
+       "pid": 80613,
+       "footprint_mb": 11.17,
+       "cpu_s": 0.05534633333333334
+      },
+      {
+       "pid": 80641,
+       "footprint_mb": 35.03,
+       "cpu_s": 0.04384145833333333
+      }
+     ]
+    },
+    {
+     "at_s": 50,
+     "footprint_mb": 1031.89,
+     "cpu_s": 3.6088269166666667,
+     "processes": [
+      {
+       "pid": 80542,
+       "footprint_mb": 29.92,
+       "cpu_s": 0.149862125
+      },
+      {
+       "pid": 80543,
+       "footprint_mb": 66.97,
+       "cpu_s": 0.9411975
+      },
+      {
+       "pid": 80544,
+       "footprint_mb": 29.47,
+       "cpu_s": 0.08088033333333333
+      },
+      {
+       "pid": 80587,
+       "footprint_mb": 16.56,
+       "cpu_s": 0.03003258333333333
+      },
+      {
+       "pid": 80588,
+       "footprint_mb": 38.89,
+       "cpu_s": 0.12477583333333332
+      },
+      {
+       "pid": 80589,
+       "footprint_mb": 49.5,
+       "cpu_s": 0.572295375
+      },
+      {
+       "pid": 80590,
+       "footprint_mb": 738.2,
+       "cpu_s": 1.4634619166666667
+      },
+      {
+       "pid": 80603,
+       "footprint_mb": 9.8,
+       "cpu_s": 0.087725375
+      },
+      {
+       "pid": 80605,
+       "footprint_mb": 6.38,
+       "cpu_s": 0.05928520833333334
+      },
+      {
+       "pid": 80613,
+       "footprint_mb": 11.17,
+       "cpu_s": 0.05546920833333334
+      },
+      {
+       "pid": 80641,
+       "footprint_mb": 35.03,
+       "cpu_s": 0.04384145833333333
+      }
+     ]
+    },
+    {
+     "at_s": 65,
+     "footprint_mb": 1031.93,
+     "cpu_s": 3.678916625,
+     "processes": [
+      {
+       "pid": 80542,
+       "footprint_mb": 29.92,
+       "cpu_s": 0.150159625
+      },
+      {
+       "pid": 80543,
+       "footprint_mb": 66.99,
+       "cpu_s": 0.9538944166666666
+      },
+      {
+       "pid": 80544,
+       "footprint_mb": 29.47,
+       "cpu_s": 0.08088033333333333
+      },
+      {
+       "pid": 80587,
+       "footprint_mb": 16.56,
+       "cpu_s": 0.03003258333333333
+      },
+      {
+       "pid": 80588,
+       "footprint_mb": 38.89,
+       "cpu_s": 0.12513775
+      },
+      {
+       "pid": 80589,
+       "footprint_mb": 49.52,
+       "cpu_s": 0.5771069166666666
+      },
+      {
+       "pid": 80590,
+       "footprint_mb": 738.2,
+       "cpu_s": 1.514445375
+      },
+      {
+       "pid": 80603,
+       "footprint_mb": 9.8,
+       "cpu_s": 0.08843216666666667
+      },
+      {
+       "pid": 80605,
+       "footprint_mb": 6.38,
+       "cpu_s": 0.059516791666666666
+      },
+      {
+       "pid": 80613,
+       "footprint_mb": 11.17,
+       "cpu_s": 0.05546920833333334
+      },
+      {
+       "pid": 80641,
+       "footprint_mb": 35.03,
+       "cpu_s": 0.04384145833333333
+      }
+     ]
+    },
+    {
+     "at_s": 80,
+     "footprint_mb": 1034.01,
+     "cpu_s": 3.9280530000000002,
+     "processes": [
+      {
+       "pid": 80542,
+       "footprint_mb": 30.11,
+       "cpu_s": 0.17384333333333335
+      },
+      {
+       "pid": 80543,
+       "footprint_mb": 68.31,
+       "cpu_s": 1.0480083333333334
+      },
+      {
+       "pid": 80544,
+       "footprint_mb": 29.64,
+       "cpu_s": 0.10683716666666668
+      },
+      {
+       "pid": 80587,
+       "footprint_mb": 16.56,
+       "cpu_s": 0.03016804166666667
+      },
+      {
+       "pid": 80588,
+       "footprint_mb": 38.94,
+       "cpu_s": 0.12531654166666667
+      },
+      {
+       "pid": 80589,
+       "footprint_mb": 49.7,
+       "cpu_s": 0.5843100833333333
+      },
+      {
+       "pid": 80590,
+       "footprint_mb": 738.2,
+       "cpu_s": 1.597345375
+      },
+      {
+       "pid": 80603,
+       "footprint_mb": 9.8,
+       "cpu_s": 0.092582625
+      },
+      {
+       "pid": 80605,
+       "footprint_mb": 6.38,
+       "cpu_s": 0.059909875
+      },
+      {
+       "pid": 80613,
+       "footprint_mb": 11.17,
+       "cpu_s": 0.05546920833333334
+      },
+      {
+       "pid": 80641,
+       "footprint_mb": 35.2,
+       "cpu_s": 0.05426241666666667
+      }
+     ]
+    },
+    {
+     "at_s": 95,
+     "footprint_mb": 1033.88,
+     "cpu_s": 4.003127416666667,
+     "processes": [
+      {
+       "pid": 80542,
+       "footprint_mb": 30.11,
+       "cpu_s": 0.17402458333333334
+      },
+      {
+       "pid": 80543,
+       "footprint_mb": 68.31,
+       "cpu_s": 1.0590567916666667
+      },
+      {
+       "pid": 80544,
+       "footprint_mb": 29.64,
+       "cpu_s": 0.10683716666666668
+      },
+      {
+       "pid": 80587,
+       "footprint_mb": 16.56,
+       "cpu_s": 0.03016804166666667
+      },
+      {
+       "pid": 80588,
+       "footprint_mb": 38.89,
+       "cpu_s": 0.12539104166666667
+      },
+      {
+       "pid": 80589,
+       "footprint_mb": 49.56,
+       "cpu_s": 0.5897574166666666
+      },
+      {
+       "pid": 80590,
+       "footprint_mb": 738.25,
+       "cpu_s": 1.6535935
+      },
+      {
+       "pid": 80603,
+       "footprint_mb": 9.8,
+       "cpu_s": 0.093921375
+      },
+      {
+       "pid": 80605,
+       "footprint_mb": 6.39,
+       "cpu_s": 0.06050216666666666
+      },
+      {
+       "pid": 80613,
+       "footprint_mb": 11.17,
+       "cpu_s": 0.055612916666666665
+      },
+      {
+       "pid": 80641,
+       "footprint_mb": 35.2,
+       "cpu_s": 0.05426241666666667
+      }
+     ]
+    }
+   ],
+   "idle_at_35s": {
+    "at_s": 35,
+    "footprint_mb": 1031.81,
+    "cpu_s": 3.518037291666667,
+    "processes": [
+     {
+      "pid": 80542,
+      "footprint_mb": 29.92,
+      "cpu_s": 0.14910570833333334
+     },
+     {
+      "pid": 80543,
+      "footprint_mb": 66.94,
+      "cpu_s": 0.9140732083333334
+     },
+     {
+      "pid": 80544,
+      "footprint_mb": 29.47,
+      "cpu_s": 0.08088033333333333
+     },
+     {
+      "pid": 80587,
+      "footprint_mb": 16.56,
+      "cpu_s": 0.029902583333333333
+     },
+     {
+      "pid": 80588,
+      "footprint_mb": 38.89,
+      "cpu_s": 0.12443083333333332
+     },
+     {
+      "pid": 80589,
+      "footprint_mb": 49.5,
+      "cpu_s": 0.5686770416666667
+     },
+     {
+      "pid": 80590,
+      "footprint_mb": 738.2,
+      "cpu_s": 1.4067496666666668
+     },
+     {
+      "pid": 80603,
+      "footprint_mb": 9.75,
+      "cpu_s": 0.08621704166666667
+     },
+     {
+      "pid": 80605,
+      "footprint_mb": 6.38,
+      "cpu_s": 0.058813083333333335
+     },
+     {
+      "pid": 80613,
+      "footprint_mb": 11.17,
+      "cpu_s": 0.05534633333333334
+     },
+     {
+      "pid": 80641,
+      "footprint_mb": 35.03,
+      "cpu_s": 0.04384145833333333
+     }
+    ]
+   },
+   "idle_min": {
+    "at_s": 35,
+    "footprint_mb": 1031.81,
+    "cpu_s": 3.518037291666667,
+    "processes": [
+     {
+      "pid": 80542,
+      "footprint_mb": 29.92,
+      "cpu_s": 0.14910570833333334
+     },
+     {
+      "pid": 80543,
+      "footprint_mb": 66.94,
+      "cpu_s": 0.9140732083333334
+     },
+     {
+      "pid": 80544,
+      "footprint_mb": 29.47,
+      "cpu_s": 0.08088033333333333
+     },
+     {
+      "pid": 80587,
+      "footprint_mb": 16.56,
+      "cpu_s": 0.029902583333333333
+     },
+     {
+      "pid": 80588,
+      "footprint_mb": 38.89,
+      "cpu_s": 0.12443083333333332
+     },
+     {
+      "pid": 80589,
+      "footprint_mb": 49.5,
+      "cpu_s": 0.5686770416666667
+     },
+     {
+      "pid": 80590,
+      "footprint_mb": 738.2,
+      "cpu_s": 1.4067496666666668
+     },
+     {
+      "pid": 80603,
+      "footprint_mb": 9.75,
+      "cpu_s": 0.08621704166666667
+     },
+     {
+      "pid": 80605,
+      "footprint_mb": 6.38,
+      "cpu_s": 0.058813083333333335
+     },
+     {
+      "pid": 80613,
+      "footprint_mb": 11.17,
+      "cpu_s": 0.05534633333333334
+     },
+     {
+      "pid": 80641,
+      "footprint_mb": 35.03,
+      "cpu_s": 0.04384145833333333
+     }
+    ]
+   },
+   "idle": {
+    "at_s": 95,
+    "footprint_mb": 1033.88,
+    "cpu_s": 4.003127416666667,
+    "processes": [
+     {
+      "pid": 80542,
+      "footprint_mb": 30.11,
+      "cpu_s": 0.17402458333333334
+     },
+     {
+      "pid": 80543,
+      "footprint_mb": 68.31,
+      "cpu_s": 1.0590567916666667
+     },
+     {
+      "pid": 80544,
+      "footprint_mb": 29.64,
+      "cpu_s": 0.10683716666666668
+     },
+     {
+      "pid": 80587,
+      "footprint_mb": 16.56,
+      "cpu_s": 0.03016804166666667
+     },
+     {
+      "pid": 80588,
+      "footprint_mb": 38.89,
+      "cpu_s": 0.12539104166666667
+     },
+     {
+      "pid": 80589,
+      "footprint_mb": 49.56,
+      "cpu_s": 0.5897574166666666
+     },
+     {
+      "pid": 80590,
+      "footprint_mb": 738.25,
+      "cpu_s": 1.6535935
+     },
+     {
+      "pid": 80603,
+      "footprint_mb": 9.8,
+      "cpu_s": 0.093921375
+     },
+     {
+      "pid": 80605,
+      "footprint_mb": 6.39,
+      "cpu_s": 0.06050216666666666
+     },
+     {
+      "pid": 80613,
+      "footprint_mb": 11.17,
+      "cpu_s": 0.055612916666666665
+     },
+     {
+      "pid": 80641,
+      "footprint_mb": 35.2,
+      "cpu_s": 0.05426241666666667
+     }
+    ]
+   },
+   "idle_cpu_percent_of_one_core": 0.439,
+   "run_true_ms": {
+    "samples": [
+     138.26,
+     71.11,
+     65.94,
+     63.63,
+     58.65
+    ],
+    "median": 65.94
+   },
+   "sha256_256m_ms": 823,
+   "holding_2g": {
+    "footprint_mb": 3198.44,
+    "cpu_s": 6.801753833333334,
+    "processes": [
+     {
+      "pid": 80542,
+      "footprint_mb": 30.2,
+      "cpu_s": 0.194750625
+     },
+     {
+      "pid": 80543,
+      "footprint_mb": 71.45,
+      "cpu_s": 1.294445625
+     },
+     {
+      "pid": 80544,
+      "footprint_mb": 29.64,
+      "cpu_s": 0.10683716666666668
+     },
+     {
+      "pid": 80587,
+      "footprint_mb": 16.66,
+      "cpu_s": 0.03323258333333333
+     },
+     {
+      "pid": 80588,
+      "footprint_mb": 38.95,
+      "cpu_s": 0.13045125
+     },
+     {
+      "pid": 80589,
+      "footprint_mb": 51.6,
+      "cpu_s": 0.634394
+     },
+     {
+      "pid": 80590,
+      "footprint_mb": 2897.38,
+      "cpu_s": 4.142604875
+     },
+     {
+      "pid": 80603,
+      "footprint_mb": 9.8,
+      "cpu_s": 0.09447925
+     },
+     {
+      "pid": 80605,
+      "footprint_mb": 6.39,
+      "cpu_s": 0.060683125
+     },
+     {
+      "pid": 80613,
+      "footprint_mb": 11.17,
+      "cpu_s": 0.055612916666666665
+     },
+     {
+      "pid": 80641,
+      "footprint_mb": 35.2,
+      "cpu_s": 0.05426241666666667
+     }
+    ]
+   },
+   "return_after_2g": {
+    "baseline_mb": 1159.23,
+    "after": {
+     "footprint_mb": 3206.64,
+     "cpu_s": 7.138483083333334,
+     "processes": [
+      {
+       "pid": 80542,
+       "footprint_mb": 30.22,
+       "cpu_s": 0.19768975
+      },
+      {
+       "pid": 80543,
+       "footprint_mb": 71.45,
+       "cpu_s": 1.3260052083333334
+      },
+      {
+       "pid": 80544,
+       "footprint_mb": 29.64,
+       "cpu_s": 0.10683716666666668
+      },
+      {
+       "pid": 80587,
+       "footprint_mb": 16.66,
+       "cpu_s": 0.034111416666666665
+      },
+      {
+       "pid": 80588,
+       "footprint_mb": 38.95,
+       "cpu_s": 0.130711625
+      },
+      {
+       "pid": 80589,
+       "footprint_mb": 51.33,
+       "cpu_s": 0.6438605833333334
+      },
+      {
+       "pid": 80590,
+       "footprint_mb": 2905.83,
+       "cpu_s": 4.433570291666667
+      },
+      {
+       "pid": 80603,
+       "footprint_mb": 9.8,
+       "cpu_s": 0.09488233333333333
+      },
+      {
+       "pid": 80605,
+       "footprint_mb": 6.39,
+       "cpu_s": 0.060939375
+      },
+      {
+       "pid": 80613,
+       "footprint_mb": 11.17,
+       "cpu_s": 0.055612916666666665
+      },
+      {
+       "pid": 80641,
+       "footprint_mb": 35.2,
+       "cpu_s": 0.05426241666666667
+      }
+     ]
+    },
+    "elapsed_s": 10.05
+   },
+   "peak_2g_footprint_mb": 3206.95,
+   "host_load_end": [
+    1.90283203125,
+    1.57763671875,
+    2.0693359375
+   ],
+   "host_pressure_end": 1
+  },
+  {
+   "ok": false,
+   "engine": "docker-desktop",
+   "at": "2026-10-26T11:27:02.479167+00:00",
+   "host": {
+    "macos": "26.6.1",
+    "arch": "arm64",
+    "cores": 10
+   },
+   "host_load_start": [
+    1.6611328125,
+    1.3603515625,
+    1.4580078125
+   ],
+   "host_pressure_start": 1,
+   "mach_timebase": {
+    "numer": 125,
+    "denom": 3
+   },
+   "cpu_reader_check": {
+    "getrusage_s": 0.050004,
+    "reader_s": 0.050015500000000004
+   },
+   "settings": {
+    "cpus": 2,
+    "ceiling_mb": 4096,
+    "container_cpus": 2,
+    "shares": "none"
+   },
+   "docker_versions": "29.9.2 / 29.9.2",
+   "process_commands": {
+    "82686": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+    "82687": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+    "82688": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+    "82736": "/Applications/Docker.app/Contents/MacOS/com.docker.build",
+    "82737": "/Applications/Docker.app/Contents/MacOS/com.docker.virtualization",
+    "82738": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/MacOS/Docker Desktop",
+    "82740": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+    "82754": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+    "82755": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+    "82762": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper (Renderer).app/Contents/MacOS/Docker Desktop Helper (Renderer)",
+    "82795": "/Applications/Docker.app/Contents/Resources/cli-plugins/docker-agent"
+   },
+   "docker_info": {
+    "ServerVersion": "29.9.2",
+    "KernelVersion": "7.0.14-linuxkit",
+    "NCPU": 2,
+    "MemTotal": 4107407360,
+    "Architecture": "aarch64",
+    "Driver": "overlay2"
+   },
+   "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+   "idle_samples": [
+    {
+     "at_s": 35,
+     "footprint_mb": 1018.71,
+     "cpu_s": 3.420856875,
+     "processes": [
+      {
+       "pid": 82686,
+       "footprint_mb": 30.16,
+       "cpu_s": 0.12892170833333333
+      },
+      {
+       "pid": 82687,
+       "footprint_mb": 66.31,
+       "cpu_s": 0.94749575
+      },
+      {
+       "pid": 82688,
+       "footprint_mb": 29.17,
+       "cpu_s": 0.081678875
+      },
+      {
+       "pid": 82736,
+       "footprint_mb": 15.64,
+       "cpu_s": 0.02671970833333333
+      },
+      {
+       "pid": 82737,
+       "footprint_mb": 37.63,
+       "cpu_s": 0.11004195833333333
+      },
+      {
+       "pid": 82738,
+       "footprint_mb": 49.25,
+       "cpu_s": 0.5641849583333334
+      },
+      {
+       "pid": 82740,
+       "footprint_mb": 728.19,
+       "cpu_s": 1.3290175
+      },
+      {
+       "pid": 82754,
+       "footprint_mb": 9.72,
+       "cpu_s": 0.084028625
+      },
+      {
+       "pid": 82755,
+       "footprint_mb": 6.38,
+       "cpu_s": 0.05422025
+      },
+      {
+       "pid": 82762,
+       "footprint_mb": 11.24,
+       "cpu_s": 0.054250375
+      },
+      {
+       "pid": 82795,
+       "footprint_mb": 35.02,
+       "cpu_s": 0.04029716666666666
+      }
+     ]
+    },
+    {
+     "at_s": 50,
+     "footprint_mb": 1019.0,
+     "cpu_s": 3.537376,
+     "processes": [
+      {
+       "pid": 82686,
+       "footprint_mb": 30.16,
+       "cpu_s": 0.12963841666666667
+      },
+      {
+       "pid": 82687,
+       "footprint_mb": 66.36,
+       "cpu_s": 0.9825549583333334
+      },
+      {
+       "pid": 82688,
+       "footprint_mb": 29.17,
+       "cpu_s": 0.081678875
+      },
+      {
+       "pid": 82736,
+       "footprint_mb": 15.64,
+       "cpu_s": 0.026846125
+      },
+      {
+       "pid": 82737,
+       "footprint_mb": 37.7,
+       "cpu_s": 0.11284658333333333
+      },
+      {
+       "pid": 82738,
+       "footprint_mb": 49.28,
+       "cpu_s": 0.570515625
+      },
+      {
+       "pid": 82740,
+       "footprint_mb": 728.28,
+       "cpu_s": 1.39849575
+      },
+      {
+       "pid": 82754,
+       "footprint_mb": 9.77,
+       "cpu_s": 0.08531941666666668
+      },
+      {
+       "pid": 82755,
+       "footprint_mb": 6.38,
+       "cpu_s": 0.054713083333333336
+      },
+      {
+       "pid": 82762,
+       "footprint_mb": 11.24,
+       "cpu_s": 0.05438233333333334
+      },
+      {
+       "pid": 82795,
+       "footprint_mb": 35.02,
+       "cpu_s": 0.040384833333333335
+      }
+     ]
+    },
+    {
+     "at_s": 65,
+     "footprint_mb": 1018.99,
+     "cpu_s": 3.611583583333333,
+     "processes": [
+      {
+       "pid": 82686,
+       "footprint_mb": 30.16,
+       "cpu_s": 0.12991883333333332
+      },
+      {
+       "pid": 82687,
+       "footprint_mb": 66.34,
+       "cpu_s": 0.9958720833333333
+      },
+      {
+       "pid": 82688,
+       "footprint_mb": 29.17,
+       "cpu_s": 0.081678875
+      },
+      {
+       "pid": 82736,
+       "footprint_mb": 15.64,
+       "cpu_s": 0.026846125
+      },
+      {
+       "pid": 82737,
+       "footprint_mb": 37.66,
+       "cpu_s": 0.11324375
+      },
+      {
+       "pid": 82738,
+       "footprint_mb": 49.28,
+       "cpu_s": 0.5735383333333334
+      },
+      {
+       "pid": 82740,
+       "footprint_mb": 728.33,
+       "cpu_s": 1.454382375
+      },
+      {
+       "pid": 82754,
+       "footprint_mb": 9.77,
+       "cpu_s": 0.08639541666666667
+      },
+      {
+       "pid": 82755,
+       "footprint_mb": 6.38,
+       "cpu_s": 0.054940625
+      },
+      {
+       "pid": 82762,
+       "footprint_mb": 11.24,
+       "cpu_s": 0.05438233333333334
+      },
+      {
+       "pid": 82795,
+       "footprint_mb": 35.02,
+       "cpu_s": 0.040384833333333335
+      }
+     ]
+    },
+    {
+     "at_s": 80,
+     "footprint_mb": 1019.48,
+     "cpu_s": 3.819236875,
+     "processes": [
+      {
+       "pid": 82686,
+       "footprint_mb": 30.33,
+       "cpu_s": 0.15217208333333335
+      },
+      {
+       "pid": 82687,
+       "footprint_mb": 66.34,
+       "cpu_s": 1.055936625
+      },
+      {
+       "pid": 82688,
+       "footprint_mb": 29.33,
+       "cpu_s": 0.10412383333333333
+      },
+      {
+       "pid": 82736,
+       "footprint_mb": 15.64,
+       "cpu_s": 0.02697958333333333
+      },
+      {
+       "pid": 82737,
+       "footprint_mb": 37.7,
+       "cpu_s": 0.113424625
+      },
+      {
+       "pid": 82738,
+       "footprint_mb": 49.31,
+       "cpu_s": 0.578103375
+      },
+      {
+       "pid": 82740,
+       "footprint_mb": 728.42,
+       "cpu_s": 1.5478340833333333
+      },
+      {
+       "pid": 82754,
+       "footprint_mb": 9.77,
+       "cpu_s": 0.09056429166666667
+      },
+      {
+       "pid": 82755,
+       "footprint_mb": 6.38,
+       "cpu_s": 0.05533120833333333
+      },
+      {
+       "pid": 82762,
+       "footprint_mb": 11.24,
+       "cpu_s": 0.05438233333333334
+      },
+      {
+       "pid": 82795,
+       "footprint_mb": 35.02,
+       "cpu_s": 0.040384833333333335
+      }
+     ]
+    },
+    {
+     "at_s": 95,
+     "footprint_mb": 1019.53,
+     "cpu_s": 3.896081166666667,
+     "processes": [
+      {
+       "pid": 82686,
+       "footprint_mb": 30.33,
+       "cpu_s": 0.15260045833333336
+      },
+      {
+       "pid": 82687,
+       "footprint_mb": 66.34,
+       "cpu_s": 1.066761375
+      },
+      {
+       "pid": 82688,
+       "footprint_mb": 29.33,
+       "cpu_s": 0.10412383333333333
+      },
+      {
+       "pid": 82736,
+       "footprint_mb": 15.64,
+       "cpu_s": 0.02697958333333333
+      },
+      {
+       "pid": 82737,
+       "footprint_mb": 37.66,
+       "cpu_s": 0.11349366666666667
+      },
+      {
+       "pid": 82738,
+       "footprint_mb": 49.31,
+       "cpu_s": 0.58484825
+      },
+      {
+       "pid": 82740,
+       "footprint_mb": 728.5,
+       "cpu_s": 1.6044776666666667
+      },
+      {
+       "pid": 82754,
+       "footprint_mb": 9.77,
+       "cpu_s": 0.09195175
+      },
+      {
+       "pid": 82755,
+       "footprint_mb": 6.39,
+       "cpu_s": 0.05592358333333334
+      },
+      {
+       "pid": 82762,
+       "footprint_mb": 11.24,
+       "cpu_s": 0.05453616666666666
+      },
+      {
+       "pid": 82795,
+       "footprint_mb": 35.02,
+       "cpu_s": 0.040384833333333335
+      }
+     ]
+    }
+   ],
+   "idle_at_35s": {
+    "at_s": 35,
+    "footprint_mb": 1018.71,
+    "cpu_s": 3.420856875,
+    "processes": [
+     {
+      "pid": 82686,
+      "footprint_mb": 30.16,
+      "cpu_s": 0.12892170833333333
+     },
+     {
+      "pid": 82687,
+      "footprint_mb": 66.31,
+      "cpu_s": 0.94749575
+     },
+     {
+      "pid": 82688,
+      "footprint_mb": 29.17,
+      "cpu_s": 0.081678875
+     },
+     {
+      "pid": 82736,
+      "footprint_mb": 15.64,
+      "cpu_s": 0.02671970833333333
+     },
+     {
+      "pid": 82737,
+      "footprint_mb": 37.63,
+      "cpu_s": 0.11004195833333333
+     },
+     {
+      "pid": 82738,
+      "footprint_mb": 49.25,
+      "cpu_s": 0.5641849583333334
+     },
+     {
+      "pid": 82740,
+      "footprint_mb": 728.19,
+      "cpu_s": 1.3290175
+     },
+     {
+      "pid": 82754,
+      "footprint_mb": 9.72,
+      "cpu_s": 0.084028625
+     },
+     {
+      "pid": 82755,
+      "footprint_mb": 6.38,
+      "cpu_s": 0.05422025
+     },
+     {
+      "pid": 82762,
+      "footprint_mb": 11.24,
+      "cpu_s": 0.054250375
+     },
+     {
+      "pid": 82795,
+      "footprint_mb": 35.02,
+      "cpu_s": 0.04029716666666666
+     }
+    ]
+   },
+   "idle_min": {
+    "at_s": 35,
+    "footprint_mb": 1018.71,
+    "cpu_s": 3.420856875,
+    "processes": [
+     {
+      "pid": 82686,
+      "footprint_mb": 30.16,
+      "cpu_s": 0.12892170833333333
+     },
+     {
+      "pid": 82687,
+      "footprint_mb": 66.31,
+      "cpu_s": 0.94749575
+     },
+     {
+      "pid": 82688,
+      "footprint_mb": 29.17,
+      "cpu_s": 0.081678875
+     },
+     {
+      "pid": 82736,
+      "footprint_mb": 15.64,
+      "cpu_s": 0.02671970833333333
+     },
+     {
+      "pid": 82737,
+      "footprint_mb": 37.63,
+      "cpu_s": 0.11004195833333333
+     },
+     {
+      "pid": 82738,
+      "footprint_mb": 49.25,
+      "cpu_s": 0.5641849583333334
+     },
+     {
+      "pid": 82740,
+      "footprint_mb": 728.19,
+      "cpu_s": 1.3290175
+     },
+     {
+      "pid": 82754,
+      "footprint_mb": 9.72,
+      "cpu_s": 0.084028625
+     },
+     {
+      "pid": 82755,
+      "footprint_mb": 6.38,
+      "cpu_s": 0.05422025
+     },
+     {
+      "pid": 82762,
+      "footprint_mb": 11.24,
+      "cpu_s": 0.054250375
+     },
+     {
+      "pid": 82795,
+      "footprint_mb": 35.02,
+      "cpu_s": 0.04029716666666666
+     }
+    ]
+   },
+   "idle": {
+    "at_s": 95,
+    "footprint_mb": 1019.53,
+    "cpu_s": 3.896081166666667,
+    "processes": [
+     {
+      "pid": 82686,
+      "footprint_mb": 30.33,
+      "cpu_s": 0.15260045833333336
+     },
+     {
+      "pid": 82687,
+      "footprint_mb": 66.34,
+      "cpu_s": 1.066761375
+     },
+     {
+      "pid": 82688,
+      "footprint_mb": 29.33,
+      "cpu_s": 0.10412383333333333
+     },
+     {
+      "pid": 82736,
+      "footprint_mb": 15.64,
+      "cpu_s": 0.02697958333333333
+     },
+     {
+      "pid": 82737,
+      "footprint_mb": 37.66,
+      "cpu_s": 0.11349366666666667
+     },
+     {
+      "pid": 82738,
+      "footprint_mb": 49.31,
+      "cpu_s": 0.58484825
+     },
+     {
+      "pid": 82740,
+      "footprint_mb": 728.5,
+      "cpu_s": 1.6044776666666667
+     },
+     {
+      "pid": 82754,
+      "footprint_mb": 9.77,
+      "cpu_s": 0.09195175
+     },
+     {
+      "pid": 82755,
+      "footprint_mb": 6.39,
+      "cpu_s": 0.05592358333333334
+     },
+     {
+      "pid": 82762,
+      "footprint_mb": 11.24,
+      "cpu_s": 0.05453616666666666
+     },
+     {
+      "pid": 82795,
+      "footprint_mb": 35.02,
+      "cpu_s": 0.040384833333333335
+     }
+    ]
+   },
+   "idle_cpu_percent_of_one_core": 0.459,
+   "run_true_ms": {
+    "samples": [
+     122.56,
+     71.03,
+     58.61,
+     61.99,
+     66.93
+    ],
+    "median": 66.93
+   },
+   "sha256_256m_ms": 815,
+   "holding_2g": {
+    "footprint_mb": 3189.77,
+    "cpu_s": 6.607615125000001,
+    "processes": [
+     {
+      "pid": 82686,
+      "footprint_mb": 30.41,
+      "cpu_s": 0.17470441666666667
+     },
+     {
+      "pid": 82687,
+      "footprint_mb": 72.39,
+      "cpu_s": 1.3014610416666668
+     },
+     {
+      "pid": 82688,
+      "footprint_mb": 29.33,
+      "cpu_s": 0.10412383333333333
+     },
+     {
+      "pid": 82736,
+      "footprint_mb": 15.66,
+      "cpu_s": 0.028267583333333332
+     },
+     {
+      "pid": 82737,
+      "footprint_mb": 38.09,
+      "cpu_s": 0.11835083333333332
+     },
+     {
+      "pid": 82738,
+      "footprint_mb": 51.28,
+      "cpu_s": 0.6306675416666666
+     },
+     {
+      "pid": 82740,
+      "footprint_mb": 2890.19,
+      "cpu_s": 4.006492125
+     },
+     {
+      "pid": 82754,
+      "footprint_mb": 9.77,
+      "cpu_s": 0.092517125
+     },
+     {
+      "pid": 82755,
+      "footprint_mb": 6.39,
+      "cpu_s": 0.056109625
+     },
+     {
+      "pid": 82762,
+      "footprint_mb": 11.24,
+      "cpu_s": 0.05453616666666666
+     },
+     {
+      "pid": 82795,
+      "footprint_mb": 35.02,
+      "cpu_s": 0.040384833333333335
+     }
+    ]
+   },
+   "return_after_2g": {
+    "baseline_mb": 1130.61,
+    "after": {
+     "footprint_mb": 3191.12,
+     "cpu_s": 6.915231958333333,
+     "processes": [
+      {
+       "pid": 82686,
+       "footprint_mb": 30.42,
+       "cpu_s": 0.17701004166666665
+      },
+      {
+       "pid": 82687,
+       "footprint_mb": 72.41,
+       "cpu_s": 1.3307517916666667
+      },
+      {
+       "pid": 82688,
+       "footprint_mb": 29.33,
+       "cpu_s": 0.10412383333333333
+      },
+      {
+       "pid": 82736,
+       "footprint_mb": 15.66,
+       "cpu_s": 0.029169666666666667
+      },
+      {
+       "pid": 82737,
+       "footprint_mb": 37.08,
+       "cpu_s": 0.118791
+      },
+      {
+       "pid": 82738,
+       "footprint_mb": 51.16,
+       "cpu_s": 0.6386634166666666
+      },
+      {
+       "pid": 82740,
+       "footprint_mb": 2892.52,
+       "cpu_s": 4.262016541666666
+      },
+      {
+       "pid": 82754,
+       "footprint_mb": 9.77,
+       "cpu_s": 0.092924125
+      },
+      {
+       "pid": 82755,
+       "footprint_mb": 6.39,
+       "cpu_s": 0.05637820833333334
+      },
+      {
+       "pid": 82762,
+       "footprint_mb": 11.24,
+       "cpu_s": 0.05453616666666666
+      },
+      {
+       "pid": 82795,
+       "footprint_mb": 35.14,
+       "cpu_s": 0.050867166666666665
+      }
+     ]
+    },
+    "elapsed_s": 10.03
+   },
+   "peak_2g_footprint_mb": 3192.3,
+   "host_load_end": [
+    1.5087890625,
+    1.458984375,
+    1.48779296875
+   ],
+   "host_pressure_end": 1
+  }
+ ],
+ "memory_return_probes": {
+  "note": "2 GiB in a container tmpfs, freed, then the footprint sampled past the benchmark's 10 s limit",
+  "orbstack": {
+   "engine": "orbstack",
+   "baseline_mb": 476.83,
+   "series": [
+    [
+     5,
+     2583
+    ],
+    [
+     10,
+     2583
+    ],
+    [
+     20,
+     506
+    ]
+   ]
+  },
+  "colima": {
+   "engine": "colima",
+   "baseline_mb": 1089.14,
+   "series": [
+    [
+     5,
+     3074
+    ],
+    [
+     10,
+     3074
+    ],
+    [
+     20,
+     3074
+    ],
+    [
+     30,
+     3074
+    ],
+    [
+     45,
+     3074
+    ],
+    [
+     60,
+     3075
+    ],
+    [
+     90,
+     3075
+    ],
+    [
+     120,
+     3084
+    ],
+    [
+     180,
+     3084
+    ],
+    [
+     240,
+     3084
+    ],
+    [
+     300,
+     3100
+    ]
+   ]
+  },
+  "docker-desktop": {
+   "engine": "docker-desktop",
+   "baseline_mb": 1032.62,
+   "series": [
+    [
+     5,
+     3117
+    ],
+    [
+     10,
+     3117
+    ],
+    [
+     20,
+     3117
+    ],
+    [
+     30,
+     3117
+    ],
+    [
+     45,
+     3115
+    ],
+    [
+     60,
+     3115
+    ],
+    [
+     90,
+     3115
+    ],
+    [
+     120,
+     3117
+    ],
+    [
+     180,
+     3117
+    ],
+    [
+     240,
+     3117
+    ],
+    [
+     300,
+     3117
+    ]
+   ]
+  },
+  "docker-desktop_long": {
+   "engine": "docker-desktop",
+   "resource_saver": true,
+   "series_seconds_since_freeing": [
+    [
+     360,
+     258
+    ],
+    [
+     480,
+     258
+    ],
+    [
+     600,
+     258
+    ],
+    [
+     720,
+     258
+    ],
+    [
+     840,
+     258
+    ],
+    [
+     960,
+     258
+    ],
+    [
+     1080,
+     258
+    ],
+    [
+     1200,
+     258
+    ]
+   ],
+   "note": "same probe continued: 3117 MB at five minutes, then Resource Saver stops the VM and the footprint is 258 MB (the app's own processes) from six minutes on"
+  }
+ }
+}

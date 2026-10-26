@@ -524,42 +524,29 @@ Done when: on a Mac whose only way out is an HTTP proxy (no authentication) with
 
 For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md).
 
-v0.2.2 is published (signed and notarized, 2026-10-26). main adds, unreleased: the idle CPU fix
-(1.4 → 0.57 %) and FEX-Emu with hardware TSO as the default x86 emulator (QEMU as a setting),
-with a new kernel (Asahi's TSO patches) and docker.img format 3. In order:
+**v0.3.0 is published** (signed and notarized, 2026-10-26; installed and verified from GitHub),
+and [WORKORDER.md](WORKORDER.md) — the maintainer's bugs-and-regressions list — is finished:
+B1 `AT_SECURE` for setuid x86 programs, B2 FEX without `/proc`, B3 the three unrun checks (which
+found a broken `make release`), R1 node's slow start (246 ms now, faster than QEMU), R2 FEX's
+extra memory (gone with R1), R3 the TSO switch cost (0.78 µs, invisible unless vCPUs are
+oversubscribed: accepted), R4 the first-boot unpack (returned by the first idle sweep: accepted),
+O1 the ~100 MB high idle readings (measurements taken before the idle trim; the harness now
+samples the window), I1 32-bit x86 images and I2 Cephes' exact licence terms. The four-engine
+comparison was re-measured with 0.3.0 and README and benchmark.md carry those numbers.
 
-1. Bugs and regressions first (maintainer, 2026-10-26): work through [WORKORDER.md](WORKORDER.md)
-   top to bottom. P0 and P1 are done: B1 `AT_SECURE`, B2 FEX without `/proc`, B3 the three unrun
-   checks (which found a broken `make release`), R1 node start (260 ms now, faster than QEMU),
-   R2 FEX's extra memory (gone with R1; both emulators sit at 80 MB once the idle sweep runs),
-   R3 the TSO switch cost (0.78 µs per switch, invisible unless vCPUs are oversubscribed:
-   accepted) and R4 the first-boot unpack (returned by the first sweep: accepted). P2 is done
-   too: the high idle readings were measurements taken before the idle trim, and `benchmark.py`
-   now samples the whole idle window. I2 is done too: THIRD_PARTY.md records Cephes' exact terms.
-   I1 is done as well: `linux/386` images run under FEX (the fallback vsyscall page needed
-   execute permission), x86test covers 32-bit and the image matrix runs all three platforms,
-   24/24. **The work order is finished and 0.3.0 is published** (signed, notarized, verified from
-   GitHub). In order:
+In order:
 
-1. Re-measure the published idle number (maintainer, 2026-10-26): rerun the four-engine
-   comparison with 0.3.0 and the idle window the harness now samples, then update README and
-   benchmark.md. Docker Desktop, OrbStack and Colima are installed for it and removed afterwards.
-2. Community announcement (Show HN, Reddit, GeekNews): phase 11 is out, so this waits only on the
+1. Community announcement (Show HN, Reddit, GeekNews): phase 11 is out, so this waits only on the
    maintainer's word (maintainer, 2026-10-25: after more improvements).
-3. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
-4. Open, not blocking: `qemu-x86_64` cannot run 32-bit programs, so `linux/386` needs
+2. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
+3. Open, not blocking: `qemu-x86_64` cannot run 32-bit programs, so `linux/386` needs
    `x86_emulator fex` (the default); adding qemu-i386 would be a separate build. Warm `docker run`
-   (~100 ms quiet) stays behind Colima by choice (data disk barrier flushes, see Decisions).
-2. Release 0.3.0 with FEX (maintainer's call: tag and publish), after the work order.
-3. Warm `docker run` (~100 ms quiet) stays behind Colima by choice (data disk barrier flushes,
-   see Decisions).
-4. Community announcement (Show HN, Reddit, GeekNews): phase 11 is out in 0.2.0, so this waits only
-   on the maintainer's word (maintainer, 2026-10-25: after more improvements).
-5. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
+   (~100 ms on a quiet Mac) stays behind Colima by choice (data disk barrier flushes, see
+   Decisions). FEX's emulated `uname -m` says `x86_64` even for a 32-bit process.
 
-Phase 8 (own runtime) remains unstarted; Docker currently uses dockerd/containerd/runc. Storage,
-network and sharing extensions are explicitly tracked under phase 6. None is silently marked
-complete by the finished acceptance suites.
+Phase 8 (own runtime) remains unstarted; Docker uses dockerd/containerd/runc. Storage, network and
+sharing extensions are tracked under phase 6. None is silently marked complete by the finished
+acceptance suites.
 
 ## Findings and measurements
 
@@ -714,6 +701,7 @@ complete by the finished acceptance suites.
 | 2026-10-26 | 32-bit x86 under FEX (WORKORDER I1) | Blocked on FEX, not on dmx. The binfmt entry works (`FEX-x86`, ELFCLASS32 and `EM_386` with the same mask as the 64-bit entry, registered for FEX only), but every 32-bit program dies with `E NoExec instruction in entry block: FFFFF000` and SIGSEGV: FEX starts at the page its 32-bit allocator marks as taken, so the program's ELF was never mapped. Same for Alpine's static PIE busybox (ET_DYN, entry 0x1b44f) and for the dynamically linked busybox of the x86 minirootfs in a chroot with `/proc`; unchanged by `FEX_MAXINST=5000`, `FEX_MULTIBLOCK=0`, `FEX_SMCCHECKS=0`/`2`, `FEX_TSOENABLED=0` and `FEX_ROOTFS`. The code was reverted; the pinned and signature-checked 32-bit inputs and the next debugging step are in WORKORDER I1. |
 | 2026-10-26 | 32-bit x86 images work (WORKORDER I1, fixed) | The crash was FEX's fallback vsyscall page: with no VDSO thunk (dmx builds none) FEX writes `int 0x80` into a page of its own and leaves it read-only, so the first syscall a 32-bit program makes through `AT_SYSINFO` hit a page FEX tracks as non-executable — `NoExec instruction in entry block: FFFFF000`, which is that page's address, not a failed mapping. dmx's patch maps it read-execute and tells FEX's VMA tracking (`AddVirtualPage`). `/init` registers `FEX-x86` (ELFCLASS32, `EM_386`) when the emulator is FEX; with QEMU the entry stays out, since `qemu-x86_64` cannot run those programs. x86test 44/44, including a pinned 32-bit Alpine root (static busybox, the dynamic one through `ld-musl-i386.so.1`, i386 `sleep` 5 MB RSS, `true` 3 ms). Image matrix 24/24 with all three platforms on a quiet Mac: the six images that publish 386 pass, Redis's jemalloc and PostgreSQL included ([raw](measurements/2026-10-26-images-all-platforms.json)). `test-images.py` gained optional platforms and `--pin-optional`, so adding one does not move the pins already measured. FEX's `uname -m` says `x86_64` even for a 32-bit process (QEMU's i386 says `i686`); written down in compatibility.md. FEX is `fex-2610-dmx5`. |
 | 2026-10-26 | 0.3.0 release and its verification | Signed and notarized, published as [v0.3.0](https://github.com/cothis/dmx/releases/tag/v0.3.0) with 14 assets (binary 1.8 MB, guest 62.9 MB, sources 496 MB, 21 packages). Gates before it: unit 42/42, selftest 97 MB, daemon 53/53, MCP 30/30, x86 44/44, Docker 69/69, sandbox 41/41, pressure 12/12, image matrix 24/24. `make release` ran twice with `pin_changed` false on the second, so the tag builds the binary that was published. NOTES.md gained a hand-written "Changes since 0.2.2" section and SHA256SUMS was recomputed for it. From a local server: guest download, boot and selftest ok (101 MB), install.sh installs and `spctl` says Notarized Developer ID. From GitHub as a user: install.sh, `guest fetch`, selftest 96 MB, the `FEX-x86` binfmt entry present, and `docker run` on all three platforms (arm64, amd64, 386). |
+| 2026-10-26 | Engine comparison with 0.3.0 (maintainer asked to re-measure) | Quiet Mac (load 1.0–1.7), one engine at a time, three rounds alternating, the same Docker Desktop and OrbStack installers as before (sha256 match), Colima from Homebrew. Medians: idle steady state dmx 222 MB, OrbStack 379, Colima 1100, Docker Desktop 1026; dmx's floor 194 MB. Idle CPU dmx 0.40 % of one core, now the lowest of the four (1.4 % in 0.2.2), against 0.53 / 0.67 / 0.46. Holding 2 GiB: 2390 / 2693 / 3160 / 3154 MB; ten seconds after freeing it: dmx 356 MB (back in 2–5 s), the others still holding. Longer probes: OrbStack returns it by 20 s, Colima still holds 3100 MB at five minutes, Docker Desktop holds 3117 MB at five minutes and then its Resource Saver stops the VM (258 MB at six minutes). `docker run` 104 / 97 / 52 / 63 ms; 256 MiB SHA-256 847 / 1334 / 795 / 819 ms. README and benchmark.md now quote the steady state with the floor beside it ([raw](measurements/2026-10-26-engine-comparison-0.3.0.json)). The three engines were removed afterwards. |
 
 ## Progress log
 
@@ -794,3 +782,4 @@ complete by the finished acceptance suites.
 - 2026-10-26: WORKORDER I1 attempted and reverted: the `FEX-x86` binfmt entry registers fine, but FEX never maps a 32-bit program's ELF (`NoExec instruction in entry block: FFFFF000`), for static PIE and dynamic programs alike and under every config knob tried. The reproduction, the pinned 32-bit Alpine inputs and the next debugging step are written down; x86test is green at 40/40 and node starts in 246 ms against QEMU's 370. The work order is now done except I1. Next: the maintainer's call on releasing 0.3.0.
 - 2026-10-26: WORKORDER I1 done, work order finished: `linux/386` images run. FEX's fallback vsyscall page (used when there is no VDSO thunk) was mapped read-only, so every 32-bit program died on its first syscall; it is now read-execute and tracked as such. x86test 44/44 with a pinned 32-bit Alpine root, image matrix 24/24 across arm64, amd64 and 386 on a quiet Mac, selftest 97 MB, dockertest 69/69. Next: 0.3.0, which needs the maintainer's call to tag and publish.
 - 2026-10-26: Released v0.3.0 (signed, notarized): FEX-Emu with hardware TSO for amd64 and 386 images, the idle CPU fix and everything the work order fixed. NOTES.md carries a hand-written change summary. Verified from GitHub as a user: install.sh, guest download, selftest 96 MB and `docker run` on arm64, amd64 and 386. Next: rerun the four-engine comparison with 0.3.0 and update the published idle numbers (maintainer asked for it).
+- 2026-10-26: Re-measured the four-engine comparison with 0.3.0 on a quiet Mac (same installers by sha256, Docker Desktop with its Resource Saver left on). Idle steady state: dmx 222 MB against OrbStack 379, Colima 1100 and Docker Desktop 1026; idle CPU 0.40 % of one core, now the lowest of the four. README and benchmark.md quote the steady state with dmx's 194 MB floor beside it, and record that OrbStack returns 2 GiB by 20 s while the Virtualization-framework engines hold it for minutes. Engines removed afterwards. Next: the maintainer's call on announcing the project.

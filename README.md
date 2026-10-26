@@ -9,13 +9,17 @@ driven by AI agents as easily as by people.
 
 | Same Mac, 2 CPUs / 4 GiB VM | dmx | OrbStack | Colima | Docker Desktop |
 |---|---|---|---|---|
-| Idle | **198 MB** | 530 MB | 1093 MB | 1053 MB |
-| While a container holds 2 GiB | 2380 MB | 2614 MB | 3132 MB | 3225 MB |
-| After it frees the 2 GiB (10 s at most) | **342 MB** | 546 MB | 3138 MB | 3223 MB |
-| Warm `docker run --rm alpine true` | 101 ms | 95 ms | 52 ms | 67 ms |
+| Idle | **222 MB** | 379 MB | 1100 MB | 1026 MB |
+| Idle CPU | **0.4 %** of one core | 0.5 % | 0.7 % | 0.5 % |
+| While a container holds 2 GiB | **2390 MB** | 2693 MB | 3160 MB | 3154 MB |
+| After it frees the 2 GiB (10 s at most) | **356 MB** | 2699 MB | 3164 MB | 3157 MB |
+| Warm `docker run --rm alpine true` | 104 ms | 97 ms | 52 ms | 63 ms |
 
-Medians of three rounds on a quiet Mac; whole engine, VM included. Method, raw data
-and caveats: [docs/benchmark.md](docs/benchmark.md#results-2026-10-26-quiet-mac). dmx's `docker run` is
+Medians of three rounds on a quiet Mac; whole engine, VM included. Idle memory is the steady
+state 95 s after the last command: dmx's dips to 194 MB when it trims the guest and settles at
+222 MB. OrbStack gives the 2 GiB back about 20 s after the container exits, past the 10 s this
+table allows; Colima and Docker Desktop still hold it five minutes later. Method, raw data
+and caveats: [docs/benchmark.md](docs/benchmark.md#results-2026-10-26-dmx-030-quiet-mac). dmx's `docker run` is
 slower than Colima's because dmx keeps write ordering on the data disk across a power cut
 ([why](docs/benchmark.md#warm-docker-run-profile-2026-10-25)).
 

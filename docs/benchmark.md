@@ -28,9 +28,9 @@ emulation compatibility is tested separately in [compatibility.md](compatibility
    their files again, so the footprint has a floor (`idle_min`, 185–205 MB here) and a steady
    state (`idle`, 210–225 MB). A fixed 35-second settle sat on the edge of the trim, which is why
    2 of 9 runs on 2026-10-25 read ~70 MB high
-   ([measurements](measurements/2026-10-26-idle-readings.json)). The tables below quote the
-   35-second reading (`idle_at_35s`), which is what every comparison so far measured; rerunning
-   the comparison would be needed to quote the steady state for all four engines.
+   ([measurements](measurements/2026-10-26-idle-readings.json)). The 0.3.0 table quotes the steady
+   state, with the floor and the 35-second reading next to it; the older tables quote the
+   35-second reading alone, which is all they measured.
 4. Write 2 GiB into a container's tmpfs, record host memory while held and the sampled peak,
    then remove it and the container. Record time and footprint until memory is back within
    64 MiB of the preceding baseline, with a ten-second limit.
@@ -63,7 +63,50 @@ CPU is shown as a percentage of one core; the footprint peak is sampled every 10
 lifetime peak. `--cpus` and `--ceiling-gb` support other acceptance profiles, but comparisons
 must use the same profile for every engine; the container workload remains limited to 2 CPUs.
 
-## Results, 2026-10-26 (quiet Mac)
+## Results, 2026-10-26 (dmx 0.3.0, quiet Mac)
+
+Same Mac as below (macOS 26.6.1, 10 cores, 16 GB), host load 1.0 to 1.7 for every run, one engine
+at a time, three rounds in alternating order, 2 CPUs and 4 GiB each. dmx 0.3.0 against the same
+engine builds as the 0.2.2 comparison below (the Docker Desktop and OrbStack installers match by
+sha256) ([raw](measurements/2026-10-26-engine-comparison-0.3.0.json)). Medians, with ranges in
+parentheses:
+
+| | dmx 0.3.0 | OrbStack 2.2.5 | Colima 0.10.3 (vz) | Docker Desktop 4.96.3 |
+|---|---|---|---|---|
+| Idle, steady state at 95 s, MB | **222** (219–223) | 379 (374–379) | 1100 (1084–1366) | 1026 (1022–1058) |
+| Idle, lowest reading in the window, MB | **194** (188–195) | 377 (374–378) | 1099 (1083–1366) | 1024 (1021–1057) |
+| Idle at 35 s, as in the tables below, MB | **194** (188–195) | 445 (442–445) | 1099 (1083–1366) | 1024 (1021–1057) |
+| Idle CPU, % of one core | **0.40** (0.39–0.42) | 0.53 (0.42–0.57) | 0.67 (0.58–0.81) | 0.46 (0.44–0.49) |
+| Holding 2 GiB in tmpfs, MB | **2390** (2389–2391) | 2693 (2690–2700) | 3160 (3153–3369) | 3154 (3151–3199) |
+| After freeing it (at the 10 s limit), MB | **356** (352–358) | 2699 (2695–2708) | 3164 (3153–3372) | 3157 (3152–3200) |
+| Back within baseline +64 MB | **2 s** (2–5) | no (by 20 s, probe) | no (3100 MB at 5 min) | no (258 MB at 6 min, VM stopped) |
+| `docker run --rm alpine true`, ms | 104 (98–104) | 97 (94–103) | **52** (51–54) | 63 (62–64) |
+| SHA-256 of 256 MiB, ms | 847 (838–864) | 1334 (1285–1347) | **795** (793–806) | 819 (805–826) |
+
+What changed since the 0.2.2 table below:
+
+- **dmx's idle CPU is now the lowest of the four**, 0.40 % of one core against 1.4 % in 0.2.2:
+  the idle trim no longer repeats (see the entry below). Idle memory is unchanged at the 35 s
+  mark (198 → 194 MB).
+- **The idle window is sampled, not a single reading.** dmx trims an idle guest 30 s after the
+  last activity and dockerd then reads some files back, so its floor is 194 MB and its steady
+  state 222 MB. OrbStack does the same more slowly: 445 MB at 35 and 50 s, 377 MB from 65 s. The
+  two Virtualization-framework engines are flat across the window.
+- **OrbStack returned the 2 GiB just outside the 10 s limit** in all three rounds, where the
+  0.2.2 comparison saw it come back in 3.9 to 5.4 s. A longer probe has it back by 20 s
+  (2583 MB at 10 s, 506 MB at 20 s against a 477 MB baseline). Colima keeps it: 3100 MB five
+  minutes after the container exited. Docker Desktop holds 3117 MB for five minutes and then its
+  Resource Saver stops the VM, leaving 258 MB of app processes from six minutes on — so it does
+  give the memory back, a few minutes later and by stopping the VM rather than returning pages.
+- **Timings are within the earlier ranges** except OrbStack's SHA-256 (1261 → 1334 ms) and
+  Docker Desktop's `docker run` (67 → 63 ms).
+
+Docker Desktop was measured with its Resource Saver left on, which is its default; three earlier
+rounds with it off are in the raw file and read the same (idle 1032 MB, 1019–1058), because it
+does not act inside a 95-second window. Every process of each engine was measured, as below:
+Docker Desktop 11 processes, Colima 4, OrbStack 1 (its vmgr helper), dmx 1.
+
+## Results, 2026-10-26 (dmx 0.2.2, quiet Mac)
 
 Same Mac as below (macOS 26.6.1, 10 cores, 16 GB) with nothing else busy: host load 1.0 to 1.6
 for every run. One engine at a time, three rounds (dmx, OrbStack, Colima, Docker Desktop; round
@@ -105,7 +148,12 @@ not come up in those runs; it is not explained yet.
 Engines were set up as on 2026-10-25 (vendor DMGs with the same sha256s, Developer ID and
 notarization checked; Colima from Homebrew), plus what avoided password prompts: Docker
 Desktop with the default socket, vmnetd and privileged ports off and its CLI tools in
-`~/.docker/bin`; OrbStack headless with `setup.use_admin` and `docker.set_context` off. Every
+`~/.docker/bin`; OrbStack headless with `setup.use_admin` and `docker.set_context` off. The same
+setup served the 0.3.0 comparison above, and afterwards all three were removed again with their
+data (`~/.colima`, `~/.orbstack`, Docker Desktop's containers and group container) and the
+`~/.docker` entries they had added (its contexts, the `cli-plugins` symlinks into Docker.app,
+`buildx`, `models`, `mutagen`, `desktop-build` and the `daemon.json` Docker Desktop wrote), so
+`docker context ls` is back to `default`. Every
 process of each engine was measured (Docker Desktop: backend, UI, build, virtualization, agent
 and the VM process; Colima: two limactl processes, the VM process and the ssh mux; OrbStack:
 its vmgr helper). Afterwards all three were removed, with their data, and the shell profiles
