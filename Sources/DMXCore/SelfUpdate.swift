@@ -27,6 +27,9 @@ public struct SelfUpdate: Sendable {
         public let bytes: Int?
         /// The daemon that was running when the binary changed, if any.
         public let daemon: Daemon?
+        /// The Developer ID team the new binary is signed with, when this dmx is signed too and
+        /// the check ran; "skipped" for an unsigned dmx (a build from source).
+        public let signature: String?
 
         public struct Daemon: Encodable, Sendable {
             public let version: String
@@ -102,7 +105,7 @@ public struct SelfUpdate: Sendable {
         if let wanted { target = wanted } else { target = try await latest() }
         return Report(current: current, target: target, available: target != current, updated: false,
                       path: executable.path, url: try archiveURL(target).absoluteString, sha256: nil, bytes: nil,
-                      daemon: nil)
+                      daemon: nil, signature: nil)
     }
 
     /// Downloads the release, checks it and replaces this binary. `force` installs a version that
@@ -113,7 +116,7 @@ public struct SelfUpdate: Sendable {
         if let wanted { target = wanted } else { target = try await latest() }
         guard target != current || force else {
             return Report(current: current, target: target, available: false, updated: false,
-                          path: executable.path, url: nil, sha256: nil, bytes: nil, daemon: nil)
+                          path: executable.path, url: nil, sha256: nil, bytes: nil, daemon: nil, signature: nil)
         }
         try checkDestination(force: force)
 
@@ -134,6 +137,7 @@ public struct SelfUpdate: Sendable {
         let new = work.appendingPathComponent("dmx")
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: new.path)
         try check(binary: new, is: target)
+        let signature = try checkSignature(of: new)
 
         // Same directory, so the rename is atomic and cannot leave a half-written dmx behind.
         let staged = executable.deletingLastPathComponent().appendingPathComponent(".dmx.update-\(getpid())")
@@ -155,7 +159,7 @@ public struct SelfUpdate: Sendable {
         progress("installed dmx \(target) at \(executable.path)")
         return Report(current: current, target: target, available: true, updated: true,
                       path: executable.path, url: url.absoluteString, sha256: expected, bytes: bytes,
-                      daemon: try await handOver(progress: progress))
+                      daemon: try await handOver(progress: progress), signature: signature)
     }
 
     /// The sha256 the release publishes next to the archive. install.sh checks the same file when
@@ -216,6 +220,55 @@ public struct SelfUpdate: Sendable {
             throw DMXError("update_failed", "the downloaded dmx says it is \(reported.isEmpty ? "nothing" : reported), not \(target)",
                            hint: "the release may be broken; report it to dmx")
         }
+    }
+
+    /// A sha256 published next to the archive proves the transfer, not who made it: the same
+    /// server serves both. So when this dmx is signed with a Developer ID, the download has to
+    /// carry the same team's signature and pass `codesign --verify`. An unsigned dmx (built from
+    /// source, or `--ad-hoc` released) has nothing to compare against, so the check is skipped
+    /// rather than faked.
+    func checkSignature(of binary: URL) throws -> String {
+        guard let team = Self.teamIdentifier(of: executable) else { return "skipped: this dmx is not Developer ID signed" }
+        guard let signed = Self.teamIdentifier(of: binary) else {
+            throw DMXError("update_unsigned", "the downloaded dmx is not signed by a Developer ID, but this one is (team \(team))",
+                           hint: "the release may be broken or the download tampered with; report it to dmx")
+        }
+        guard signed == team else {
+            throw DMXError("update_signature_mismatch", "the downloaded dmx is signed by team \(signed), this one by \(team)",
+                           hint: "the release may be broken or the download tampered with; report it to dmx")
+        }
+        let verify = Process()
+        verify.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        verify.arguments = ["--verify", "--strict", binary.path]
+        verify.standardOutput = Pipe()
+        verify.standardError = Pipe()
+        try? verify.run()
+        verify.waitUntilExit()
+        guard verify.terminationStatus == 0 else {
+            throw DMXError("update_signature_invalid", "codesign rejects the downloaded dmx (exit \(verify.terminationStatus))",
+                           hint: "the download may be damaged; run `dmx update` again")
+        }
+        return team
+    }
+
+    /// The Developer ID team a binary is signed with, nil for ad-hoc or unsigned ones.
+    /// `codesign -dv` prints to stderr, one `TeamIdentifier=` line, `not set` without a team.
+    static func teamIdentifier(of binary: URL) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
+        process.arguments = ["-dv", "--verbose=4", binary.path]
+        let errors = Pipe()
+        process.standardError = errors
+        process.standardOutput = Pipe()
+        guard (try? process.run()) != nil else { return nil }
+        let data = errors.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
+        for line in String(decoding: data, as: UTF8.self).split(separator: "\n") where line.hasPrefix("TeamIdentifier=") {
+            let team = line.dropFirst("TeamIdentifier=".count).trimmingCharacters(in: .whitespaces)
+            return team == "not set" ? nil : team
+        }
+        return nil
     }
 
     /// The new binary only takes over when the old daemon is gone. With the VM off, ask it to

@@ -15,7 +15,9 @@ public struct DoctorReport: Encodable, Sendable {
 }
 
 /// Everything that has to be true before `dmx boot` can work, in the order to fix it.
-public func runDoctor(paths: Paths) -> DoctorReport {
+/// `daemon` is the version and pid of a daemon that answers, which only an async caller can ask
+/// for: after an update the old daemon keeps serving, and that is worth saying here too.
+public func runDoctor(paths: Paths, daemon: (version: String, pid: Int32)? = nil) -> DoctorReport {
     var checks: [Check] = []
     let info = ProcessInfo.processInfo
 
@@ -35,6 +37,19 @@ public func runDoctor(paths: Paths) -> DoctorReport {
     ))
 
     checks.append(guestCheck(GuestStore(paths: paths)))
+
+    if let daemon {
+        // Not a failure: the VM and its containers are fine where they are, and the user decides
+        // when to hand them over.
+        let same = daemon.version == dmxVersion
+        checks.append(Check(
+            name: "daemon",
+            ok: true,
+            detail: same ? "dmx \(daemon.version) (pid \(daemon.pid))"
+                         : "the daemon running is dmx \(daemon.version) (pid \(daemon.pid)), this dmx is \(dmxVersion)",
+            hint: same ? nil : "`dmx stop` powers the VM off and the daemon exits; the next command runs \(dmxVersion)"
+        ))
+    }
 
     return DoctorReport(ok: checks.allSatisfy(\.ok), home: paths.home.path, checks: checks)
 }

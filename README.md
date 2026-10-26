@@ -45,7 +45,7 @@ slower than Colima's because dmx keeps write ordering on the data disk across a 
 Requires macOS 15 or later on Apple Silicon.
 
 ```sh
-curl -fsSL https://github.com/cothis/dmx/releases/download/v0.3.1/install.sh | sh
+curl -fsSL https://github.com/cothis/dmx/releases/download/v0.3.2/install.sh | sh
 dmx install                      # launchd starts dmx on demand; installs docker, compose, buildx
                                  # and selects the docker context "dmx"
 docker run --rm hello-world      # the first run downloads the Linux guest (~62 MB, sha256-checked)
@@ -67,17 +67,19 @@ dmx update                       # install the newest release over this one
 
 ### Updating
 
-`dmx update` downloads the newest release, checks it against the sha256 published beside it, and
-replaces the binary it is running from; `dmx update --check` only says whether a newer one exists.
-The Linux guest follows by itself: the new dmx knows the sha256 of its own guest and downloads it
-before the next boot.
+`dmx update` downloads the newest release, checks it against the sha256 published beside it and
+against the Developer ID the running dmx is signed with, and replaces the binary it is running
+from; `dmx update --check` only says whether a newer one exists. The Linux guest follows by
+itself: the new dmx knows the sha256 of its own guest and downloads it before the next boot, and
+skips that download when the release ships the kernel, initramfs and Docker image already on disk
+(a patch release usually does, so updating moves 1.8 MB rather than 64).
 
 A VM that is running is left alone, because its containers are. The daemon serving it is still the
 old version until it exits, which `dmx update` says: `dmx stop` powers the VM off and the daemon
 exits a few seconds later, so the next command runs the new version. Any command that reaches a
-daemon of another version says so too.
+daemon of another version says so too, and `dmx doctor` names both.
 
-`dmx update` is in v0.3.1 and later. From v0.3.0 or earlier, update once by running the install
+`dmx update` is in v0.3.1 and later; from v0.3.2 it also checks who signed the download. From v0.3.0 or earlier, update once by running the install
 script, which replaces the binary the same way:
 
 ```sh

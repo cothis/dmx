@@ -610,8 +610,11 @@ try:
                        capture_output=True, timeout=600, env=ENV)
     done = json.loads(r.stdout) if r.stdout.startswith(b"{") else {}
     installed = subprocess.run([str(copied / "dmx"), "--version"], capture_output=True, timeout=60, env=ENV).stdout.strip()
+    # The signature check compares the download's Developer ID team with this binary's. A build
+    # from source is ad-hoc signed, so here it reports that it skipped rather than claiming a match.
     check("update_installs", r.returncode == 0 and done.get("updated") is True and installed == b"0.2.2" and
-          (done.get("daemon") or {}).get("handover") == "stop_to_switch", f"{r.stdout[:200]!r} now {installed!r}")
+          (done.get("daemon") or {}).get("handover") == "stop_to_switch" and
+          str(done.get("signature", "")).startswith("skipped"), f"{r.stdout[:200]!r} now {installed!r}")
     # The notice needs a daemon of another version, so the 0.2.2 copy serves one in its own home.
     other = Path(tempfile.mkdtemp(prefix="dmx-test-old-", dir="/tmp"))
     other_env = {**os.environ, "DMX_HOME": str(other)}

@@ -50,6 +50,8 @@ _spec.loader.exec_module(fex_build)
 
 REPO = "https://github.com/cothis/dmx"
 PIN_FILE = ROOT / "Sources" / "DMXCore" / "GuestPin.swift"
+# Written by hand per release and kept in the repository; folded into NOTES.md.
+NOTES_DIR = ROOT / "docs" / "release-notes"
 # What the guest archive carries and dmx verifies one by one after unpacking it.
 BOOT_FILES = ["Image", "initramfs.gz", "docker.img", "manifest.json"]
 ALPINE_APORTS = "https://gitlab.alpinelinux.org/alpine/aports/-/tree"
@@ -423,6 +425,8 @@ def main():
                     help="the cache `make guest` used; its inputs are only read, sources download to <cache>/release-sources")
     ap.add_argument("--no-build", action="store_true", help="package .build/release/dmx as it is")
     ap.add_argument("--ad-hoc", action="store_true", help=f"package the ad-hoc signed binary; skip Developer ID signing and notarization ({SIGNING_CONFIG})")
+    ap.add_argument("--notes", type=Path, help=f"the \"Changes since ...\" section for NOTES.md (default {NOTES_DIR}/<version>.md)")
+    ap.add_argument("--no-notes", action="store_true", help="publish without a change summary")
     args = ap.parse_args()
 
     tag = f"v{args.version}"
@@ -508,7 +512,8 @@ def main():
     (out / f"{guest.DMX_QEMU}.build.py").write_bytes((ROOT / "scripts/build-qemu.py").read_bytes())
     (out / f"{guest.DMX_FEX}.build.py").write_bytes((ROOT / "scripts/build-fex.py").read_bytes())
     (out / "third-party.json").write_text(json.dumps({"guest": items, "dmx": swift}, indent=2) + "\n")
-    (out / "NOTES.md").write_text(release_notes(args.version, archive_name, binary_name, items, signing))
+    notes_md = changes(args.version, None if args.no_notes else args.notes or NOTES_DIR / f"{args.version}.md")
+    (out / "NOTES.md").write_text(release_notes(args.version, archive_name, binary_name, items, signing, notes_md))
     assets = sorted(p for p in out.iterdir() if p.is_file() and p.name != "SHA256SUMS" and not p.name.endswith(".sha256"))
     (out / "SHA256SUMS").write_text("".join(f"{sha256(p.read_bytes())}  {p.name}\n" for p in assets))
 
@@ -568,7 +573,23 @@ def sign_and_notarize(binary: Path, work: Path) -> Path:
     return signed
 
 
-def release_notes(version: str, archive: str, binary: str, items: list, signing: str) -> str:
+def changes(version: str, path: Path | None) -> str:
+    """The "Changes since ..." section, which only a person can write. It lives in
+    docs/release-notes/<version>.md so it is reviewed and kept with the code; 0.2.2, 0.3.0 and
+    0.3.1 had it pasted into the generated NOTES.md by hand and the SHA256SUMS line recomputed,
+    which is exactly the step that is easy to forget."""
+    if path is None:
+        return ""
+    if not path.is_file():
+        sys.exit(f"no release notes in {path}: write what changed since the last release "
+                 f"(a \"## Changes since <version>\" section), or pass --no-notes")
+    text = path.read_text().strip()
+    if not text.startswith("## "):
+        sys.exit(f"{path} should start with a heading, e.g. \"## Changes since 0.3.1\"")
+    return text + "\n\n"
+
+
+def release_notes(version: str, archive: str, binary: str, items: list, signing: str, changes_md: str = "") -> str:
     gpl = sorted({f"{i['name']} {i['version']}" for i in items if "GPL" in i["license"]})
     return f"""# dmx {version}
 
@@ -581,6 +602,7 @@ curl -fsSL {REPO}/releases/download/v{version}/install.sh | sh
 The first boot downloads the Linux guest ({archive}) and checks it against the sha256 built
 into dmx; `dmx guest fetch` does it ahead of time.
 
+{changes_md}
 ## Assets
 
 - `{binary}`: the dmx binary ({signing}), its license and third-party notices

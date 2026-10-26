@@ -18,8 +18,10 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
   sudo and changes nothing else: no shell profile, no launchd, no `~/.dmx`.
 - `dmx update` does the same for an installed dmx, from the binary itself: it resolves the newest
   release (the redirect GitHub answers for `releases/latest`, so a mirror needs `--version`),
-  checks the archive against the published `.sha256`, runs the binary it unpacked to see that it
-  reports that version, and renames it over the file it is running from. It refuses to overwrite a
+  checks the archive against the published `.sha256` and the download's Developer ID team against
+  the running binary's (skipped when this dmx is unsigned, which a build from source is), runs the
+  binary it unpacked to see that it reports that version, and renames it over the file it is
+  running from. It refuses to overwrite a
   build from source (`.build/...`) without `--force`, and refuses a directory it cannot write with
   a hint naming `install.sh` and `PREFIX`. A running VM is left alone and the report says
   `stop_to_switch`; an idle daemon is asked to quit, so the next command runs the new version
@@ -35,6 +37,10 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
 - A guest built with `make guest` is never replaced by itself: dmx tells it apart because
   `~/.dmx/guest/release.json` (written after a download) no longer matches `manifest.json`.
   `dmx guest fetch --force` replaces it.
+- A release whose guest archive differs but whose boot files do not is not downloaded again: the
+  pin and `release.json` both carry every boot file's sha256, so comparing them is free, and only
+  `release.json` is rewritten. 0.3.0 and 0.3.1 were this case (their archives differ in the
+  version THIRD_PARTY.md names), so 0.3.1 users will not fetch 62 MB again for 0.3.2.
 - If updating a guest from an older release fails (offline), the old guest boots.
 - Cost: from a local server the download, check and unpack take 0.3 to 0.6 s. A daemon that
   downloaded keeps ~6 MB more footprint (10 MB instead of 4 with the VM stopped; CFNetwork) until
@@ -55,11 +61,15 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
    make daemontest && make mcptest && make x86test && make dockertest
    ```
 
-4. `make release VERSION=0.1.0` writes `.build/dist/v0.1.0/` and rewrites
+4. Write what changed since the last release in `docs/release-notes/<version>.md`, starting with
+   a `## Changes since <previous>` heading. `make release` folds it into NOTES.md and refuses to
+   package a version without one (`--no-notes` to publish without a summary, `--notes <file>` for
+   another path).
+5. `make release VERSION=0.1.0` writes `.build/dist/v0.1.0/` and rewrites
    `Sources/DMXCore/GuestPin.swift` for the new guest. Commit the pin and the version
    ("Release v0.1.0"), then run `make release VERSION=0.1.0` again: it must say
    `"pin_changed": false`, so the binary in the directory is the one the commit builds.
-5. Try the directory as a user would, from a local server:
+6. Try the directory as a user would, from a local server:
 
    ```sh
    python3 -m http.server --bind 127.0.0.1 --directory .build/dist 23456 &
@@ -68,9 +78,9 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
    PREFIX=$(mktemp -d) sh .build/dist/v0.1.0/install.sh             # installs from the tarball
    ```
 
-6. Point README's install line at the new tag (`releases/download/v<version>/install.sh`): it is
+7. Point README's install line at the new tag (`releases/download/v<version>/install.sh`): it is
    the first thing a reader copies, and nothing generates it. Commit it with the release.
-7. Tag and publish (the only steps that make anything public):
+8. Tag and publish (the only steps that make anything public):
 
    ```sh
    git tag -a v0.1.0 -m "dmx 0.1.0" && git push origin main v0.1.0

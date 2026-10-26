@@ -98,7 +98,13 @@ public struct GuestStore: Sendable {
             return make(.local, needsFetch: false)
         }
         let incomplete = receipt.files.keys.contains { !fm.fileExists(atPath: paths.guest.appendingPathComponent($0).path) }
-        let other = pin.map { $0.sha256 != receipt.sha256 } ?? false
+        // A release often ships the boot files of the one before it: 0.3.0 and 0.3.1 differ only
+        // in the version the archive's THIRD_PARTY.md names, so their Image, initramfs.gz,
+        // docker.img and manifest.json have the same hashes. Both the pin and the receipt carry
+        // those hashes, so comparing them costs nothing and saves downloading 62 MB that is
+        // already on disk; `fetch` then only rewrites the receipt.
+        let sameFiles = pin.map { $0.files == receipt.files } ?? false
+        let other = pin.map { $0.sha256 != receipt.sha256 && !sameFiles } ?? false
         return make(.release, tag: receipt.tag, needsFetch: pin != nil && (incomplete || other))
     }
 
@@ -145,6 +151,12 @@ public struct GuestStore: Sendable {
         let lock = try await lockGuest()
         defer { Darwin.close(lock) }
         if !force, !state().needsFetch {
+            // Same boot files under a new release: keep them and record which release they are
+            // now, so `dmx guest` and `dmx doctor` name the release this dmx pins.
+            if let receipt = receipt(), receipt.sha256 != pin.sha256, receipt.files == pin.files {
+                try? writeReceipt(pin)
+                log("guest \(pin.tag) has the files of \(receipt.tag) already; kept them")
+            }
             return GuestFetchReport(fetched: false, url: nil, bytes: nil, ms: nil, guest: state())
         }
 
@@ -179,9 +191,7 @@ public struct GuestStore: Sendable {
         for (name, want) in pin.files where (try? sha256Hex(of: unpacked.appendingPathComponent(name))) != want {
             throw DMXError("checksum_mismatch", "\(name) in \(pin.archive) does not match this dmx's pin", hint: "retry `dmx guest fetch`, or check the mirror (release_url, DMX_RELEASE_URL)")
         }
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(pin).write(to: unpacked.appendingPathComponent("release.json"))
+        try writeReceipt(pin, in: unpacked)
 
         // Swap directories. A VM that is running keeps its open docker.img; the kernel and
         // initramfs were copied into guest RAM at boot.
@@ -193,6 +203,14 @@ public struct GuestStore: Sendable {
         let ms = Int(seconds(ContinuousClock.now - started) * 1000)
         log("guest \(pin.tag) installed in \(paths.guest.path) (\(ms) ms)")
         return GuestFetchReport(fetched: true, url: url.absoluteString, bytes: pin.bytes, ms: ms, guest: state())
+    }
+
+    /// Records which release the guest in `dir` came from (`release.json`, read by `state()`).
+    func writeReceipt(_ release: GuestRelease, in dir: URL? = nil) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let target = (dir ?? paths.guest).appendingPathComponent("release.json")
+        try encoder.encode(release).write(to: target)
     }
 
     /// One fetch at a time per DMX_HOME. Polls instead of blocking, so a daemon waiting here

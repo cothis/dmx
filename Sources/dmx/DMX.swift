@@ -60,7 +60,10 @@ struct Doctor: AsyncParsableCommand {
     @MainActor
     func run() async throws {
         try await report(global) {
-            let result = runDoctor(paths: Paths())
+            let paths = Paths()
+            let client = try? await DaemonClient.connect(paths: paths, start: false)
+            defer { client?.close() }
+            let result = runDoctor(paths: paths, daemon: client.map { ($0.hello.version, $0.hello.pid) })
             let text = result.checks.map { check in
                 var line = "\(check.ok ? "ok  " : "FAIL") \(check.name): \(check.detail)"
                 if let hint = check.hint { line += "\n     hint: \(hint)" }

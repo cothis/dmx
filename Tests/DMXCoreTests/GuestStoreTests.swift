@@ -45,9 +45,19 @@ import Testing
         #expect(current.source == .release && current.tag == "v1" && current.kernel == "6.18.58-dmx" && !current.needsFetch)
         #expect(GuestStore(paths: paths, pin: v1).verify().isEmpty)
 
-        let v2 = GuestRelease(tag: "v2", archive: "b", bytes: 1, sha256: "other", files: v1.files)
-        let stale = GuestStore(paths: paths, pin: v2).state()
-        #expect(stale.source == .release && stale.tag == "v1" && stale.pinnedTag == "v2" && stale.needsFetch)
+        // Another release that ships the same boot files: nothing to download. 0.3.0 and 0.3.1
+        // were exactly this, and downloading 62 MB again would have been for the version string
+        // in the archive's THIRD_PARTY.md.
+        let sameFiles = GuestRelease(tag: "v2", archive: "b", bytes: 1, sha256: "other", files: v1.files)
+        let kept = GuestStore(paths: paths, pin: sameFiles).state()
+        #expect(kept.source == .release && kept.tag == "v1" && kept.pinnedTag == "v2" && !kept.needsFetch)
+
+        // A release with another kernel: fetch it.
+        var changed = v1.files
+        changed["Image"] = hex(Data("another kernel".utf8))
+        let v3 = GuestRelease(tag: "v3", archive: "c", bytes: 1, sha256: "third", files: changed)
+        let stale = GuestStore(paths: paths, pin: v3).state()
+        #expect(stale.source == .release && stale.tag == "v1" && stale.pinnedTag == "v3" && stale.needsFetch)
 
         // A file gone from a downloaded guest: fetch again; a changed one: doctor says so.
         try FileManager.default.removeItem(at: paths.dockerImage)
