@@ -69,6 +69,9 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
 
 ## 남은 작업
 
-PLAN.md의 Next up 순서를 따라요. 요약하면: 조용한 Mac에서 엔진 비교 재측정(Docker Desktop·OrbStack·
-Colima는 측정용으로 잠깐 설치했다가 지워도 돼요), 커뮤니티 홍보(maintainer 결정), 실제 회사망에서
-Phase 11 확인. 다음 릴리스는 maintainer가 원할 때 release.md 절차로 내요.
+PLAN.md의 Next up 순서를 따라요. 요약하면: dmx의 idle CPU(조용한 Mac에서 한 코어의 1.4 %, 네 엔진 중 가장
+높아요)와 가끔 ~100 MB 높게 읽히는 idle footprint 조사(둘 다 0.2.1에도 있어요), 커뮤니티 홍보(maintainer
+결정), 실제 회사망에서 Phase 11 확인. 엔진 비교는 2026-10-26에 조용한 Mac에서 다시 쟀어요
+([benchmark.md](benchmark.md#results-2026-10-26-quiet-mac)). 다시 잴 때 Docker Desktop은 설정 파일에
+`EnableDefaultDockerSocket`·`RequireVmnetd`·`EnablePrivilegedPorts`를 끄고 `DockerBinInstallPath: user`로
+두어야 암호 창이 안 떠요. OrbStack은 `setup.use_admin false`.

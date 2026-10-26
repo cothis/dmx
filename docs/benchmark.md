@@ -55,6 +55,45 @@ CPU is shown as a percentage of one core; the footprint peak is sampled every 10
 lifetime peak. `--cpus` and `--ceiling-gb` support other acceptance profiles, but comparisons
 must use the same profile for every engine; the container workload remains limited to 2 CPUs.
 
+## Results, 2026-10-26 (quiet Mac)
+
+Same Mac as below (macOS 26.6.1, 10 cores, 16 GB) with nothing else busy: host load 1.0 to 1.6
+for every run. One engine at a time, three rounds (dmx, OrbStack, Colima, Docker Desktop; round
+2 in reverse), 30 s between engines, 2 CPUs and 4 GiB each, same engine versions as on
+2026-10-25 and dmx 0.2.2 ([raw](measurements/2026-10-26-engine-comparison.json)). Medians, with
+ranges in parentheses:
+
+| | dmx 0.2.2 | OrbStack 2.2.5 | Colima 0.10.3 (vz) | Docker Desktop 4.96.3 |
+|---|---|---|---|---|
+| Idle after 35 s, MB | **198** (191–202) | 530 (529–552) | 1093 (1082–1379) | 1053 (1051–1091) |
+| Idle CPU, % of one core | 1.4 (1.3–1.5) | 0.6 (0.6–0.7) | 0.6 (0.6–0.8) | **0.4** (0.4–0.6) |
+| Holding 2 GiB in tmpfs, MB | **2380** (2377–2382) | 2614 (2604–2618) | 3132 (3104–3409) | 3225 (3188–3229) |
+| After freeing it (when back, else at 10 s), MB | **342** (340–344) | 546 (524–627) | 3138 (3110–3411) | 3223 (3191–3229) |
+| Back within baseline +64 MB | **1.9 s** (0.5–2.0) | 5.4 s (3.9–5.4) | no | no |
+| `docker run --rm alpine true`, ms | 101 (95–103) | 95 (92–101) | **52** (50–53) | 67 (65–69) |
+| SHA-256 of 256 MiB, ms | 853 (835–861) | 1261 (1260–1266) | **806** (804–814) | 818 (817–824) |
+
+What changed from the busy-Mac run: the memory columns agree with it (dmx and OrbStack give
+freed memory back within seconds, the Virtualization framework engines keep it), with much
+narrower ranges. Every engine's warm `docker run` and SHA-256 got faster without the load:
+dmx 118 → 101 ms, but Colima 73 → 52 and Docker Desktop 99 → 67, so dmx's gap remains (the data
+disk's barrier flushes, below). dmx now takes the most CPU at idle, 1.4 % of one core against
+0.4 to 0.6 % (0.6 % on 2026-10-25).
+
+That idle CPU and an idle footprint that sometimes reads ~100 MB higher are not new in 0.2.2:
+alternating the v0.2.1 release (its GitHub binary and guest) with 0.2.2, three runs each, gave
+idle 182, 187 and 297 MB at 1.4–1.6 % CPU for 0.2.1 and 187, 201 and 284 MB at 1.3–1.9 % for
+0.2.2; 10 s after freeing 2 GiB, 312–334 MB against 344–345 MB. Both are still to be explained.
+
+Engines were set up as on 2026-10-25 (vendor DMGs with the same sha256s, Developer ID and
+notarization checked; Colima from Homebrew), plus what avoided password prompts: Docker
+Desktop with the default socket, vmnetd and privileged ports off and its CLI tools in
+`~/.docker/bin`; OrbStack headless with `setup.use_admin` and `docker.set_context` off. Every
+process of each engine was measured (Docker Desktop: backend, UI, build, virtualization, agent
+and the VM process; Colima: two limactl processes, the VM process and the ssh mux; OrbStack:
+its vmgr helper). Afterwards all three were removed, with their data, and the shell profiles
+they edited restored.
+
 ## Results, 2026-10-25
 
 One Mac (macOS 26.6.1, 10 cores, 16 GB), one engine running at a time, three rounds in
@@ -89,7 +128,7 @@ What this shows: dmx holds the least at idle and under load and gives freed memo
 seconds; OrbStack also returns memory, from a higher baseline; the two Virtualization
 framework engines keep what the guest touched until their VM stops. dmx's warm `docker run`
 (118 ms) is behind Colima (73 ms) and Docker Desktop (99 ms); the SHA-256 work was fastest on
-Colima and dmx. The `docker run` gap is the data disk's flushes (profiled 2026-10-25, below). A quiet-Mac rerun would tighten the ranges.
+Colima and dmx. The `docker run` gap is the data disk's flushes (profiled 2026-10-25, below). The quiet-Mac rerun is above.
 
 ## Warm `docker run` profile (2026-10-25)
 

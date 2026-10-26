@@ -9,13 +9,13 @@ driven by AI agents as easily as by people.
 
 | Same Mac, 2 CPUs / 4 GiB VM | dmx | OrbStack | Colima | Docker Desktop |
 |---|---|---|---|---|
-| Idle | **180 MB** | 528 MB | 1097 MB | 1176 MB |
-| While a container holds 2 GiB | 2373 MB | 2621 MB | 3172 MB | 3373 MB |
-| 10 s after it frees the 2 GiB | **332 MB** | 618 MB | 3180 MB | 3362 MB |
-| Warm `docker run --rm alpine true` | 118 ms | 123 ms | 73 ms | 99 ms |
+| Idle | **198 MB** | 530 MB | 1093 MB | 1053 MB |
+| While a container holds 2 GiB | 2380 MB | 2614 MB | 3132 MB | 3225 MB |
+| After it frees the 2 GiB (10 s at most) | **342 MB** | 546 MB | 3138 MB | 3223 MB |
+| Warm `docker run --rm alpine true` | 101 ms | 95 ms | 52 ms | 67 ms |
 
-Medians of three rounds on a moderately busy Mac; whole engine, VM included. Method, raw data
-and caveats: [docs/benchmark.md](docs/benchmark.md#results-2026-10-25). dmx's `docker run` is
+Medians of three rounds on a quiet Mac; whole engine, VM included. Method, raw data
+and caveats: [docs/benchmark.md](docs/benchmark.md#results-2026-10-26-quiet-mac). dmx's `docker run` is
 slower than Colima's because dmx keeps write ordering on the data disk across a power cut
 ([why](docs/benchmark.md#warm-docker-run-profile-2026-10-25)).
 

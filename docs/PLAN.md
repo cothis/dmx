@@ -432,8 +432,14 @@ BuildKit through dmx's Buildx; the deprecated legacy builder remains available t
 - [x] Comparison with Docker Desktop 4.96.3, OrbStack 2.2.5 and Colima 0.10.3 at 2 CPUs/4 GiB,
       three alternating rounds, host load 2–6 ([benchmark.md](benchmark.md#results-2026-10-25)):
       idle 180 / 528 / 1097 / 1176 MB (dmx / OrbStack / Colima / Docker Desktop); after freeing
-      2 GiB dmx and OrbStack return within seconds, the VZ engines keep it. Provisional until a
-      quiet-Mac rerun. dmx's warm `docker run` (118 ms) trails Colima (73) and Docker Desktop (99).
+      2 GiB dmx and OrbStack return within seconds, the VZ engines keep it. dmx's warm `docker run`
+      (118 ms) trails Colima (73) and Docker Desktop (99). Quiet-Mac rerun 2026-10-26
+      ([benchmark.md](benchmark.md#results-2026-10-26-quiet-mac)): idle 198 / 530 / 1093 / 1053 MB,
+      the same picture with narrow ranges; `docker run` 101 / 95 / 52 / 67 ms.
+- [ ] dmx's idle CPU, 1.4 % of one core at 2 CPUs (other engines 0.4–0.6 %; 0.6 % on 2026-10-25),
+      and an idle footprint that reads ~100 MB higher in some runs (~2 of 9). Both are in v0.2.1
+      too. Find what wakes at idle (vCPU exits, guest timers, dockerd/containerd) and why the
+      35 s idle reading sometimes misses the trim.
 - [x] Release decisions (2026-10-25): `v0.1.0`, attached sources, ad-hoc signing, name "dmx".
       `release.py` builds `dmx-sources-<version>.tar` (467 MiB, byte-identical for the same
       inputs): aports directories and sha512-checked distfiles of all 21 Alpine source packages,
@@ -504,8 +510,10 @@ v0.2.2 is published (signed and notarized, 2026-10-26): the fix for guest memory
 under host memory pressure, IPv6 in the guest network, ICMP errors to the guest and IPv6 port
 forwarding since 0.2.1. main is v0.2.2 plus documentation. In order:
 
-1. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
-   ~120 ms by choice (data disk barrier flushes, see Decisions).
+1. dmx's idle CPU (1.4 % of one core, the most of the four engines on a quiet Mac) and the
+   idle footprint that sometimes reads ~100 MB high (phase 10's open task). Measure before and
+   after with `make benchmark` on a quiet Mac. Warm `docker run` (~100 ms quiet) stays behind
+   Colima by choice (data disk barrier flushes, see Decisions).
 2. Community announcement (Show HN, Reddit, GeekNews): phase 11 is out in 0.2.0, so this waits only
    on the maintainer's word (maintainer, 2026-10-25: after more improvements).
 3. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
@@ -643,6 +651,7 @@ complete by the finished acceptance suites.
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 | 2026-10-26 | 0.2.2 release checks, load 1.2–2.0 | Unit 42/42, selftest ok (91 MB), daemon 53/53, MCP 30/30, x86 16/16, Docker 69/69 (idle without Docker 79 MB, dockerd idle 293, one container 267), sandbox 41/41. daemon's `portfwd_footprint_after_streams_mb` read 1671 MB: the memory checks' 1.5 GB was still coming back (766 → 119 MB within 2 s when sampled); the test now waits for it, 123 → 127 MB across 400 MB of port forward streams. Release directory: guest 61.8 MB, binary tarball 1.8 MB (signed, notarized), sources 467 MiB (21 packages). |
 | 2026-10-26 | 0.2.2 as a user gets it | `make pressuretest` with the release binary: 12 of 12 rounds intact (12 GB hog, 34 % free, 3.4 GB swap used). From a local server: guest download and selftest (94 MB), install.sh, `spctl` accepts it as Notarized Developer ID. From GitHub: `curl … install.sh \| sh` installs 0.2.2, the first boot downloads the v0.2.2 guest, selftest ok (97 MB). 13 assets. Release notes gained a "Changes since 0.2.1" section (SHA256SUMS updated for NOTES.md). |
+| 2026-10-26 | Engine comparison on a quiet Mac (load 1.0–1.6), 2 CPUs/4 GiB, three rounds | Median idle: dmx 198, OrbStack 530, Colima 1093, Docker Desktop 1053 MB. Holding 2 GiB: 2380 / 2614 / 3132 / 3225 MB. After freeing: 342 / 546 / 3138 / 3223 MB; dmx back in 1.9 s, OrbStack 5.4 s, the VZ engines not within 10 s. Warm `docker run` 101 / 95 / 52 / 67 ms; SHA-256 of 256 MiB 853 / 1261 / 806 / 818 ms. Idle CPU 1.4 / 0.6 / 0.6 / 0.4 % of one core. dmx v0.2.1 against v0.2.2 alternating, three each: idle 182–297 vs 187–284 MB, CPU 1.4–1.6 vs 1.3–1.9 %, so neither the idle CPU nor the occasional ~100 MB higher idle is new in 0.2.2 ([raw](measurements/2026-10-26-engine-comparison.json)). Engines installed temporarily and removed. |
 
 ## Progress log
 
@@ -709,3 +718,4 @@ complete by the finished acceptance suites.
 - 2026-10-25: Port forwards listen on the Mac's IPv6 too (::1 with 127.0.0.1, :: with 0.0.0.0), TCP and UDP. A guest kernel stack overflow reproduces on fsck-repair boots. Next: that crash.
 - 2026-10-26: The guest kernel crashes were guest memory corrupted by direct I/O on guest pages while the Mac swapped; virtio-blk now copies through a bounce buffer and virtio-fs ignores O_DIRECT on the host. `make pressuretest` keeps the reproducer. Next: release 0.2.2 (maintainer's call).
 - 2026-10-26: Released v0.2.2 (signed, notarized) with the guest memory corruption fix and guest IPv6; installed and booted from GitHub. daemontest's port forward footprint now waits for the memory checks' memory to come back. Next: the engine comparison on a quiet Mac.
+- 2026-10-26: Engine comparison rerun on a quiet Mac (Docker Desktop, OrbStack, Colima installed briefly, then removed): same picture with narrow ranges; README shows the new numbers. dmx's idle CPU is the highest of the four and predates 0.2.2. Next: what wakes dmx at idle.

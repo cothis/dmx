@@ -1,0 +1,2553 @@
+{
+ "what": "Cross-engine comparison on a quiet Mac (macOS 26.6.1, 10 cores, 16 GB, load 1.0-1.6), docs/benchmark.md protocol: 2 CPUs, 4 GiB, no shares, native arm64 alpine; one engine running at a time; three rounds, order dmx, OrbStack, Colima, Docker Desktop (round 2 reversed), 30 s between engines",
+ "engines": {
+  "dmx": "v0.2.2 (1c2a2d7), Docker 29.9.2",
+  "colima": "Colima 0.10.3 + Lima 2.2.1 (vz, --mount none), Docker 29.5.2",
+  "orbstack": "OrbStack 2.2.5 (21124), Docker 29.8.2, headless (orbctl start); setup.use_admin and docker.set_context off (no password prompt, no context change)",
+  "docker-desktop": "Docker Desktop 4.96.3 (244472), Docker 29.9.2, Apple Virtualization framework, all Docker.app processes; EnableDefaultDockerSocket, RequireVmnetd, EnablePrivilegedPorts off and CLI tools in ~/.docker/bin (no password prompt)"
+ },
+ "installers": {
+  "Docker.dmg": "a3ac78b7de67af169ca58f33a4fa4c26007840870574c80c59a7ab0c7f68d954",
+  "OrbStack.dmg": "f2b887d26a21e0a12147eb005297782794b26f461f77c6b9cdfb57f576ad5e6d"
+ },
+ "runs": {
+  "dmx": [
+   {
+    "ok": true,
+    "engine": "dmx",
+    "at": "2026-10-26T02:02:19.324139+00:00",
+    "host": {
+     "macos": "26.6.1",
+     "arch": "arm64",
+     "cores": 10
+    },
+    "host_load_start": [
+     1.17333984375,
+     1.498046875,
+     1.708984375
+    ],
+    "host_pressure_start": 1,
+    "mach_timebase": {
+     "numer": 125,
+     "denom": 3
+    },
+    "cpu_reader_check": {
+     "getrusage_s": 0.05000600000000001,
+     "reader_s": 0.05002262499999999
+    },
+    "settings": {
+     "cpus": 2,
+     "ceiling_mb": 4096,
+     "container_cpus": 2,
+     "shares": "none"
+    },
+    "vm_start_ms": 265,
+    "before_docker": {
+     "footprint_mb": 84.38,
+     "cpu_s": 0.19859541666666666,
+     "processes": [
+      {
+       "pid": 12547,
+       "footprint_mb": 84.38,
+       "cpu_s": 0.19859541666666666
+      }
+     ]
+    },
+    "docker_versions": "29.9.2 / 29.9.2",
+    "first_docker_ms": 1265,
+    "process_commands": {
+     "12547": "/Users/cothis/dockermax/.build/out/Products/Release/dmx"
+    },
+    "docker_info": {
+     "ServerVersion": "29.9.2",
+     "KernelVersion": "6.18.58-dmx-4k",
+     "NCPU": 2,
+     "MemTotal": 1305063424,
+     "Architecture": "aarch64",
+     "Driver": "overlayfs"
+    },
+    "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+    "idle": {
+     "footprint_mb": 202.24,
+     "cpu_s": 2.3468666666666667,
+     "processes": [
+      {
+       "pid": 12547,
+       "footprint_mb": 202.24,
+       "cpu_s": 2.3468666666666667
+      }
+     ]
+    },
+    "idle_cpu_percent_of_one_core": 1.494,
+    "run_true_ms": {
+     "samples": [
+      208.67,
+      101.19,
+      93.0,
+      90.77,
+      103.06
+     ],
+     "median": 101.19
+    },
+    "sha256_256m_ms": 861,
+    "holding_2g": {
+     "footprint_mb": 2380.13,
+     "cpu_s": 4.812346958333333,
+     "processes": [
+      {
+       "pid": 12547,
+       "footprint_mb": 2380.13,
+       "cpu_s": 4.812346958333333
+      }
+     ]
+    },
+    "return_after_2g": {
+     "baseline_mb": 280.59,
+     "after": {
+      "footprint_mb": 339.99,
+      "cpu_s": 4.985545833333333,
+      "processes": [
+       {
+        "pid": 12547,
+        "footprint_mb": 339.99,
+        "cpu_s": 4.985545833333333
+       }
+      ]
+     },
+     "elapsed_s": 0.54
+    },
+    "peak_2g_footprint_mb": 2387.94,
+    "host_load_end": [
+     1.60693359375,
+     1.6005859375,
+     1.734375
+    ],
+    "host_pressure_end": 1
+   },
+   {
+    "ok": true,
+    "engine": "dmx",
+    "at": "2026-10-26T02:13:54.440420+00:00",
+    "host": {
+     "macos": "26.6.1",
+     "arch": "arm64",
+     "cores": 10
+    },
+    "host_load_start": [
+     1.15576171875,
+     1.2939453125,
+     1.47021484375
+    ],
+    "host_pressure_start": 1,
+    "mach_timebase": {
+     "numer": 125,
+     "denom": 3
+    },
+    "cpu_reader_check": {
+     "getrusage_s": 0.050003000000000006,
+     "reader_s": 0.05001937500000002
+    },
+    "settings": {
+     "cpus": 2,
+     "ceiling_mb": 4096,
+     "container_cpus": 2,
+     "shares": "none"
+    },
+    "vm_start_ms": 286,
+    "before_docker": {
+     "footprint_mb": 82.44,
+     "cpu_s": 0.20378566666666667,
+     "processes": [
+      {
+       "pid": 14275,
+       "footprint_mb": 82.44,
+       "cpu_s": 0.20378566666666667
+      }
+     ]
+    },
+    "docker_versions": "29.9.2 / 29.9.2",
+    "first_docker_ms": 1219,
+    "process_commands": {
+     "14275": "/Users/cothis/dockermax/.build/out/Products/Release/dmx"
+    },
+    "docker_info": {
+     "ServerVersion": "29.9.2",
+     "KernelVersion": "6.18.58-dmx-4k",
+     "NCPU": 2,
+     "MemTotal": 1305063424,
+     "Architecture": "aarch64",
+     "Driver": "overlayfs"
+    },
+    "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+    "idle": {
+     "footprint_mb": 198.06,
+     "cpu_s": 2.3547627916666665,
+     "processes": [
+      {
+       "pid": 14275,
+       "footprint_mb": 198.06,
+       "cpu_s": 2.3547627916666665
+      }
+     ]
+    },
+    "idle_cpu_percent_of_one_core": 1.418,
+    "run_true_ms": {
+     "samples": [
+      224.89,
+      103.31,
+      106.25,
+      96.65,
+      94.5
+     ],
+     "median": 103.31
+    },
+    "sha256_256m_ms": 853,
+    "holding_2g": {
+     "footprint_mb": 2381.72,
+     "cpu_s": 4.797245916666667,
+     "processes": [
+      {
+       "pid": 14275,
+       "footprint_mb": 2381.72,
+       "cpu_s": 4.797245916666667
+      }
+     ]
+    },
+    "return_after_2g": {
+     "baseline_mb": 283.31,
+     "after": {
+      "footprint_mb": 343.78,
+      "cpu_s": 4.981907041666667,
+      "processes": [
+       {
+        "pid": 14275,
+        "footprint_mb": 343.78,
+        "cpu_s": 4.981907041666667
+       }
+      ]
+     },
+     "elapsed_s": 1.93
+    },
+    "peak_2g_footprint_mb": 2388.46,
+    "host_load_end": [
+     0.896484375,
+     1.21337890625,
+     1.42919921875
+    ],
+    "host_pressure_end": 1
+   },
+   {
+    "ok": true,
+    "engine": "dmx",
+    "at": "2026-10-26T02:15:19.299080+00:00",
+    "host": {
+     "macos": "26.6.1",
+     "arch": "arm64",
+     "cores": 10
+    },
+    "host_load_start": [
+     1.02099609375,
+     1.205078125,
+     1.41552734375
+    ],
+    "host_pressure_start": 1,
+    "mach_timebase": {
+     "numer": 125,
+     "denom": 3
+    },
+    "cpu_reader_check": {
+     "getrusage_s": 0.05000399999999999,
+     "reader_s": 0.05001799999999998
+    },
+    "settings": {
+     "cpus": 2,
+     "ceiling_mb": 4096,
+     "container_cpus": 2,
+     "shares": "none"
+    },
+    "vm_start_ms": 245,
+    "before_docker": {
+     "footprint_mb": 82.92,
+     "cpu_s": 0.19938675,
+     "processes": [
+      {
+       "pid": 14340,
+       "footprint_mb": 82.92,
+       "cpu_s": 0.19938675
+      }
+     ]
+    },
+    "docker_versions": "29.9.2 / 29.9.2",
+    "first_docker_ms": 1223,
+    "process_commands": {
+     "14340": "/Users/cothis/dockermax/.build/out/Products/Release/dmx"
+    },
+    "docker_info": {
+     "ServerVersion": "29.9.2",
+     "KernelVersion": "6.18.58-dmx-4k",
+     "NCPU": 2,
+     "MemTotal": 1439281152,
+     "Architecture": "aarch64",
+     "Driver": "overlayfs"
+    },
+    "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+    "idle": {
+     "footprint_mb": 190.91,
+     "cpu_s": 2.3661085833333333,
+     "processes": [
+      {
+       "pid": 14340,
+       "footprint_mb": 190.91,
+       "cpu_s": 2.3661085833333333
+      }
+     ]
+    },
+    "idle_cpu_percent_of_one_core": 1.313,
+    "run_true_ms": {
+     "samples": [
+      212.75,
+      95.24,
+      88.24,
+      94.98,
+      99.11
+     ],
+     "median": 95.24
+    },
+    "sha256_256m_ms": 835,
+    "holding_2g": {
+     "footprint_mb": 2376.82,
+     "cpu_s": 4.690765041666667,
+     "processes": [
+      {
+       "pid": 14340,
+       "footprint_mb": 2376.82,
+       "cpu_s": 4.690765041666667
+      }
+     ]
+    },
+    "return_after_2g": {
+     "baseline_mb": 280.99,
+     "after": {
+      "footprint_mb": 342.36,
+      "cpu_s": 4.876720791666667,
+      "processes": [
+       {
+        "pid": 14340,
+        "footprint_mb": 342.36,
+        "cpu_s": 4.876720791666667
+       }
+      ]
+     },
+     "elapsed_s": 1.96
+    },
+    "peak_2g_footprint_mb": 2383.64,
+    "host_load_end": [
+     1.07958984375,
+     1.18701171875,
+     1.396484375
+    ],
+    "host_pressure_end": 1
+   }
+  ],
+  "orbstack": [
+   {
+    "ok": true,
+    "engine": "orbstack",
+    "at": "2026-10-26T02:03:48.826056+00:00",
+    "host": {
+     "macos": "26.6.1",
+     "arch": "arm64",
+     "cores": 10
+    },
+    "host_load_start": [
+     1.564453125,
+     1.58154296875,
+     1.72119140625
+    ],
+    "host_pressure_start": 1,
+    "mach_timebase": {
+     "numer": 125,
+     "denom": 3
+    },
+    "cpu_reader_check": {
+     "getrusage_s": 0.050004,
+     "reader_s": 0.05002308333333333
+    },
+    "settings": {
+     "cpus": 2,
+     "ceiling_mb": 4096,
+     "container_cpus": 2,
+     "shares": "none"
+    },
+    "docker_versions": "29.9.2 / 29.8.2",
+    "process_commands": {
+     "12654": "/Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper"
+    },
+    "docker_info": {
+     "ServerVersion": "29.8.2",
+     "KernelVersion": "7.2.12-orbstack-00394-gbecdd6130068",
+     "NCPU": 2,
+     "MemTotal": 4180803584,
+     "Architecture": "aarch64",
+     "Driver": "overlayfs"
+    },
+    "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+    "idle": {
+     "footprint_mb": 551.83,
+     "cpu_s": 1.3733722916666669,
+     "processes": [
+      {
+       "pid": 12654,
+       "footprint_mb": 551.83,
+       "cpu_s": 1.3733722916666669
+      }
+     ]
+    },
+    "idle_cpu_percent_of_one_core": 0.7,
+    "run_true_ms": {
+     "samples": [
+      191.2,
+      102.07,
+      86.38,
+      94.87,
+      86.57
+     ],
+     "median": 94.87
+    },
+    "sha256_256m_ms": 1266,
+    "holding_2g": {
+     "footprint_mb": 2618.35,
+     "cpu_s": 3.4777665,
+     "processes": [
+      {
+       "pid": 12654,
+       "footprint_mb": 2618.35,
+       "cpu_s": 3.4777665
+      }
+     ]
+    },
+    "return_after_2g": {
+     "baseline_mb": 589.13,
+     "after": {
+      "footprint_mb": 546.14,
+      "cpu_s": 3.674557125,
+      "processes": [
+       {
+        "pid": 12654,
+        "footprint_mb": 546.14,
+        "cpu_s": 3.674557125
+       }
+      ]
+     },
+     "elapsed_s": 3.87
+    },
+    "peak_2g_footprint_mb": 2627.94,
+    "host_load_end": [
+     1.29296875,
+     1.509765625,
+     1.6845703125
+    ],
+    "host_pressure_end": 1
+   },
+   {
+    "ok": true,
+    "engine": "orbstack",
+    "at": "2026-10-26T02:12:27.732288+00:00",
+    "host": {
+     "macos": "26.6.1",
+     "arch": "arm64",
+     "cores": 10
+    },
+    "host_load_start": [
+     1.48193359375,
+     1.34619140625,
+     1.5068359375
+    ],
+    "host_pressure_start": 1,
+    "mach_timebase": {
+     "numer": 125,
+     "denom": 3
+    },
+    "cpu_reader_check": {
+     "getrusage_s": 0.05000199999999999,
+     "reader_s": 0.050016333333333336
+    },
+    "settings": {
+     "cpus": 2,
+     "ceiling_mb": 4096,
+     "container_cpus": 2,
+     "shares": "none"
+    },
+    "docker_versions": "29.9.2 / 29.8.2",
+    "process_commands": {
+     "14100": "/Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper"
+    },
+    "docker_info": {
+     "ServerVersion": "29.8.2",
+     "KernelVersion": "7.2.12-orbstack-00394-gbecdd6130068",
+     "NCPU": 2,
+     "MemTotal": 4180803584,
+     "Architecture": "aarch64",
+     "Driver": "overlayfs"
+    },
+    "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+    "idle": {
+     "footprint_mb": 528.55,
+     "cpu_s": 1.0780331666666667,
+     "processes": [
+      {
+       "pid": 14100,
+       "footprint_mb": 528.55,
+       "cpu_s": 1.0780331666666667
+      }
+     ]
+    },
+    "idle_cpu_percent_of_one_core": 0.636,
+    "run_true_ms": {
+     "samples": [
+      205.91,
+      106.71,
+      101.45,
+      88.42,
+      97.34
+     ],
+     "median": 101.45
+    },
+    "sha256_256m_ms": 1261,
+    "holding_2g": {
+     "footprint_mb": 2604.1,
+     "cpu_s": 3.1622175,
+     "processes": [
+      {
+       "pid": 14100,
+       "footprint_mb": 2604.1,
+       "cpu_s": 3.1622175
+      }
+     ]
+    },
+    "return_after_2g": {
+     "baseline_mb": 567.25,
+     "after": {
+      "footprint_mb": 626.67,
+      "cpu_s": 3.3611797083333337,
+      "processes": [
+       {
+        "pid": 14100,
+        "footprint_mb": 626.67,
+        "cpu_s": 3.3611797083333337
+       }
+      ]
+     },
+     "elapsed_s": 5.42
+    },
+    "peak_2g_footprint_mb": 2607.19,
+    "host_load_end": [
+     1.35302734375,
+     1.34375,
+     1.49365234375
+    ],
+    "host_pressure_end": 1
+   },
+   {
+    "ok": true,
+    "engine": "orbstack",
+    "at": "2026-10-26T02:16:49.735723+00:00",
+    "host": {
+     "macos": "26.6.1",
+     "arch": "arm64",
+     "cores": 10
+    },
+    "host_load_start": [
+     1.220703125,
+     1.20849609375,
+     1.39453125
+    ],
+    "host_pressure_start": 1,
+    "mach_timebase": {
+     "numer": 125,
+     "denom": 3
+    },
+    "cpu_reader_check": {
+     "getrusage_s": 0.050007,
+     "reader_s": 0.05001799999999999
+    },
+    "settings": {
+     "cpus": 2,
+     "ceiling_mb": 4096,
+     "container_cpus": 2,
+     "shares": "none"
+    },
+    "docker_versions": "29.9.2 / 29.8.2",
+    "process_commands": {
+     "14429": "/Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper"
+    },
+    "docker_info": {
+     "ServerVersion": "29.8.2",
+     "KernelVersion": "7.2.12-orbstack-00394-gbecdd6130068",
+     "NCPU": 2,
+     "MemTotal": 4180803584,
+     "Architecture": "aarch64",
+     "Driver": "overlayfs"
+    },
+    "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+    "idle": {
+     "footprint_mb": 530.42,
+     "cpu_s": 1.1304682083333333,
+     "processes": [
+      {
+       "pid": 14429,
+       "footprint_mb": 530.42,
+       "cpu_s": 1.1304682083333333
+      }
+     ]
+    },
+    "idle_cpu_percent_of_one_core": 0.598,
+    "run_true_ms": {
+     "samples": [
+      189.84,
+      94.48,
+      80.52,
+      91.83,
+      86.76
+     ],
+     "median": 91.83
+    },
+    "sha256_256m_ms": 1260,
+    "holding_2g": {
+     "footprint_mb": 2613.96,
+     "cpu_s": 3.1968584583333337,
+     "processes": [
+      {
+       "pid": 14429,
+       "footprint_mb": 2613.96,
+       "cpu_s": 3.1968584583333337
+      }
+     ]
+    },
+    "return_after_2g": {
+     "baseline_mb": 571.56,
+     "after": {
+      "footprint_mb": 523.86,
+      "cpu_s": 3.4132826666666665,
+      "processes": [
+       {
+        "pid": 14429,
+        "footprint_mb": 523.86,
+        "cpu_s": 3.4132826666666665
+       }
+      ]
+     },
+     "elapsed_s": 5.4
+    },
+    "peak_2g_footprint_mb": 2622.14,
+    "host_load_end": [
+     1.16162109375,
+     1.19921875,
+     1.37939453125
+    ],
+    "host_pressure_end": 1
+   }
+  ],
+  "colima": [
+   {
+    "ok": false,
+    "engine": "colima",
+    "at": "2026-10-26T02:05:40.455061+00:00",
+    "host": {
+     "macos": "26.6.1",
+     "arch": "arm64",
+     "cores": 10
+    },
+    "host_load_start": [
+     1.31396484375,
+     1.4697265625,
+     1.65673828125
+    ],
+    "host_pressure_start": 1,
+    "mach_timebase": {
+     "numer": 125,
+     "denom": 3
+    },
+    "cpu_reader_check": {
+     "getrusage_s": 0.05000399999999999,
+     "reader_s": 0.050025041666666666
+    },
+    "settings": {
+     "cpus": 2,
+     "ceiling_mb": 4096,
+     "container_cpus": 2,
+     "shares": "none"
+    },
+    "docker_versions": "29.9.2 / 29.5.2",
+    "process_commands": {
+     "12821": "/opt/homebrew/bin/limactl",
+     "12823": "/opt/homebrew/bin/limactl",
+     "12830": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+     "12838": "ssh: /Users/cothis/.colima/_lima/colima/ssh.sock [mux]"
+    },
+    "docker_info": {
+     "ServerVersion": "29.5.2",
+     "KernelVersion": "6.8.0-117-generic",
+     "NCPU": 2,
+     "MemTotal": 4094447616,
+     "Architecture": "aarch64",
+     "Driver": "overlayfs"
+    },
+    "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+    "idle": {
+     "footprint_mb": 1378.63,
+     "cpu_s": 11.541297291666666,
+     "processes": [
+      {
+       "pid": 12821,
+       "footprint_mb": 30.8,
+       "cpu_s": 0.8752825833333334
+      },
+      {
+       "pid": 12823,
+       "footprint_mb": 59.75,
+       "cpu_s": 0.22850120833333334
+      },
+      {
+       "pid": 12830,
+       "footprint_mb": 1286.35,
+       "cpu_s": 10.429249541666666
+      },
+      {
+       "pid": 12838,
+       "footprint_mb": 1.73,
+       "cpu_s": 0.008263958333333333
+      }
+     ]
+    },
+    "idle_cpu_percent_of_one_core": 0.753,
+    "run_true_ms": {
+     "samples": [
+      117.75,
+      50.13,
+      48.34,
+      50.46,
+      50.88
+     ],
+     "median": 50.46
+    },
+    "sha256_256m_ms": 814,
+    "holding_2g": {
+     "footprint_mb": 3408.63,
+     "cpu_s": 13.840576125,
+     "processes": [
+      {
+       "pid": 12821,
+       "footprint_mb": 30.8,
+       "cpu_s": 0.8913635
+      },
+      {
+       "pid": 12823,
+       "footprint_mb": 59.7,
+       "cpu_s": 0.23103604166666666
+      },
+      {
+       "pid": 12830,
+       "footprint_mb": 3316.29,
+       "cpu_s": 12.705089333333333
+      },
+      {
+       "pid": 12838,
+       "footprint_mb": 1.84,
+       "cpu_s": 0.01308725
+      }
+     ]
+    },
+    "return_after_2g": {
+     "baseline_mb": 1453.45,
+     "after": {
+      "footprint_mb": 3410.82,
+      "cpu_s": 14.020412333333333,
+      "processes": [
+       {
+        "pid": 12821,
+        "footprint_mb": 30.8,
+        "cpu_s": 0.8940905
+       },
+       {
+        "pid": 12823,
+        "footprint_mb": 59.75,
+        "cpu_s": 0.23290616666666666
+       },
+       {
+        "pid": 12830,
+        "footprint_mb": 3318.43,
+        "cpu_s": 12.879722458333333
+       },
+       {
+        "pid": 12838,
+        "footprint_mb": 1.84,
+        "cpu_s": 0.013693208333333333
+       }
+      ]
+     },
+     "elapsed_s": 10.07
+    },
+    "peak_2g_footprint_mb": 3410.82,
+    "host_load_end": [
+     1.130859375,
+     1.39453125,
+     1.61572265625
+    ],
+    "host_pressure_end": 1
+   },
+   {
+    "ok": false,
+    "engine": "colima",
+    "at": "2026-10-26T02:10:51.251986+00:00",
+    "host": {
+     "macos": "26.6.1",
+     "arch": "arm64",
+     "cores": 10
+    },
+    "host_load_start": [
+     1.2265625,
+     1.33056640625,
+     1.52734375
+    ],
+    "host_pressure_start": 1,
+    "mach_timebase": {
+     "numer": 125,
+     "denom": 3
+    },
+    "cpu_reader_check": {
+     "getrusage_s": 0.050006999999999996,
+     "reader_s": 0.05002158333333333
+    },
+    "settings": {
+     "cpus": 2,
+     "ceiling_mb": 4096,
+     "container_cpus": 2,
+     "shares": "none"
+    },
+    "docker_versions": "29.9.2 / 29.5.2",
+    "process_commands": {
+     "13816": "/opt/homebrew/bin/limactl",
+     "13819": "/opt/homebrew/bin/limactl",
+     "13826": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+     "13842": "ssh: /Users/cothis/.colima/_lima/colima/ssh.sock [mux]"
+    },
+    "docker_info": {
+     "ServerVersion": "29.5.2",
+     "KernelVersion": "6.8.0-117-generic",
+     "NCPU": 2,
+     "MemTotal": 4094451712,
+     "Architecture": "aarch64",
+     "Driver": "overlayfs"
+    },
+    "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+    "idle": {
+     "footprint_mb": 1081.58,
+     "cpu_s": 5.308070583333333,
+     "processes": [
+      {
+       "pid": 13816,
+       "footprint_mb": 32.52,
+       "cpu_s": 0.056375416666666664
+      },
+      {
+       "pid": 13819,
+       "footprint_mb": 67.36,
+       "cpu_s": 0.21836645833333335
+      },
+      {
+       "pid": 13826,
+       "footprint_mb": 980.0,
+       "cpu_s": 5.027379458333333
+      },
+      {
+       "pid": 13842,
+       "footprint_mb": 1.7,
+       "cpu_s": 0.00594925
+      }
+     ]
+    },
+    "idle_cpu_percent_of_one_core": 0.566,
+    "run_true_ms": {
+     "samples": [
+      117.85,
+      53.51,
+      53.06,
+      50.03,
+      49.34
+     ],
+     "median": 53.06
+    },
+    "sha256_256m_ms": 806,
+    "holding_2g": {
+     "footprint_mb": 3132.45,
+     "cpu_s": 7.567349041666667,
+     "processes": [
+      {
+       "pid": 13816,
+       "footprint_mb": 32.55,
+       "cpu_s": 0.06985620833333332
+      },
+      {
+       "pid": 13819,
+       "footprint_mb": 67.36,
+       "cpu_s": 0.22031245833333335
+      },
+      {
+       "pid": 13826,
+       "footprint_mb": 3030.74,
+       "cpu_s": 7.266526708333333
+      },
+      {
+       "pid": 13842,
+       "footprint_mb": 1.8,
+       "cpu_s": 0.010653666666666665
+      }
+     ]
+    },
+    "return_after_2g": {
+     "baseline_mb": 1150.67,
+     "after": {
+      "footprint_mb": 3137.89,
+      "cpu_s": 7.773958333333333,
+      "processes": [
+       {
+        "pid": 13816,
+        "footprint_mb": 32.55,
+        "cpu_s": 0.07460408333333333
+       },
+       {
+        "pid": 13819,
+        "footprint_mb": 67.36,
+        "cpu_s": 0.224063875
+       },
+       {
+        "pid": 13826,
+        "footprint_mb": 3036.18,
+        "cpu_s": 7.464012875
+       },
+       {
+        "pid": 13842,
+        "footprint_mb": 1.8,
+        "cpu_s": 0.0112775
+       }
+      ]
+     },
+     "elapsed_s": 10.02
+    },
+    "peak_2g_footprint_mb": 3137.94,
+    "host_load_end": [
+     1.2099609375,
+     1.30419921875,
+     1.50146484375
+    ],
+    "host_pressure_end": 1
+   },
+   {
+    "ok": false,
+    "engine": "colima",
+    "at": "2026-10-26T02:18:29.144299+00:00",
+    "host": {
+     "macos": "26.6.1",
+     "arch": "arm64",
+     "cores": 10
+    },
+    "host_load_start": [
+     0.98876953125,
+     1.15478515625,
+     1.35400390625
+    ],
+    "host_pressure_start": 1,
+    "mach_timebase": {
+     "numer": 125,
+     "denom": 3
+    },
+    "cpu_reader_check": {
+     "getrusage_s": 0.050004,
+     "reader_s": 0.050018
+    },
+    "settings": {
+     "cpus": 2,
+     "ceiling_mb": 4096,
+     "container_cpus": 2,
+     "shares": "none"
+    },
+    "docker_versions": "29.9.2 / 29.5.2",
+    "process_commands": {
+     "14595": "/opt/homebrew/bin/limactl",
+     "14597": "/opt/homebrew/bin/limactl",
+     "14604": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+     "14611": "ssh: /Users/cothis/.colima/_lima/colima/ssh.sock [mux]"
+    },
+    "docker_info": {
+     "ServerVersion": "29.5.2",
+     "KernelVersion": "6.8.0-117-generic",
+     "NCPU": 2,
+     "MemTotal": 4094451712,
+     "Architecture": "aarch64",
+     "Driver": "overlayfs"
+    },
+    "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+    "idle": {
+     "footprint_mb": 1093.09,
+     "cpu_s": 5.51376525,
+     "processes": [
+      {
+       "pid": 14595,
+       "footprint_mb": 31.72,
+       "cpu_s": 0.05476958333333334
+      },
+      {
+       "pid": 14597,
+       "footprint_mb": 66.97,
+       "cpu_s": 0.21250504166666664
+      },
+      {
+       "pid": 14604,
+       "footprint_mb": 992.71,
+       "cpu_s": 5.240516208333333
+      },
+      {
+       "pid": 14611,
+       "footprint_mb": 1.69,
+       "cpu_s": 0.005974416666666667
+      }
+     ]
+    },
+    "idle_cpu_percent_of_one_core": 0.586,
+    "run_true_ms": {
+     "samples": [
+      108.91,
+      52.0,
+      53.56,
+      51.14,
+      48.89
+     ],
+     "median": 52.0
+    },
+    "sha256_256m_ms": 804,
+    "holding_2g": {
+     "footprint_mb": 3104.14,
+     "cpu_s": 7.8433772500000005,
+     "processes": [
+      {
+       "pid": 14595,
+       "footprint_mb": 31.86,
+       "cpu_s": 0.06766458333333333
+      },
+      {
+       "pid": 14597,
+       "footprint_mb": 67.0,
+       "cpu_s": 0.21488758333333335
+      },
+      {
+       "pid": 14604,
+       "footprint_mb": 3003.47,
+       "cpu_s": 7.550317416666667
+      },
+      {
+       "pid": 14611,
+       "footprint_mb": 1.81,
+       "cpu_s": 0.010507666666666667
+      }
+     ]
+    },
+    "return_after_2g": {
+     "baseline_mb": 1113.95,
+     "after": {
+      "footprint_mb": 3109.97,
+      "cpu_s": 8.051747583333333,
+      "processes": [
+       {
+        "pid": 14595,
+        "footprint_mb": 31.86,
+        "cpu_s": 0.07114375
+       },
+       {
+        "pid": 14597,
+        "footprint_mb": 67.0,
+        "cpu_s": 0.21804845833333333
+       },
+       {
+        "pid": 14604,
+        "footprint_mb": 3009.3,
+        "cpu_s": 7.751450083333333
+       },
+       {
+        "pid": 14611,
+        "footprint_mb": 1.81,
+        "cpu_s": 0.011105291666666666
+       }
+      ]
+     },
+     "elapsed_s": 10.05
+    },
+    "peak_2g_footprint_mb": 3110.02,
+    "host_load_end": [
+     1.19482421875,
+     1.18359375,
+     1.34814453125
+    ],
+    "host_pressure_end": 1
+   }
+  ],
+  "docker-desktop": [
+   {
+    "ok": false,
+    "engine": "docker-desktop",
+    "at": "2026-10-26T02:07:21.918672+00:00",
+    "host": {
+     "macos": "26.6.1",
+     "arch": "arm64",
+     "cores": 10
+    },
+    "host_load_start": [
+     1.1103515625,
+     1.35791015625,
+     1.59033203125
+    ],
+    "host_pressure_start": 1,
+    "mach_timebase": {
+     "numer": 125,
+     "denom": 3
+    },
+    "cpu_reader_check": {
+     "getrusage_s": 0.050003000000000006,
+     "reader_s": 0.050016458333333326
+    },
+    "settings": {
+     "cpus": 2,
+     "ceiling_mb": 4096,
+     "container_cpus": 2,
+     "shares": "none"
+    },
+    "docker_versions": "29.9.2 / 29.9.2",
+    "process_commands": {
+     "13110": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+     "13127": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+     "13128": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+     "13157": "/Applications/Docker.app/Contents/MacOS/com.docker.build",
+     "13158": "/Applications/Docker.app/Contents/MacOS/com.docker.virtualization",
+     "13159": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/MacOS/Docker Desktop",
+     "13165": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+     "13178": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+     "13180": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+     "13184": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper (Renderer).app/Contents/MacOS/Docker Desktop Helper (Renderer)",
+     "13216": "/Applications/Docker.app/Contents/Resources/cli-plugins/docker-agent"
+    },
+    "docker_info": {
+     "ServerVersion": "29.9.2",
+     "KernelVersion": "7.0.14-linuxkit",
+     "NCPU": 2,
+     "MemTotal": 4107407360,
+     "Architecture": "aarch64",
+     "Driver": "overlay2"
+    },
+    "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+    "idle": {
+     "footprint_mb": 1090.54,
+     "cpu_s": 3.507144625,
+     "processes": [
+      {
+       "pid": 13110,
+       "footprint_mb": 30.44,
+       "cpu_s": 0.12395654166666667
+      },
+      {
+       "pid": 13127,
+       "footprint_mb": 70.06,
+       "cpu_s": 0.9317175
+      },
+      {
+       "pid": 13128,
+       "footprint_mb": 28.97,
+       "cpu_s": 0.07523420833333333
+      },
+      {
+       "pid": 13157,
+       "footprint_mb": 14.67,
+       "cpu_s": 0.020684833333333333
+      },
+      {
+       "pid": 13158,
+       "footprint_mb": 39.36,
+       "cpu_s": 0.121181125
+      },
+      {
+       "pid": 13159,
+       "footprint_mb": 52.89,
+       "cpu_s": 0.5327178333333333
+      },
+      {
+       "pid": 13165,
+       "footprint_mb": 791.08,
+       "cpu_s": 1.5009675416666668
+      },
+      {
+       "pid": 13178,
+       "footprint_mb": 10.31,
+       "cpu_s": 0.07117608333333333
+      },
+      {
+       "pid": 13180,
+       "footprint_mb": 6.49,
+       "cpu_s": 0.04265445833333333
+      },
+      {
+       "pid": 13184,
+       "footprint_mb": 11.16,
+       "cpu_s": 0.04354966666666667
+      },
+      {
+       "pid": 13216,
+       "footprint_mb": 35.11,
+       "cpu_s": 0.043304833333333334
+      }
+     ]
+    },
+    "idle_cpu_percent_of_one_core": 0.61,
+    "run_true_ms": {
+     "samples": [
+      138.2,
+      69.23,
+      61.72,
+      68.59,
+      62.44
+     ],
+     "median": 68.59
+    },
+    "sha256_256m_ms": 817,
+    "holding_2g": {
+     "footprint_mb": 3224.6,
+     "cpu_s": 6.292265041666666,
+     "processes": [
+      {
+       "pid": 13110,
+       "footprint_mb": 31.25,
+       "cpu_s": 0.16022833333333333
+      },
+      {
+       "pid": 13127,
+       "footprint_mb": 72.34,
+       "cpu_s": 1.1903350833333333
+      },
+      {
+       "pid": 13128,
+       "footprint_mb": 28.97,
+       "cpu_s": 0.07523420833333333
+      },
+      {
+       "pid": 13157,
+       "footprint_mb": 14.67,
+       "cpu_s": 0.021960125
+      },
+      {
+       "pid": 13158,
+       "footprint_mb": 39.33,
+       "cpu_s": 0.124228375
+      },
+      {
+       "pid": 13159,
+       "footprint_mb": 55.25,
+       "cpu_s": 0.5782399166666666
+      },
+      {
+       "pid": 13165,
+       "footprint_mb": 2919.72,
+       "cpu_s": 3.941072625
+      },
+      {
+       "pid": 13178,
+       "footprint_mb": 10.31,
+       "cpu_s": 0.07145741666666668
+      },
+      {
+       "pid": 13180,
+       "footprint_mb": 6.49,
+       "cpu_s": 0.04265445833333333
+      },
+      {
+       "pid": 13184,
+       "footprint_mb": 11.16,
+       "cpu_s": 0.04354966666666667
+      },
+      {
+       "pid": 13216,
+       "footprint_mb": 35.11,
+       "cpu_s": 0.043304833333333334
+      }
+     ]
+    },
+    "return_after_2g": {
+     "baseline_mb": 1176.05,
+     "after": {
+      "footprint_mb": 3223.02,
+      "cpu_s": 6.760778875,
+      "processes": [
+       {
+        "pid": 13110,
+        "footprint_mb": 31.25,
+        "cpu_s": 0.16422645833333335
+       },
+       {
+        "pid": 13127,
+        "footprint_mb": 73.13,
+        "cpu_s": 1.269078875
+       },
+       {
+        "pid": 13128,
+        "footprint_mb": 28.97,
+        "cpu_s": 0.07530220833333333
+       },
+       {
+        "pid": 13157,
+        "footprint_mb": 15.92,
+        "cpu_s": 0.030183416666666667
+       },
+       {
+        "pid": 13158,
+        "footprint_mb": 39.33,
+        "cpu_s": 0.12508179166666666
+       },
+       {
+        "pid": 13159,
+        "footprint_mb": 51.47,
+        "cpu_s": 0.5968900416666666
+       },
+       {
+        "pid": 13165,
+        "footprint_mb": 2920.24,
+        "cpu_s": 4.294005125
+       },
+       {
+        "pid": 13178,
+        "footprint_mb": 10.03,
+        "cpu_s": 0.07386408333333333
+       },
+       {
+        "pid": 13180,
+        "footprint_mb": 6.41,
+        "cpu_s": 0.044099291666666665
+       },
+       {
+        "pid": 13184,
+        "footprint_mb": 11.16,
+        "cpu_s": 0.04410575
+       },
+       {
+        "pid": 13216,
+        "footprint_mb": 35.11,
+        "cpu_s": 0.04394183333333333
+       }
+      ]
+     },
+     "elapsed_s": 10.05
+    },
+    "peak_2g_footprint_mb": 3226.75,
+    "host_load_end": [
+     1.33056640625,
+     1.3681640625,
+     1.5771484375
+    ],
+    "host_pressure_end": 1
+   },
+   {
+    "ok": false,
+    "engine": "docker-desktop",
+    "at": "2026-10-26T02:09:04.771466+00:00",
+    "host": {
+     "macos": "26.6.1",
+     "arch": "arm64",
+     "cores": 10
+    },
+    "host_load_start": [
+     1.4140625,
+     1.37744140625,
+     1.56982421875
+    ],
+    "host_pressure_start": 1,
+    "mach_timebase": {
+     "numer": 125,
+     "denom": 3
+    },
+    "cpu_reader_check": {
+     "getrusage_s": 0.05000600000000001,
+     "reader_s": 0.05002179166666667
+    },
+    "settings": {
+     "cpus": 2,
+     "ceiling_mb": 4096,
+     "container_cpus": 2,
+     "shares": "none"
+    },
+    "docker_versions": "29.9.2 / 29.9.2",
+    "process_commands": {
+     "13444": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+     "13461": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+     "13462": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+     "13486": "/Applications/Docker.app/Contents/MacOS/com.docker.build",
+     "13488": "/Applications/Docker.app/Contents/MacOS/com.docker.virtualization",
+     "13489": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/MacOS/Docker Desktop",
+     "13490": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+     "13505": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+     "13508": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+     "13513": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper (Renderer).app/Contents/MacOS/Docker Desktop Helper (Renderer)",
+     "13541": "/Applications/Docker.app/Contents/Resources/cli-plugins/docker-agent"
+    },
+    "docker_info": {
+     "ServerVersion": "29.9.2",
+     "KernelVersion": "7.0.14-linuxkit",
+     "NCPU": 2,
+     "MemTotal": 4107407360,
+     "Architecture": "aarch64",
+     "Driver": "overlay2"
+    },
+    "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+    "idle": {
+     "footprint_mb": 1052.92,
+     "cpu_s": 3.0591099166666664,
+     "processes": [
+      {
+       "pid": 13444,
+       "footprint_mb": 30.66,
+       "cpu_s": 0.12765104166666666
+      },
+      {
+       "pid": 13461,
+       "footprint_mb": 66.44,
+       "cpu_s": 0.8237656666666666
+      },
+      {
+       "pid": 13462,
+       "footprint_mb": 29.38,
+       "cpu_s": 0.07908341666666667
+      },
+      {
+       "pid": 13486,
+       "footprint_mb": 15.34,
+       "cpu_s": 0.025169333333333332
+      },
+      {
+       "pid": 13488,
+       "footprint_mb": 37.53,
+       "cpu_s": 0.102596375
+      },
+      {
+       "pid": 13489,
+       "footprint_mb": 52.81,
+       "cpu_s": 0.535514125
+      },
+      {
+       "pid": 13490,
+       "footprint_mb": 757.45,
+       "cpu_s": 1.1571509583333333
+      },
+      {
+       "pid": 13505,
+       "footprint_mb": 10.34,
+       "cpu_s": 0.07084770833333333
+      },
+      {
+       "pid": 13508,
+       "footprint_mb": 6.49,
+       "cpu_s": 0.042645
+      },
+      {
+       "pid": 13513,
+       "footprint_mb": 11.2,
+       "cpu_s": 0.048215208333333336
+      },
+      {
+       "pid": 13541,
+       "footprint_mb": 35.28,
+       "cpu_s": 0.046471083333333336
+      }
+     ]
+    },
+    "idle_cpu_percent_of_one_core": 0.419,
+    "run_true_ms": {
+     "samples": [
+      127.7,
+      64.9,
+      63.5,
+      67.02,
+      65.34
+     ],
+     "median": 65.34
+    },
+    "sha256_256m_ms": 818,
+    "holding_2g": {
+     "footprint_mb": 3187.78,
+     "cpu_s": 5.781159375,
+     "processes": [
+      {
+       "pid": 13444,
+       "footprint_mb": 31.0,
+       "cpu_s": 0.15101945833333336
+      },
+      {
+       "pid": 13461,
+       "footprint_mb": 72.7,
+       "cpu_s": 1.0604873333333333
+      },
+      {
+       "pid": 13462,
+       "footprint_mb": 29.38,
+       "cpu_s": 0.07908341666666667
+      },
+      {
+       "pid": 13486,
+       "footprint_mb": 15.34,
+       "cpu_s": 0.02640354166666667
+      },
+      {
+       "pid": 13488,
+       "footprint_mb": 37.52,
+       "cpu_s": 0.10580166666666667
+      },
+      {
+       "pid": 13489,
+       "footprint_mb": 55.0,
+       "cpu_s": 0.5783848333333333
+      },
+      {
+       "pid": 13490,
+       "footprint_mb": 2883.53,
+       "cpu_s": 3.5714985416666667
+      },
+      {
+       "pid": 13505,
+       "footprint_mb": 10.34,
+       "cpu_s": 0.07114929166666667
+      },
+      {
+       "pid": 13508,
+       "footprint_mb": 6.49,
+       "cpu_s": 0.042645
+      },
+      {
+       "pid": 13513,
+       "footprint_mb": 11.2,
+       "cpu_s": 0.048215208333333336
+      },
+      {
+       "pid": 13541,
+       "footprint_mb": 35.28,
+       "cpu_s": 0.046471083333333336
+      }
+     ]
+    },
+    "return_after_2g": {
+     "baseline_mb": 1155.89,
+     "after": {
+      "footprint_mb": 3190.51,
+      "cpu_s": 6.277321333333333,
+      "processes": [
+       {
+        "pid": 13444,
+        "footprint_mb": 31.05,
+        "cpu_s": 0.15442466666666665
+       },
+       {
+        "pid": 13461,
+        "footprint_mb": 73.88,
+        "cpu_s": 1.1598799166666667
+       },
+       {
+        "pid": 13462,
+        "footprint_mb": 29.38,
+        "cpu_s": 0.07914745833333332
+       },
+       {
+        "pid": 13486,
+        "footprint_mb": 15.95,
+        "cpu_s": 0.032851
+       },
+       {
+        "pid": 13488,
+        "footprint_mb": 37.56,
+        "cpu_s": 0.10631445833333333
+       },
+       {
+        "pid": 13489,
+        "footprint_mb": 51.5,
+        "cpu_s": 0.5948615
+       },
+       {
+        "pid": 13490,
+        "footprint_mb": 2888.24,
+        "cpu_s": 3.936178625
+       },
+       {
+        "pid": 13505,
+        "footprint_mb": 10.06,
+        "cpu_s": 0.07367333333333333
+       },
+       {
+        "pid": 13508,
+        "footprint_mb": 6.41,
+        "cpu_s": 0.04403766666666666
+       },
+       {
+        "pid": 13513,
+        "footprint_mb": 11.2,
+        "cpu_s": 0.04882433333333334
+       },
+       {
+        "pid": 13541,
+        "footprint_mb": 35.28,
+        "cpu_s": 0.047128375
+       }
+      ]
+     },
+     "elapsed_s": 10.07
+    },
+    "peak_2g_footprint_mb": 3194.3,
+    "host_load_end": [
+     1.2607421875,
+     1.341796875,
+     1.5439453125
+    ],
+    "host_pressure_end": 1
+   },
+   {
+    "ok": false,
+    "engine": "docker-desktop",
+    "at": "2026-10-26T02:20:07.315910+00:00",
+    "host": {
+     "macos": "26.6.1",
+     "arch": "arm64",
+     "cores": 10
+    },
+    "host_load_start": [
+     1.220703125,
+     1.189453125,
+     1.34033203125
+    ],
+    "host_pressure_start": 1,
+    "mach_timebase": {
+     "numer": 125,
+     "denom": 3
+    },
+    "cpu_reader_check": {
+     "getrusage_s": 0.05000500000000001,
+     "reader_s": 0.05001979166666667
+    },
+    "settings": {
+     "cpus": 2,
+     "ceiling_mb": 4096,
+     "container_cpus": 2,
+     "shares": "none"
+    },
+    "docker_versions": "29.9.2 / 29.9.2",
+    "process_commands": {
+     "14893": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+     "14910": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+     "14911": "/Applications/Docker.app/Contents/MacOS/com.docker.backend",
+     "14940": "/Applications/Docker.app/Contents/MacOS/com.docker.build",
+     "14942": "/Applications/Docker.app/Contents/MacOS/com.docker.virtualization",
+     "14943": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/MacOS/Docker Desktop",
+     "14946": "/System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualMachine.xpc/Contents/MacOS/com.apple.Virtualization.VirtualMachine",
+     "14963": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+     "14965": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper.app/Contents/MacOS/Docker Desktop Helper",
+     "14968": "/Applications/Docker.app/Contents/MacOS/Docker Desktop.app/Contents/Frameworks/Docker Desktop Helper (Renderer).app/Contents/MacOS/Docker Desktop Helper (Renderer)",
+     "15003": "/Applications/Docker.app/Contents/Resources/cli-plugins/docker-agent"
+    },
+    "docker_info": {
+     "ServerVersion": "29.9.2",
+     "KernelVersion": "7.0.14-linuxkit",
+     "NCPU": 2,
+     "MemTotal": 4107407360,
+     "Architecture": "aarch64",
+     "Driver": "overlay2"
+    },
+    "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+    "idle": {
+     "footprint_mb": 1050.65,
+     "cpu_s": 3.169672875,
+     "processes": [
+      {
+       "pid": 14893,
+       "footprint_mb": 30.39,
+       "cpu_s": 0.12378929166666668
+      },
+      {
+       "pid": 14910,
+       "footprint_mb": 68.5,
+       "cpu_s": 0.8068102916666666
+      },
+      {
+       "pid": 14911,
+       "footprint_mb": 29.17,
+       "cpu_s": 0.07519175
+      },
+      {
+       "pid": 14940,
+       "footprint_mb": 14.63,
+       "cpu_s": 0.04150975
+      },
+      {
+       "pid": 14942,
+       "footprint_mb": 37.64,
+       "cpu_s": 0.13131116666666667
+      },
+      {
+       "pid": 14943,
+       "footprint_mb": 53.3,
+       "cpu_s": 0.525091875
+      },
+      {
+       "pid": 14946,
+       "footprint_mb": 753.91,
+       "cpu_s": 1.253965875
+      },
+      {
+       "pid": 14963,
+       "footprint_mb": 10.33,
+       "cpu_s": 0.076835375
+      },
+      {
+       "pid": 14965,
+       "footprint_mb": 6.49,
+       "cpu_s": 0.04695445833333334
+      },
+      {
+       "pid": 14968,
+       "footprint_mb": 11.24,
+       "cpu_s": 0.045632125
+      },
+      {
+       "pid": 15003,
+       "footprint_mb": 35.05,
+       "cpu_s": 0.04258091666666666
+      }
+     ]
+    },
+    "idle_cpu_percent_of_one_core": 0.429,
+    "run_true_ms": {
+     "samples": [
+      131.01,
+      68.63,
+      67.32,
+      67.3,
+      65.63
+     ],
+     "median": 67.32
+    },
+    "sha256_256m_ms": 824,
+    "holding_2g": {
+     "footprint_mb": 3228.52,
+     "cpu_s": 5.918411541666667,
+     "processes": [
+      {
+       "pid": 14893,
+       "footprint_mb": 31.22,
+       "cpu_s": 0.15777879166666667
+      },
+      {
+       "pid": 14910,
+       "footprint_mb": 69.16,
+       "cpu_s": 1.0435885833333334
+      },
+      {
+       "pid": 14911,
+       "footprint_mb": 29.17,
+       "cpu_s": 0.07519175
+      },
+      {
+       "pid": 14940,
+       "footprint_mb": 14.63,
+       "cpu_s": 0.042849625
+      },
+      {
+       "pid": 14942,
+       "footprint_mb": 37.59,
+       "cpu_s": 0.13425604166666666
+      },
+      {
+       "pid": 14943,
+       "footprint_mb": 55.61,
+       "cpu_s": 0.56981925
+      },
+      {
+       "pid": 14946,
+       "footprint_mb": 2928.03,
+       "cpu_s": 3.6826502083333335
+      },
+      {
+       "pid": 14963,
+       "footprint_mb": 10.33,
+       "cpu_s": 0.07710979166666668
+      },
+      {
+       "pid": 14965,
+       "footprint_mb": 6.49,
+       "cpu_s": 0.04695445833333334
+      },
+      {
+       "pid": 14968,
+       "footprint_mb": 11.24,
+       "cpu_s": 0.045632125
+      },
+      {
+       "pid": 15003,
+       "footprint_mb": 35.05,
+       "cpu_s": 0.04258091666666666
+      }
+     ]
+    },
+    "return_after_2g": {
+     "baseline_mb": 1182.77,
+     "after": {
+      "footprint_mb": 3228.58,
+      "cpu_s": 6.406695958333333,
+      "processes": [
+       {
+        "pid": 14893,
+        "footprint_mb": 31.24,
+        "cpu_s": 0.16167216666666664
+       },
+       {
+        "pid": 14910,
+        "footprint_mb": 71.19,
+        "cpu_s": 1.15249125
+       },
+       {
+        "pid": 14911,
+        "footprint_mb": 29.17,
+        "cpu_s": 0.07526266666666667
+       },
+       {
+        "pid": 14940,
+        "footprint_mb": 15.74,
+        "cpu_s": 0.05828883333333334
+       },
+       {
+        "pid": 14942,
+        "footprint_mb": 37.64,
+        "cpu_s": 0.13484475
+       },
+       {
+        "pid": 14943,
+        "footprint_mb": 51.35,
+        "cpu_s": 0.58579775
+       },
+       {
+        "pid": 14946,
+        "footprint_mb": 2929.49,
+        "cpu_s": 4.020995833333333
+       },
+       {
+        "pid": 14963,
+        "footprint_mb": 10.06,
+        "cpu_s": 0.079556125
+       },
+       {
+        "pid": 14965,
+        "footprint_mb": 6.41,
+        "cpu_s": 0.048375916666666664
+       },
+       {
+        "pid": 14968,
+        "footprint_mb": 11.24,
+        "cpu_s": 0.046255583333333336
+       },
+       {
+        "pid": 15003,
+        "footprint_mb": 35.05,
+        "cpu_s": 0.04315508333333334
+       }
+      ]
+     },
+     "elapsed_s": 10.01
+    },
+    "peak_2g_footprint_mb": 3233.09,
+    "host_load_end": [
+     1.38427734375,
+     1.24462890625,
+     1.3486328125
+    ],
+    "host_pressure_end": 1
+   }
+  ]
+ },
+ "dmx_0.2.1_vs_0.2.2": {
+  "what": "dmx alone, alternating v0.2.1 (GitHub release binary and guest) and v0.2.2, three rounds each",
+  "v0.2.1": [
+   {
+    "ok": true,
+    "engine": "dmx",
+    "at": "2026-10-26T02:22:49.120738+00:00",
+    "host": {
+     "macos": "26.6.1",
+     "arch": "arm64",
+     "cores": 10
+    },
+    "host_load_start": [
+     1.0830078125,
+     1.19140625,
+     1.3125
+    ],
+    "host_pressure_start": 1,
+    "mach_timebase": {
+     "numer": 125,
+     "denom": 3
+    },
+    "cpu_reader_check": {
+     "getrusage_s": 0.050004999999999994,
+     "reader_s": 0.050017500000000006
+    },
+    "settings": {
+     "cpus": 2,
+     "ceiling_mb": 4096,
+     "container_cpus": 2,
+     "shares": "none"
+    },
+    "vm_start_ms": 233,
+    "before_docker": {
+     "footprint_mb": 80.16,
+     "cpu_s": 0.199451125,
+     "processes": [
+      {
+       "pid": 15380,
+       "footprint_mb": 80.16,
+       "cpu_s": 0.199451125
+      }
+     ]
+    },
+    "docker_versions": "29.9.2 / 29.9.2",
+    "first_docker_ms": 1957,
+    "process_commands": {
+     "15380": "/tmp/claude-501/-Users-cothis-dockermax/f8979640-608f-4668-8bf8-99707176942c/scratchpad/v021/bin/dmx"
+    },
+    "docker_info": {
+     "ServerVersion": "29.9.2",
+     "KernelVersion": "6.18.58-dmx-4k",
+     "NCPU": 2,
+     "MemTotal": 1305063424,
+     "Architecture": "aarch64",
+     "Driver": "overlayfs"
+    },
+    "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+    "idle": {
+     "footprint_mb": 296.5,
+     "cpu_s": 2.4470731666666663,
+     "processes": [
+      {
+       "pid": 15380,
+       "footprint_mb": 296.5,
+       "cpu_s": 2.4470731666666663
+      }
+     ]
+    },
+    "idle_cpu_percent_of_one_core": 1.376,
+    "run_true_ms": {
+     "samples": [
+      215.92,
+      98.77,
+      92.23,
+      96.08,
+      105.17
+     ],
+     "median": 98.77
+    },
+    "sha256_256m_ms": 843,
+    "holding_2g": {
+     "footprint_mb": 2370.35,
+     "cpu_s": 4.783886416666667,
+     "processes": [
+      {
+       "pid": 15380,
+       "footprint_mb": 2370.35,
+       "cpu_s": 4.783886416666667
+      }
+     ]
+    },
+    "return_after_2g": {
+     "baseline_mb": 270.14,
+     "after": {
+      "footprint_mb": 312.02,
+      "cpu_s": 4.976457541666667,
+      "processes": [
+       {
+        "pid": 15380,
+        "footprint_mb": 312.02,
+        "cpu_s": 4.976457541666667
+       }
+      ]
+     },
+     "elapsed_s": 1.98
+    },
+    "peak_2g_footprint_mb": 2376.97,
+    "host_load_end": [
+     1.259765625,
+     1.224609375,
+     1.31640625
+    ],
+    "host_pressure_end": 1
+   },
+   {
+    "ok": true,
+    "engine": "dmx",
+    "at": "2026-10-26T02:25:56.476767+00:00",
+    "host": {
+     "macos": "26.6.1",
+     "arch": "arm64",
+     "cores": 10
+    },
+    "host_load_start": [
+     1.09912109375,
+     1.18359375,
+     1.287109375
+    ],
+    "host_pressure_start": 1,
+    "mach_timebase": {
+     "numer": 125,
+     "denom": 3
+    },
+    "cpu_reader_check": {
+     "getrusage_s": 0.050002000000000005,
+     "reader_s": 0.05001583333333334
+    },
+    "settings": {
+     "cpus": 2,
+     "ceiling_mb": 4096,
+     "container_cpus": 2,
+     "shares": "none"
+    },
+    "vm_start_ms": 237,
+    "before_docker": {
+     "footprint_mb": 80.94,
+     "cpu_s": 0.19573258333333335,
+     "processes": [
+      {
+       "pid": 15575,
+       "footprint_mb": 80.94,
+       "cpu_s": 0.19573258333333335
+      }
+     ]
+    },
+    "docker_versions": "29.9.2 / 29.9.2",
+    "first_docker_ms": 1257,
+    "process_commands": {
+     "15575": "/tmp/claude-501/-Users-cothis-dockermax/f8979640-608f-4668-8bf8-99707176942c/scratchpad/v021/bin/dmx"
+    },
+    "docker_info": {
+     "ServerVersion": "29.9.2",
+     "KernelVersion": "6.18.58-dmx-4k",
+     "NCPU": 2,
+     "MemTotal": 1439281152,
+     "Architecture": "aarch64",
+     "Driver": "overlayfs"
+    },
+    "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+    "idle": {
+     "footprint_mb": 186.89,
+     "cpu_s": 2.5560958333333335,
+     "processes": [
+      {
+       "pid": 15575,
+       "footprint_mb": 186.89,
+       "cpu_s": 2.5560958333333335
+      }
+     ]
+    },
+    "idle_cpu_percent_of_one_core": 1.398,
+    "run_true_ms": {
+     "samples": [
+      226.86,
+      97.24,
+      101.47,
+      94.34,
+      104.75
+     ],
+     "median": 101.47
+    },
+    "sha256_256m_ms": 840,
+    "holding_2g": {
+     "footprint_mb": 2371.92,
+     "cpu_s": 4.901111,
+     "processes": [
+      {
+       "pid": 15575,
+       "footprint_mb": 2371.92,
+       "cpu_s": 4.901111
+      }
+     ]
+    },
+    "return_after_2g": {
+     "baseline_mb": 272.63,
+     "after": {
+      "footprint_mb": 334.44,
+      "cpu_s": 5.343395041666667,
+      "processes": [
+       {
+        "pid": 15575,
+        "footprint_mb": 334.44,
+        "cpu_s": 5.343395041666667
+       }
+      ]
+     },
+     "elapsed_s": 5.51
+    },
+    "peak_2g_footprint_mb": 2378.49,
+    "host_load_end": [
+     1.1181640625,
+     1.16650390625,
+     1.271484375
+    ],
+    "host_pressure_end": 1
+   },
+   {
+    "ok": true,
+    "engine": "dmx",
+    "at": "2026-10-26T02:28:54.539043+00:00",
+    "host": {
+     "macos": "26.6.1",
+     "arch": "arm64",
+     "cores": 10
+    },
+    "host_load_start": [
+     2.14013671875,
+     1.4375,
+     1.35302734375
+    ],
+    "host_pressure_start": 1,
+    "mach_timebase": {
+     "numer": 125,
+     "denom": 3
+    },
+    "cpu_reader_check": {
+     "getrusage_s": 0.050006,
+     "reader_s": 0.05002304166666667
+    },
+    "settings": {
+     "cpus": 2,
+     "ceiling_mb": 4096,
+     "container_cpus": 2,
+     "shares": "none"
+    },
+    "vm_start_ms": 242,
+    "before_docker": {
+     "footprint_mb": 80.69,
+     "cpu_s": 0.19713379166666667,
+     "processes": [
+      {
+       "pid": 15754,
+       "footprint_mb": 80.69,
+       "cpu_s": 0.19713379166666667
+      }
+     ]
+    },
+    "docker_versions": "29.9.2 / 29.9.2",
+    "first_docker_ms": 1362,
+    "process_commands": {
+     "15754": "/tmp/claude-501/-Users-cothis-dockermax/f8979640-608f-4668-8bf8-99707176942c/scratchpad/v021/bin/dmx"
+    },
+    "docker_info": {
+     "ServerVersion": "29.9.2",
+     "KernelVersion": "6.18.58-dmx-4k",
+     "NCPU": 2,
+     "MemTotal": 1305063424,
+     "Architecture": "aarch64",
+     "Driver": "overlayfs"
+    },
+    "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+    "idle": {
+     "footprint_mb": 181.67,
+     "cpu_s": 2.6611122916666665,
+     "processes": [
+      {
+       "pid": 15754,
+       "footprint_mb": 181.67,
+       "cpu_s": 2.6611122916666665
+      }
+     ]
+    },
+    "idle_cpu_percent_of_one_core": 1.591,
+    "run_true_ms": {
+     "samples": [
+      212.85,
+      95.88,
+      99.29,
+      112.05,
+      101.56
+     ],
+     "median": 101.56
+    },
+    "sha256_256m_ms": 861,
+    "holding_2g": {
+     "footprint_mb": 2369.05,
+     "cpu_s": 5.013873333333333,
+     "processes": [
+      {
+       "pid": 15754,
+       "footprint_mb": 2369.05,
+       "cpu_s": 5.013873333333333
+      }
+     ]
+    },
+    "return_after_2g": {
+     "baseline_mb": 270.41,
+     "after": {
+      "footprint_mb": 333.59,
+      "cpu_s": 5.192746791666667,
+      "processes": [
+       {
+        "pid": 15754,
+        "footprint_mb": 333.59,
+        "cpu_s": 5.192746791666667
+       }
+      ]
+     },
+     "elapsed_s": 2.05
+    },
+    "peak_2g_footprint_mb": 2376.11,
+    "host_load_end": [
+     1.7177734375,
+     1.44873046875,
+     1.361328125
+    ],
+    "host_pressure_end": 1
+   }
+  ],
+  "v0.2.2": [
+   {
+    "ok": true,
+    "engine": "dmx",
+    "at": "2026-10-26T02:24:27.668556+00:00",
+    "host": {
+     "macos": "26.6.1",
+     "arch": "arm64",
+     "cores": 10
+    },
+    "host_load_start": [
+     1.212890625,
+     1.2177734375,
+     1.310546875
+    ],
+    "host_pressure_start": 1,
+    "mach_timebase": {
+     "numer": 125,
+     "denom": 3
+    },
+    "cpu_reader_check": {
+     "getrusage_s": 0.050005999999999995,
+     "reader_s": 0.05002229166666668
+    },
+    "settings": {
+     "cpus": 2,
+     "ceiling_mb": 4096,
+     "container_cpus": 2,
+     "shares": "none"
+    },
+    "vm_start_ms": 266,
+    "before_docker": {
+     "footprint_mb": 82.24,
+     "cpu_s": 0.19364166666666666,
+     "processes": [
+      {
+       "pid": 15466,
+       "footprint_mb": 82.24,
+       "cpu_s": 0.19364166666666666
+      }
+     ]
+    },
+    "docker_versions": "29.9.2 / 29.9.2",
+    "first_docker_ms": 1205,
+    "process_commands": {
+     "15466": "/Users/cothis/dockermax/.build/out/Products/Release/dmx"
+    },
+    "docker_info": {
+     "ServerVersion": "29.9.2",
+     "KernelVersion": "6.18.58-dmx-4k",
+     "NCPU": 2,
+     "MemTotal": 1439281152,
+     "Architecture": "aarch64",
+     "Driver": "overlayfs"
+    },
+    "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+    "idle": {
+     "footprint_mb": 186.66,
+     "cpu_s": 2.5163882083333333,
+     "processes": [
+      {
+       "pid": 15466,
+       "footprint_mb": 186.66,
+       "cpu_s": 2.5163882083333333
+      }
+     ]
+    },
+    "idle_cpu_percent_of_one_core": 1.273,
+    "run_true_ms": {
+     "samples": [
+      213.67,
+      91.13,
+      93.04,
+      102.02,
+      106.57
+     ],
+     "median": 102.02
+    },
+    "sha256_256m_ms": 835,
+    "holding_2g": {
+     "footprint_mb": 2380.39,
+     "cpu_s": 4.8338755,
+     "processes": [
+      {
+       "pid": 15466,
+       "footprint_mb": 2380.39,
+       "cpu_s": 4.8338755
+      }
+     ]
+    },
+    "return_after_2g": {
+     "baseline_mb": 281.52,
+     "after": {
+      "footprint_mb": 344.72,
+      "cpu_s": 5.354415416666667,
+      "processes": [
+       {
+        "pid": 15466,
+        "footprint_mb": 344.72,
+        "cpu_s": 5.354415416666667
+       }
+      ]
+     },
+     "elapsed_s": 5.69
+    },
+    "peak_2g_footprint_mb": 2388.03,
+    "host_load_end": [
+     1.1650390625,
+     1.2041015625,
+     1.298828125
+    ],
+    "host_pressure_end": 1
+   },
+   {
+    "ok": true,
+    "engine": "dmx",
+    "at": "2026-10-26T02:27:25.107446+00:00",
+    "host": {
+     "macos": "26.6.1",
+     "arch": "arm64",
+     "cores": 10
+    },
+    "host_load_start": [
+     1.00830078125,
+     1.1337890625,
+     1.25390625
+    ],
+    "host_pressure_start": 1,
+    "mach_timebase": {
+     "numer": 125,
+     "denom": 3
+    },
+    "cpu_reader_check": {
+     "getrusage_s": 0.050003000000000006,
+     "reader_s": 0.050018499999999994
+    },
+    "settings": {
+     "cpus": 2,
+     "ceiling_mb": 4096,
+     "container_cpus": 2,
+     "shares": "none"
+    },
+    "vm_start_ms": 251,
+    "before_docker": {
+     "footprint_mb": 82.06,
+     "cpu_s": 0.19626279166666666,
+     "processes": [
+      {
+       "pid": 15644,
+       "footprint_mb": 82.06,
+       "cpu_s": 0.19626279166666666
+      }
+     ]
+    },
+    "docker_versions": "29.9.2 / 29.9.2",
+    "first_docker_ms": 1197,
+    "process_commands": {
+     "15644": "/Users/cothis/dockermax/.build/out/Products/Release/dmx"
+    },
+    "docker_info": {
+     "ServerVersion": "29.9.2",
+     "KernelVersion": "6.18.58-dmx-4k",
+     "NCPU": 2,
+     "MemTotal": 1305063424,
+     "Architecture": "aarch64",
+     "Driver": "overlayfs"
+    },
+    "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+    "idle": {
+     "footprint_mb": 283.53,
+     "cpu_s": 2.4204440416666664,
+     "processes": [
+      {
+       "pid": 15644,
+       "footprint_mb": 283.53,
+       "cpu_s": 2.4204440416666664
+      }
+     ]
+    },
+    "idle_cpu_percent_of_one_core": 1.897,
+    "run_true_ms": {
+     "samples": [
+      220.22,
+      90.75,
+      98.84,
+      94.38,
+      99.57
+     ],
+     "median": 98.84
+    },
+    "sha256_256m_ms": 842,
+    "holding_2g": {
+     "footprint_mb": 2380.35,
+     "cpu_s": 4.820865958333333,
+     "processes": [
+      {
+       "pid": 15644,
+       "footprint_mb": 2380.35,
+       "cpu_s": 4.820865958333333
+      }
+     ]
+    },
+    "return_after_2g": {
+     "baseline_mb": 280.94,
+     "after": {
+      "footprint_mb": 343.86,
+      "cpu_s": 5.313903291666667,
+      "processes": [
+       {
+        "pid": 15644,
+        "footprint_mb": 343.86,
+        "cpu_s": 5.313903291666667
+       }
+      ]
+     },
+     "elapsed_s": 5.37
+    },
+    "peak_2g_footprint_mb": 2387.74,
+    "host_load_end": [
+     1.615234375,
+     1.28857421875,
+     1.30078125
+    ],
+    "host_pressure_end": 1
+   },
+   {
+    "ok": true,
+    "engine": "dmx",
+    "at": "2026-10-26T02:30:19.439113+00:00",
+    "host": {
+     "macos": "26.6.1",
+     "arch": "arm64",
+     "cores": 10
+    },
+    "host_load_start": [
+     1.5537109375,
+     1.435546875,
+     1.3583984375
+    ],
+    "host_pressure_start": 1,
+    "mach_timebase": {
+     "numer": 125,
+     "denom": 3
+    },
+    "cpu_reader_check": {
+     "getrusage_s": 0.05000299999999999,
+     "reader_s": 0.05001625
+    },
+    "settings": {
+     "cpus": 2,
+     "ceiling_mb": 4096,
+     "container_cpus": 2,
+     "shares": "none"
+    },
+    "vm_start_ms": 231,
+    "before_docker": {
+     "footprint_mb": 82.14,
+     "cpu_s": 0.19567833333333334,
+     "processes": [
+      {
+       "pid": 15860,
+       "footprint_mb": 82.14,
+       "cpu_s": 0.19567833333333334
+      }
+     ]
+    },
+    "docker_versions": "29.9.2 / 29.9.2",
+    "first_docker_ms": 1197,
+    "process_commands": {
+     "15860": "/Users/cothis/dockermax/.build/out/Products/Release/dmx"
+    },
+    "docker_info": {
+     "ServerVersion": "29.9.2",
+     "KernelVersion": "6.18.58-dmx-4k",
+     "NCPU": 2,
+     "MemTotal": 1439281152,
+     "Architecture": "aarch64",
+     "Driver": "overlayfs"
+    },
+    "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+    "idle": {
+     "footprint_mb": 200.7,
+     "cpu_s": 2.3600268333333334,
+     "processes": [
+      {
+       "pid": 15860,
+       "footprint_mb": 200.7,
+       "cpu_s": 2.3600268333333334
+      }
+     ]
+    },
+    "idle_cpu_percent_of_one_core": 1.686,
+    "run_true_ms": {
+     "samples": [
+      209.41,
+      89.91,
+      97.3,
+      93.8,
+      93.26
+     ],
+     "median": 93.8
+    },
+    "sha256_256m_ms": 852,
+    "holding_2g": {
+     "footprint_mb": 2380.89,
+     "cpu_s": 4.734600208333333,
+     "processes": [
+      {
+       "pid": 15860,
+       "footprint_mb": 2380.89,
+       "cpu_s": 4.734600208333333
+      }
+     ]
+    },
+    "return_after_2g": {
+     "baseline_mb": 283.19,
+     "after": {
+      "footprint_mb": 345.34,
+      "cpu_s": 5.252241083333333,
+      "processes": [
+       {
+        "pid": 15860,
+        "footprint_mb": 345.34,
+        "cpu_s": 5.252241083333333
+       }
+      ]
+     },
+     "elapsed_s": 5.94
+    },
+    "peak_2g_footprint_mb": 2387.74,
+    "host_load_end": [
+     1.49755859375,
+     1.44873046875,
+     1.36669921875
+    ],
+    "host_pressure_end": 1
+   }
+  ]
+ }
+}
