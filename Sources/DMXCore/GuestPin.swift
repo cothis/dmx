@@ -2,15 +2,15 @@
 // ~/.dmx/guest is missing or came from another release.
 extension GuestRelease {
     public static let pinned: GuestRelease? = GuestRelease(
-        tag: "v0.3.2",
-        archive: "dmx-guest-0.3.2.tar.gz",
-        bytes: 62892710,
-        sha256: "e77bcb0011250d8173c8966ca6d5badc8c81050c866ce1e0e29fdf899e979ca5",
+        tag: "v0.3.3",
+        archive: "dmx-guest-0.3.3.tar.gz",
+        bytes: 62891200,
+        sha256: "441679a2f70dd5cb374e1ef560c32d027ae31b1d8184e268cc683b3353c1d423",
         files: [
             "Image": "fa487e1461eac6012fb5c43281b815e36cfea99d4f4ce4ed30498811f7650bf3",
-            "docker.img": "d6c999ce4a51a93caf85db323bf080b6ba628b40272e4cfa7ba6717c5883204c",
+            "docker.img": "5c4e1ba3f5dcca0b7666652455c80d1598d51703a6656fe03a02a9c58de08d57",
             "initramfs.gz": "c476c97f457808ecfd0719748e50b4996b3c83d25c43b48ee3cb3419607783c8",
-            "manifest.json": "a52f92662ce48665eae76354ee3060dd360afb16e8926ed1719e1160892a31e3",
+            "manifest.json": "87200ce8e7dc0e027f66930540faf2045a1aa0a43d91c4749f45ac22dd674ea6",
         ]
     )
 }
