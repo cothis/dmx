@@ -1,4 +1,4 @@
-# 다음 세션 인계 — 2026-10-26 (v0.3.0 게시, 작업 지시서 완료)
+# 다음 세션 인계 — 2026-10-26 (v0.3.1 게시, 작업 지시서 완료)
 
 `이어서 진행해`라는 요청을 받으면 [PLAN.md](PLAN.md)의 **Next up**과 이 문서를 읽어요.
 대화 이력이나 `/tmp` 파일은 필요 없어요. 계획·결정·측정의 기준은 `PLAN.md`예요.
@@ -20,8 +20,9 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
 
 ## 현재 상태
 
-- **게시된 릴리스:** [v0.3.0](https://github.com/cothis/dmx/releases/tag/v0.3.0)(서명·공증, 2026-10-26).
-  main에는 그 뒤 `dmx update`와 엔진 비교 수치, daemontest DNS 체크 수정이 들어 있어요(미배포).
+- **게시된 릴리스:** [v0.3.1](https://github.com/cothis/dmx/releases/tag/v0.3.1)(서명·공증, 2026-10-26).
+  `dmx update`(자체 업데이트)와 "응답한 데몬이 다른 버전" 안내가 들어간 릴리스예요. 0.3.0에서 `install.sh`로
+  올라오고, 그다음부터는 `dmx update` 한 줄로 올라가는 것까지 확인했어요. main에 미배포 변경은 없어요.
   GitHub에서 설치해 selftest 96 MB, `FEX-x86` 등록, arm64·amd64·386 `docker run`까지 확인했어요.
   NOTES.md에는 손으로 쓴 "Changes since 0.2.2"가 들어 있어요. main에는 릴리스 이후 미배포 변경이
   문서(README·benchmark.md의 새 엔진 비교 수치)뿐이에요.
@@ -92,12 +93,10 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
 
 작업 지시서와 0.3.0 릴리스, 엔진 재측정까지 끝났어요. 남은 것은 maintainer 판단이 필요한 것들이에요:
 
-1. **0.3.1 릴리스 여부** — `dmx update`(자체 업데이트)와 daemontest의 DNS 체크 수정이 main에 있는데 0.3.0에는 없어요.
-   0.3.0 사용자는 `install.sh`를 다시 실행해야 하니, 0.3.1을 내면 그다음부터는 `dmx update`로 올라갈 수 있어요.
-2. **커뮤니티 공개**(Show HN, Reddit, GeekNews) — phase 11은 0.2.0에 들어갔고, "개선이 더 된 뒤"라는
+1. **커뮤니티 공개**(Show HN, Reddit, GeekNews) — phase 11은 0.2.0에 들어갔고, "개선이 더 된 뒤"라는
    2026-10-25 지시 이후 작업 지시서가 모두 끝났으니 지금은 maintainer의 말만 기다려요.
-3. **사내망(검사 프록시) 수용 시험** — 그런 환경이 생길 때.
-4. 막지 않는 미해결: `qemu-x86_64`는 32비트를 못 돌리니 `linux/386`은 기본값 `x86_emulator fex`가 필요해요
+2. **사내망(검사 프록시) 수용 시험** — 그런 환경이 생길 때.
+3. 막지 않는 미해결: `qemu-x86_64`는 32비트를 못 돌리니 `linux/386`은 기본값 `x86_emulator fex`가 필요해요
    (qemu-i386을 넣으려면 별도 빌드). 따뜻한 `docker run`은 데이터 디스크 배리어 때문에 Colima보다 느린 것을
    유지해요. FEX의 `uname -m`은 32비트 프로세스에도 `x86_64`를 보고해요.
 
