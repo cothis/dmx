@@ -328,7 +328,7 @@ def source_bundle(path: Path, items: list, cache: Path, store: Path, kernel_tar:
         members.append((f"qemu/alpine-patches/{name}", kernel_build.fetch(f"{qemu_build.APORTS}/{name}", digest)))
     members.append(("qemu/dmx-guest-base.patch", qemu_build.GUEST_BASE_PATCH.encode()))
     members.append((f"qemu/{guest.DMX_QEMU}.build.py", (ROOT / "scripts/build-qemu.py").read_bytes()))
-    for path, (repo, commit, digest) in fex_build.SOURCES.items():
+    for _subdir, (repo, commit, digest) in fex_build.SOURCES.items():
         members.append((f"fex/{repo.split('/')[1]}-{commit}.tar.gz", kernel_build.fetch(fex_build.source_url(repo, commit), digest)))
     members.append(("fex/dmx-fex.patch", fex_build.FEX_PATCH.encode()))
     members.append((f"fex/{guest.DMX_FEX}.build.py", (ROOT / "scripts/build-fex.py").read_bytes()))

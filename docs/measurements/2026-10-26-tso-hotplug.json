@@ -1,0 +1,18 @@
+{
+  "at": "2026-10-26",
+  "host": "Apple M4, macOS 26.6.1, load 1-2",
+  "guest_kernel": "6.18.58-dmx-4k (Asahi TSO patches, dmx writes ACTLR_EL1 only when the model changes)",
+  "program": "tso-litmus.c in this directory, built static with Alpine clang 22 in a dmx VM; writer and reader pinned with sched_setaffinity, PR_SET_MEM_MODEL per thread",
+  "question": "A vCPU comes back from PSCI CPU_ON with ACTLR_EL1 reset by the VMM. Does a thread that asked for TSO still get it after it runs on such a CPU, and does a thread that did not ask keep the default model?",
+  "message_passing_litmus": {
+    "note": "reorderings (data < flag) seen by the reader; 4M iterations each unless said otherwise",
+    "default_model_cpus_8_9": [2391035],
+    "tso_cpus_8_9": [0],
+    "tso_after_offline_online_of_both_cpus": [0, 0, 0, 0, 0, 0, 0, 0],
+    "default_model_on_freshly_onlined_cpus": [1509573, 1670499],
+    "tso_while_its_cpus_are_taken_offline_and_back_6_times": {"iterations": 60000000, "reorderings": 0}
+  },
+  "mem_model_reported": {"tso_runs": 1, "default_runs": 0},
+  "cpus_online_after": "0-9",
+  "conclusion": "TSO survives CPU_OFF/CPU_ON in both directions: a TSO thread keeps hardware TSO on a freshly onlined vCPU, and a plain thread on one still reorders, so the kernel's cached ACTLR_EL1 value is not stale after bring-up."
+}

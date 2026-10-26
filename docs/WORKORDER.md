@@ -82,6 +82,15 @@ Rules for every item (on top of [AGENTS.md](../AGENTS.md)):
   Delete the rc output afterwards; do not tag.
 - **Done when** all three are recorded in PLAN.md's findings, with any failure fixed or filed
   here.
+- **Done (2026-10-26).** pressuretest: 12 of 12 rounds intact (12 GB hog, 32 % free). TSO with
+  CPU hotplug: a native litmus (`docs/measurements/tso-litmus.c`) shows 0 reorderings in TSO
+  against 2.39M in the default model, 0 across eight offline/online rounds of both vCPUs, 0 while
+  its vCPUs were taken away under it, and a plain thread on a freshly onlined vCPU still reorders,
+  so TSO is neither lost nor left on. The dry run found `make release` broken since `ed5bd64`:
+  `source_bundle`'s FEX loop shadowed its `path` parameter, so the run died before writing
+  anything but the guest archive. Fixed; the rc then packaged correctly (sources 496 MB with
+  `fex/` and `linux/asahi-tso/`, 15 license texts including 0BSD and BSL-1.0). Output deleted,
+  nothing tagged. NOTES.md still needs its change summary written by hand for 0.3.0.
 
 ## P1: regressions FEX brought
 
