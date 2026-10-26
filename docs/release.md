@@ -7,7 +7,7 @@ maintainer's Mac by `make release`; nothing is uploaded by a script.
 ## What a user gets
 
 ```sh
-curl -fsSL https://github.com/cothis/dmx/releases/download/v0.3.3/install.sh | sh
+curl -fsSL https://github.com/cothis/dmx/releases/download/v0.3.4/install.sh | sh
 dmx install            # optional: launchd and the docker context
 dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks it
 ```
@@ -62,6 +62,7 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
    make build && make test && make selftest
    make daemontest && make mcptest && make x86test && make dockertest
    make sandboxtest && make imagetest
+   make javatest
    ```
 
 4. Write what changed since the last release in `docs/release-notes/<version>.md`, starting with

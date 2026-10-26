@@ -109,6 +109,19 @@ def check(name, ok, detail=""):
     checks.append({"name": name, "ok": bool(ok), "detail": detail})
 
 
+def signal_fixture():
+    """Assemble our Linux x86 signal-return regression with the existing Xcode/Rust tools."""
+    source = ROOT / "scripts/fixtures/signal-frame-x86_64.S"
+    toolchain = Path(subprocess.check_output(["rustc", "--print", "sysroot"], text=True).strip())
+    linker = toolchain / "lib/rustlib/aarch64-apple-darwin/bin/rust-lld"
+    with tempfile.TemporaryDirectory(prefix="dmx-signal-build-") as tmp:
+        obj, binary = Path(tmp) / "signal.o", Path(tmp) / "signal"
+        subprocess.run(["xcrun", "clang", "--target=x86_64-linux-gnu", "-c", str(source), "-o", str(obj)], check=True)
+        subprocess.run([str(linker), "-flavor", "gnu", "-m", "elf_x86_64", "-static", "-o", str(binary), str(obj)],
+                       check=True, env={**os.environ, "DYLD_LIBRARY_PATH": str(toolchain / "lib")})
+        return binary.read_bytes()
+
+
 def dmx(*args, stdin=None, timeout=300):
     return subprocess.run([str(DMX), *args], input=stdin, capture_output=True, timeout=timeout, env=ENV)
 
@@ -233,6 +246,12 @@ def suite(emulator):
     # P: argv[0] reaches the program, so busybox picks the applet by the name it was run as.
     r = sh(f"ln -sf busybox {DIR}/basename && {DIR}/basename /a/b/c")
     check_("argv0", r.stdout == b"c\n", out(r))
+
+    # Returning from a signal without changing RIP must restore the syscall spill marker,
+    # or the next signal can build its frame from an old stack pointer and overwrite locals.
+    r = sh(f"cat >{DIR}/signal-frame && chmod +x {DIR}/signal-frame && "
+           f"for i in 1 2 3; do {DIR}/signal-frame || exit; done", stdin=signal_binary, timeout=30)
+    check_("signal_frame_integrity", r.returncode == 0 and r.stdout == b"signal-frames-ok\n" * 3, out(r))
 
     # The x86_64 minirootfs in a chroot: its dynamically linked busybox and musl loader, and
     # python3 and node from PACKAGES. The emulator is not in the chroot; F opened it at registration.
@@ -407,6 +426,7 @@ try:
     with tarfile.open(guest.fetch("i386-busybox-static", cache32), "r:gz", ignore_zeros=True) as tar:
         busybox32 = tar.extractfile("bin/busybox.static").read()
     rootfs32 = guest.fetch("i386-minirootfs", cache32).read_bytes()
+    signal_binary = signal_fixture()
 
     dmx("config", "set", "shares", "none")
     for emulator in EMULATORS:

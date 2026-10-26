@@ -14,8 +14,10 @@ from the system-wide path rather than the caller's $HOME; reserves the address s
 probing for it where /proc/self/maps cannot be read; caps a translated block at 150 x86
 instructions rather than 5000, which is what made node start slowly; makes the vsyscall page a
 32-bit program enters the kernel through executable, which it is not without the VDSO thunks; and
-fixes four places that relied on glibc behaviour musl does not have. Output: <cache>/<guest.DMX_FEX>, a stripped
-static PIE. `make guest` puts it in docker.img.
+fixes four places that relied on glibc behaviour musl does not have. Signal return restores
+its syscall marker even when the handler leaves RIP unchanged; the decoder takes aligned
+eight-byte snapshots so an atomic HotSpot method-entry rewrite cannot mix opcode and operand
+bytes. Output: <cache>/<guest.DMX_FEX>, a stripped static PIE. `make guest` puts it in docker.img.
 
 `--lock` re-resolves TOOLCHAIN from Alpine's current APKINDEX and prints new pins.
 """
@@ -469,6 +471,117 @@ FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
          VSyscallEntry = reinterpret_cast<uint64_t>(VSyscallPage);
        }
  
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator/GuestFramesManagement.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator/GuestFramesManagement.cpp
+@@ -126,12 +126,11 @@
+                                        FEXCore::Core::CpuStateFrame* Frame, void* ucontext) {
+   auto* guest_uctx = reinterpret_cast<FEXCore::x86_64::ucontext_t*>(Context->UContextLocation);
+   [[maybe_unused]] auto* guest_siginfo = reinterpret_cast<siginfo_t*>(Context->SigInfoLocation);
++  // A normal sigreturn also bypasses the syscall epilogue; restore its spill marker.
++  Frame->InSyscallInfo = Context->InSyscallInfo;
+
+   // If the guest modified the RIP then we need to take special precautions here
+   if (Context->OriginalRIP != guest_uctx->uc_mcontext.gregs[FEXCore::x86_64::FEX_REG_RIP] || Context->FaultToTopAndGeneratedException) {
+-
+-    // Restore previous `InSyscallInfo` structure.
+-    Frame->InSyscallInfo = Context->InSyscallInfo;
+
+     // Hack! Go back to the top of the dispatcher top
+     // This is only safe inside the JIT rather than anything outside of it
+@@ -208,11 +207,10 @@
+ void SignalDelegator::RestoreFrame_ia32(FEXCore::Core::InternalThreadState* Thread, ArchHelpers::Context::ContextBackup* Context,
+                                         FEXCore::Core::CpuStateFrame* Frame, void* ucontext) {
+   SigFrame_i32* guest_uctx = reinterpret_cast<SigFrame_i32*>(Context->UContextLocation);
++  // A normal sigreturn also bypasses the syscall epilogue; restore its spill marker.
++  Frame->InSyscallInfo = Context->InSyscallInfo;
+   // If the guest modified the RIP then we need to take special precautions here
+   if (Context->OriginalRIP != guest_uctx->sc.ip || Context->FaultToTopAndGeneratedException) {
+-    // Restore previous `InSyscallInfo` structure.
+-    Frame->InSyscallInfo = Context->InSyscallInfo;
+-
+     // Hack! Go back to the top of the dispatcher top
+     // This is only safe inside the JIT rather than anything outside of it
+     ArchHelpers::Context::SetPc(ucontext, Config.AbsoluteLoopTopAddressFillSRA);
+@@ -286,11 +284,10 @@
+ void SignalDelegator::RestoreRTFrame_ia32(FEXCore::Core::InternalThreadState* Thread, ArchHelpers::Context::ContextBackup* Context,
+                                           FEXCore::Core::CpuStateFrame* Frame, void* ucontext) {
+   RTSigFrame_i32* guest_uctx = reinterpret_cast<RTSigFrame_i32*>(Context->UContextLocation);
++  // A normal sigreturn also bypasses the syscall epilogue; restore its spill marker.
++  Frame->InSyscallInfo = Context->InSyscallInfo;
+   // If the guest modified the RIP then we need to take special precautions here
+   if (Context->OriginalRIP != guest_uctx->uc.uc_mcontext.gregs[FEXCore::x86::FEX_REG_EIP] || Context->FaultToTopAndGeneratedException) {
+-
+-    // Restore previous `InSyscallInfo` structure.
+-    Frame->InSyscallInfo = Context->InSyscallInfo;
+
+     // Hack! Go back to the top of the dispatcher top
+     // This is only safe inside the JIT rather than anything outside of it
+
+--- a/FEXCore/Source/Interface/Core/Frontend.cpp
++++ b/FEXCore/Source/Interface/Core/Frontend.cpp
+@@ -129,8 +129,24 @@
+
+ std::optional<uint8_t> Decoder::PeekByte(uint8_t Offset) {
+   uint64_t ByteAddress = reinterpret_cast<uint64_t>(InstStream.InstStream + InstructionSize + Offset);
++  if (InstructionSize + Offset >= MAX_INST_SIZE) {
++    return std::nullopt;
++  }
+   if (CheckRangeExecutable(ByteAddress, 1)) {
+-    return InstStream.AdjustedInstStream[InstructionSize + Offset];
++    if (InstStream.InstStream != InstStream.AdjustedInstStream) {
++      // Synthetic vsyscall bytes are immutable and need no concurrent-code snapshot.
++      return InstStream.AdjustedInstStream[InstructionSize + Offset];
++    }
++    const uint64_t WordAddress = ByteAddress & ~uint64_t {7};
++    const uint64_t FirstWord = reinterpret_cast<uint64_t>(InstStream.InstStream) & ~uint64_t {7};
++    const size_t Index = (WordAddress - FirstWord) / 8;
++    if (!(InstructionWordMask & (1U << Index))) {
++      // HotSpot atomically replaces an aligned eight-byte method entry. Fetch that
++      // word once so opcode and operands cannot come from different versions.
++      InstructionWords[Index] = __atomic_load_n(reinterpret_cast<const uint64_t*>(WordAddress), __ATOMIC_RELAXED);
++      InstructionWordMask |= 1U << Index;
++    }
++    return uint8_t(InstructionWords[Index] >> (8 * (ByteAddress & 7)));
+   } else {
+     return std::nullopt;
+   }
+@@ -144,7 +160,15 @@
+   LastFieldReadOffset = (uint8_t)InstructionSize;
+   LastFieldReadSize = Size;
+   if (CheckRangeExecutable(Address, Size)) {
+-    std::memcpy(&Res, &InstStream.AdjustedInstStream[InstructionSize], Size);
++    for (uint8_t i = 0; i < Size; ++i) {
++      auto Byte = PeekByte(i);
++      if (!Byte) {
++        HitNonExecutableRange = true;
++        Res = 0;
++        break;
++      }
++      Res |= uint64_t(*Byte) << (8 * i);
++    }
+   } else {
+     HitNonExecutableRange = true;
+     // See PeekByte, this specific case may cause some executable memory to read as 0 but it doesn't matter as the entire instruction will be rolled back anyway.
+@@ -1581,6 +1605,7 @@
+
+     while (1) {
+       InstructionSize = 0;
++      InstructionWordMask = 0;
+
+       // MAX_INST_SIZE assumes worst case
+       auto OpAddress = BlockIt->Entry + PCOffset;
+--- a/FEXCore/Source/Interface/Core/Frontend.h
++++ b/FEXCore/Source/Interface/Core/Frontend.h
+@@ -181,6 +181,9 @@
+
+   static constexpr size_t MAX_INST_SIZE = 15;
+   uint8_t InstructionSize {};
++  // At most three aligned words cover one 15-byte x86 instruction.
++  uint64_t InstructionWords[3] {};
++  uint8_t InstructionWordMask {};
+   // Contains the full decoded instruction, unless it is a `Thunk` instruction.
+   std::array<uint8_t, MAX_INST_SIZE> Instruction;
+   uint8_t LastEscapePrefix {};
 """
 
 TOOLCHAIN_ROOTS = [

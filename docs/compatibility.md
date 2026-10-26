@@ -9,6 +9,7 @@ recorded digest; `--pin` resolves and verifies registry metadata before updating
 ```sh
 make build guest
 make imagetest
+make javatest  # 100 amd64 Java compilation/JIT repetitions; any failure fails the run
 
 # Focused reruns can keep an isolated data disk and downloaded layers:
 python3 -I scripts/test-images.py --state-dir /tmp/dmx-images --image java --platform linux/amd64
@@ -23,6 +24,13 @@ only image downloads need the network. The CLI and Docker configuration are isol
 host's `~/.docker` is not changed. An ordinary test failure stays a failure, including a known
 emulation bug, and makes the command exit nonzero. This is a smoke matrix, not a guarantee
 that every workload or application version works.
+
+## Repeated Java qualification, 2026-10-27
+
+A single successful matrix run did not expose an intermittent FEX/HotSpot compilation crash.
+The v0.3.4 guest adds signal-return and instruction-fetch fixes; see the
+[diagnosis, controls and evidence boundaries](fex-java-2026-10-27.md). The earlier dated
+measurements below remain snapshots of their exact inputs, not universal compatibility claims.
 
 ## Workloads and observations, 2026-10-25
 

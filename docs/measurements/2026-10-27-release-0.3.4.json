@@ -1,0 +1,672 @@
+{
+  "date": "2026-10-27",
+  "release": "0.3.4",
+  "base_commit": "50b950b",
+  "guest_emulator": {
+    "build": "fex-2610-dmx9",
+    "sha256": "5468c106014cd11cf74b04b7858778b0ee7145b43b19817aa45f0ca8338e9741",
+    "packaged_and_live_match": true
+  },
+  "qualification": {
+    "unit": 59,
+    "selftest": 23,
+    "daemon": 57,
+    "mcp": 33,
+    "x86": 49,
+    "docker": 69,
+    "sandbox": 44,
+    "images": 24,
+    "java_repeats": 100
+  },
+  "commands": [
+    {
+      "name": "guest",
+      "command": [
+        "make",
+        "guest"
+      ],
+      "exit": 0,
+      "seconds": 5.69
+    },
+    {
+      "name": "unit",
+      "command": [
+        "make",
+        "test"
+      ],
+      "exit": 0,
+      "seconds": 3.8
+    },
+    {
+      "name": "selftest",
+      "command": [
+        "make",
+        "selftest"
+      ],
+      "exit": 0,
+      "seconds": 22.94
+    },
+    {
+      "name": "daemon",
+      "command": [
+        "make",
+        "daemontest"
+      ],
+      "exit": 0,
+      "seconds": 172.1
+    },
+    {
+      "name": "mcp",
+      "command": [
+        "make",
+        "mcptest"
+      ],
+      "exit": 0,
+      "seconds": 7.34
+    },
+    {
+      "name": "x86",
+      "command": [
+        "make",
+        "x86test"
+      ],
+      "exit": 0,
+      "seconds": 49.96
+    },
+    {
+      "name": "docker",
+      "command": [
+        "make",
+        "dockertest"
+      ],
+      "exit": 0,
+      "seconds": 232.74
+    },
+    {
+      "name": "sandbox",
+      "command": [
+        "make",
+        "sandboxtest"
+      ],
+      "exit": 0,
+      "seconds": 33.2
+    },
+    {
+      "name": "images",
+      "command": [
+        "make",
+        "imagetest"
+      ],
+      "exit": 0,
+      "seconds": 208.64
+    },
+    {
+      "name": "java",
+      "command": [
+        "make",
+        "javatest"
+      ],
+      "exit": 0,
+      "seconds": 241.59
+    }
+  ],
+  "host_memory": {
+    "metric": "ri_phys_footprint MiB",
+    "before": {
+      "idle_mb": 95,
+      "after_free_mb": 1123,
+      "after_reclaim_mb": 102,
+      "returned_ms": 320
+    },
+    "after": {
+      "after_free_mb": 1125,
+      "after_reclaim_mb": 105,
+      "idle_mb": 97,
+      "reported_mb": 2755,
+      "reports": 25,
+      "returned_ms": 105
+    }
+  },
+  "x86_before": {
+    "fex": {
+      "idle_footprint_mb": 96,
+      "chroot_unpack_s": 0.7,
+      "i386_sleep_mb": {
+        "Rss": 5,
+        "AnonHugePages": 0
+      },
+      "i386_true_ms": 3,
+      "pages": {
+        "page_size": "4096",
+        "user_space_47bit": "True",
+        "map_shared_4k_offset": "True",
+        "map_fixed_shared_4k": "True",
+        "mincore_4k": "True",
+        "munmap_4k": "True",
+        "msync_16k": "True",
+        "msync_4k": "True",
+        "prot_none_16k": "True",
+        "prot_none_4k": "True",
+        "dontneed_16k": "True",
+        "dontneed_4k": "True"
+      },
+      "pages_without_proc": {
+        "page_size": "4096",
+        "user_space_47bit": "True",
+        "map_shared_4k_offset": "True",
+        "map_fixed_shared_4k": "True",
+        "mincore_4k": "True",
+        "munmap_4k": "True",
+        "msync_16k": "True",
+        "msync_4k": "True",
+        "prot_none_16k": "True",
+        "prot_none_4k": "True",
+        "dontneed_16k": "True",
+        "dontneed_4k": "True"
+      },
+      "x86_sleep_mb": {
+        "Rss": 5,
+        "Anonymous": 1,
+        "AnonHugePages": 0
+      },
+      "true_ms": {
+        "x86_static": 3,
+        "x86_dynamic": 2,
+        "native": 0
+      },
+      "python3_startup_ms": 70,
+      "node_startup_ms": 253,
+      "python3_loop_ms": 190,
+      "sha256_100mb_ms": {
+        "native": 310,
+        "x86": 400,
+        "slowdown": 1.3
+      },
+      "footprint_after_x86_mb": 248,
+      "footprint_after_cleanup_mb": 155
+    },
+    "qemu": {
+      "idle_footprint_mb": 96,
+      "chroot_unpack_s": 0.7,
+      "pages": {
+        "page_size": "4096",
+        "user_space_47bit": "True",
+        "map_shared_4k_offset": "True",
+        "map_fixed_shared_4k": "True",
+        "mincore_4k": "True",
+        "munmap_4k": "True",
+        "msync_16k": "True",
+        "msync_4k": "True",
+        "prot_none_16k": "True",
+        "prot_none_4k": "True",
+        "dontneed_16k": "True",
+        "dontneed_4k": "True"
+      },
+      "pages_without_proc": {
+        "page_size": "4096",
+        "user_space_47bit": "True",
+        "map_shared_4k_offset": "True",
+        "map_fixed_shared_4k": "True",
+        "mincore_4k": "True",
+        "munmap_4k": "True",
+        "msync_16k": "True",
+        "msync_4k": "True",
+        "prot_none_16k": "True",
+        "prot_none_4k": "True",
+        "dontneed_16k": "True",
+        "dontneed_4k": "True"
+      },
+      "allocators_upstream_layout": {
+        "jemalloc": 139,
+        "mimalloc": 0
+      },
+      "x86_sleep_mb": {
+        "Rss": 5,
+        "Anonymous": 1,
+        "AnonHugePages": 0
+      },
+      "true_ms": {
+        "x86_static": 3,
+        "x86_dynamic": 3,
+        "native": 0
+      },
+      "python3_startup_ms": 113,
+      "node_startup_ms": 376,
+      "python3_loop_ms": 1676,
+      "sha256_100mb_ms": {
+        "native": 310,
+        "x86": 1000,
+        "slowdown": 3.2
+      },
+      "footprint_after_x86_mb": 224,
+      "footprint_after_cleanup_mb": 120
+    }
+  },
+  "x86_measurements": {
+    "fex": {
+      "idle_footprint_mb": 98,
+      "chroot_unpack_s": 0.7,
+      "i386_sleep_mb": {
+        "Rss": 5,
+        "AnonHugePages": 0
+      },
+      "i386_true_ms": 2,
+      "pages": {
+        "page_size": "4096",
+        "user_space_47bit": "True",
+        "map_shared_4k_offset": "True",
+        "map_fixed_shared_4k": "True",
+        "mincore_4k": "True",
+        "munmap_4k": "True",
+        "msync_16k": "True",
+        "msync_4k": "True",
+        "prot_none_16k": "True",
+        "prot_none_4k": "True",
+        "dontneed_16k": "True",
+        "dontneed_4k": "True"
+      },
+      "pages_without_proc": {
+        "page_size": "4096",
+        "user_space_47bit": "True",
+        "map_shared_4k_offset": "True",
+        "map_fixed_shared_4k": "True",
+        "mincore_4k": "True",
+        "munmap_4k": "True",
+        "msync_16k": "True",
+        "msync_4k": "True",
+        "prot_none_16k": "True",
+        "prot_none_4k": "True",
+        "dontneed_16k": "True",
+        "dontneed_4k": "True"
+      },
+      "x86_sleep_mb": {
+        "Rss": 5,
+        "Anonymous": 1,
+        "AnonHugePages": 0
+      },
+      "true_ms": {
+        "x86_static": 2,
+        "x86_dynamic": 3,
+        "native": 0
+      },
+      "python3_startup_ms": 70,
+      "node_startup_ms": 256,
+      "python3_loop_ms": 193,
+      "sha256_100mb_ms": {
+        "native": 300,
+        "x86": 390,
+        "slowdown": 1.3
+      },
+      "footprint_after_x86_mb": 248,
+      "footprint_after_cleanup_mb": 129
+    },
+    "qemu": {
+      "idle_footprint_mb": 96,
+      "chroot_unpack_s": 0.7,
+      "pages": {
+        "page_size": "4096",
+        "user_space_47bit": "True",
+        "map_shared_4k_offset": "True",
+        "map_fixed_shared_4k": "True",
+        "mincore_4k": "True",
+        "munmap_4k": "True",
+        "msync_16k": "True",
+        "msync_4k": "True",
+        "prot_none_16k": "True",
+        "prot_none_4k": "True",
+        "dontneed_16k": "True",
+        "dontneed_4k": "True"
+      },
+      "pages_without_proc": {
+        "page_size": "4096",
+        "user_space_47bit": "True",
+        "map_shared_4k_offset": "True",
+        "map_fixed_shared_4k": "True",
+        "mincore_4k": "True",
+        "munmap_4k": "True",
+        "msync_16k": "True",
+        "msync_4k": "True",
+        "prot_none_16k": "True",
+        "prot_none_4k": "True",
+        "dontneed_16k": "True",
+        "dontneed_4k": "True"
+      },
+      "allocators_upstream_layout": {
+        "jemalloc": 139,
+        "mimalloc": 0
+      },
+      "x86_sleep_mb": {
+        "Rss": 5,
+        "Anonymous": 1,
+        "AnonHugePages": 0
+      },
+      "true_ms": {
+        "x86_static": 3,
+        "x86_dynamic": 3,
+        "native": 0
+      },
+      "python3_startup_ms": 113,
+      "node_startup_ms": 370,
+      "python3_loop_ms": 1710,
+      "sha256_100mb_ms": {
+        "native": 330,
+        "x86": 1010,
+        "slowdown": 3.1
+      },
+      "footprint_after_x86_mb": 224,
+      "footprint_after_cleanup_mb": 123
+    }
+  },
+  "images": [
+    {
+      "name": "alpine",
+      "platform": "linux/arm64",
+      "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+      "ok": true,
+      "workload_s": 0.12
+    },
+    {
+      "name": "debian",
+      "platform": "linux/arm64",
+      "image": "library/debian@sha256:a66b19aa552f595b4ab276c6b4f9b24fa4546632c5ecd88cccdced4a6866323a",
+      "ok": true,
+      "workload_s": 0.15
+    },
+    {
+      "name": "ubuntu",
+      "platform": "linux/arm64",
+      "image": "library/ubuntu@sha256:18b33ff3829707f31ada654a963b9ee35f2e6f0241b964bd17a22a9b330cb63d",
+      "ok": true,
+      "workload_s": 0.15
+    },
+    {
+      "name": "python",
+      "platform": "linux/arm64",
+      "image": "library/python@sha256:9c91bb40b4da9deb3ca7bd28bb593a5be44bc279fe4ccf59a50a564a679b04fb",
+      "ok": true,
+      "workload_s": 0.2
+    },
+    {
+      "name": "node",
+      "platform": "linux/arm64",
+      "image": "library/node@sha256:398bcf38afb035ae76feb9ad3c7493a93feff4751351c65310811761e37bbfc7",
+      "ok": true,
+      "workload_s": 0.17
+    },
+    {
+      "name": "nginx",
+      "platform": "linux/arm64",
+      "image": "library/nginx@sha256:4f7cab9e1cd018f80e67f31e02dc0c6d18560b19504461c4f3dd37e5c63a74c5",
+      "ok": true,
+      "workload_s": 0.3
+    },
+    {
+      "name": "redis",
+      "platform": "linux/arm64",
+      "image": "library/redis@sha256:0819246a2bb1979f7745a8bae2559a2ffa49071ef7a5e7213b3e347e162aeb26",
+      "ok": true,
+      "workload_s": 1.0
+    },
+    {
+      "name": "postgres",
+      "platform": "linux/arm64",
+      "image": "library/postgres@sha256:b1c1673a890fba8fae71d37210b4fd9a0b5cd0df8bb994a6bcc01d9cf8e1670c",
+      "ok": true,
+      "workload_s": 1.51
+    },
+    {
+      "name": "java",
+      "platform": "linux/arm64",
+      "image": "library/eclipse-temurin@sha256:e33a8f4ed06638221c62b6211ee90b86dca83d71a3a6d6488bf62895fbc81f10",
+      "ok": true,
+      "workload_s": 0.44
+    },
+    {
+      "name": "alpine",
+      "platform": "linux/amd64",
+      "image": "library/alpine@sha256:c26612752c78b18faacd63c7d50f4592c2e7b0f25e0e20e82bd74e465c57ab0d",
+      "ok": true,
+      "workload_s": 0.14
+    },
+    {
+      "name": "debian",
+      "platform": "linux/amd64",
+      "image": "library/debian@sha256:4876fdea29cac1a33a3195f1eb1952feb1fca7dd6dd00be3e2f1879cf20d34d2",
+      "ok": true,
+      "workload_s": 0.18
+    },
+    {
+      "name": "ubuntu",
+      "platform": "linux/amd64",
+      "image": "library/ubuntu@sha256:a2d43bffc46670d7108bb3c0468c67c5557c4c92e83e1e34cbff1322ad1b94dc",
+      "ok": true,
+      "workload_s": 0.19
+    },
+    {
+      "name": "python",
+      "platform": "linux/amd64",
+      "image": "library/python@sha256:0214bda9af2652a418f2bf34373a4d3ca00a5f4784081e040049433ac9cc79d5",
+      "ok": true,
+      "workload_s": 0.42
+    },
+    {
+      "name": "node",
+      "platform": "linux/amd64",
+      "image": "library/node@sha256:1200d815de24f8dcca745fbf7651d166034a35adbcad8860a8538ffff44f1420",
+      "ok": true,
+      "workload_s": 0.77
+    },
+    {
+      "name": "nginx",
+      "platform": "linux/amd64",
+      "image": "library/nginx@sha256:84ed8c0dd296c188bfc24ed506f46589e9285fb0b11cf3a04d91d524d3067e11",
+      "ok": true,
+      "workload_s": 1.57
+    },
+    {
+      "name": "redis",
+      "platform": "linux/amd64",
+      "image": "library/redis@sha256:16b124a2d3eacd620d917ead6fd26cbf1f1d7117fa94122398971931cfe2d403",
+      "ok": true,
+      "workload_s": 2.4
+    },
+    {
+      "name": "postgres",
+      "platform": "linux/amd64",
+      "image": "library/postgres@sha256:3b0ef735388b2cb097fc29b8bb421d86d57d0ddbe7aa1fbd6493e06d65028503",
+      "ok": true,
+      "workload_s": 2.94
+    },
+    {
+      "name": "java",
+      "platform": "linux/amd64",
+      "image": "library/eclipse-temurin@sha256:074d6f95f1e69965dbd23750a37ec3b234025d0864e9821e0b1fba0763a3e853",
+      "ok": true,
+      "workload_s": 2.31
+    },
+    {
+      "name": "alpine",
+      "platform": "linux/386",
+      "image": "library/alpine@sha256:6708ca119efec5c3fdcad5dc95d8a28a529aad8debc95872b7e12b3941882f55",
+      "ok": true,
+      "workload_s": 0.16
+    },
+    {
+      "name": "debian",
+      "platform": "linux/386",
+      "image": "library/debian@sha256:549d769bc5dc9d67f7bb2f18a597a380d2585612b902ecb7899b3bd45226a7ff",
+      "ok": true,
+      "workload_s": 0.23
+    },
+    {
+      "name": "python",
+      "platform": "linux/386",
+      "image": "library/python@sha256:51c9fa85c2365195887ccd8f47bef771cf98a67fdffd2153901a232f86a42fdd",
+      "ok": true,
+      "workload_s": 0.66
+    },
+    {
+      "name": "nginx",
+      "platform": "linux/386",
+      "image": "library/nginx@sha256:ea8a06e71f54644ec9473ad95bf1c6fb54f7974356a80249308425d651676e39",
+      "ok": true,
+      "workload_s": 1.63
+    },
+    {
+      "name": "redis",
+      "platform": "linux/386",
+      "image": "library/redis@sha256:26e2996b8f8bfaaccf2a8ac63995528d64faea5132f7057c0073614c8365360e",
+      "ok": true,
+      "workload_s": 2.42
+    },
+    {
+      "name": "postgres",
+      "platform": "linux/386",
+      "image": "library/postgres@sha256:7c64281cc5c73e4010ccd5623a6171076c3d7994ee9ba780dc27efaf89aa1ab8",
+      "ok": true,
+      "workload_s": 2.91
+    }
+  ],
+  "java": {
+    "image": "library/eclipse-temurin@sha256:074d6f95f1e69965dbd23750a37ec3b234025d0864e9821e0b1fba0763a3e853",
+    "passed": 100,
+    "total": 100,
+    "workload_median_s": 2.09,
+    "kernel_problems": []
+  },
+  "controls": {
+    "baseline-java-current-fex": {
+      "total": 40,
+      "passed": 39,
+      "emulator_sha256": null,
+      "failed_rounds": [
+        7
+      ]
+    },
+    "java-previous-fex": {
+      "total": 40,
+      "passed": 39,
+      "emulator_sha256": null,
+      "failed_rounds": [
+        26
+      ]
+    },
+    "java-current-qemu": {
+      "total": 20,
+      "passed": 20,
+      "emulator_sha256": null,
+      "failed_rounds": []
+    },
+    "java-current-fex-FEX_MULTIBLOCK-0": {
+      "total": 100,
+      "passed": 99,
+      "emulator_sha256": null,
+      "failed_rounds": [
+        58
+      ]
+    },
+    "java-smc-predecode-results": {
+      "total": 100,
+      "passed": 99,
+      "emulator_sha256": null,
+      "failed_rounds": [
+        14
+      ],
+      "classification": "Baseline only: wrong emulator was packaged; not candidate evidence."
+    },
+    "java-atomic-fetch-results": {
+      "total": 150,
+      "passed": 149,
+      "emulator_sha256": null,
+      "failed_rounds": [
+        147
+      ],
+      "classification": "Baseline only: wrong emulator was packaged; not candidate evidence."
+    },
+    "java-sigreturn-verified-results": {
+      "total": 100,
+      "passed": 99,
+      "emulator_sha256": "67278fc5ec0e0c7384ff91e66e198d3a6ad3c4e209570971e976afebcee80ed6",
+      "failed_rounds": [
+        27
+      ]
+    },
+    "java-atomic-fetch-verified-results": {
+      "total": 150,
+      "passed": 150,
+      "emulator_sha256": "55ee8c4df48708439cee1cbfab6c082a0af33ab67d033a57ecf283118d13fce6",
+      "failed_rounds": []
+    }
+  },
+  "signal_fixture_controls": [
+    {
+      "guest": "original",
+      "round": 0,
+      "exit": 1,
+      "stdout": "",
+      "stderr": "signal-frame-corruption\n"
+    },
+    {
+      "guest": "original",
+      "round": 1,
+      "exit": 1,
+      "stdout": "",
+      "stderr": "signal-frame-corruption\n"
+    },
+    {
+      "guest": "original",
+      "round": 2,
+      "exit": 1,
+      "stdout": "",
+      "stderr": "signal-frame-corruption\n"
+    },
+    {
+      "guest": "sigreturn",
+      "round": 0,
+      "exit": 0,
+      "stdout": "signal-frames-ok\n",
+      "stderr": ""
+    },
+    {
+      "guest": "sigreturn",
+      "round": 1,
+      "exit": 0,
+      "stdout": "signal-frames-ok\n",
+      "stderr": ""
+    },
+    {
+      "guest": "sigreturn",
+      "round": 2,
+      "exit": 0,
+      "stdout": "signal-frames-ok\n",
+      "stderr": ""
+    },
+    {
+      "guest": "qemu",
+      "round": 0,
+      "exit": 0,
+      "stdout": "signal-frames-ok\n",
+      "stderr": ""
+    },
+    {
+      "guest": "qemu",
+      "round": 1,
+      "exit": 0,
+      "stdout": "signal-frames-ok\n",
+      "stderr": ""
+    },
+    {
+      "guest": "qemu",
+      "round": 2,
+      "exit": 0,
+      "stdout": "signal-frames-ok\n",
+      "stderr": ""
+    }
+  ],
+  "limits": [
+    "Local bounded workload measurements, not a guarantee for every JVM or schedule.",
+    "The atomic-entry microprobe passed on baseline and candidate and is not regression evidence.",
+    "Pressure/disk recovery 12/12 belongs to the preceding host review; it was not repeated for the emulator-only change.",
+    "Corporate TLS inspection and external IPv6 still need environment-specific acceptance."
+  ]
+}

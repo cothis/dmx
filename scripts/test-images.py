@@ -7,6 +7,7 @@ pull only the recorded per-platform digests, for the platforms each image has. U
 DMX_HOME, no host shares, two CPUs and a 4G ceiling. stdout is a JSON report; progress is stderr.
 Failures and timeouts remain failures, including known x86 page-size incompatibilities.
 `--state-dir /tmp/dmx-images-X` keeps image layers for a focused rerun (`--image java`).
+`--repeat 100` repeats each selected workload; a later pass never erases an earlier failure.
 """
 
 import argparse
@@ -171,6 +172,7 @@ class Matrix:
         self.case = None
         self.platform = None
         self.qemu_guest_base = None
+        self.pulled = set()
 
     def cli(self, *args, **kw):
         if self.qemu_guest_base and self.platform == "linux/amd64" and args[0] in ("run", "exec"):
@@ -275,22 +277,24 @@ class Matrix:
             return "initdb, 10000-row SQL transaction, checkpoint and restart persistence"
         raise ValueError(name)
 
-    def test(self, name, entry, platform):
-        self.case = "matrix-" + name + "-" + platform.split("/")[-1]
+    def test(self, name, entry, platform, iteration=1):
+        self.case = "matrix-" + name + "-" + platform.split("/")[-1] + f"-{iteration}"
         self.platform = platform
         digest = entry["platforms"][platform]
         if not DIGEST.fullmatch(digest): raise ValueError("unpinned image")
         image = entry["repository"] + "@" + digest
-        result = {"name": name, "platform": platform, "image": image, "tag": entry["tag"], "ok": False}
+        result = {"name": name, "platform": platform, "image": image, "tag": entry["tag"], "iteration": iteration, "ok": False}
         started = time.monotonic()
-        progress(f"{name} {platform}: pulling {digest}")
         try:
-            self.cli("pull", "--platform", platform, image, timeout=600)
+            if image not in self.pulled:
+                progress(f"{name} {platform}: pulling {digest}")
+                self.cli("pull", "--platform", platform, image, timeout=600)
+                self.pulled.add(image)
             info = json.loads(self.cli("image", "inspect", image))[0]
             assert info["Architecture"] == platform.split("/")[-1], info["Architecture"]
             result["image_id"] = info["Id"]
             self.cli("rm", "-fv", self.case) if self._exists() else None
-            progress(f"{name} {platform}: running workload")
+            progress(f"{name} {platform} #{iteration}: running workload")
             workload_at = time.monotonic()
             result["detail"] = self.workload(name, image, platform)
             result["workload_s"] = round(time.monotonic() - workload_at, 2)
@@ -301,9 +305,21 @@ class Matrix:
             if self._exists():
                 result["state"] = json.loads(self.cli("inspect", self.case))[0]["State"]
                 result["logs"] = self.cli("logs", "--tail", "30", self.case, combined=True)[-4000:]
+                # Preserve the useful part of a JVM crash before removing its container.
+                # The path is restricted to HotSpot's root-level error-log name.
+                crash = re.search(r"/+hs_err_pid[0-9]+\.log", result.get("error", ""))
+                if crash:
+                    try:
+                        with tempfile.TemporaryDirectory(prefix="dmx-java-crash-", dir="/tmp") as tmp:
+                            target = Path(tmp) / "hs_err.log"
+                            self.cli("cp", self.case + ":/" + crash.group().lstrip("/"), str(target))
+                            with target.open(errors="replace") as report:
+                                result["crash_report"] = report.read(16384)
+                    except (RuntimeError, OSError, subprocess.TimeoutExpired) as error:
+                        result["crash_report_error"] = str(error)[:500]
                 self.cli("rm", "-fv", self.case)
             result["elapsed_s"] = round(time.monotonic() - started, 2)
-            progress(f"{name} {platform}: {'PASS' if result['ok'] else 'FAIL'} ({result['elapsed_s']} s)")
+            progress(f"{name} {platform} #{iteration}: {'PASS' if result['ok'] else 'FAIL'} ({result['elapsed_s']} s)")
         return result
 
     def _exists(self):
@@ -319,12 +335,18 @@ def main():
                         help=f"add the platforms in {', '.join(OPTIONAL_PLATFORMS)} to the pins that exist; runs no images")
     parser.add_argument("--image", choices=IMAGES, action="append")
     parser.add_argument("--platform", choices=PLATFORMS + OPTIONAL_PLATFORMS, action="append")
+    parser.add_argument("--repeat", type=int, default=1, help="repeat each selected workload (default: 1)")
+    parser.add_argument("--expect-emulator-sha256", help="refuse to test a different live guest emulator (candidate validation)")
     parser.add_argument("--qemu-guest-base", help="set QEMU_GUEST_BASE in amd64 run/exec for diagnosis (0 restores upstream "
                         "QEMU's layout); never used in a default run")
     parser.add_argument("--x86-emulator", choices=["fex", "qemu"], default="fex",
                         help="what runs the amd64 images (the x86_emulator setting); default fex, as dmx's own default")
     parser.add_argument("--state-dir", type=Path, help="keep isolated state/layers for reruns; use a short path under /tmp")
     args = parser.parse_args()
+    if args.repeat < 1:
+        parser.error("--repeat must be at least 1")
+    if args.expect_emulator_sha256 and not re.fullmatch(r"[0-9a-f]{64}", args.expect_emulator_sha256):
+        parser.error("--expect-emulator-sha256 must be 64 lowercase hex digits")
     if args.pin or args.pin_optional:
         pin_images(optional_only=args.pin_optional)
         return 0
@@ -344,17 +366,22 @@ def main():
     matrix.qemu_guest_base = args.qemu_guest_base
     report = {"ok": False, "at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
               "pins_at": pins["pinned_at"], "cpus": 2, "ceiling_mb": 4096, "host_load": os.getloadavg(),
-              "x86_emulator": args.x86_emulator, "qemu_guest_base": args.qemu_guest_base, "results": []}
+              "x86_emulator": args.x86_emulator, "qemu_guest_base": args.qemu_guest_base, "repeat": args.repeat, "results": []}
     try:
         report["docker_versions"] = matrix.start()
         report["guest"] = matrix.dmx("exec", "--", "sh", "-c", "uname -r; awk '/^KernelPageSize/{print $2;exit}' /proc/self/smaps")
+        interpreter = "FEX" if args.x86_emulator == "fex" else "qemu-x86_64"
+        report["emulator_sha256"] = matrix.dmx("exec", "--", "sha256sum", f"/var/lib/dmx/x86/{interpreter}").split()[0]
+        if args.expect_emulator_sha256 and report["emulator_sha256"] != args.expect_emulator_sha256:
+            raise RuntimeError(f"guest emulator is {report['emulator_sha256']}, expected {args.expect_emulator_sha256}")
         for platform in args.platform or PLATFORMS + OPTIONAL_PLATFORMS:
             for name in args.image or IMAGES:
                 entry = pins["images"][name]
                 if platform not in entry["platforms"]:
                     # Only some images publish the optional platforms (see OPTIONAL_PLATFORMS).
                     continue
-                report["results"].append(matrix.test(name, entry, platform))
+                for iteration in range(1, args.repeat + 1):
+                    report["results"].append(matrix.test(name, entry, platform, iteration))
         # `--image node --platform linux/386` has no pin, so nothing runs: that is not a pass.
         if not report["results"]:
             raise RuntimeError(f"no image has a pin for {args.platform or 'any platform'}"

@@ -543,13 +543,23 @@ comparison was re-measured with 0.3.0 and README and benchmark.md carry those nu
 
 The 2026-10-27 pre-announcement review found additional host/guest boundary and invalid-input
 bugs in 0.3.3. They are fixed on main, with regression tests; see
-[review-2026-10-27.md](review-2026-10-27.md). **These fixes are not in a published release.**
+[review-2026-10-27.md](review-2026-10-27.md). The maintainer authorized releasing them after
+finishing the documentation (2026-10-27). **v0.3.4 is being prepared; these fixes are not yet in
+a published release.** Release qualification then exposed an intermittent amd64 Java crash
+with FEX: 39/40 passes on both the candidate and published 0.3.3; QEMU passed 20/20.
+The maintainer chose to fix Java before releasing (2026-10-27). The final `fex-2610-dmx9`
+guest restores signal-return state and snapshots aligned instruction words during decoding.
+It passed the 100-run Java gate and all release suites; the decoder-only candidate passed
+150/150. See [the diagnosis and controls](fex-java-2026-10-27.md) and
+[release measurements](measurements/2026-10-27-release-0.3.4.json). Next: signed packaging and
+published installation/update verification.
 
 In order:
 
-1. Publish a patch release with the review fixes after the maintainer chooses the version and
-   authorizes the release, following [release.md](release.md). Then community announcement
-   (Show HN, Reddit, GeekNews), also on the maintainer's word (2026-10-25: after more improvements).
+1. Finish the authorized v0.3.4 release following [release.md](release.md): notes and docs,
+   acceptance checks, signed/notarized packaging, tag and assets, then verify the published
+   installation and update from 0.3.3. Community announcements (Show HN, Reddit, GeekNews) remain
+   a separate maintainer decision (2026-10-25: after more improvements).
 2. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
 3. Open, not blocking: `qemu-x86_64` cannot run 32-bit programs, so `linux/386` needs
    `x86_emulator fex` (the default); adding qemu-i386 would be a separate build. Warm `docker run`
@@ -561,6 +571,19 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### v0.3.4 qualification (2026-10-27)
+
+The final FEX guest passed unit 59, selftest 23, daemon 57, MCP 33, x86 49, Docker 69, sandbox
+44, image matrix 24 and repeated amd64 Java 100. Idle footprint was 97 MiB (before: 95);
+reclaim was 1125 → 105 MiB in 105 ms (before: 1123 → 102 in 320 ms). These are local samples,
+not a fresh cross-engine comparison. The old FEX failed one in 40 Java runs on both host versions;
+the signal-only fix still failed one in 100, while the decoder-only candidate passed 150/150.
+Early experiments that packaged the wrong emulator are classified as baseline, not candidate
+proof. Full artifact hashes, commands and evidence limits are in
+[the release measurements](measurements/2026-10-27-release-0.3.4.json).
+
+### Earlier measurements
 
 | Date | What | Result |
 |---|---|---|
@@ -808,3 +831,5 @@ acceptance suites.
 - 2026-10-27: Fixed the rest of what the two reviews found (Sonnet 7–17): a codesign launch failure could end dmx, two errors had no hint, the signature branches had no test, the hard exit for an empty reservation reached the procfs path, the `.sha256` parser was too strict, a symlink member was chmod'd before being rejected, the staged copy was not re-hashed, doctor hid a protocol mismatch, release.py could raise, and the setuid control proved only half of what it claimed. Everything verified: unit 49/49, x86 47/47, and the other five suites green. Next: the maintainer's call on releasing 0.3.3 with the update-path fixes.
 - 2026-10-27: Released v0.3.3: the two security defects two independent reviews found in 0.3.2's update path (the downloaded binary was executed before its signature was checked; an update could stop a VM that was booting) and fifteen smaller ones. Verified from GitHub: 0.3.2 updates itself to 0.3.3, the hardened codesign requirement passes on the published binary, selftest 98 MB, containers on arm64, amd64 and 386. Next: the maintainer's call on announcing the project.
 - 2026-10-27: Completed the pre-announcement review: fixed guest FUSE file/directory lifetime races, a read-only open mutating host modes, virtqueue address overflow, malformed allowlists, and oversized size/TTL conversions. Added regressions, refreshed README/release docs/help/HANDOFF, and reran the real-VM suites, 24-image matrix and 12 pressure rounds. No idle-memory increase observed (97 MiB before, 94–97 after). Published 0.3.3 still installs, verifies and boots; the new fixes await a patch release before community announcement.
+- 2026-10-27: Maintainer authorized the release after documentation cleanup. Preparing v0.3.4 with the six pre-announcement review fixes and their regressions; release notes and install URLs are updated. Community posting remains a separate step.
+- 2026-10-27: Completed v0.3.4 qualification after fixing FEX signal-return state and atomic instruction-word decoding. Added a deterministic signal regression and the 100-run Java gate, verified live emulator hashes, and recorded failed controls and the initial candidate-packaging error. All release suites passed; signing and publication remain next.

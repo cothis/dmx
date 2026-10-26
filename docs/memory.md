@@ -35,6 +35,12 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-10-27: Candidate emulator tests count only after the file packed into docker.img and the
+  live `/var/lib/dmx/x86/FEX` match the candidate's sha256. `build-guest.py`'s `X86_EMULATORS`
+  captures `DMX_FEX` at import time; changing only the latter on an imported module still packages
+  the old emulator. Prefer the normal build recipe; use `test-images.py --expect-emulator-sha256`
+  for candidate runs. A run with the wrong artifact is baseline evidence, not candidate evidence.
+
 - When stuck on a hard debugging problem, ask Codex for a second opinion (2026-10-26):
   `perl -e 'alarm 900; exec @ARGV' codex exec -m gpt-6-astra -s read-only - < prompt.txt`. Its sandbox cannot read
   files outside the repo, so put the symptom, what is ruled out, build specifics and code excerpts in the prompt, ask

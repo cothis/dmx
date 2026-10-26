@@ -1,4 +1,4 @@
-# 다음 세션 인계 — 2026-10-27 (커뮤니티 공개 전 최종 검수)
+# 다음 세션 인계 — 2026-10-27 (v0.3.4 릴리스 준비)
 
 `이어서 진행해`라는 요청을 받으면 [PLAN.md](PLAN.md)의 **Next up**과 이 문서를 읽어요.
 계획·결정·측정의 기준은 `PLAN.md`, 공유 작업 메모는 [memory.md](memory.md)예요.
@@ -8,11 +8,18 @@
 - 게시된 최신 릴리스는 [v0.3.3](https://github.com/cothis/dmx/releases/tag/v0.3.3)이에요.
   `dmx update`의 서명 확인 순서와 VM 인계 문제를 고쳤고, Developer ID 서명·공증을 받았어요.
 - **main에는 이번 공개 전 검수에서 고친 미배포 코드가 있어요.** v0.3.3이 이 수정까지 포함한 것으로
-  설명하면 안 돼요. 다음 패치 릴리스 후 커뮤니티 공개로 넘어가세요. 태그·릴리스 게시·홍보는
-  maintainer 결정이에요. 검수의 재현 조건과 최종 결과는 [review-2026-10-27.md](review-2026-10-27.md)에 있어요.
+  설명하면 안 돼요. maintainer가 문서 정리 후 릴리스를 승인했으므로 v0.3.4를 준비 중이에요.
+  이번 버전의 태그·릴리스 게시는 승인됐고, 커뮤니티 홍보는 별도 결정이에요. 검수의 재현 조건과
+  최종 결과는 [review-2026-10-27.md](review-2026-10-27.md)에 있어요.
 - 수정: virtqueue의 게스트 주소 오버플로, 읽기 전용 공유의 권한 변경, 파일·디렉터리 핸들의
   동시 닫기, 잘못된 샌드박스 CIDR, 호스트 정수 범위를 넘는 크기·MCP TTL 입력이에요.
-- 기본 x86 에뮬레이터는 FEX-Emu(`fex-2610-dmx8`), amd64와 386을 지원해요.
+- 릴리스 재검증에서 FEX의 amd64 Java 충돌을 발견했고, maintainer가 **Java까지 고친 뒤 릴리스**를
+  선택했어요. 후보와 게시된 0.3.3이 각각 40회 중 1회 실패했고 QEMU는 20/20 통과했어요.
+  최종 dmx9의 신호 복귀·명령 디코딩 수정으로 Java 100/100과 전체 검증을 통과했어요.
+  진단과 실패 대조군은 [FEX 기록](fex-java-2026-10-27.md)에 있어요. 단순 재시도로 실패를 지우지 않아요.
+  `make javatest`는 같은 고정 이미지의 javac/JIT 작업을
+  100회 반복하고, 한 번이라도 실패하면 실패예요. 전체 이미지 검사는 `make imagetest`예요.
+- 기본 x86 에뮬레이터는 FEX-Emu(`fex-2610-dmx9`), amd64와 386을 지원해요.
   QEMU는 `dmx config set x86_emulator qemu`로 선택하고 amd64만 지원해요.
 - [WORKORDER.md](WORKORDER.md)는 완료됐어요. FEX·TSO·32비트 지원과 성능 수정은 이미 0.3.0에
   들어갔고, IPv6와 메모리 압박 시 디스크 I/O 손상 수정은 0.2.2에 들어갔어요.
@@ -35,6 +42,7 @@ git status --short --branch && git log --oneline -10 && git pull --ff-only origi
 make build && make guest && make selftest
 make test && make daemontest && make mcptest && make x86test
 make dockertest && make sandboxtest && make imagetest
+make javatest
 # 메모리·디스크 경로 변경 시: make pressuretest (Mac을 몇 분간 스왑시킴)
 ```
 
@@ -59,7 +67,9 @@ make dockertest && make sandboxtest && make imagetest
 
 ## 남은 검증과 알려진 제한
 
-1. 이번 수정의 패치 릴리스, 그다음 커뮤니티 공개(Show HN, Reddit, GeekNews): maintainer 결정.
+1. Java 100회와 전체 검증은 통과했어요. 승인된 v0.3.4 패치 릴리스의 서명·공증·게시를
+   완료하고 게시된 설치·업데이트를 검증하세요.
+   커뮤니티 공개(Show HN, Reddit, GeekNews)는 별도 maintainer 결정이에요.
 2. 실제 사내 TLS 검사 프록시·VPN 환경과 외부 IPv6 연결: 해당 환경에서 수용 시험이 필요해요.
    로컬 프록시·사설 CA·IPv6 loopback 검사는 이 증거를 대신하지 않아요.
 3. QEMU는 386을 지원하지 않아요. FEX는 32비트 프로세스의 `uname -m`에도 `x86_64`를 반환해요.

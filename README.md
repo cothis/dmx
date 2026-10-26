@@ -45,7 +45,7 @@ slower than Colima's because dmx keeps write ordering on the data disk across a 
 Requires macOS 15 or later on Apple Silicon.
 
 ```sh
-curl -fsSL https://github.com/cothis/dmx/releases/download/v0.3.3/install.sh | sh
+curl -fsSL https://github.com/cothis/dmx/releases/download/v0.3.4/install.sh | sh
 dmx install                      # launchd starts dmx on demand; installs docker, compose, buildx
                                  # and selects the docker context "dmx"
 docker run --rm hello-world      # the first run downloads the Linux guest (~62 MB, sha256-checked)

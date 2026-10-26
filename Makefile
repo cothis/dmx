@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build install kernel qemu fex guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest pressuretest benchmark test release clean
+.PHONY: build install kernel qemu fex guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest javatest pressuretest benchmark test release clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -62,6 +62,10 @@ dockertest: build
 # Workloads in nine digest-pinned images, arm64/amd64 and six available 386 images; no skipped failures.
 imagetest: build
 	python3 -I scripts/test-images.py $(BIN)
+
+# HotSpot repeatedly compiles and patches x86 code; one image run misses intermittent failures.
+javatest: build
+	python3 -I scripts/test-images.py $(BIN) --image java --platform linux/amd64 --repeat 100
 
 # Guest memory and disk integrity while the Mac swaps (an incompressible hog of 3/4 of RAM,
 # boots that run e2fsck -fy). Not a release check: the Mac slows down for a few minutes.
