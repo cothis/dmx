@@ -1,5 +1,7 @@
 # Working on dmx
 
+Shared rules for Claude Code and Codex (`CLAUDE.md` imports this file). Checkout: `~/dev/dockermax`.
+
 Read [docs/PLAN.md](docs/PLAN.md) first. It holds the goal, the decisions and their reasons, every
 phase with its tasks, the next task, and the measurements so far.
 
@@ -17,6 +19,9 @@ phase with its tasks, the next task, and the measurements so far.
 
 ## Rules
 
+- Shared memory: read [docs/memory.md](docs/memory.md) at session start. When the maintainer states a preference,
+  decision or lesson that code and git do not record, write it there (not in a tool's private memory) and commit it with the work.
+  Keep it free of private infra and personal details: this repo is public.
 - Logic lives in `Sources/DMXCore`; `Sources/dmx` only parses arguments and prints.
 - Every command supports `--json`. Failures are `DMXError(code, message, hint)` with a stable code
   and a hint that names the next command to run. No interactive prompts.

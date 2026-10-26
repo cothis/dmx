@@ -12,7 +12,7 @@
 - 태그·GitHub 릴리스 게시·커뮤니티 홍보는 maintainer 확인 후에만 해요.
 
 ```sh
-cd /Users/cothis/dockermax
+cd ~/dev/dockermax
 git status --short --branch && git log --oneline -10 && git pull --ff-only origin main
 make build && make guest   # 캐시가 없으면 make kernel(5–12분), make qemu(30초), make fex(70초) 먼저
 make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest, x86test
