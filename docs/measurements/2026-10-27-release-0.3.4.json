@@ -668,5 +668,94 @@
     "The atomic-entry microprobe passed on baseline and candidate and is not regression evidence.",
     "Pressure/disk recovery 12/12 belongs to the preceding host review; it was not repeated for the emulator-only change.",
     "Corporate TLS inspection and external IPv6 still need environment-specific acceptance."
-  ]
+  ],
+  "publication": {
+    "url": "https://github.com/cothis/dmx/releases/tag/v0.3.4",
+    "commit": "04ef90d864494af12837762298ae0bac7b93eecc",
+    "signed_and_notarized": true,
+    "notarization_id": "8a89a931-409f-460d-8d7d-385b5b08869d",
+    "second_package_pin_changed": false,
+    "uploaded_assets_verified": 14,
+    "local_installation": {
+      "ok": true,
+      "version": "0.3.4",
+      "sha256sum_assets": [
+        "NOTES.md",
+        "dmx-0.3.4-darwin-arm64.tar.gz",
+        "dmx-guest-0.3.4.tar.gz",
+        "dmx-sources-0.3.4.tar",
+        "fex-2610-dmx9.build.py",
+        "install.sh",
+        "kernel-6.18.58-dmx-4k.build.py",
+        "kernel-6.18.58-dmx-4k.config",
+        "qemu-x86_64-11.0.3-dmx1.build.py",
+        "third-party.json"
+      ],
+      "signature_team": "V4YA23448U",
+      "notarization_check": true,
+      "guest_bytes": 62893852,
+      "selftest_checks": 23,
+      "host_footprint_mb": 96,
+      "reclaim": {
+        "after_free_mb": 1121,
+        "after_reclaim_mb": 100,
+        "idle_mb": 96,
+        "reported_mb": 2485,
+        "reports": 23,
+        "returned_ms": 330
+      }
+    },
+    "published_verification": {
+      "ok": true,
+      "version": "0.3.4",
+      "downloaded_sha256_assets": [
+        "NOTES.md",
+        "dmx-0.3.4-darwin-arm64.tar.gz",
+        "dmx-guest-0.3.4.tar.gz",
+        "dmx-sources-0.3.4.tar",
+        "fex-2610-dmx9.build.py",
+        "install.sh",
+        "kernel-6.18.58-dmx-4k.build.py",
+        "kernel-6.18.58-dmx-4k.config",
+        "qemu-x86_64-11.0.3-dmx1.build.py",
+        "third-party.json"
+      ],
+      "all_asset_sha256": {
+        "dmx-0.3.4-darwin-arm64.tar.gz": "0d28024af23346a1960316bb5029c6b3688bca7125479279bb3673eac0026c22",
+        "third-party.json": "723f16eb77ade6f43b3c80e7496648e1982c53da1aa8f2b4b109283b8fdb04ba",
+        "dmx-sources-0.3.4.tar": "deeb227993fbe1c6cac91b9a02d1ab0d5cf3e5bc04cdfe145b86a5412a645553",
+        "dmx-sources-0.3.4.tar.sha256": "d034269f91a67edc159a185e2a29ad179ab6eaaef0c7de29cc72ea6aa5d28911",
+        "kernel-6.18.58-dmx-4k.config": "4a1315db472ec88e6857dac27afb49db310abb69ac5cde98af16d5211ffbf60e",
+        "install.sh": "325be38fd5d996fc5d7a87b2bf9f6b82c3c88c888135b0c822de9b43c7d25762",
+        "dmx-guest-0.3.4.tar.gz": "05981f5988600d158b7f287e6003050d2d02aba174acd3948d9fe9d8b335f6d9",
+        "dmx-0.3.4-darwin-arm64.tar.gz.sha256": "ad8ec3c83215f337a6f2075de7ccab5f6ca660e814b86f8ebe321f1331a44df1",
+        "kernel-6.18.58-dmx-4k.build.py": "8c130d00d9a267ac91e68e8b47d326cd0755d1cd36ea9446bcc3bdc51b6fe107",
+        "fex-2610-dmx9.build.py": "22c542ae6e02501a89e34a4186336ddf834d0eb622d859c169ca72b70cb0a194",
+        "NOTES.md": "053448fcfbb976a401980ff45fcc743e5d1427a8dc58fb6090f829a17dc8b053",
+        "dmx-guest-0.3.4.tar.gz.sha256": "c148d43022010aca2d6ad77ab214db09fcd27a82b39603a2b7abb3ffa9276a09",
+        "SHA256SUMS": "5008c88b54d030d510c0e6b8e0a2a1db2e2a9af2bc1e1faf96652e7fd68e7bc8",
+        "qemu-x86_64-11.0.3-dmx1.build.py": "029608626a77b62fed86f67579150905bf3589e4cc3735b132475ec2e7e23202"
+      },
+      "fresh_install": {
+        "guest_bytes": 62893852,
+        "selftest_ok": true,
+        "host_footprint_mb": 97
+      },
+      "update_from_0_3_3": {
+        "ok": true,
+        "bytes": 1860880,
+        "signature": "V4YA23448U",
+        "running_vm_preserved": true,
+        "persistent_data_preserved": true,
+        "new_daemon_version": "0.3.4",
+        "guest_updated": true,
+        "emulator_sha256": "5468c106014cd11cf74b04b7858778b0ee7145b43b19817aa45f0ca8338e9741"
+      },
+      "containers": {
+        "linux/arm64": "aarch64",
+        "linux/amd64": "x86_64",
+        "linux/386": "x86_64"
+      }
+    }
+  }
 }

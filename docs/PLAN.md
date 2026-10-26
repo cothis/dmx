@@ -530,11 +530,12 @@ Done when: on a Mac whose only way out is an HTTP proxy (no authentication) with
 
 For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md).
 
-**v0.3.3 is published** (signed and notarized, 2026-10-27; verified from GitHub, including an
-update from 0.3.2 and the hardened signature check), it ships `dmx update`,
+**v0.3.4 is published** (signed and notarized, 2026-10-27; all 14 assets checked after download,
+fresh installation and update from 0.3.3 verified with running-VM/data preservation). It ships
+the pre-announcement review fixes and the FEX signal/Java fixes. It also includes `dmx update`,
 and [WORKORDER.md](WORKORDER.md) — the maintainer's bugs-and-regressions list — is finished:
 B1 `AT_SECURE` for setuid x86 programs, B2 FEX without `/proc`, B3 the three unrun checks (which
-found a broken `make release`), R1 node's slow start (246 ms now, faster than QEMU), R2 FEX's
+found a broken `make release`), R1 node's slow start (256 ms in the final 0.3.4 suite, faster than QEMU), R2 FEX's
 extra memory (gone with R1), R3 the TSO switch cost (0.78 µs, invisible unless vCPUs are
 oversubscribed: accepted), R4 the first-boot unpack (returned by the first idle sweep: accepted),
 O1 the ~100 MB high idle readings (measurements taken before the idle trim; the harness now
@@ -542,24 +543,22 @@ samples the window), I1 32-bit x86 images and I2 Cephes' exact licence terms. Th
 comparison was re-measured with 0.3.0 and README and benchmark.md carry those numbers.
 
 The 2026-10-27 pre-announcement review found additional host/guest boundary and invalid-input
-bugs in 0.3.3. They are fixed on main, with regression tests; see
+bugs in 0.3.3. They are fixed and shipped in 0.3.4, with regression tests; see
 [review-2026-10-27.md](review-2026-10-27.md). The maintainer authorized releasing them after
-finishing the documentation (2026-10-27). **v0.3.4 is being prepared; these fixes are not yet in
-a published release.** Release qualification then exposed an intermittent amd64 Java crash
+finishing the documentation (2026-10-27). Release qualification exposed an intermittent amd64 Java crash
 with FEX: 39/40 passes on both the candidate and published 0.3.3; QEMU passed 20/20.
 The maintainer chose to fix Java before releasing (2026-10-27). The final `fex-2610-dmx9`
 guest restores signal-return state and snapshots aligned instruction words during decoding.
 It passed the 100-run Java gate and all release suites; the decoder-only candidate passed
 150/150. See [the diagnosis and controls](fex-java-2026-10-27.md) and
-[release measurements](measurements/2026-10-27-release-0.3.4.json). Next: signed packaging and
-published installation/update verification.
+[release measurements](measurements/2026-10-27-release-0.3.4.json). The published guest was also
+verified to load dmx9 after an update, preserving the existing data disk.
 
 In order:
 
-1. Finish the authorized v0.3.4 release following [release.md](release.md): notes and docs,
-   acceptance checks, signed/notarized packaging, tag and assets, then verify the published
-   installation and update from 0.3.3. Community announcements (Show HN, Reddit, GeekNews) remain
-   a separate maintainer decision (2026-10-25: after more improvements).
+1. Community announcement (Show HN, Reddit, GeekNews) is now the maintainer’s next decision.
+   The requested review, documentation and v0.3.4 release are complete; no community post was
+   sent by this release work.
 2. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
 3. Open, not blocking: `qemu-x86_64` cannot run 32-bit programs, so `linux/386` needs
    `x86_emulator fex` (the default); adding qemu-i386 would be a separate build. Warm `docker run`
@@ -582,6 +581,12 @@ the signal-only fix still failed one in 100, while the decoder-only candidate pa
 Early experiments that packaged the wrong emulator are classified as baseline, not candidate
 proof. Full artifact hashes, commands and evidence limits are in
 [the release measurements](measurements/2026-10-27-release-0.3.4.json).
+
+Publication: 14 uploaded assets matched their local hashes and were downloaded and checked again.
+The installer fetched the signed/notarized binary, and its guest selftest passed (97 MiB idle).
+Updating a running 0.3.3
+kept the old VM alive, retained its data, then loaded the new guest/FEX at the next boot. The
+published binary ran arm64, amd64 and 386 containers. Tag: `v0.3.4`, commit: `04ef90d`.
 
 ### Earlier measurements
 
@@ -833,3 +838,5 @@ proof. Full artifact hashes, commands and evidence limits are in
 - 2026-10-27: Completed the pre-announcement review: fixed guest FUSE file/directory lifetime races, a read-only open mutating host modes, virtqueue address overflow, malformed allowlists, and oversized size/TTL conversions. Added regressions, refreshed README/release docs/help/HANDOFF, and reran the real-VM suites, 24-image matrix and 12 pressure rounds. No idle-memory increase observed (97 MiB before, 94–97 after). Published 0.3.3 still installs, verifies and boots; the new fixes await a patch release before community announcement.
 - 2026-10-27: Maintainer authorized the release after documentation cleanup. Preparing v0.3.4 with the six pre-announcement review fixes and their regressions; release notes and install URLs are updated. Community posting remains a separate step.
 - 2026-10-27: Completed v0.3.4 qualification after fixing FEX signal-return state and atomic instruction-word decoding. Added a deterministic signal regression and the 100-run Java gate, verified live emulator hashes, and recorded failed controls and the initial candidate-packaging error. All release suites passed; signing and publication remain next.
+
+- 2026-10-27: Published signed/notarized v0.3.4 from 04ef90d. Verified all 14 uploaded/downloaded assets, fresh installation and selftest (97 MiB), update from a running 0.3.3 with VM/data preservation and new guest activation, and arm64/amd64/386 containers. Review, documentation and release are complete; community posting remains the maintainer’s decision.
