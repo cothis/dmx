@@ -1,4 +1,4 @@
-# 다음 세션 인계 — 2026-10-26 (v0.3.2 게시, 작업 지시서 완료)
+# 다음 세션 인계 — 2026-10-27 (v0.3.3 게시, 작업 지시서 완료)
 
 `이어서 진행해`라는 요청을 받으면 [PLAN.md](PLAN.md)의 **Next up**과 이 문서를 읽어요.
 대화 이력이나 `/tmp` 파일은 필요 없어요. 계획·결정·측정의 기준은 `PLAN.md`예요.
@@ -20,7 +20,11 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
 
 ## 현재 상태
 
-- **게시된 릴리스:** [v0.3.2](https://github.com/cothis/dmx/releases/tag/v0.3.2)(서명·공증, 2026-10-26).
+- **게시된 릴리스:** [v0.3.3](https://github.com/cothis/dmx/releases/tag/v0.3.3)(서명·공증, 2026-10-27).
+  Sonnet 5.5와 Codex 두 모델의 검수가 0.3.2의 `dmx update`에서 찾은 보안 결함 2건(서명 확인 전 실행, 부팅 중
+  VM 종료 가능)과 작은 결함 15건을 고친 릴리스예요. 0.3.2에서 `dmx update`로 올라오는 것과, 0.3.3의 강화된
+  codesign 요구사항 검사가 통과하는 것까지 확인했어요.
+- **이전 릴리스:** [v0.3.2](https://github.com/cothis/dmx/releases/tag/v0.3.2)(2026-10-26).
   0.3.1의 `dmx update`에 더해, 게스트 파일이 같으면 62 MB를 다시 받지 않고(0.3.1 → 0.3.2 업데이트가 1.86 MB),
   내려받은 바이너리의 Developer ID를 확인하고, 릴리스 노트는 `docs/release-notes/<버전>.md`에서 NOTES.md로
   자동 삽입되고, `dmx doctor`가 데몬 버전을 알려줘요. main에 미배포 변경은 없어요.
