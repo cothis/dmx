@@ -1,4 +1,4 @@
-# 다음 세션 인계 — 2026-10-26 (작업 지시서 전부 완료, 0.3.0 대기)
+# 다음 세션 인계 — 2026-10-26 (v0.3.0 게시, 작업 지시서 완료)
 
 `이어서 진행해`라는 요청을 받으면 [PLAN.md](PLAN.md)의 **Next up**과 이 문서를 읽어요.
 대화 이력이나 `/tmp` 파일은 필요 없어요. 계획·결정·측정의 기준은 `PLAN.md`예요.
@@ -20,8 +20,10 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
 
 ## 현재 상태
 
-- **게시된 릴리스:** [v0.2.2](https://github.com/cothis/dmx/releases/tag/v0.2.2)(서명·공증, 2026-10-26).
-  GitHub에서 받아 설치·부팅까지 확인했어요.
+- **게시된 릴리스:** [v0.3.0](https://github.com/cothis/dmx/releases/tag/v0.3.0)(서명·공증, 2026-10-26).
+  GitHub에서 설치해 selftest 96 MB, `FEX-x86` 등록, arm64·amd64·386 `docker run`까지 확인했어요.
+  NOTES.md에는 손으로 쓴 "Changes since 0.2.2"가 들어 있어요. main에는 릴리스 이후 미배포 변경이
+  문서(README·benchmark.md의 새 엔진 비교 수치)뿐이에요.
 - **main의 미배포 변경(v0.2.2 이후):**
   - idle CPU 수정(idle trim을 idle 구간마다 한 번, 1.4 → 0.57 %).
   - x86_64 기본 에뮬레이터가 FEX-Emu(`fex-2610-dmx4`)예요. `make fex`(`scripts/build-fex.py`)가 고정된 소스와
@@ -87,12 +89,22 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
 
 ## 남은 작업
 
-작업 지시서는 전부 끝났어요. 다음은 **0.3.0 릴리스**인데 maintainer 결정이 필요해요:
+작업 지시서와 0.3.0 릴리스, 엔진 재측정까지 끝났어요. 남은 것은 maintainer 판단이 필요한 것들이에요:
 
-1. 태그·게시 여부(`make release VERSION=0.3.0` → 서명·공증 → GitHub).
-2. NOTES.md의 "Changes since 0.2.2"는 손으로 써야 해요(0.2.2처럼; SHA256SUMS의 NOTES.md 줄 재계산).
-3. 공개된 유휴 수치(README·benchmark.md의 198 MB)는 35초 정의예요. 정상상태는 ~20 MB 높아서, 네 엔진 비교를
-   다시 돌릴지가 maintainer 결정이에요([PLAN.md](PLAN.md)의 O1 행).
+1. **커뮤니티 공개**(Show HN, Reddit, GeekNews) — phase 11은 0.2.0에 들어갔고, "개선이 더 된 뒤"라는
+   2026-10-25 지시 이후 작업 지시서가 모두 끝났으니 지금은 maintainer의 말만 기다려요.
+2. **사내망(검사 프록시) 수용 시험** — 그런 환경이 생길 때.
+3. 막지 않는 미해결: `qemu-x86_64`는 32비트를 못 돌리니 `linux/386`은 기본값 `x86_emulator fex`가 필요해요
+   (qemu-i386을 넣으려면 별도 빌드). 따뜻한 `docker run`은 데이터 디스크 배리어 때문에 Colima보다 느린 것을
+   유지해요. FEX의 `uname -m`은 32비트 프로세스에도 `x86_64`를 보고해요.
+
+엔진 비교를 또 돌릴 때: Docker Desktop·OrbStack DMG는 2026-10-26과 sha256이 같은 파일을 받을 수 있어요
+(`desktop.docker.com/mac/main/arm64/244472/Docker.dmg`, `cdn-updates.orbstack.dev/arm64/OrbStack_v2.2.5_21124_arm64.dmg`).
+Docker Desktop은 `~/Library/Group Containers/group.com.docker/settings-store.json`에 `EnableDefaultDockerSocket`·
+`RequireVmnetd`·`EnablePrivilegedPorts`를 false, `DockerBinInstallPath`를 "user"로 쓰고 **Resource Saver는 기본값(켜짐)
+그대로** 두어야 공정해요(끄면 5분 뒤 VM이 안 멈춰요). 측정 전에 1분 부하가 2.5 아래로 내려갈 때까지 기다리고,
+끝나면 앱·`~/.colima`·`~/.orbstack`·Docker Desktop 데이터와 `~/.docker`에 추가된 항목(컨텍스트, cli-plugins 링크,
+`daemon.json`)까지 지워요.
 
 무거운 빌드·측정(make kernel, make fex, 이미지 매트릭스, 데몬 VM 안 컨테이너 빌드)은 동시에 돌리지 않아요.
 두 VM이 코어를 나눠 쓰면 둘 다 몇 배 느려지고 측정값도 못 믿어요(커널 315초 → 3110초). 실험 컨테이너는
