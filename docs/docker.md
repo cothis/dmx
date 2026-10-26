@@ -90,7 +90,15 @@ docker CLI ──▶ ~/.dmx/docker.sock ──▶ dmx daemon ──vsock──�
   inside any container. The patch drops FEXServer (containers have no copy of it and cannot reach
   one from their own network namespace) and fixes four glibc-only assumptions (a rwlock re-lock
   that glibc reports and musl waits on forever, `PTHREAD_STACK_MIN` of 2 KB, a double
-  `pthread_detach`, the `getdents64` prototype). FEX asks the guest kernel for the TSO memory
+  `pthread_detach`, the `getdents64` prototype). It also makes FEX ignore the configuration its
+  caller points at when the kernel marks the exec privileged (`AT_SECURE`, which binfmt's `C` flag
+  produces for a setuid or file-capability x86 program): the `FEX_*` variables are removed from
+  the environment and only the built-in defaults and the system-wide config file are read, not
+  `$HOME/.fex-emu/Config.json`, `FEX_APP_CONFIG` or the Steam layers. Upstream FEX reads all of
+  them, and its configuration chooses the rootfs x86 libraries are loaded from, so without this
+  an unprivileged caller could pick the code a setuid-root x86 program runs (x86test's
+  `fex.setuid_ignores_caller_config`; QEMU's narrower `QEMU_LOG_FILENAME` exposure stays, see
+  [init](../guest/init)). FEX asks the guest kernel for the TSO memory
   model per process: the kernel carries Asahi Linux's `PR_SET_MEM_MODEL` patches, which set the
   Apple CPU's `ACTLR_EL1.EnTSO` bit for that thread, and Hypervisor.framework (macOS 15+) lets
   the guest set it, so translated x86 loads and stores need no barriers. In a VM each

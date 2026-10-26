@@ -66,9 +66,10 @@ rm -rf "$mkfs"
 # setting), registered with binfmt_misc: magic and mask from QEMU's qemu-binfmt-conf.sh (FEX's are
 # the same), flags CF as Docker Desktop (linuxkit) and tonistiigi/binfmt use, plus P and O. F opens
 # the interpreter now, so containers need no emulator in their file system; C (implies O) takes
-# credentials from the x86 binary, so setuid x86 programs work, but the emulator then runs
-# privileged and still reads FEX_* or QEMU_* variables from the caller (QEMU_LOG_FILENAME writes a
-# root-owned file); P passes argv[0] as given. With O, FEX knows the kernel started it and lets
+# credentials from the x86 binary, so setuid x86 programs work. The emulator then runs privileged
+# with the caller's environment: dmx's FEX ignores the caller's configuration for such an exec
+# (AT_SECURE, see build-fex.py), while QEMU still reads QEMU_* variables (QEMU_LOG_FILENAME writes
+# a root-owned file). P passes argv[0] as given. With O, FEX knows the kernel started it and lets
 # binfmt_misc run the x86 programs it executes. Both live on the data disk, so they cost guest
 # RAM only while x86 code runs. They come as an xz'd tar at the end of the Docker disk
 # (docker.img, serial dmx-docker; its header gives the sha256, offset and length). Only the one in

@@ -257,6 +257,27 @@ def suite(emulator):
         r = sh(f"{run} python3 -c 'import ctypes; print(ctypes.CDLL(None).prctl(0x6d4d444c, 0, 0, 0, 0))'")
         check_("hardware_tso", r.stdout == b"1\n", out(r))
 
+        # binfmt's C flag runs the emulator with the x86 file's credentials, so for a setuid-root
+        # x86 program FEX must ignore the configuration its unprivileged caller points at: the
+        # FEX_* variables and $HOME/.fex-emu/Config.json (dmx's AT_SECURE patch, build-fex.py).
+        # Each run writes the log FEX was asked for only if it read that configuration. Both
+        # copies are named `true` because busybox picks the applet from argv[0]; only the one in
+        # /suid is setuid root.
+        setup = (f"rm -rf {DIR}/root/suid {DIR}/root/plain {DIR}/root/tmp/h && "
+                 f"mkdir -p {DIR}/root/suid {DIR}/root/plain {DIR}/root/tmp/h/.fex-emu && "
+                 f"cp {DIR}/root/bin/busybox {DIR}/root/suid/true && cp {DIR}/root/bin/busybox {DIR}/root/plain/true && "
+                 f"chmod 4755 {DIR}/root/suid/true && echo '{{\"Config\":{{\"OutputLog\":\"/tmp/h/home.log\"}}}}' "
+                 f">{DIR}/root/tmp/h/.fex-emu/Config.json && chown -R 65534 {DIR}/root/tmp/h")
+        as_nobody = f"{run} su -s /bin/sh nobody -c"
+        env = "HOME=/tmp/h FEX_OUTPUTLOG=/tmp/h/env.log FEX_SILENTLOG=0"
+        r = sh(f"{setup} && {as_nobody} 'id -u; {env} /suid/true true && echo ran; ls -A /tmp/h'")
+        check_("setuid_ignores_caller_config", r.stdout == b"65534\nran\n.fex-emu\n", out(r))
+        # The control: the same program without setuid is an ordinary exec, so FEX does read the
+        # caller's configuration and writes the log. Without it the check above proves nothing.
+        r = sh(f"{as_nobody} 'rm -f /tmp/h/*.log; {env} /plain/true true && echo ran; ls -A /tmp/h'")
+        check_("setuid_control_reads_config", r.stdout == b"ran\n.fex-emu\nenv.log\n", out(r))
+        sh(f"rm -rf {DIR}/root/suid {DIR}/root/plain {DIR}/root/tmp/h")
+
     # All 4K operations must work. A 16K Linux guest used to fail partial msync, fixed shared
     # mappings, MADV_DONTNEED zeroing and guard-page faults; do not count those as expected passes.
     r = sh(f"ulimit -c 0; cat >{DIR}/root/tmp/probe.py && {run} python3 /tmp/probe.py", stdin=PROBE.encode())

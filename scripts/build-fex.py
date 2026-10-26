@@ -7,8 +7,10 @@ Inputs, all pinned by sha256:
 
 Only the `FEX` program is built (FEXInterpreter): no FEXServer, FEXConfig, thunks or tests.
 FEX_PATCH makes it run where containers put it, as a binfmt_misc interpreter opened by the
-kernel (flag F), with no FEXServer and no other file of its own; and fixes four places that
-relied on glibc behaviour musl does not have. Output: <cache>/<guest.DMX_FEX>, a stripped
+kernel (flag F), with no FEXServer and no other file of its own; makes it ignore the caller's
+configuration when the kernel marks the exec privileged (AT_SECURE: a setuid x86 program, which
+binfmt's C flag runs with the file's credentials); and fixes four places that relied on glibc
+behaviour musl does not have. Output: <cache>/<guest.DMX_FEX>, a stripped
 static PIE. `make guest` puts it in docker.img.
 
 `--lock` re-resolves TOOLCHAIN from Alpine's current APKINDEX and prints new pins.
@@ -143,6 +145,116 @@ FEX_PATCH = """\
 
      // Use FEXCore's UncheckedLongJump to avoid fortification checks.
      // This avoids a false positive since glibc does not understand stack pivots.
+--- a/Source/Common/Config.cpp
++++ b/Source/Common/Config.cpp
+@@ -19,6 +19,7 @@
+ #ifndef _WIN32
+ #include <linux/limits.h>
+ #include <pwd.h>
++#include <sys/auxv.h>
+ #endif
+ #include <optional>
+ #include <utility>
+@@ -484,20 +485,35 @@
+ 
+ void LoadConfig(fextl::string ProgramName, char** const envp, const PortableInformation& PortableInfo) {
+   const bool IsPortable = PortableInfo.IsPortable;
++  // dmx: for a setuid or file-capability x86 program the kernel sets AT_SECURE, and the caller
++  // is not the owner of the credentials FEX now runs with. Take the configuration from the
++  // built-in defaults and the system-wide files only: every other layer is a path the caller
++  // picks ($HOME, $SteamAppId, FEX_APP_CONFIG, the FEX_* variables themselves), and the
++  // configuration chooses the rootfs libraries are loaded from. FEXInterpreter has already
++  // dropped the FEX_* variables for this case.
++#ifndef _WIN32
++  const bool Secure = getauxval(AT_SECURE) != 0;
++#else
++  const bool Secure = false;
++#endif
+   FEX::Config::InitializeConfigs(PortableInfo);
+   FEXCore::Config::Initialize();
+   if (!IsPortable) {
+     FEXCore::Config::AddLayer(CreateGlobalMainLayer());
+   }
+-  FEXCore::Config::AddLayer(CreateMainLayer(nullptr, ProgramName.empty() ? std::nullopt : std::optional {ProgramName}));
++  if (!Secure) {
++    FEXCore::Config::AddLayer(CreateMainLayer(nullptr, ProgramName.empty() ? std::nullopt : std::optional {ProgramName}));
++  }
+ 
+   if (!ProgramName.empty()) {
+     if (!IsPortable) {
+       FEXCore::Config::AddLayer(CreateAppLayer(ProgramName, FEXCore::Config::LayerType::LAYER_GLOBAL_APP));
+     }
+-    FEXCore::Config::AddLayer(CreateAppLayer(ProgramName, FEXCore::Config::LayerType::LAYER_LOCAL_APP));
++    if (!Secure) {
++      FEXCore::Config::AddLayer(CreateAppLayer(ProgramName, FEXCore::Config::LayerType::LAYER_LOCAL_APP));
++    }
+ 
+-    auto SteamID = getenv("SteamAppId");
++    auto SteamID = Secure ? nullptr : getenv("SteamAppId");
+     if (SteamID) {
+       // If a SteamID exists then let's search for Steam application configs as well.
+       // We want to key off both the SteamAppId number /and/ the executable since we may not want to thunk all binaries.
+@@ -509,7 +525,7 @@
+     }
+   }
+ 
+-  const char* AppConfig = getenv("FEX_APP_CONFIG");
++  const char* AppConfig = Secure ? nullptr : getenv("FEX_APP_CONFIG");
+   if (AppConfig) {
+     fextl::string AppConfigStr = AppConfig;
+     if (IsPortable && FHU::Filesystem::IsRelative(AppConfig)) {
+@@ -521,7 +537,9 @@
+     }
+   }
+ 
+-  FEXCore::Config::AddLayer(CreateEnvironmentLayer(envp));
++  if (!Secure) {
++    FEXCore::Config::AddLayer(CreateEnvironmentLayer(envp));
++  }
+   FEXCore::Config::Load();
+ }
+ 
+--- a/Source/Tools/FEXInterpreter/FEXInterpreter.cpp
++++ b/Source/Tools/FEXInterpreter/FEXInterpreter.cpp
+@@ -381,12 +381,38 @@
+     unsetenv(Env);
+   }
+   return FEXFD;
++}
++
++/**
++ * @brief Remove every `FEX_*` variable from the environment.
++ *
++ * dmx: binfmt_misc registers FEX with flag `C`, so a setuid or file-capability x86 program runs
++ * FEX with the file's credentials while its caller still chooses the environment. FEX reads its
++ * configuration from `FEX_*` variables, which choose the rootfs libraries are loaded from and
++ * the files it writes, so for such an exec the caller must not be able to set them. The kernel
++ * sets `AT_SECURE` for it, as it does for the exec where glibc drops `LD_PRELOAD`.
++ */
++static void DropFEXEnvironment() {
++  fextl::vector<fextl::string> Names;
++  for (char** Var = environ; Var && *Var; ++Var) {
++    const std::string_view View {*Var};
++    if (View.starts_with("FEX_")) {
++      Names.emplace_back(View.substr(0, View.find('=')));
++    }
++  }
++  for (const auto& Name : Names) {
++    unsetenv(Name.c_str());
++  }
+ }
+ 
+ int main(int argc, char** argv, char** const envp) {
+   auto SBRKPointer = FEX::SBRKAllocations::DisableSBRKAllocations();
+   FEXCore::Allocator::GLIBCScopedFault GLIBFaultScope;
+ 
++  if (getauxval(AT_SECURE)) {
++    DropFEXEnvironment();
++  }
++
+   const bool ExecutedWithFD = getauxval(AT_EXECFD) != 0;
+   const auto PortableInfo = FEX::ReadPortabilityInformation();
+   const bool InterpreterInstalled = QueryInterpreterInstalled(ExecutedWithFD, PortableInfo);
 """
 
 TOOLCHAIN_ROOTS = [

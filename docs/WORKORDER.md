@@ -18,7 +18,7 @@ Rules for every item (on top of [AGENTS.md](../AGENTS.md)):
 
 ## P0: correctness and security
 
-### B1. FEX honours `FEX_*` variables and `~/.fex-emu` for setuid x86 programs (suspected, not checked)
+### B1. FEX honoured `FEX_*` variables and `~/.fex-emu` for setuid x86 programs (fixed 2026-10-26)
 
 - **Known.** binfmt_misc registers FEX with flag `C`, so a setuid x86 binary runs FEX with the
   file's credentials (as with QEMU, see the binfmt rows in PLAN.md). FEX reads its configuration
@@ -38,6 +38,14 @@ Rules for every item (on top of [AGENTS.md](../AGENTS.md)):
   behaviour); do not drop setuid support.
 - **Done when** the check above is a permanent x86test check that passes, and docker.md's binfmt
   paragraph says what FEX ignores for setuid programs.
+- **Done (2026-10-26).** Confirmed: as `nobody`, a setuid-root x86 busybox honoured
+  `FEX_OUTPUTLOG` (a root-owned file at a path the caller chose) and parsed a `FEX_APP_CONFIG`
+  file the caller owned. `FEX_PATCH` now checks `getauxval(AT_SECURE)` in two places: the
+  interpreter drops every `FEX_*` variable from the environment before anything reads it, and
+  `LoadConfig` keeps only the built-in defaults and the system-wide file (no `$HOME/.fex-emu`,
+  `FEX_APP_CONFIG` or Steam layers). The `C` flag and setuid support stay. x86test:
+  `fex.setuid_ignores_caller_config`, plus `fex.setuid_control_reads_config` so the check cannot
+  pass for the wrong reason. 38/38, selftest 96 MB; FEX is now `fex-2610-dmx2`.
 
 ### B2. Without `/proc`, FEX hands x86 programs addresses above 2^47
 
