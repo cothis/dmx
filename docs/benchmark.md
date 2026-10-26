@@ -83,7 +83,16 @@ disk's barrier flushes, below). dmx now takes the most CPU at idle, 1.4 % of one
 That idle CPU and an idle footprint that sometimes reads ~100 MB higher are not new in 0.2.2:
 alternating the v0.2.1 release (its GitHub binary and guest) with 0.2.2, three runs each, gave
 idle 182, 187 and 297 MB at 1.4–1.6 % CPU for 0.2.1 and 187, 201 and 284 MB at 1.3–1.9 % for
-0.2.2; 10 s after freeing 2 GiB, 312–334 MB against 344–345 MB. Both are still to be explained.
+0.2.2; 10 s after freeing 2 GiB, 312–334 MB against 344–345 MB.
+
+The idle CPU was the idle trim repeating (fixed the same day): `memory.reclaim` also takes the
+file pages of running programs, dockerd and containerd read ~40 MB back from the data disk
+within seconds, the cache passed the trim threshold again, and the next 5 s tick trimmed it
+again. Trimming once per idle spell, three benchmark runs: idle CPU **0.57 %** (0.55–0.72) of
+one core, idle 195–200 MB, `docker run` 95–106 ms, 353 MB after freeing 2 GiB (11 MB more:
+dockerd's pages stay), back in 2.0–5.4 s
+([raw](measurements/2026-10-26-idle-cpu.json)). The occasional ~100 MB higher idle reading did
+not come up in those runs; it is not explained yet.
 
 Engines were set up as on 2026-10-25 (vendor DMGs with the same sha256s, Developer ID and
 notarization checked; Colima from Homebrew), plus what avoided password prompts: Docker

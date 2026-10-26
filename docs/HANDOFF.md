@@ -69,9 +69,14 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
 
 ## 남은 작업
 
-PLAN.md의 Next up 순서를 따라요. 요약하면: dmx의 idle CPU(조용한 Mac에서 한 코어의 1.4 %, 네 엔진 중 가장
-높아요)와 가끔 ~100 MB 높게 읽히는 idle footprint 조사(둘 다 0.2.1에도 있어요), 커뮤니티 홍보(maintainer
-결정), 실제 회사망에서 Phase 11 확인. 엔진 비교는 2026-10-26에 조용한 Mac에서 다시 쟀어요
+PLAN.md의 Next up 순서를 따라요. 요약하면: x86_64 이미지 가속(FEX-Emu를 binfmt 핸들러로, 그다음
+`HV_SYS_REG_ACTLR_EL1`의 하드웨어 TSO), 가끔 ~100 MB 높게 읽히는 idle footprint, 커뮤니티 홍보(maintainer
+결정), 실제 회사망에서 Phase 11 확인. idle CPU는 main에서 고쳤어요(idle trim을 idle 구간마다 한 번만,
+1.4 → 0.57 %, 미배포). 엔진 비교는 2026-10-26에 조용한 Mac에서 다시 쟀어요
 ([benchmark.md](benchmark.md#results-2026-10-26-quiet-mac)). 다시 잴 때 Docker Desktop은 설정 파일에
 `EnableDefaultDockerSocket`·`RequireVmnetd`·`EnablePrivilegedPorts`를 끄고 `DockerBinInstallPath: user`로
 두어야 암호 창이 안 떠요. OrbStack은 `setup.use_admin false`.
+
+idle CPU를 다시 볼 때: 이 macOS(26.6)에서는 in-kernel GIC를 쓰면 vCPU가 WFI로 `hv_vcpu_run`을 빠져나오지
+않아요(Hypervisor.framework가 커널에서 기다려요). 그래서 `VCPU.waitForInterrupt`와 1 ms 상한은 실행되지
+않아요. 게스트 쪽 실행 시간은 `/proc/*/task/*/schedstat`(ns)으로 재요. `/proc/stat` jiffy는 tickless라 부정확해요.

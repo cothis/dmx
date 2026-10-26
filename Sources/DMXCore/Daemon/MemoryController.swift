@@ -5,7 +5,10 @@ import Foundation
 ///
 /// - Idle: 30 s after the last exec started or ended, with the guest's CPU nearly idle all along,
 ///   the guest reclaims its clean page cache down to 16 MB (`memory.reclaim`, file pages only), so
-///   the cache of a build or a big read is not charged to the Mac until the VM stops.
+///   the cache of a build or a big read is not charged to the Mac until the VM stops. Once per
+///   idle spell: the reclaim takes the file pages of running programs too (dockerd and containerd
+///   fault ~40 MB back within seconds), so trimming again whenever the cache regrew read them back
+///   from disk every few seconds: 1.0–1.2 % of a core with dockerd idle, 0.8 % trimming once.
 /// - Idle sweep, at the same moment: free page reporting goes down from 512 KB blocks to the
 ///   Mac's page size, and the slab caches free their empty slabs. Bursts of connections, processes or
 ///   small files leave tens of MB free in blocks under 512 KB, which reporting skips (and
@@ -68,6 +71,8 @@ final class MemoryController {
     /// back to (nil if the guest did not take the change).
     private var swept: (at: ContinuousClock.Instant, restore: Int?)?
     private var sweeps = 0
+    /// When the guest was last trimmed for being idle; again only after it is used.
+    private var idleTrimmed: ContinuousClock.Instant?
 
     var pressure: Pressure { simulated ?? hostPressure }
 
@@ -97,6 +102,7 @@ final class MemoryController {
         lastTrim = nil
         swept = nil
         sweeps = 0
+        idleTrimmed = nil
         lastActivity = .now
         loop = Task { await run(machine: machine, agent: agent) }
     }
@@ -186,8 +192,9 @@ final class MemoryController {
             await trim(agent, bytes: memory.cache + memory.used / 2, swappiness: nil, reason: "host pressure critical")
         } else if rising {
             await trim(agent, bytes: trimmable(memory), swappiness: 0, reason: "host pressure \(current.rawValue)")
-        } else if idle, memory.cache > Self.keepCache + Self.trimSlack {
+        } else if idle, idleTrimmed.map({ lastActivity > $0 }) ?? true, memory.cache > Self.keepCache + Self.trimSlack {
             await trim(agent, bytes: trimmable(memory), swappiness: 0, reason: "idle")
+            idleTrimmed = .now
         }
 
         if idle, swept == nil {
