@@ -68,8 +68,39 @@ Raw reports: [FEX](measurements/2026-10-26-images-amd64-fex.json),
 [QEMU](measurements/2026-10-26-images-amd64-qemu.json). FEX keeps x86 programs below 2^47 by
 reserving the address space above it, so Redis's jemalloc works without a guest-base patch;
 `make x86test` checks the same probe and allocators under both emulators
-([report](measurements/2026-10-26-x86test-fex-qemu.json)). FEX starts Node slower (650 vs 370 ms
-for `node -e 0`); why is not measured yet.
+([report](measurements/2026-10-26-x86test-fex-qemu.json)). Node's slow start (650 ms against
+QEMU's 370) was FEX compiling 5000-instruction superblocks out of code that runs once; with the
+block cap at 150 it starts in 243–260 ms, and the amd64 workloads came down with it (Node 0.78 s,
+Temurin 1.93 s, Python 0.41 s in the run below).
+
+## 32-bit x86 (linux/386) through FEX-Emu, 2026-10-26
+
+`linux/386` images run under FEX as well: `/init` registers a second binfmt_misc entry
+(`FEX-x86`, ELFCLASS32 and `EM_386`) when FEX is the emulator, and dmx patches FEX so the page a
+32-bit program enters the kernel through is executable (without that every 32-bit program died on
+its first syscall). QEMU users keep amd64 only: `qemu-x86_64` cannot run 32-bit programs, so with
+that setting the entry stays out and such a binary fails to exec.
+
+Six of the matrix's nine images publish a 386 manifest; the full matrix with all three platforms,
+one quiet Mac, 24 of 24 passing
+([raw](measurements/2026-10-26-images-all-platforms.json)):
+
+| Image label | arm64 | amd64 | 386 |
+|---|---|---|---|
+| Alpine 3.24 | 0.13 s | 0.15 s | 0.14 s |
+| Debian trixie-slim | 0.15 s | 0.19 s | 0.20 s |
+| Ubuntu 24.04 | 0.11 s | 0.19 s | no 386 image |
+| Python 3.14-slim | 0.21 s | 0.41 s | 0.51 s |
+| Node 24-alpine | 0.19 s | 0.78 s | no 386 image |
+| nginx stable-alpine | 0.29 s | 1.60 s | 1.59 s |
+| Redis 8-alpine | 0.96 s | 2.34 s | 2.22 s |
+| PostgreSQL 18-alpine | 1.46 s | 2.86 s | 2.82 s |
+| Temurin 21-jdk-jammy | 0.47 s | 1.93 s | no 386 image |
+
+`make x86test` also runs a pinned 32-bit Alpine root under FEX: the static busybox, the
+dynamically linked one with its own `ld-musl-i386.so.1`, and the memory an i386 process costs
+(5 MB RSS, as for amd64). One fidelity note: FEX's emulated `uname -m` answers `x86_64` even for
+a 32-bit process, where a real i386 kernel says `i686`; QEMU's i386 target answers `i686`.
 
 ## Why 4K guest pages
 

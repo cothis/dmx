@@ -446,6 +446,9 @@ BuildKit through dmx's Buildx; the deprecated legacy builder remains available t
       before the idle trim, which takes ~70 MB back 30 s after the last activity. `benchmark.py`
       samples the whole idle window now (floor and steady state), so the number cannot land on
       the edge of the trim again.
+- [x] 32-bit x86 images (2026-10-26): `linux/386` runs under FEX. `/init` registers a second
+      binfmt entry for `EM_386` with FEX, and dmx's patch makes the page a 32-bit program enters
+      the kernel through executable. Image matrix 24/24 across arm64, amd64 and 386.
 - [x] x86_64 images faster than QEMU (maintainer, 2026-10-26): FEX-Emu (FEX-2610, MIT) is the
       default binfmt handler, built by `make fex` as a static musl PIE from pinned sources with a
       dmx patch; the guest kernel carries Asahi's `PR_SET_MEM_MODEL` patches, so FEX runs x86
@@ -533,12 +536,13 @@ with a new kernel (Asahi's TSO patches) and docker.img format 3. In order:
    accepted) and R4 the first-boot unpack (returned by the first sweep: accepted). P2 is done
    too: the high idle readings were measurements taken before the idle trim, and `benchmark.py`
    now samples the whole idle window. I2 is done too: THIRD_PARTY.md records Cephes' exact terms.
-   I1, 32-bit x86 images, is tried and blocked on FEX itself: the binfmt entry works but no
-   32-bit program gets its ELF mapped, so FEX's own 32-bit loader needs debugging (the
-   reproduction, the pinned inputs and the next step are in WORKORDER I1). It is an improvement,
-   not a regression, so 0.3.0 does not wait for it: what the release needs is the maintainer's
-   call to tag and publish, NOTES.md's "Changes since 0.2.2" written by hand as for 0.2.2, and a
-   decision on whether to re-measure the published idle number (see the O1 row).
+   I1 is done as well: `linux/386` images run under FEX (the fallback vsyscall page needed
+   execute permission), x86test covers 32-bit and the image matrix runs all three platforms,
+   24/24. **The work order is finished.** What 0.3.0 needs is the maintainer's: the call to tag
+   and publish, NOTES.md's "Changes since 0.2.2" written by hand as for 0.2.2, and a decision on
+   whether to re-measure the published idle number (see the O1 row). The one open question from
+   this round is QEMU users: `qemu-x86_64` cannot run 32-bit programs, so `linux/386` needs
+   `x86_emulator fex` (the default); adding qemu-i386 would be a separate build.
 2. Release 0.3.0 with FEX (maintainer's call: tag and publish), after the work order.
 3. Warm `docker run` (~100 ms quiet) stays behind Colima by choice (data disk barrier flushes,
    see Decisions).
@@ -701,6 +705,7 @@ complete by the finished acceptance suites.
 | 2026-10-26 | The idle footprint that read ~100 MB high (WORKORDER O1) | Explained: it is where the reading falls in dmx's idle cycle, not lost memory. With dockerd up the footprint stays at ~260 MB until the idle trim and sweep fire 30 s after the last activity (5 s tick, the host has it ~2 s later), drops to 185–205 MB, then creeps to 210–225 MB as dockerd and containerd read files back. One run sampled every 8 s: 259.5 MB at 8, 16, 24 and 32 s, 189 MB at 40 s, with guest used 65–66 MB the whole time. Twelve runs with the old fixed 35 s settle: 203 MB once (its longer image pull pushed the reading past the trim) and 265–276 MB the rest. `benchmark.py` now samples 35, 50, 65, 80 and 95 s and reports `idle_at_35s`, `idle_min` and `idle`: three runs gave floors 191/194/204 MB, steady 226/216/224 MB, idle CPU 0.44–0.53 %. Guest compaction from the idle sweep was tried again here (it looks like an 80 MB win in the pre-trim state) and dropped: A/B with the same build gave floor 191–204 and steady 216–225 MB with it against 184–186 and 213–214 without ([raw](measurements/2026-10-26-idle-readings.json)). README and benchmark.md quote the 35 s definition, so the steady state is ~20 MB above the published 198 MB: a rerun of the four-engine comparison is the maintainer's call. |
 | 2026-10-26 | Cephes' exact terms (WORKORDER I2) | FEX links ten of Stephen L. Moshier's Cephes files for x87 long double maths (`sinll`, `tanll`, `atanll`, `exp2ll`, `log2ll`, `floorll`, `polevll`, `constll`, `mtherr` and FEX's `Impl.cpp`; the symbols are in dmx's binary), releases 2.0 to 2.3, Copyright 1984–1995 Stephen L. Moshier. Netlib's terms are "What you see here may be used freely but it comes with no support or guarantee"; the author gave written permission to license it as BSD ("BSD license is fine, modification is OK"), and FEX's `External/cephes/LICENSE` quotes that e-mail in full. THIRD_PARTY.md now says all of this instead of "BSD licensed". |
 | 2026-10-26 | 32-bit x86 under FEX (WORKORDER I1) | Blocked on FEX, not on dmx. The binfmt entry works (`FEX-x86`, ELFCLASS32 and `EM_386` with the same mask as the 64-bit entry, registered for FEX only), but every 32-bit program dies with `E NoExec instruction in entry block: FFFFF000` and SIGSEGV: FEX starts at the page its 32-bit allocator marks as taken, so the program's ELF was never mapped. Same for Alpine's static PIE busybox (ET_DYN, entry 0x1b44f) and for the dynamically linked busybox of the x86 minirootfs in a chroot with `/proc`; unchanged by `FEX_MAXINST=5000`, `FEX_MULTIBLOCK=0`, `FEX_SMCCHECKS=0`/`2`, `FEX_TSOENABLED=0` and `FEX_ROOTFS`. The code was reverted; the pinned and signature-checked 32-bit inputs and the next debugging step are in WORKORDER I1. |
+| 2026-10-26 | 32-bit x86 images work (WORKORDER I1, fixed) | The crash was FEX's fallback vsyscall page: with no VDSO thunk (dmx builds none) FEX writes `int 0x80` into a page of its own and leaves it read-only, so the first syscall a 32-bit program makes through `AT_SYSINFO` hit a page FEX tracks as non-executable — `NoExec instruction in entry block: FFFFF000`, which is that page's address, not a failed mapping. dmx's patch maps it read-execute and tells FEX's VMA tracking (`AddVirtualPage`). `/init` registers `FEX-x86` (ELFCLASS32, `EM_386`) when the emulator is FEX; with QEMU the entry stays out, since `qemu-x86_64` cannot run those programs. x86test 44/44, including a pinned 32-bit Alpine root (static busybox, the dynamic one through `ld-musl-i386.so.1`, i386 `sleep` 5 MB RSS, `true` 3 ms). Image matrix 24/24 with all three platforms on a quiet Mac: the six images that publish 386 pass, Redis's jemalloc and PostgreSQL included ([raw](measurements/2026-10-26-images-all-platforms.json)). `test-images.py` gained optional platforms and `--pin-optional`, so adding one does not move the pins already measured. FEX's `uname -m` says `x86_64` even for a 32-bit process (QEMU's i386 says `i686`); written down in compatibility.md. FEX is `fex-2610-dmx5`. |
 
 ## Progress log
 
@@ -779,3 +784,4 @@ complete by the finished acceptance suites.
 - 2026-10-26: WORKORDER P2 explained: the ~100 MB high idle readings were taken before the idle trim, which returns ~70 MB 30 s after the last activity; the footprint then settles ~20 MB above its floor as dockerd reads files back. `benchmark.py` samples 35–95 s and reports the floor and the steady state. Guest compaction was tried again and dropped on an A/B. Next: WORKORDER I1 (32-bit x86 images through FEX).
 - 2026-10-26: WORKORDER I2 done: THIRD_PARTY.md now names the ten Cephes files FEX links, their copyright and releases, Netlib's "used freely, no support or guarantee" terms and the author's written BSD permission, instead of "BSD licensed". Next: WORKORDER I1 (32-bit x86 images through FEX).
 - 2026-10-26: WORKORDER I1 attempted and reverted: the `FEX-x86` binfmt entry registers fine, but FEX never maps a 32-bit program's ELF (`NoExec instruction in entry block: FFFFF000`), for static PIE and dynamic programs alike and under every config knob tried. The reproduction, the pinned 32-bit Alpine inputs and the next debugging step are written down; x86test is green at 40/40 and node starts in 246 ms against QEMU's 370. The work order is now done except I1. Next: the maintainer's call on releasing 0.3.0.
+- 2026-10-26: WORKORDER I1 done, work order finished: `linux/386` images run. FEX's fallback vsyscall page (used when there is no VDSO thunk) was mapped read-only, so every 32-bit program died on its first syscall; it is now read-execute and tracked as such. x86test 44/44 with a pinned 32-bit Alpine root, image matrix 24/24 across arm64, amd64 and 386 on a quiet Mac, selftest 97 MB, dockertest 69/69. Next: 0.3.0, which needs the maintainer's call to tag and publish.

@@ -11,8 +11,9 @@ kernel (flag F), with no FEXServer and no other file of its own; makes it ignore
 configuration when the kernel marks the exec privileged (AT_SECURE: a setuid x86 program, which
 binfmt's C flag runs with the file's credentials); reserves the address space above 2^47 by
 probing for it where /proc/self/maps cannot be read; caps a translated block at 150 x86
-instructions rather than 5000, which is what made node start slowly; and fixes four places that
-relied on glibc behaviour musl does not have. Output: <cache>/<guest.DMX_FEX>, a stripped
+instructions rather than 5000, which is what made node start slowly; makes the vsyscall page a
+32-bit program enters the kernel through executable, which it is not without the VDSO thunks; and
+fixes four places that relied on glibc behaviour musl does not have. Output: <cache>/<guest.DMX_FEX>, a stripped
 static PIE. `make guest` puts it in docker.img.
 
 `--lock` re-resolves TOOLCHAIN from Alpine's current APKINDEX and prints new pins.
@@ -395,6 +396,24 @@ FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
          ]
        },
        "EnableCodeCachingWIP": {
+--- a/Source/Tools/FEXInterpreter/ELFCodeLoader.h
++++ b/Source/Tools/FEXInterpreter/ELFCodeLoader.h
+@@ -664,7 +664,14 @@
+           0xc3,       // ret
+         };
+         memcpy(VSyscallPage, VSyscallCode, sizeof(VSyscallCode));
+-        mprotect(VSyscallPage, FEXCore::Utils::FEX_PAGE_SIZE, PROT_READ);
++        // dmx: this page holds the only instructions a 32-bit program can enter the kernel
++        // through, so it has to be executable, and FEX's own tracking of it has to say so.
++        // Mapped read-only, as upstream leaves it, every 32-bit program died on its first
++        // syscall with "NoExec instruction in entry block: FFFFF000". The fallback is taken
++        // whenever there is no VDSO thunk to take a vsyscall entry from, and dmx builds none.
++        mprotect(VSyscallPage, FEXCore::Utils::FEX_PAGE_SIZE, PROT_READ | PROT_EXEC);
++        Handler->AddVirtualPage(Thread, reinterpret_cast<uint64_t>(VSyscallPage), FEXCore::Utils::FEX_PAGE_SIZE,
++                                PROT_READ | PROT_EXEC);
+         VSyscallEntry = reinterpret_cast<uint64_t>(VSyscallPage);
+       }
+ 
 """
 
 TOOLCHAIN_ROOTS = [

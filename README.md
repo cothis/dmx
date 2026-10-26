@@ -27,8 +27,9 @@ slower than Colima's because dmx keeps write ordering on the data disk across a 
 - **Docker compatible.** The stock `docker` CLI, Compose and BuildKit against a Docker Engine API
   socket; published ports, bind mounts of Mac paths, `host.docker.internal`, the Mac's SSH agent
   at `/run/host-services/ssh-auth.sock`, restart policies and amd64 images work as on Docker
-  Desktop. amd64 images run through FEX-Emu with the Apple CPU's hardware TSO memory model, in
-  place of Docker Desktop's Rosetta; `dmx config set x86_emulator qemu` switches to QEMU. dmx
+  Desktop. amd64 and 386 images run through FEX-Emu with the Apple CPU's hardware TSO memory
+  model, in place of Docker Desktop's Rosetta; `dmx config set x86_emulator qemu` switches to QEMU
+  (amd64 only). dmx
   installs pinned copies of the CLI tools, so neither Homebrew nor Docker Desktop is needed.
 - **AI native.** Every command has `--json` and structured errors with a hint naming the next
   command; nothing prompts. `dmx mcp` gives AI clients the engine itself over MCP, with capped

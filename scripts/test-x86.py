@@ -6,7 +6,8 @@ busybox of the x86_64 minirootfs with its musl loader (in a chroot, as in a cont
 emulator is not in its file system), python3 and node (V8, a JIT) installed into that chroot,
 threads in both, python3 with jemalloc and mimalloc preloaded, addresses below x86-64's 47-bit
 user space with and without /proc in the chroot, a setuid x86 program (FEX must ignore the
-caller's configuration for it), and FEX's hardware TSO. Also times an x86 `true`, a 100 MB sha256sum against the
+caller's configuration for it), FEX's hardware TSO, and 32-bit x86 programs (linux/386), which FEX
+runs and qemu-x86_64 does not. Also times an x86 `true`, a 100 MB sha256sum against the
 native one, and interpreter start-up and a python loop, per emulator. Runs a daemon in a throwaway
 DMX_HOME using $DMX_HOME/guest (default ~/.dmx/guest); downloads land in $DMX_HOME/cache/x86_64.
 Prints one JSON object and exits non-zero if any check failed.
@@ -46,6 +47,18 @@ guest.SOURCES["x86-minirootfs"] = {
 guest.SOURCES["x86-busybox-static"] = {
     "url": f"{X86}/busybox-static-1.37.0-r31.apk",
     "sha256": "b0d6cfc585d7fdd12df359cc5d38d5e45894e9e9e78c4059eb41577d022ec734",
+}
+# 32-bit x86 (linux/386), which FEX runs and qemu-x86_64 cannot. The apk's signature was checked
+# against the x86 key in this minirootfs when it was pinned (RSA/SHA-1 over the control segment,
+# whose datahash covers the files).
+I386 = f"{guest.ALPINE}/main/x86"
+guest.SOURCES["i386-minirootfs"] = {
+    "url": f"{guest.ALPINE}/releases/x86/alpine-minirootfs-3.24.3-x86.tar.gz",
+    "sha256": "a73bd9ed20a5ed1503a0688957add539e10340c7ca1d9e8c06c34a76ddc5f715",
+}
+guest.SOURCES["i386-busybox-static"] = {
+    "url": f"{I386}/busybox-static-1.37.0-r31.apk",
+    "sha256": "26d45cc895b3fa99ba7500d0860c3934a363e74e464eeb5fc623f08147c33cfd",
 }
 # python3 and nodejs with their dependencies, minus what the minirootfs has.
 PACKAGES = {
@@ -206,10 +219,11 @@ def suite(emulator):
     check_("boot", r.returncode == 0, out(r))
     res["idle_footprint_mb"] = footprint()
 
-    # Only the chosen emulator is registered.
+    # Only the chosen emulator is registered; FEX also takes 32-bit x86, qemu-x86_64 cannot.
     entries = out(sh("ls /proc/sys/fs/binfmt_misc")).split()
     entry = out(sh(f"cat /proc/sys/fs/binfmt_misc/{entry_name}"))
-    check_("binfmt_registered", sorted(entries) == sorted([entry_name, "register", "status"]) and "enabled" in entry and
+    expected = [entry_name, "register", "status"] + (["FEX-x86"] if emulator == "fex" else [])
+    check_("binfmt_registered", sorted(entries) == sorted(expected) and "enabled" in entry and
            "flags: POCF" in entry and f"interpreter /var/lib/dmx/x86/{binary}" in entry, f"{entries} {entry}".replace("\n", "; "))
 
     # A static x86_64 busybox: no loader, no libraries.
@@ -278,6 +292,32 @@ def suite(emulator):
         r = sh(f"{as_nobody} 'rm -f /tmp/h/*.log; {env} /plain/true true && echo ran; ls -A /tmp/h'")
         check_("setuid_control_reads_config", r.stdout == b"ran\n.fex-emu\nenv.log\n", out(r))
         sh(f"rm -rf {DIR}/root/suid {DIR}/root/plain {DIR}/root/tmp/h")
+
+        # 32-bit x86 (linux/386 images). FEX takes its vsyscall entry from a VDSO thunk, and
+        # without one it writes `int 0x80` into a page of its own; dmx's patch makes that page
+        # executable, without which every 32-bit program died on its first syscall.
+        entry32 = out(sh("cat /proc/sys/fs/binfmt_misc/FEX-x86"))
+        check_("i386_binfmt", "enabled" in entry32 and "flags: POCF" in entry32 and
+               "interpreter /var/lib/dmx/x86/FEX" in entry32 and "magic 7f454c4601" in entry32, entry32.replace("\n", "; "))
+        # The static one, as `busybox` so its applet multiplexer works (P passes argv[0] through).
+        # FEX's emulated uname says x86_64 even for a 32-bit program, as upstream does.
+        r = sh(f"mkdir -p {DIR}/i386 && cat >{DIR}/i386/busybox && chmod +x {DIR}/i386/busybox && "
+               f"{DIR}/i386/busybox sh -c 'echo $((6*7))' && {DIR}/i386/busybox uname -m", stdin=busybox32)
+        check_("i386_static", r.returncode == 0 and r.stdout == b"42\nx86_64\n", out(r))
+        # The 32-bit minirootfs in a chroot, its own musl loader included, as a linux/386 image has.
+        r = sh(f"rm -rf {DIR}/root32 && mkdir -p {DIR}/root32 && tar -xzf - -C {DIR}/root32 && "
+               f"mount -t proc proc {DIR}/root32/proc && mount -o bind /dev {DIR}/root32/dev && "
+               f"chroot {DIR}/root32 /bin/sh -c 'echo $((6*7)); /sbin/apk info -e musl busybox; "
+               f"dd if=/dev/zero bs=1024 count=64 2>/dev/null | md5sum; "
+               f"/lib/ld-musl-i386.so.1 /bin/busybox echo loader-ok'", stdin=rootfs32)
+        check_("i386_dynamic", r.stdout == b"42\nmusl\nbusybox\nfcd6bcb56c1689fcef28b57c22475bad  -\nloader-ok\n", out(r))
+        # As with 64-bit programs, each process is the emulator plus the program.
+        r = sh(f"{DIR}/i386/busybox sleep 4 & sleep 2; grep -E '^(Rss|AnonHugePages):' /proc/$!/smaps_rollup; wait")
+        rss32 = {line.split()[0].decode().rstrip(":"): int(line.split()[1]) // 1024 for line in r.stdout.splitlines()}
+        res["i386_sleep_mb"] = rss32
+        check_("i386_process_memory", 0 < rss32.get("Rss", 0) < 24 and rss32.get("AnonHugePages") == 0, str(rss32))
+        res["i386_true_ms"] = guest_ms(f"{DIR}/i386/busybox true", 20)
+        sh(f"umount {DIR}/root32/proc {DIR}/root32/dev; rm -rf {DIR}/root32 {DIR}/i386")
 
     # All 4K operations must work. A 16K Linux guest used to fail partial msync, fixed shared
     # mappings, MADV_DONTNEED zeroing and guard-page faults; do not count those as expected passes.
@@ -355,6 +395,11 @@ try:
     with tarfile.open(guest.fetch("x86-busybox-static", cache), "r:gz", ignore_zeros=True) as tar:
         busybox = tar.extractfile("bin/busybox.static").read()
     rootfs = chroot_tar(cache)
+    cache32 = STATE / "cache" / "x86"
+    cache32.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(guest.fetch("i386-busybox-static", cache32), "r:gz", ignore_zeros=True) as tar:
+        busybox32 = tar.extractfile("bin/busybox.static").read()
+    rootfs32 = guest.fetch("i386-minirootfs", cache32).read_bytes()
 
     dmx("config", "set", "shares", "none")
     for emulator in EMULATORS:

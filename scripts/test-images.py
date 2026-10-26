@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Pinned Docker image workloads on the real dmx VM, for arm64 and amd64.
+"""Pinned Docker image workloads on the real dmx VM, for arm64, amd64 and (where published) 386.
 
-`--pin` resolves only registry metadata and writes image-matrix.json; normal runs pull only
-the recorded per-platform digests. Uses dmx's verified CLI, an isolated Docker config and
+`--pin` resolves only registry metadata and writes image-matrix.json; `--pin-optional` adds the
+platforms only some images publish (linux/386) without moving the pins already there. Normal runs
+pull only the recorded per-platform digests, for the platforms each image has. Uses dmx's verified CLI, an isolated Docker config and
 DMX_HOME, no host shares, two CPUs and a 4G ceiling. stdout is a JSON report; progress is stderr.
 Failures and timeouts remain failures, including known x86 page-size incompatibilities.
 `--state-dir /tmp/dmx-images-X` keeps image layers for a focused rerun (`--image java`).
@@ -39,6 +40,9 @@ IMAGES = {
     "java": ("library/eclipse-temurin", "21-jdk-jammy"),
 }
 PLATFORMS = ("linux/arm64", "linux/amd64")
+# Platforms only some images publish, so they are pinned where they exist and skipped elsewhere.
+# linux/386 runs under FEX-Emu; qemu-x86_64 cannot run those programs at all.
+OPTIONAL_PLATFORMS = ("linux/386",)
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 
 
@@ -46,9 +50,15 @@ def progress(message):
     print(message, file=sys.stderr, flush=True)
 
 
-def pin_images():
-    """Trust the registry's TLS for metadata; verify each manifest against its digest."""
+def pin_images(optional_only=False):
+    """Trust the registry's TLS for metadata; verify each manifest against its digest.
+
+    `optional_only` keeps every pin that is already recorded and only adds the OPTIONAL_PLATFORMS
+    an image publishes, so adding a platform does not move the images the matrix has been run on."""
     pins = {"schema": 1, "pinned_at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "images": {}}
+    if optional_only:
+        pins = json.loads(PINS.read_text())
+        pins["optional_pinned_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
     for name, (repo, tag) in IMAGES.items():
         url = "https://auth.docker.io/token?" + urllib.parse.urlencode({
             "service": "registry.docker.io", "scope": f"repository:{repo}:pull"})
@@ -68,13 +78,20 @@ def pin_images():
                     raise ValueError(f"manifest digest mismatch for {repo}:{ref}")
             return json.loads(body), digest
 
-        index, digest = manifest(tag)
-        entry = {"repository": repo, "tag": tag, "index_digest": digest, "platforms": {}}
-        for platform in PLATFORMS:
+        if optional_only:
+            entry = pins["images"][name]
+            index, _ = manifest(entry["index_digest"])
+        else:
+            index, digest = manifest(tag)
+            entry = {"repository": repo, "tag": tag, "index_digest": digest, "platforms": {}}
+        for platform in (OPTIONAL_PLATFORMS if optional_only else PLATFORMS + OPTIONAL_PLATFORMS):
             system, arch = platform.split("/")
             matches = [m for m in index["manifests"] if m.get("platform", {}).get("os") == system
                        and m["platform"].get("architecture") == arch
                        and m["platform"].get("variant", "v8" if arch == "arm64" else "") in ("", "v8")]
+            if not matches and platform in OPTIONAL_PLATFORMS:
+                progress(f"{name}: no {platform} manifest, skipped")
+                continue
             if len(matches) != 1 or not DIGEST.fullmatch(matches[0]["digest"]):
                 raise ValueError(f"expected one {platform} manifest for {repo}:{tag}")
             child, child_digest = manifest(matches[0]["digest"])
@@ -82,7 +99,7 @@ def pin_images():
                 raise ValueError(f"invalid image manifest for {repo}:{tag}")
             entry["platforms"][platform] = child_digest
         pins["images"][name] = entry
-        progress(f"pinned {name}: {repo}:{tag} {digest}")
+        progress(f"pinned {name}: {repo}:{tag} {entry['index_digest']} ({', '.join(entry['platforms'])})")
     PINS.write_text(json.dumps(pins, indent=2) + "\n")
 
 
@@ -298,16 +315,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("dmx", nargs="?", default=".build/release/dmx")
     parser.add_argument("--pin", action="store_true", help="resolve metadata and update pins; runs no images")
+    parser.add_argument("--pin-optional", action="store_true",
+                        help=f"add the platforms in {', '.join(OPTIONAL_PLATFORMS)} to the pins that exist; runs no images")
     parser.add_argument("--image", choices=IMAGES, action="append")
-    parser.add_argument("--platform", choices=PLATFORMS, action="append")
+    parser.add_argument("--platform", choices=PLATFORMS + OPTIONAL_PLATFORMS, action="append")
     parser.add_argument("--qemu-guest-base", help="set QEMU_GUEST_BASE in amd64 run/exec for diagnosis (0 restores upstream "
                         "QEMU's layout); never used in a default run")
     parser.add_argument("--x86-emulator", choices=["fex", "qemu"], default="fex",
                         help="what runs the amd64 images (the x86_emulator setting); default fex, as dmx's own default")
     parser.add_argument("--state-dir", type=Path, help="keep isolated state/layers for reruns; use a short path under /tmp")
     args = parser.parse_args()
-    if args.pin:
-        pin_images()
+    if args.pin or args.pin_optional:
+        pin_images(optional_only=args.pin_optional)
         return 0
     pins = json.loads(PINS.read_text())
     assert pins["schema"] == 1
@@ -329,9 +348,13 @@ def main():
     try:
         report["docker_versions"] = matrix.start()
         report["guest"] = matrix.dmx("exec", "--", "sh", "-c", "uname -r; awk '/^KernelPageSize/{print $2;exit}' /proc/self/smaps")
-        for platform in args.platform or PLATFORMS:
+        for platform in args.platform or PLATFORMS + OPTIONAL_PLATFORMS:
             for name in args.image or IMAGES:
-                report["results"].append(matrix.test(name, pins["images"][name], platform))
+                entry = pins["images"][name]
+                if platform not in entry["platforms"]:
+                    # Only some images publish the optional platforms (see OPTIONAL_PLATFORMS).
+                    continue
+                report["results"].append(matrix.test(name, entry, platform))
         report["ok"] = all(r["ok"] for r in report["results"])
         report["status"] = json.loads(matrix.dmx("status", "--json"))
         log = matrix.dmx("exec", "--", "dmesg")

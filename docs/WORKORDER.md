@@ -190,7 +190,20 @@ VM stops.
 - **I1. 32-bit x86 images (`linux/386`).** FEX runs them; register `FEX-x86` too (FEX's own magic
   and mask), add a 386 case to x86test and the image matrix. QEMU users keep x86_64 only, or add
   qemu-i386 if it is cheap.
-  **Tried 2026-10-26, blocked on FEX.** The binfmt side works: `:FEX-x86:M::` with the 64-bit
+  **Done 2026-10-26.** It was FEX's fallback vsyscall page: with no VDSO thunk (dmx builds none)
+  FEX writes `int 0x80; ret` into a page of its own and then `mprotect`s it to `PROT_READ`, so the
+  first syscall a 32-bit program makes through `AT_SYSINFO` lands on a page FEX tracks as
+  non-executable. `FEX_PATCH` now maps it `PROT_READ | PROT_EXEC` and calls
+  `Handler->AddVirtualPage` so FEX's own tracking agrees. `/init` registers `FEX-x86` for FEX only.
+  x86test is 44/44 with a pinned 32-bit Alpine root (static busybox, the dynamic one through
+  `ld-musl-i386.so.1`, i386 `sleep` 5 MB RSS, `true` 3 ms), and `test-images.py` gained optional
+  platforms plus `--pin-optional`, so the six images that publish 386 run without moving the pins
+  already measured: the full matrix is 24/24 across arm64, amd64 and 386 on a quiet Mac. Note that
+  FEX's `uname -m` answers `x86_64` even for a 32-bit process, where QEMU's i386 target says
+  `i686`; recorded in compatibility.md. qemu-i386 was not added: `linux/386` needs the default
+  `x86_emulator fex`.
+
+  **The investigation that got there (2026-10-26).** The binfmt side worked from the start: `:FEX-x86:M::` with the 64-bit
   mask, ELFCLASS32 and `EM_386` in the magic registers and matches, and `/init` can add it for
   FEX only (qemu-x86_64 cannot run those programs, so with that emulator a 386 binary should fail
   to exec instead). But no 32-bit program runs in this build: every one dies with
@@ -201,8 +214,9 @@ VM stops.
   `FEX_MAXINST=5000`, `FEX_MULTIBLOCK=0`, `FEX_SMCCHECKS=0`/`=2`, `FEX_TSOENABLED=0` and
   `FEX_ROOTFS`. Next step is FEX's 32-bit loader path (`ELFCodeLoader::LoadElfFile` with
   `ELFLoadHint = 2/3 of 2^32` and `MemAllocator32Bit`): find which mapping returns `MAP_FAILED`
-  and why, which needs a debug build or a printf in `FEX_PATCH`. The code changes were reverted so
-  main keeps a green x86test; the inputs are already pinned and checked, ready to use:
+  and why. (That turned out to be the wrong lead: the ELF *was* mapped; the entry block address was
+  the vsyscall page.) The code changes were reverted at first so
+  main keeps a green x86test; the inputs are pinned and checked:
   `alpine-minirootfs-3.24.3-x86.tar.gz`
   sha256 `a73bd9ed20a5ed1503a0688957add539e10340c7ca1d9e8c06c34a76ddc5f715` and
   `main/x86/busybox-static-1.37.0-r31.apk`
@@ -223,6 +237,10 @@ VM stops.
 
 ## Then
 
-Release 0.3.0 (maintainer's call to tag and publish): idle CPU fix, FEX with hardware TSO,
-whatever this list fixed. Write the "Changes since 0.2.2" section in NOTES.md by hand as for
-0.2.2.
+Release 0.3.0 (maintainer's call to tag and publish): idle CPU fix, FEX with hardware TSO and the
+five dmx patches in it, 32-bit x86 images, the `make release` fix, whatever else this list fixed.
+Write the "Changes since 0.2.2" section in NOTES.md by hand as for 0.2.2. One open question for
+the maintainer: README and benchmark.md quote the 35-second idle reading (198 MB); the steady state
+is ~20 MB higher, and quoting it would mean rerunning the four-engine comparison.
+
+**Status 2026-10-26: every item in this list is done.**

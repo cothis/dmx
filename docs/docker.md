@@ -84,7 +84,8 @@ docker CLI ──▶ ~/.dmx/docker.sock ──▶ dmx daemon ──vsock──�
   virtio-fs device for one read. The netfilter, bridge and network driver modules Docker loads
   (236 with af_packet, 1.5 MB) come in the same tar, with the kernel's module index; the initramfs gained only the
   3 KB start script (`/sbin/dmx-docker`, from `guest/docker`).
-- **x86_64 emulation** (`docker run --platform linux/amd64`, and x86 programs in `dmx exec`).
+- **x86 emulation** (`docker run --platform linux/amd64` or `linux/386`, and x86 programs in
+  `dmx exec`).
   The default is FEX-Emu (`make fex`, [build-fex.py](../scripts/build-fex.py)): the pinned
   FEX-2610 release source with a dmx patch, built as a static musl PIE so the kernel can run it
   inside any container. The patch drops FEXServer (containers have no copy of it and cannot reach
@@ -113,7 +114,13 @@ docker CLI ──▶ ~/.dmx/docker.sock ──▶ dmx daemon ──vsock──�
   containers always have `/proc`. A translated block holds at most 150 x86 instructions instead of
   upstream's 5000: compiling 5000-instruction superblocks out of code that runs once is what made
   `node -e 0` take 650 ms instead of 260, and no workload measured got slower
-  ([measurements](measurements/2026-10-26-maxinst.json)).
+  ([measurements](measurements/2026-10-26-maxinst.json)). 32-bit x86 runs too: `/init` registers a
+  second binfmt_misc entry for `EM_386` when FEX is the emulator, and dmx's patch makes the page a
+  32-bit program enters the kernel through executable, which upstream leaves read-only when there
+  is no VDSO thunk (every 32-bit program died on its first syscall otherwise). `qemu-x86_64` cannot
+  run 32-bit programs, so with that setting the entry stays out and such a binary fails to exec
+  instead of running under an emulator that cannot
+  ([compatibility.md](compatibility.md#32-bit-x86-linux386-through-fex-emu-2026-10-26)).
   `dmx config set x86_emulator qemu` uses QEMU user mode instead, from the next boot: built by
   `make qemu` from pinned QEMU 11.0.3 source like Alpine's static build, with one dmx patch: the
   x86_64 guest base defaults to 2^47 so programs never see addresses above x86-64's 47-bit user

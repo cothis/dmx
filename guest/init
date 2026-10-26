@@ -97,6 +97,12 @@ if mountpoint -q /var/lib; then
 	[ -x $x86/$emulator ] && modprobe binfmt_misc && mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc &&
 		printf '%s' ":$name:M::"'\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x3e\x00:\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:'$x86/$emulator:POCF \
 			>/proc/sys/fs/binfmt_misc/register || echo "dmx-init: cannot register $emulator" >&2
+	# 32-bit x86 too (linux/386 images): the same magic and mask with ELFCLASS32 and EM_386, as FEX
+	# registers for itself. qemu-x86_64 cannot run those programs, so with that emulator the entry
+	# stays out and a 32-bit binary fails to exec instead of running under the wrong emulator.
+	[ "$emulator" = FEX ] && [ -x $x86/$emulator ] &&
+		{ printf '%s' ":FEX-x86:M::"'\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x03\x00:\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:'$x86/$emulator:POCF \
+			>/proc/sys/fs/binfmt_misc/register || echo "dmx-init: cannot register FEX for 32-bit x86" >&2; }
 fi
 
 # Network: eth0 is dmx's virtio-net, behind a user space NAT in the dmx process (docs/network.md).
