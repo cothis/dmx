@@ -500,16 +500,15 @@ Done when: on a Mac whose only way out is an HTTP proxy (no authentication) with
 
 For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md).
 
-v0.2.2 is being released (maintainer's go-ahead 2026-10-26): the fix for guest memory
-corruption under host memory pressure, IPv6 in the guest network, ICMP errors to the guest and
-IPv6 port forwarding since 0.2.1. Then, in order:
+v0.2.2 is published (signed and notarized, 2026-10-26): the fix for guest memory corruption
+under host memory pressure, IPv6 in the guest network, ICMP errors to the guest and IPv6 port
+forwarding since 0.2.1. main is v0.2.2 plus documentation. In order:
 
-1. Publish v0.2.2 and install it from GitHub as a user would.
-2. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
+1. Rerun the engine comparison on a quiet Mac to tighten its ranges. Warm `docker run` stays
    ~120 ms by choice (data disk barrier flushes, see Decisions).
-3. Community announcement (Show HN, Reddit, GeekNews): phase 11 is out in 0.2.0, so this waits only
+2. Community announcement (Show HN, Reddit, GeekNews): phase 11 is out in 0.2.0, so this waits only
    on the maintainer's word (maintainer, 2026-10-25: after more improvements).
-4. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
+3. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
 
 Phase 8 (own runtime) remains unstarted; Docker currently uses dockerd/containerd/runc. Storage,
 network and sharing extensions are explicitly tracked under phase 6. None is silently marked
@@ -643,6 +642,7 @@ complete by the finished acceptance suites.
 | 2026-10-26 | Guest memory corruption under host memory pressure: cause and fix | The kernel stack overflow and the other oopses (NULL `list_head`s in `anon_vma_clone`, `free_pgtables`, `page_vma_mapped_walk`, a zero PTE under a vmalloc'd stack, two CPUs overflowing at once) were guest memory read back as zeros. They came only while the Mac swapped: 0 of 44 fsck boots under busy loops, an 8 GB compressible hog or heavy disk writes; 10 of 10 with an 11 GB incompressible hog (14 % free, 10 GB swap), files on the data disk lost too. Ruled out one by one under pressure: free page reporting and balloon releases (still 4 of 8 with them and the mapping remap off), the `HostMappings` remap, virtio-mem (5 of 10 at `memory=1G`), MMIO misrouting (no unhandled accesses logged). Turning off `F_NOCACHE` on the data disk: 0 of 18 against 18 of 28 with it. Fix: a bounce buffer in virtio-blk: 0 of 36 under pressure. 1 GB in the guest with direct I/O, clean main against the fix (load 4–12): writes 2.0–2.5 → 2.1 GB/s, 1 MB reads 0.91–1.0 → 1.8 GB/s, 4K reads 70–86 → 91–95 MB/s. virtio-fs O_DIRECT reads now come from the Mac's cache: 6.2–6.4 GB/s (3.1 before), writes 2.1 GB/s. A false lead on the way: reads past the used part of the disk differed from zeros, but those were ext4's bitmaps and backup superblocks, not corruption. Checks after the fix: unit 42/42, selftest 91 MB, daemon 53/53, MCP 30/30, x86 16/16, Docker 69/69 (dockerd idle 288 MB, one container 287, warm hello-world 159–176 ms), sandbox 41/41, `make pressuretest` passes (the old build fails it: 3 of 12 rounds). |
 | 2026-10-23 | Console on a tty | stdin shares a file description with stdout, which the serial attachment makes non-blocking; the stdin reader must handle EAGAIN |
 | 2026-10-26 | 0.2.2 release checks, load 1.2–2.0 | Unit 42/42, selftest ok (91 MB), daemon 53/53, MCP 30/30, x86 16/16, Docker 69/69 (idle without Docker 79 MB, dockerd idle 293, one container 267), sandbox 41/41. daemon's `portfwd_footprint_after_streams_mb` read 1671 MB: the memory checks' 1.5 GB was still coming back (766 → 119 MB within 2 s when sampled); the test now waits for it, 123 → 127 MB across 400 MB of port forward streams. Release directory: guest 61.8 MB, binary tarball 1.8 MB (signed, notarized), sources 467 MiB (21 packages). |
+| 2026-10-26 | 0.2.2 as a user gets it | `make pressuretest` with the release binary: 12 of 12 rounds intact (12 GB hog, 34 % free, 3.4 GB swap used). From a local server: guest download and selftest (94 MB), install.sh, `spctl` accepts it as Notarized Developer ID. From GitHub: `curl … install.sh \| sh` installs 0.2.2, the first boot downloads the v0.2.2 guest, selftest ok (97 MB). 13 assets. Release notes gained a "Changes since 0.2.1" section (SHA256SUMS updated for NOTES.md). |
 
 ## Progress log
 
@@ -708,3 +708,4 @@ complete by the finished acceptance suites.
 - 2026-10-25: ICMP errors to the guest: destination unreachable for TCP and UDP flows the Mac cannot reach and for closed UDP ports. Next: port forwarding on the Mac's IPv6.
 - 2026-10-25: Port forwards listen on the Mac's IPv6 too (::1 with 127.0.0.1, :: with 0.0.0.0), TCP and UDP. A guest kernel stack overflow reproduces on fsck-repair boots. Next: that crash.
 - 2026-10-26: The guest kernel crashes were guest memory corrupted by direct I/O on guest pages while the Mac swapped; virtio-blk now copies through a bounce buffer and virtio-fs ignores O_DIRECT on the host. `make pressuretest` keeps the reproducer. Next: release 0.2.2 (maintainer's call).
+- 2026-10-26: Released v0.2.2 (signed, notarized) with the guest memory corruption fix and guest IPv6; installed and booted from GitHub. daemontest's port forward footprint now waits for the memory checks' memory to come back. Next: the engine comparison on a quiet Mac.

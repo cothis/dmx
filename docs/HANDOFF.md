@@ -1,4 +1,4 @@
-# 다음 세션 인계 — 2026-10-25 (v0.2.1 이후)
+# 다음 세션 인계 — 2026-10-26 (v0.2.2 이후)
 
 `이어서 진행해`라는 요청을 받으면 [PLAN.md](PLAN.md)의 **Next up**과 이 문서를 읽어요.
 대화 이력이나 `/tmp` 파일은 필요 없어요. 계획·결정·측정의 기준은 `PLAN.md`예요.
@@ -20,40 +20,28 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
 
 ## 현재 상태
 
-- **게시된 릴리스:** [v0.2.1](https://github.com/cothis/dmx/releases/tag/v0.2.1)(서명·공증).
-  GitHub에서 받아 설치·부팅까지 확인했어요. main은 v0.2.1 태그와 같아요(문서 커밋만 뒤에 있어요).
-- **v0.2.0 → v0.2.1 변경:**
-  - 에이전트 control 호출 60초 타임아웃과 연결 교체(`AgentClient`)
-  - 부팅 시 `e2fsck -p`, 실패하면 `-fy`(`guest/init`)
-  - `disk_size`를 올리면 데이터 디스크를 온라인으로 확장(호스트 `ftruncate`, 에이전트
-    `EXT4_IOC_RESIZE_FS`)
-  - 게스트 DNS를 macOS 리졸버로 처리(`HostDNS.swift`, `DNSServiceQueryRecord`): split DNS,
-    `.local`, 네트워크 변경. 없는 이름은 NXDOMAIN 대신 빈 NOERROR예요.
-  - 공유 폴더: 게스트가 Unix 소켓을 bind할 수 있고(게스트끼리 연결), `user.*` xattr만 보이며,
-    chown과 non-root 사용자가 만든 파일의 소유자를 호스트 xattr `com.dmx.owner`에 저장해요.
-    virtio-fs는 늘 default_permissions라 이게 있어야 non-root 컨테이너가 바인드 마운트에 써요
-    (postgres 데이터 디렉터리). FUSE 7.33 + `HANDLE_KILLPRIV_V2`(`FUSEServer.swift`).
-  - Mac의 SSH 에이전트를 VM의 `/run/host-services/ssh-auth.sock`으로 제공(Docker Desktop과 같은
-    경로). vsock 장치가 게스트에서 먼저 여는 연결을 받아요(`VirtioVsock.listen`, 포트 1025,
-    `HostServices.swift`, 에이전트 `host_services.rs`).
-  - CNAME 뒤 주소를 1.5초가 아니라 쿼리 제한(5초)까지 기다려요(느린 네트워크에서 주소 없는 답 방지).
-- **v0.2.1 이후 main(미배포):** VM 네트워크 IPv6. 게스트 `fd64:646d:7800::2/64`, 게이트웨이
-  `::1`(NDP·ping·DNS), `::254`는 Mac의 `::1`. TCP/UDP/ICMPv6 echo를 Mac의 IPv6 소켓으로 보내요
-  (`UserNet.swift`의 `IPAddress`, `ipFrame`). Mac에 경로가 없는 AAAA는 걸러요(`HostDNS.routable`).
-  dockerd의 `ip6tables`를 더 이상 끄지 않아 `--ipv6` 네트워크가 NAT66으로 나가요. ULA라서
-  듀얼스택 이름은 계속 IPv4가 먼저예요. 이 Mac에는 IPv6 기본 경로가 없어 인터넷 IPv6는 시험하지
-  못했어요(Mac의 `::1`, Tailscale ULA로 확인). 이어서 게스트로 ICMP 오류(destination unreachable)를
-  전달해요(`UserNet.unreachable`): 연결 실패가 "connection refused" 대신 실제 사유로 보이고, 닫힌
-  UDP 포트는 바로 오류가 나요. 포트 포워딩도 Mac의 IPv6에서 받아요(127.0.0.1이면 `::1`, 0.0.0.0이면 `::`).
-- **게스트 메모리 손상 수정(main, 미배포):** 한 번 본 커널 oops와 fsck 부팅 크래시의 원인은 Mac이
-  스왑할 때 virtio-blk의 direct I/O(`F_NOCACHE`)가 게스트 페이지에 직접 닿아 게스트 메모리가 0으로
-  보이는 것이었어요(파일 유실도 있었어요). 이제 virtio-blk는 자체 bounce 버퍼로 복사하고
-  (`VirtioBlock.bounced`), virtio-fs는 게스트의 O_DIRECT를 `F_NOCACHE`로 넘기지 않아요. 재현은
-  `make pressuretest`(Mac을 몇 분간 스왑시켜요, 릴리스 체크 아님). 0.2.x 사용자 모두에 해당하니
-  0.2.2 릴리스를 maintainer에게 제안할 만해요.
-- **마지막 검증**(0.2.1 릴리스, load 1.2–3.3): 단위 42/42, selftest 86 MB, daemontest 48/48,
-  mcptest 30/30, x86test 16/16, dockertest 66/66, sandboxtest 41/41. GitHub에서 설치한 0.2.1
-  selftest 96 MB.
+- **게시된 릴리스:** [v0.2.2](https://github.com/cothis/dmx/releases/tag/v0.2.2)(서명·공증, 2026-10-26).
+  GitHub에서 받아 설치·부팅까지 확인했어요. main은 v0.2.2에 문서 커밋만 더한 상태예요.
+- **v0.2.1 → v0.2.2 변경:**
+  - 게스트 메모리 손상 수정: Mac이 스왑할 때 virtio-blk의 direct I/O(`F_NOCACHE`)가 게스트
+    페이지에 직접 닿아 게스트 메모리가 0으로 보였어요(커널 oops, 파일 유실). 이제 virtio-blk는
+    자체 bounce 버퍼로 복사하고(`VirtioBlock.bounced`), virtio-fs는 게스트의 O_DIRECT를
+    `F_NOCACHE`로 넘기지 않아요. 재현은 `make pressuretest`(Mac을 몇 분간 스왑시켜요, 릴리스
+    체크에는 넣지 않았지만 0.2.2는 릴리스 바이너리로 12/12 통과).
+  - VM 네트워크 IPv6: 게스트 `fd64:646d:7800::2/64`, 게이트웨이 `::1`(NDP·ping·DNS), `::254`는
+    Mac의 `::1`. TCP/UDP/ICMPv6 echo를 Mac의 IPv6 소켓으로 보내요(`UserNet.swift`). Mac에 경로가
+    없는 AAAA는 걸러요(`HostDNS.routable`). dockerd의 `--ipv6` 네트워크가 NAT66으로 나가요.
+    이 Mac에는 IPv6 기본 경로가 없어 인터넷 IPv6는 시험하지 못했어요.
+  - 게스트로 ICMP 오류(destination unreachable) 전달(`UserNet.unreachable`).
+  - 포트 포워딩과 published 포트가 Mac의 IPv6에서도 받아요(127.0.0.1이면 `::1`, 0.0.0.0이면 `::`).
+- **v0.2.0 → v0.2.1 변경**(요약): 에이전트 control 호출 타임아웃, 부팅 시 e2fsck, 데이터 디스크
+  온라인 확장, macOS 리졸버로 DNS, 공유 폴더의 Unix 소켓·`user.*` xattr·소유자 저장
+  (`com.dmx.owner`), Mac SSH 에이전트(`/run/host-services/ssh-auth.sock`).
+- **마지막 검증**(0.2.2 릴리스, load 1.2–2.0): 단위 42/42, selftest 91 MB, daemontest 53/53,
+  mcptest 30/30, x86test 16/16, dockertest 69/69, sandboxtest 41/41, pressuretest 12/12.
+  GitHub에서 설치한 0.2.2 selftest 97 MB.
+- **릴리스 노트:** `release.py`가 만드는 NOTES.md에는 변경 요약이 없어요. 0.2.2는 "Changes since
+  0.2.1" 절을 손으로 넣고 SHA256SUMS의 NOTES.md 줄을 다시 계산했어요.
 
 ## 서명·공증 (저장소 밖)
 
@@ -81,6 +69,6 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
 
 ## 남은 작업
 
-PLAN.md의 Next up 순서를 따라요. 요약하면: 0.2.2 릴리스(maintainer 결정), 조용한 Mac에서 엔진 비교 재측정,
-커뮤니티 홍보(maintainer 결정), 실제 회사망에서 Phase 11
-확인. 0.2.1 릴리스는 maintainer가 원할 때 release.md 절차로 내요.
+PLAN.md의 Next up 순서를 따라요. 요약하면: 조용한 Mac에서 엔진 비교 재측정(Docker Desktop·OrbStack·
+Colima는 측정용으로 잠깐 설치했다가 지워도 돼요), 커뮤니티 홍보(maintainer 결정), 실제 회사망에서
+Phase 11 확인. 다음 릴리스는 maintainer가 원할 때 release.md 절차로 내요.
