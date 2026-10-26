@@ -45,7 +45,7 @@ slower than Colima's because dmx keeps write ordering on the data disk across a 
 Requires macOS 15 or later on Apple Silicon.
 
 ```sh
-curl -fsSL https://github.com/cothis/dmx/releases/download/v0.3.0/install.sh | sh
+curl -fsSL https://github.com/cothis/dmx/releases/download/v0.3.1/install.sh | sh
 dmx install                      # launchd starts dmx on demand; installs docker, compose, buildx
                                  # and selects the docker context "dmx"
 docker run --rm hello-world      # the first run downloads the Linux guest (~62 MB, sha256-checked)
@@ -77,8 +77,8 @@ old version until it exits, which `dmx update` says: `dmx stop` powers the VM of
 exits a few seconds later, so the next command runs the new version. Any command that reaches a
 daemon of another version says so too.
 
-`dmx update` arrives after v0.3.0, so on v0.3.0 and earlier update by running the install script
-of the release you want, which replaces the binary the same way:
+`dmx update` is in v0.3.1 and later. From v0.3.0 or earlier, update once by running the install
+script, which replaces the binary the same way:
 
 ```sh
 curl -fsSL https://github.com/cothis/dmx/releases/latest/download/install.sh | sh
