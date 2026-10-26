@@ -26,9 +26,10 @@ slower than Colima's because dmx keeps write ordering on the data disk across a 
   idle, and powers the VM off after 5 minutes with nothing running (the daemon then exits).
 - **Docker compatible.** The stock `docker` CLI, Compose and BuildKit against a Docker Engine API
   socket; published ports, bind mounts of Mac paths, `host.docker.internal`, the Mac's SSH agent
-  at `/run/host-services/ssh-auth.sock`, restart policies and amd64 images (through QEMU) work as
-  on Docker Desktop. dmx installs pinned copies of the CLI
-  tools, so neither Homebrew nor Docker Desktop is needed.
+  at `/run/host-services/ssh-auth.sock`, restart policies and amd64 images work as on Docker
+  Desktop. amd64 images run through FEX-Emu with the Apple CPU's hardware TSO memory model, in
+  place of Docker Desktop's Rosetta; `dmx config set x86_emulator qemu` switches to QEMU. dmx
+  installs pinned copies of the CLI tools, so neither Homebrew nor Docker Desktop is needed.
 - **AI native.** Every command has `--json` and structured errors with a hint naming the next
   command; nothing prompts. `dmx mcp` gives AI clients the engine itself over MCP, with capped
   output, and disposable sandboxes with a network and file policy, resource limits, a TTL, and
@@ -152,7 +153,8 @@ inputs are pinned by sha256.
 make build     # swift build + ad-hoc sign with the hypervisor entitlement
 make kernel    # build the guest kernel inside a dmx VM (once per kernel version)
 make qemu      # build the guest's qemu-x86_64 inside a dmx VM (once per version)
-make guest     # build ~/.dmx/guest from pinned Alpine Linux packages, the kernel and qemu
+make fex       # build the guest's FEX-Emu inside a dmx VM (once per version)
+make guest     # build ~/.dmx/guest from pinned Alpine Linux packages, the kernel, qemu and FEX
 make install   # copy dmx to ~/.local/bin (PREFIX=... to change)
 make selftest  # boot, agent, memory return; then daemontest, dockertest, mcptest,
                # sandboxtest, x86test, imagetest, benchmark (see the Makefile)
@@ -171,7 +173,7 @@ phases, measurements), [docs/docker.md](docs/docker.md), [docs/network.md](docs/
   - `MCP`, `Sandbox`: `dmx mcp`, capped exec, sandbox policies and lifecycle
 - `Sources/dmx`: the command line (argument parsing and output only)
 - `guest/init`, `guest/agent`, `guest/docker`: PID 1, the Rust guest agent, Docker's start-up
-- `scripts/`: guest, kernel and qemu builds, release packaging, end-to-end tests on the real VM
+- `scripts/`: guest, kernel, qemu and FEX builds, release packaging, end-to-end tests on the real VM
 
 ## License
 

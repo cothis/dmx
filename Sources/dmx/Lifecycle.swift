@@ -178,7 +178,7 @@ struct ConfigCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "config",
         abstract: "Read or change settings in ~/.dmx/config.json.",
-        discussion: "Settings: cpus, memory (ceiling, e.g. 8G), idle_timeout (e.g. 5m), disk_size (default 64G; ~/.dmx/data.img is sparse, so it costs only what the guest stores; a larger value grows an existing disk at the next boot, a smaller one is ignored: disks do not shrink). They apply the next time the VM boots. Mirrors for company networks: release_url (the guest, GitHub's layout <url>/<tag>/<asset>) and tools_url (the docker CLI tools, <url>/<upstream file name>); downloads are still checked against their pinned sha256.",
+        discussion: "Settings: cpus, memory (ceiling, e.g. 8G), idle_timeout (e.g. 5m), disk_size (default 64G; ~/.dmx/data.img is sparse, so it costs only what the guest stores; a larger value grows an existing disk at the next boot, a smaller one is ignored: disks do not shrink), x86_emulator (fex, the default, or qemu: what runs x86_64 programs and linux/amd64 images). They apply the next time the VM boots. Mirrors for company networks: release_url (the guest, GitHub's layout <url>/<tag>/<asset>) and tools_url (the docker CLI tools, <url>/<upstream file name>); downloads are still checked against their pinned sha256.",
         subcommands: [Get.self, Set.self, Unset.self]
     )
 
@@ -255,6 +255,7 @@ func configReport(_ paths: Paths, only key: String?) throws -> (ConfigReport, St
         case "disk_size": config.diskSize != nil
         case "release_url": config.releaseUrl != nil
         case "tools_url": config.toolsUrl != nil
+        case "x86_emulator": config.x86Emulator != nil
         default: config.idleTimeout != nil
         }
     }

@@ -424,11 +424,17 @@ try:
     results["footprint_after_net_mb"] = status().get("host_footprint_mb")
 
     # DNS goes through macOS's resolver: the Mac's own .local name is known only to multicast DNS
-    # (no unicast server has it), and its loopback answer becomes the gateway's host address.
+    # (no unicast server has it). The guest gets the Mac's own IPv4 answer, a loopback answer as
+    # the gateway's host address. Which macOS gives depends on the Mac's network (loopback with no
+    # LAN, the LAN address on one).
     local = subprocess.run(["scutil", "--get", "LocalHostName"], capture_output=True, text=True).stdout.strip()
+    mac = subprocess.run(["dscacheutil", "-q", "host", "-a", "name", f"{local}.local"], capture_output=True, text=True).stdout
+    mac = {line.split()[1] for line in mac.splitlines() if line.startswith("ip_address:")}
+    want = {"192.168.127.254" if a.startswith("127.") else a for a in mac}
     r = dmx("exec", "--", "nslookup", f"{local}.local", "192.168.127.1")
-    check("dns_host_resolver", r.returncode == 0 and b"192.168.127.254" in r.stdout and b"127.0.0.1" not in r.stdout.split(b"answer:")[-1],
-          repr(r.stdout[-300:]))
+    # Addresses after the first "answer:" (the lines before it name the server).
+    got = {line.split()[1].decode() for line in r.stdout.partition(b"answer:")[2].splitlines() if line.startswith(b"Address:")}
+    check("dns_host_resolver", r.returncode == 0 and bool(want) and got == want, f"mac {sorted(mac)}, guest {sorted(got)}")
     # IPv6: DNS from the gateway's IPv6 address, the Mac's names as its IPv6 address, and UDP to
     # the Mac's ::1 (UDP over IPv6 must carry a checksum).
     r = dmx("exec", "--", "nslookup", "-type=AAAA", "host.docker.internal", "fd64:646d:7800::1")

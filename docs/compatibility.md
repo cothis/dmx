@@ -46,6 +46,31 @@ qemu-x86_64. With dmx's qemu-x86_64 (the guest-base default below) the default m
 [Redis with the earlier explicit workaround](measurements/2026-10-25-redis-workaround.json),
 [18/18 with dmx's qemu-x86_64](measurements/2026-10-25-images-guest-base.json).
 
+## amd64 through FEX-Emu, 2026-10-26
+
+FEX-Emu is the default x86 emulator since 2026-10-26 (`x86_emulator`, [docker.md](docker.md));
+QEMU stays available as a setting. The amd64 half of the matrix, run once with each, same
+guest, host load 1–5:
+
+| Image label | FEX | QEMU | FEX workload | QEMU workload |
+|---|---|---|---|---|
+| Alpine 3.24 | pass | pass | 0.17 s | 0.16 s |
+| Debian trixie-slim | pass | pass | 0.21 s | 0.19 s |
+| Ubuntu 24.04 | pass | pass | 0.22 s | 0.20 s |
+| Python 3.14-slim | pass | pass | 0.40 s | 1.06 s |
+| Node 24-alpine | pass | pass | 1.05 s | 0.97 s |
+| nginx stable-alpine | pass | pass | 1.55 s | 1.59 s |
+| Redis 8-alpine | pass | pass | 2.36 s | 2.39 s |
+| PostgreSQL 18-alpine | pass | pass | 2.84 s | 5.17 s |
+| Temurin 21-jdk-jammy | pass | pass | 2.65 s | 3.91 s |
+
+Raw reports: [FEX](measurements/2026-10-26-images-amd64-fex.json),
+[QEMU](measurements/2026-10-26-images-amd64-qemu.json). FEX keeps x86 programs below 2^47 by
+reserving the address space above it, so Redis's jemalloc works without a guest-base patch;
+`make x86test` checks the same probe and allocators under both emulators
+([report](measurements/2026-10-26-x86test-fex-qemu.json)). FEX starts Node slower (650 vs 370 ms
+for `node -e 0`); why is not measured yet.
+
 ## Why 4K guest pages
 
 The earlier 16K kernel saved memmap memory. x86 programs see 4K pages through QEMU, though,

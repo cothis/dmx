@@ -1,0 +1,70 @@
+{
+  "at": "2026-10-26",
+  "host": "Apple M4, macOS 26.6.1",
+  "guest_kernel": "6.18.58-dmx-4k with Asahi TSO patches",
+  "detection": "CPU features: detected: TSO memory model (Apple)",
+  "message_passing_litmus": {
+    "note": "2 threads, 20 x 2M stores/loads, reorderings seen by the reader",
+    "default_model": [
+      52,
+      21,
+      28,
+      18,
+      31
+    ],
+    "tso_via_prctl": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "pipe_round_trip_ns": {
+    "note": "two processes pinned to one CPU, 300000 round trips, best of runs",
+    "kernel_without_tso_patches": [
+      958,
+      969,
+      947,
+      960,
+      947
+    ],
+    "asahi_patches_as_is": [
+      3842,
+      3847,
+      3853,
+      3862,
+      3883
+    ],
+    "dmx_write_only_on_change_load_5to6": {
+      "plain_threads": [
+        1001,
+        1027,
+        1015,
+        1018,
+        1012
+      ],
+      "both_tso": [
+        1125,
+        1129,
+        1119
+      ],
+      "tso_and_plain_alternating": [
+        2658,
+        2673,
+        2686
+      ]
+    },
+    "kernel_without_tso_patches_load_5to6": [
+      1000,
+      1003,
+      994,
+      1014,
+      1000,
+      1000,
+      1019,
+      1007,
+      994
+    ]
+  }
+}

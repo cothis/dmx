@@ -23,10 +23,14 @@ public struct Config: Codable, Sendable, Equatable {
     /// Where dmx downloads the docker CLI tools: `<tools_url>/<upstream file name>`, each still
     /// checked against its pinned sha256. `DMX_TOOLS_URL` overrides it.
     public var toolsUrl: String?
+    /// What runs x86_64 programs and images: "fex" (FEX-Emu, the default) or "qemu" (QEMU user
+    /// mode), as Docker Desktop offers Rosetta or QEMU. Applies from the next boot.
+    public var x86Emulator: String?
 
     public static let defaultIdleTimeout = 300
     public static let defaultDiskSize: UInt64 = 64 << 30
-    public static let keys = ["cpus", "memory", "idle_timeout", "shares", "disk_size", "release_url", "tools_url"]
+    public static let keys = ["cpus", "memory", "idle_timeout", "shares", "disk_size", "release_url", "tools_url", "x86_emulator"]
+    public static let x86Emulators = ["fex", "qemu"]
 
     public init() {}
 
@@ -50,7 +54,9 @@ public struct Config: Codable, Sendable, Equatable {
     }
 
     public var spec: MachineSpec {
-        get throws { MachineSpec(cpus: cpus, maxMemory: try memory.map(parseSize), shares: try shareList) }
+        get throws {
+            MachineSpec(cpus: cpus, maxMemory: try memory.map(parseSize), kernelArgs: ["dmx.x86=\(x86Emulator ?? "fex")"], shares: try shareList)
+        }
     }
 
     public var idleTimeoutSeconds: Int { idleTimeout ?? Self.defaultIdleTimeout }
@@ -74,6 +80,7 @@ public struct Config: Codable, Sendable, Equatable {
             "disk_size": diskSize ?? formatSize(Self.defaultDiskSize),
             "release_url": releaseUrl ?? GuestRelease.defaultBaseURL,
             "tools_url": toolsUrl ?? "upstream",
+            "x86_emulator": x86Emulator ?? "fex",
         ]
     }
 
@@ -110,6 +117,13 @@ public struct Config: Codable, Sendable, Equatable {
             releaseUrl = try value.map(Self.mirror)
         case "tools_url":
             toolsUrl = try value.map(Self.mirror)
+        case "x86_emulator":
+            guard let value else { x86Emulator = nil; return }
+            guard Self.x86Emulators.contains(value.lowercased()) else {
+                throw DMXError("bad_config_value", "x86_emulator must be fex or qemu, not \"\(value)\"",
+                               hint: "fex is the faster default; qemu is the fallback for a program FEX cannot run")
+            }
+            x86Emulator = value.lowercased()
         default:
             throw DMXError("unknown_config_key", "no setting named \"\(key)\"", hint: "settings are \(Self.keys.joined(separator: ", ")); run `dmx config get`")
         }

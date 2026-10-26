@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build install kernel qemu guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest pressuretest benchmark test release clean
+.PHONY: build install kernel qemu fex guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest pressuretest benchmark test release clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -24,6 +24,11 @@ kernel: build
 # `make guest` needs it.
 qemu: build
 	python3 -I scripts/build-qemu.py
+
+# Builds FEX-Emu, the default x86_64 emulator (pinned source, a dmx patch, static musl), inside a
+# dmx VM. `make guest` needs it.
+fex: build
+	python3 -I scripts/build-fex.py
 
 guest:
 	python3 -I scripts/build-guest.py

@@ -46,7 +46,8 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | Own VMM on Hypervisor.framework, not Virtualization.framework (2026-10-23) | VZ never returns guest memory while the VM runs: ballooned pages stay in the host footprint, there is no free page reporting, and restore backs the whole ceiling (see Findings). With guest RAM mapped by dmx itself, dmx can release freed pages (`hv_vm_unmap` + `madvise(MADV_ZERO)`, with a REUSABLE fallback). Costs: we write the virtio devices, and lose Rosetta. Phase 1 to 2 ran on VZ. |
 | The VMM is Swift, in DMXCore (2026-10-23) | One language and one binary for all host code; Hypervisor.framework is a C API Swift calls directly. Maintainer's choice over a Rust VMM process. |
 | macOS 15 or later (2026-10-23) | Hypervisor.framework has an in-kernel GICv3 (`hv_gic_create`) from macOS 15, so dmx does not emulate an interrupt controller. |
-| x86_64 images through QEMU user mode + binfmt, not Rosetta (2026-10-23) | Rosetta for Linux exists only inside Virtualization.framework. Most images are multi-arch; emulation is a fallback. |
+| x86_64 images through QEMU user mode + binfmt, not Rosetta (2026-10-23) | Rosetta for Linux exists only inside Virtualization.framework. Most images are multi-arch; emulation is a fallback. FEX-Emu replaced QEMU as the default on 2026-10-26 (below). |
+| x86_64 images through FEX-Emu with hardware TSO, QEMU as a setting (2026-10-26) | Same image matrix (9/9 amd64 either way), but FEX runs CPU-bound x86 code 2.5–9× faster than QEMU (python loop 1663 → 193 ms, 100 MB sha256 3.3× → 1.3× native, postgres workload 5.2 → 2.8 s), because the Apple CPU's TSO mode, which the guest can set through Hypervisor.framework on macOS 15, removes the barriers x86 memory ordering otherwise needs. Docker Desktop likewise defaults to Rosetta and keeps QEMU as an option: `x86_emulator` (fex, qemu). FEX starts Node slower (650 vs 370 ms). Costs: a static musl build of FEX with a dmx patch (no FEXServer, four glibc assumptions), Asahi Linux's out-of-tree TSO kernel patches, and +1 MB in docker.img. |
 | First release choices (maintainer, 2026-10-25) | `v0.1.0`, SemVer, an ordinary GitHub release; GPL source attached to every release as `dmx-sources-<version>.tar` (3a) instead of a three-year written offer; ad-hoc signing for v0.1.0, Developer ID signing and notarization from the next release (maintainer, 2026-10-25); the name stays "dmx", described as Docker-compatible, with a trademark notice. See [release.md](release.md#decisions-maintainer-2026-10-25). |
 | dmx builds its own qemu-x86_64 with a 2^47 guest base (2026-10-25) | Upstream QEMU gives a 64-bit guest any host address; on the 48-bit aarch64 guest kernel that includes addresses above x86-64's 47-bit user space, and jemalloc (Redis) crashed. A default in the binfmt interpreter covers run, exec, fork and chroots; an environment variable would leak into containers and a wrapper breaks binfmt's `F`/`O`/`C`. Same pinned source, Alpine patches and configure line, one small patch; `QEMU_GUEST_BASE` still overrides. |
 | Shared-file ownership stored in a host xattr; guests see only `user.*` xattrs (2026-10-25) | virtio-fs always mounts with default_permissions, so the guest kernel checks the owner it is told: with every host file shown as root's, non-root container users could not write to bind mounts or even to directories they had just made (postgres's initdb failed). chown and non-root creations store `uid:gid` in `com.dmx.owner`, as Docker's osxfs did with `com.docker.owner`; the host still checks access as the host user. Only `user.*` xattrs pass, so the guest cannot clear `com.apple.quarantine` or plant `security.capability`. |
@@ -441,12 +442,13 @@ BuildKit through dmx's Buildx; the deprecated legacy builder remains available t
       which they read back. Trimming once per idle spell: 0.57 % (benchmark, three runs).
 - [ ] An idle footprint that reads ~100 MB higher in some runs (2 of 9 before the trim fix, 0 of
       3 after). Not explained yet.
-- [ ] x86_64 images faster than QEMU (maintainer, 2026-10-26: after the idle CPU work): try
-      FEX-Emu as the binfmt handler (MIT, needs 4K pages, which the guest has), then hardware TSO:
-      Hypervisor.framework on macOS 15 exposes ACTLR_EL1.EnTSO per vCPU
-      (`HV_SYS_REG_ACTLR_EL1`), and Asahi's kernel patches switch TSO per process
-      (`PR_SET_MEM_MODEL`). Measure with x86test and the image matrix against QEMU (SHA-256 is
-      3.4× native today).
+- [x] x86_64 images faster than QEMU (maintainer, 2026-10-26): FEX-Emu (FEX-2610, MIT) is the
+      default binfmt handler, built by `make fex` as a static musl PIE from pinned sources with a
+      dmx patch; the guest kernel carries Asahi's `PR_SET_MEM_MODEL` patches, so FEX runs x86
+      code with the CPU's TSO mode instead of barriers. QEMU stays as `x86_emulator qemu`. x86test
+      runs both (36/36): sha256 1.3× native (QEMU 3.3×), python loop 8.6× faster. Image matrix
+      amd64 9/9 with each ([compatibility.md](compatibility.md#amd64-through-fex-emu-2026-10-26)).
+- [ ] Node starts slower under FEX (650 vs 370 ms for `node -e 0`); not profiled yet.
 - [x] Release decisions (2026-10-25): `v0.1.0`, attached sources, ad-hoc signing, name "dmx".
       `release.py` builds `dmx-sources-<version>.tar` (467 MiB, byte-identical for the same
       inputs): aports directories and sha512-checked distfiles of all 21 Alpine source packages,
@@ -513,18 +515,19 @@ Done when: on a Mac whose only way out is an HTTP proxy (no authentication) with
 
 For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md).
 
-v0.2.2 is published (signed and notarized, 2026-10-26): the fix for guest memory corruption
-under host memory pressure, IPv6 in the guest network, ICMP errors to the guest and IPv6 port
-forwarding since 0.2.1. main is v0.2.2 plus documentation. In order:
+v0.2.2 is published (signed and notarized, 2026-10-26). main adds, unreleased: the idle CPU fix
+(1.4 → 0.57 %) and FEX-Emu with hardware TSO as the default x86 emulator (QEMU as a setting),
+with a new kernel (Asahi's TSO patches) and docker.img format 3. In order:
 
-1. x86_64 images faster than QEMU (phase 10's open task): FEX-Emu as the binfmt handler, then
-   hardware TSO through `HV_SYS_REG_ACTLR_EL1`. Measure x86test and the image matrix first.
-2. The idle footprint that sometimes reads ~100 MB high (phase 10). The idle CPU is fixed on
-   main (1.4 → 0.57 %), unreleased. Warm `docker run` (~100 ms quiet) stays behind Colima by
-   choice (data disk barrier flushes, see Decisions).
-3. Community announcement (Show HN, Reddit, GeekNews): phase 11 is out in 0.2.0, so this waits only
+1. Release 0.3.0 with FEX (maintainer's call: tag and publish). `make release` now packages
+   FEX's sources and licenses and the TSO kernel patches; check the release directory before
+   publishing, it has not been run since.
+2. Node starts slower under FEX (650 vs 370 ms); profile it (FEX's `SMCChecks`, code cache).
+3. The idle footprint that sometimes reads ~100 MB high (phase 10). Warm `docker run` (~100 ms
+   quiet) stays behind Colima by choice (data disk barrier flushes, see Decisions).
+4. Community announcement (Show HN, Reddit, GeekNews): phase 11 is out in 0.2.0, so this waits only
    on the maintainer's word (maintainer, 2026-10-25: after more improvements).
-4. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
+5. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
 
 Phase 8 (own runtime) remains unstarted; Docker currently uses dockerd/containerd/runc. Storage,
 network and sharing extensions are explicitly tracked under phase 6. None is silently marked
@@ -662,6 +665,13 @@ complete by the finished acceptance suites.
 | 2026-10-26 | Engine comparison on a quiet Mac (load 1.0–1.6), 2 CPUs/4 GiB, three rounds | Median idle: dmx 198, OrbStack 530, Colima 1093, Docker Desktop 1053 MB. Holding 2 GiB: 2380 / 2614 / 3132 / 3225 MB. After freeing: 342 / 546 / 3138 / 3223 MB; dmx back in 1.9 s, OrbStack 5.4 s, the VZ engines not within 10 s. Warm `docker run` 101 / 95 / 52 / 67 ms; SHA-256 of 256 MiB 853 / 1261 / 806 / 818 ms. Idle CPU 1.4 / 0.6 / 0.6 / 0.4 % of one core. dmx v0.2.1 against v0.2.2 alternating, three each: idle 182–297 vs 187–284 MB, CPU 1.4–1.6 vs 1.3–1.9 %, so neither the idle CPU nor the occasional ~100 MB higher idle is new in 0.2.2 ([raw](measurements/2026-10-26-engine-comparison.json)). Engines installed temporarily and removed. |
 | 2026-10-26 | What a dmx VM does at idle, 2 CPUs, dockerd up | Process CPU 1.0–1.5 % of one core with dockerd, 0.23 % without. In the guest (`/proc/*/task/*/schedstat`, 30 s): 110 ms of CPU over both vCPUs, dockerd and containerd ~60 ms; timer interrupts 40/s, IPIs 11/s. The vCPUs never leave `hv_vcpu_run` for WFI or the vtimer on macOS 26.6 with the in-kernel GIC (0 such exits counted; Hypervisor.framework waits in the kernel), so the 1 ms WFI cap is never reached: caps of 1, 10 and 100 ms gave the same CPU. MMIO exits ~50/s (data disk, balloon stats, vsock). `HostMappings` remaps 0.3/s, 0.6–6 ms per 10 s; turning them off changed nothing measurable. The cost was the idle trim repeating: 124 MB at the first trim, then 33–51 MB every 5–20 s, which dockerd and containerd read back (35 MB of disk reads in 30 s). |
 | 2026-10-26 | Idle trim once per idle spell | Alternating with 0.2.2, four rounds, CPU from 35 to 65 s after `docker info`: 1.05–1.23 % → 0.77–0.83 %, trims in that window 4 → 1, footprint 181–205 → 193–199 MB. `benchmark.py`, three runs: idle CPU 0.57 % (0.55–0.72; 1.4 % before), idle 195–200 MB, `docker run` 95–106 ms, 2 GiB held 2391 MB, 353 MB after freeing it (342 before) in 2.0–5.4 s. Unit 42/42, selftest 90 MB, daemon 53/53 (`memory_idle_trim_s` 10.1), Docker 69/69 ([raw](measurements/2026-10-26-idle-cpu.json)). |
+| 2026-10-26 | FEX-Emu first try (FEX-2610, glibc build in an Ubuntu container, software TSO), best of 3 | Same x86 Alpine root, ms, QEMU → FEX: busybox sha256 of 100 MB 1027 → 496, gzip -1 100 MB 6617 → 1576, python3 start 114 → 74, python3 loop 4446 → 680, node start 385 → 658, node JIT loop ~3400 → ~3900. With TSO emulation off (the ceiling hardware TSO can reach): sha256 403, python loop 410. RSS: `sleep` 8.7 vs 5.8 MB, python 21 vs 23 MB. |
+| 2026-10-26 | Hardware TSO in a Hypervisor.framework guest (M4, macOS 26.6.1) | The guest sees MIDR implementer 0x61 (Apple). With Asahi's four TSO patches the kernel detects "TSO memory model (Apple)" and `PR_SET_MEM_MODEL` works with no VMM change. Message-passing litmus (2 threads): 18–52 reorderings per run in the default model, 0 in TSO, five runs each ([raw](measurements/2026-10-26-hardware-tso.json)). Each guest ACTLR_EL1 access traps (~0.7 µs): the patches as written read and write it on every context switch, pipe round trip 950 → 3850 ns. Writing it only when the next thread's value differs: 994–1019 vs 1001–1027 ns without the patches at the same load; TSO↔TSO 1125 ns, TSO↔plain alternating 2670 ns. |
+| 2026-10-26 | FEX as a static musl binary | glibc-only assumptions found by running it: a rwlock re-locked to check ownership (glibc returns EDEADLK, musl waits forever: every x86 program hung), `PTHREAD_STACK_MIN` 2 KB before FEX's stack pivot and a second `pthread_detach` of an exiting thread (both crashed threaded programs), the `getdents64` prototype (compile error). FEXServer cannot run in containers (no binary there, its abstract socket is per network namespace); dmx runs FEX without it. FEX needs `/proc`: without it (a bare chroot) it cannot reserve the address space above 2^47, x86 programs get `0xffff...` addresses and `ldd` fails; containers always have `/proc`. `make fex` 62–70 s (compile 65 s alone; 184 s with a kernel build beside it), 5.7 MB, two builds same sha256. |
+| 2026-10-26 | x86test with both emulators, load 2–6 | 36/36. FEX / QEMU: 100 MB sha256 390–400 / 1000–1010 ms (native 310: 1.3× / 3.0–3.3×), python loop 190–193 / 1663–1696 ms, python3 start 66–70 / 110–116 ms, node start 650–660 / 366–373 ms, `true` 3 / 2–3 ms, x86 `sleep` RSS 5 / 5 MB, idle 96–99 / 92–97 MB, footprint after the x86 work 275–292 / 227–231 MB, after cleanup 115–138 / 126–127 MB. FEX's hardware TSO check: `PR_GET_MEM_MODEL` 1 in an x86 process ([raw](measurements/2026-10-26-x86test-fex-qemu.json)). |
+| 2026-10-26 | Image matrix amd64, FEX and QEMU | 9/9 with each; workload FEX / QEMU: python 0.40 / 1.06 s, postgres 2.84 / 5.17 s, Temurin 2.65 / 3.91 s, node 1.05 / 0.97 s, the rest within 0.05 s. arm64 9/9 on the TSO kernel; no kernel problems ([compatibility.md](compatibility.md#amd64-through-fex-emu-2026-10-26)). |
+| 2026-10-26 | Unpacking the x86 emulators at boot | selftest boots a fresh data disk, so it pays the unpack each time: idle 78 MB without docker.img, 88–91 with qemu alone, 105 with both emulators unpacked (dropping the page cache afterwards changed nothing: freed pages, not cache), 94–97 unpacking only FEX. The daemon's data disk keeps the unpacked copy, so this happens once per version. docker.img 53.3 → 54.3 MB (x86 tar 2.1 MB xz). |
+| 2026-10-26 | Gates with FEX, the TSO kernel and the ACTLR fix | Unit tests pass, selftest 94 MB, daemon 53/53 (`dns_host_resolver` now compares with the Mac's own answer: on a LAN macOS answers its `.local` name with the LAN address, not loopback), x86 36/36, Docker 69/69, MCP 30/30, sandbox 41/41, image matrix 18/18. Kernel alone 315 s (3110 s with a FEX build in the daemon VM at the same time). |
 
 ## Progress log
 
@@ -730,3 +740,4 @@ complete by the finished acceptance suites.
 - 2026-10-26: Released v0.2.2 (signed, notarized) with the guest memory corruption fix and guest IPv6; installed and booted from GitHub. daemontest's port forward footprint now waits for the memory checks' memory to come back. Next: the engine comparison on a quiet Mac.
 - 2026-10-26: Engine comparison rerun on a quiet Mac (Docker Desktop, OrbStack, Colima installed briefly, then removed): same picture with narrow ranges; README shows the new numbers. dmx's idle CPU is the highest of the four and predates 0.2.2. Next: what wakes dmx at idle.
 - 2026-10-26: dmx's idle CPU came from the idle trim repeating (dockerd's file pages reclaimed and read back every few seconds); trimming once per idle spell takes it from 1.4 to 0.57 % of a core. The WFI cap and the mapping remaps were ruled out by measurement. Next: x86_64 images faster than QEMU (FEX-Emu, hardware TSO).
+- 2026-10-26: x86_64 images run through FEX-Emu with the Apple CPU's hardware TSO (Asahi's kernel patches, ACTLR_EL1 written only when the memory model changes); QEMU stays as `x86_emulator qemu`. CPU-bound x86 code 2.5–9× faster, image matrix 18/18. Next: release 0.3.0 (maintainer's call).

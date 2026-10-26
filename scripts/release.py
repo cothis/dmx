@@ -44,6 +44,9 @@ _spec.loader.exec_module(kernel_build)
 _spec = importlib.util.spec_from_file_location("build_qemu", ROOT / "scripts" / "build-qemu.py")
 qemu_build = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(qemu_build)
+_spec = importlib.util.spec_from_file_location("build_fex", ROOT / "scripts" / "build-fex.py")
+fex_build = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(fex_build)
 
 REPO = "https://github.com/cothis/dmx"
 PIN_FILE = ROOT / "Sources" / "DMXCore" / "GuestPin.swift"
@@ -56,9 +59,11 @@ ALPINE_DISTFILES = "https://distfiles.alpinelinux.org/distfiles/v3.24/"
 # in the inventory must be here: an unknown one stops the release so its text gets added.
 SPDX = "https://raw.githubusercontent.com/spdx/license-list-data/31ba1a50e5397e00a304dbadc76531740e89ee48/text"
 LICENSE_TEXTS = {
+    "0BSD": "e3f18c71e10d673590eb9856c1d79dd3b4b0d65404efb5e8584dbede7edd608b",
     "Apache-2.0": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff",
     "BSD-2-Clause": "f32fb3b417a194167cfad068223fc975ba96c5960513a10f66a3c28720aec1df",
     "BSD-3-Clause": "5a93d5831e1297ab10fe643e1a631e83be392896da14ee2951285a79012df69d",
+    "BSL-1.0": "84c6ef3ea9e3254a54d0acf5d3e0c61ae011b8fef7dd6940591cf060e6380a8f",
     "GPL-2.0-only": "aaf135472f81c5b4a0dca9367e5bb5e9750032b5bebe5442b36e4c0a47430df3",
     "GPL-2.0-or-later": "aaf135472f81c5b4a0dca9367e5bb5e9750032b5bebe5442b36e4c0a47430df3",
     "GPL-3.0-or-later": "fb981668c18a279e285fc4d83fba1e836cc84dd4daa73c9697d3cfd2d8aca6e0",
@@ -126,7 +131,8 @@ def inventory(cache: Path, kernel_tar: Path) -> list:
     items.append({
         "name": "linux", "version": guest.DMX_KERNEL_RELEASE, "license": "GPL-2.0-only WITH Linux-syscall-note",
         "upstream": "https://kernel.org/", "source": kernel_build.SOURCE["url"], "source_sha256": kernel_build.SOURCE["sha256"],
-        "notes": f"kernel.org source with the page_reporting free-list budget patch in scripts/build-kernel.py ({REPO}); the exact "
+        "notes": f"kernel.org source with the page_reporting free-list budget patch in scripts/build-kernel.py ({REPO}) and "
+                 f"Asahi Linux's TSO memory model patches ({kernel_build.ASAHI}/<commit>.patch, listed there); the exact "
                  f"config is kernel-{guest.DMX_KERNEL_RELEASE}.config in this release",
         "from": "dmx",
     })
@@ -143,6 +149,30 @@ def inventory(cache: Path, kernel_tar: Path) -> list:
         if info["pkgname"] in qemu_build.STATIC_LINKED:
             repo = pin.rpartition("/")[0] or "main"
             alpine(f"{info['pkgname']} (in qemu-x86_64)", info["pkgver"], info["license"], info["origin"], info["commit"],
+                   info.get("url", ""), repo)
+    # FEX-Emu and the libraries in its tree or submodules that end up in the binary.
+    fex_source = fex_build.source_url(*fex_build.SOURCES["."][:2])
+    items.append({
+        "name": "FEX-Emu", "version": fex_build.VERSION, "license": "MIT", "upstream": "https://fex-emu.com/",
+        "source": fex_source, "source_sha256": fex_build.SOURCES["."][2],
+        "notes": f"with dmx's patch, built as in {guest.DMX_FEX}.build.py ({REPO}). Its tree also carries SoftFloat-3e "
+                 "(BSD-3-Clause), tiny-json (MIT) and parts of the Cephes math library (\"BSD licensed\", per "
+                 "External/cephes/LICENSE in the source)",
+        "from": "dmx",
+    })
+    licenses = {"External/fmt": "MIT", "External/xxhash": "BSD-2-Clause", "External/range-v3": "BSL-1.0",
+                "External/unordered_dense": "MIT", "External/rpmalloc": "0BSD", "External/drm-headers": "MIT",
+                "Source/Common/cpp-optparse": "MIT"}
+    for path, (repo, commit, digest) in fex_build.SOURCES.items():
+        if path != ".":
+            items.append({"name": f"{repo.split('/')[1]} (in FEX-Emu)", "version": commit[:12], "license": licenses[path],
+                          "upstream": f"https://github.com/{repo}", "source": fex_build.source_url(repo, commit),
+                          "source_sha256": digest, "from": "dmx"})
+    for pin in fex_build.TOOLCHAIN:
+        info = apk_info(kernel_build.fetch(kernel_build.apk_url(pin), fex_build.TOOLCHAIN[pin]))
+        if info["pkgname"] in fex_build.STATIC_LINKED:
+            repo = pin.rpartition("/")[0] or "main"
+            alpine(f"{info['pkgname']} (in FEX-Emu)", info["pkgver"], info["license"], info["origin"], info["commit"],
                    info.get("url", ""), repo)
     items.append({"name": "dmx-agent, /init, dmx-docker", "version": "this release", "license": "Apache-2.0",
                   "upstream": REPO, "source": f"{REPO} (guest/)", "from": "dmx"})
@@ -260,8 +290,8 @@ def source_bundle(path: Path, items: list, cache: Path, store: Path, kernel_tar:
     compressed already), so the release page itself carries it (GPL-2.0 section 3, last
     paragraph). Each Alpine package: its aports directory at the commit it was built from plus
     every upstream file the APKBUILD's sha512sums names, from Alpine's distfiles mirror and
-    checked against those sums; nothing from the APKBUILD is executed. Then dmx's kernel and
-    qemu-x86_64: upstream tarballs, patches, config and the build scripts that apply them."""
+    checked against those sums; nothing from the APKBUILD is executed. Then dmx's kernel,
+    qemu-x86_64 and FEX-Emu: upstream tarballs, patches, config and the build scripts that apply them."""
     members = []  # (name in the tar, file on disk or bytes)
     dirs = sorted({(i["aports_commit"], i["source"].split("/")[-2], i["origin"]) for i in items if "aports_commit" in i})
     for commit, repo, origin in dirs:
@@ -289,6 +319,8 @@ def source_bundle(path: Path, items: list, cache: Path, store: Path, kernel_tar:
     release = guest.DMX_KERNEL_RELEASE
     members.append((f"linux/{Path(kernel_build.SOURCE['url']).name}", kernel_build.fetch(kernel_build.SOURCE["url"], kernel_build.SOURCE["sha256"])))
     members.append((f"linux/kernel-{release}.build.py", (ROOT / "scripts/build-kernel.py").read_bytes()))
+    for commit, digest in kernel_build.TSO_PATCHES.items():
+        members.append((f"linux/asahi-tso/{commit}.patch", kernel_build.fetch(f"{kernel_build.ASAHI}/{commit}.patch", digest)))
     with tarfile.open(kernel_tar) as tar:
         members.append((f"linux/kernel-{release}.config", tar.extractfile("boot/config").read()))
     members.append((f"qemu/{Path(qemu_build.SOURCE['url']).name}", kernel_build.fetch(qemu_build.SOURCE["url"], qemu_build.SOURCE["sha256"])))
@@ -296,19 +328,25 @@ def source_bundle(path: Path, items: list, cache: Path, store: Path, kernel_tar:
         members.append((f"qemu/alpine-patches/{name}", kernel_build.fetch(f"{qemu_build.APORTS}/{name}", digest)))
     members.append(("qemu/dmx-guest-base.patch", qemu_build.GUEST_BASE_PATCH.encode()))
     members.append((f"qemu/{guest.DMX_QEMU}.build.py", (ROOT / "scripts/build-qemu.py").read_bytes()))
+    for path, (repo, commit, digest) in fex_build.SOURCES.items():
+        members.append((f"fex/{repo.split('/')[1]}-{commit}.tar.gz", kernel_build.fetch(fex_build.source_url(repo, commit), digest)))
+    members.append(("fex/dmx-fex.patch", fex_build.FEX_PATCH.encode()))
+    members.append((f"fex/{guest.DMX_FEX}.build.py", (ROOT / "scripts/build-fex.py").read_bytes()))
     members.append(("README.md", f"""# Source of the dmx {version} guest
 
 The complete corresponding source of the programs in dmx-guest-{version}.tar.gz (see its
 THIRD_PARTY.md for licenses).
 
 - `alpine/<repo>/<package>/`: each Alpine Linux 3.24 package the guest ships, or whose static
-  libraries are linked into qemu-x86_64: the aports directory at the commit in `.aports-commit`
+  libraries are linked into qemu-x86_64 or FEX-Emu: the aports directory at the commit in `.aports-commit`
   (APKBUILD, patches, configs) and the upstream files it names, checked against its sha512sums.
   `abuild` rebuilds a package from such a directory.
-- `linux/`: the kernel.org source, the exact config, and `kernel-{release}.build.py`, which holds
-  the free-page-reporting patch and the build steps.
+- `linux/`: the kernel.org source, the exact config, Asahi Linux's TSO patches (`asahi-tso/`),
+  and `kernel-{release}.build.py`, which holds the free-page-reporting patch and the build steps.
 - `qemu/`: the qemu.org source, Alpine's patches, dmx's guest-base patch, and
   `{guest.DMX_QEMU}.build.py` with the configure line and build steps.
+- `fex/`: FEX-Emu's source and the submodules its build uses, dmx's patch, and
+  `{guest.DMX_FEX}.build.py` with the build steps.
 
 dmx itself (dmx-agent, /init, the host program) is Apache-2.0; its source is the {REPO}
 repository at tag v{version}.
@@ -410,9 +448,10 @@ def main():
         "Alpine packages are unmodified binaries from Alpine Linux 3.24: their corresponding source "
         f"is the aports directory at the listed commit plus the upstream files it names (mirrored at "
         f"{ALPINE_DISTFILES}). The kernel uses kernel.org source with the free-page-reporting "
-        f"budget patch in kernel-{guest.DMX_KERNEL_RELEASE}.build.py and the config in this release. "
+        f"budget patch in kernel-{guest.DMX_KERNEL_RELEASE}.build.py, Asahi Linux's TSO patches and the config in this release. "
         f"qemu-x86_64 is qemu.org source with Alpine's patches and a guest-base patch, built by "
-        f"{guest.DMX_QEMU}.build.py, which pins every input. "
+        f"{guest.DMX_QEMU}.build.py, which pins every input; FEX-Emu is its release source with a dmx patch, built by "
+        f"{guest.DMX_FEX}.build.py. "
         f"The complete corresponding source of all of it is dmx-sources-{args.version}.tar on the same release page.",
         items)
 
@@ -462,6 +501,7 @@ def main():
         (out / f"kernel-{guest.DMX_KERNEL_RELEASE}.config").write_bytes(tar.extractfile("boot/config").read())
     (out / f"kernel-{guest.DMX_KERNEL_RELEASE}.build.py").write_bytes((ROOT / "scripts/build-kernel.py").read_bytes())
     (out / f"{guest.DMX_QEMU}.build.py").write_bytes((ROOT / "scripts/build-qemu.py").read_bytes())
+    (out / f"{guest.DMX_FEX}.build.py").write_bytes((ROOT / "scripts/build-fex.py").read_bytes())
     (out / "third-party.json").write_text(json.dumps({"guest": items, "dmx": swift}, indent=2) + "\n")
     (out / "NOTES.md").write_text(release_notes(args.version, archive_name, binary_name, items, signing))
     assets = sorted(p for p in out.iterdir() if p.is_file() and p.name != "SHA256SUMS" and not p.name.endswith(".sha256"))
@@ -544,6 +584,7 @@ into dmx; `dmx guest fetch` does it ahead of time.
 - `kernel-{guest.DMX_KERNEL_RELEASE}.config`: the configuration the guest kernel was built with
 - `kernel-{guest.DMX_KERNEL_RELEASE}.build.py`: pinned inputs and the exact kernel source patch
 - `{guest.DMX_QEMU}.build.py`: pinned inputs, patches and configure line of qemu-x86_64
+- `{guest.DMX_FEX}.build.py`: pinned inputs, patch and build steps of FEX-Emu
 - `dmx-sources-{version}.tar`: the complete corresponding source of everything in the guest
 - `third-party.json`: every package in the guest and the binary, with license and source
 - `SHA256SUMS`, `*.sha256`: checksums
@@ -554,8 +595,9 @@ dmx is Apache-2.0; its source is this tag. The guest contains programs under the
 among them {", ".join(gpl)}. Their complete corresponding source is
 `dmx-sources-{version}.tar` on this page: for each Alpine Linux 3.24 package (unmodified) the
 aports directory at the commit it was built from and the upstream files it names; the kernel.org
-Linux source with dmx's reporting-budget patch, config and build script; the qemu.org source with
-Alpine's patches, dmx's guest-base patch and build script.
+Linux source with dmx's reporting-budget patch, Asahi Linux's TSO patches, config and build script;
+the qemu.org source with Alpine's patches, dmx's guest-base patch and build script; FEX-Emu's
+source with dmx's patch and build script.
 """
 
 

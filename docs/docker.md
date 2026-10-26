@@ -74,7 +74,7 @@ docker CLI ──▶ ~/.dmx/docker.sock ──▶ dmx daemon ──vsock──�
   libseccomp 2.6.1, ca-certificates-bundle 20261020. Signatures were checked against the Alpine
   keys in the minirootfs when they were pinned.
 - **Delivery.** These are ~160 MB unpacked, too much for the initramfs, which lives in guest RAM.
-  `make guest` writes them as `guest/docker.img`: a 4 KB header (`dmx-docker 1`, the sha256 and
+  `make guest` writes them as `guest/docker.img`: a 4 KB header (`dmx-docker 3`, the sha256 and
   length of the payload) and a gzip'd tar (52 MB), attached as a read-only virtio-blk disk with
   the serial `dmx-docker` (`VIRTIO_BLK_F_RO`; the host opens it read-only with a shared lock).
   The first time Docker is used after the payload changes, the guest unpacks it onto the data disk
@@ -84,14 +84,30 @@ docker CLI ──▶ ~/.dmx/docker.sock ──▶ dmx daemon ──vsock──�
   virtio-fs device for one read. The netfilter, bridge and network driver modules Docker loads
   (236 with af_packet, 1.5 MB) come in the same tar, with the kernel's module index; the initramfs gained only the
   3 KB start script (`/sbin/dmx-docker`, from `guest/docker`).
-- **qemu-x86_64** (`docker run --platform linux/amd64`, and x86 programs in `dmx exec`) is built by
+- **x86_64 emulation** (`docker run --platform linux/amd64`, and x86 programs in `dmx exec`).
+  The default is FEX-Emu (`make fex`, [build-fex.py](../scripts/build-fex.py)): the pinned
+  FEX-2610 release source with a dmx patch, built as a static musl PIE so the kernel can run it
+  inside any container. The patch drops FEXServer (containers have no copy of it and cannot reach
+  one from their own network namespace) and fixes four glibc-only assumptions (a rwlock re-lock
+  that glibc reports and musl waits on forever, `PTHREAD_STACK_MIN` of 2 KB, a double
+  `pthread_detach`, the `getdents64` prototype). FEX asks the guest kernel for the TSO memory
+  model per process: the kernel carries Asahi Linux's `PR_SET_MEM_MODEL` patches, which set the
+  Apple CPU's `ACTLR_EL1.EnTSO` bit for that thread, and Hypervisor.framework (macOS 15+) lets
+  the guest set it, so translated x86 loads and stores need no barriers. In a VM each
+  `ACTLR_EL1` access traps (~0.7 µs), so dmx's kernel writes it only when the next thread wants
+  another memory model, not on every context switch as the patches do (that made a pipe round
+  trip 4× slower), and the VMM resets it when a vCPU is turned on. FEX needs `/proc` in the
+  program's root (containers have it): it reads `/proc/self/maps` to reserve the address space
+  above 2^47, and without it x86 programs get addresses there.
+  `dmx config set x86_emulator qemu` uses QEMU user mode instead, from the next boot: built by
   `make qemu` from pinned QEMU 11.0.3 source like Alpine's static build, with one dmx patch: the
   x86_64 guest base defaults to 2^47 so programs never see addresses above x86-64's 47-bit user
-  space ([compatibility.md](compatibility.md#amd64-address-layout-fixed-in-dmxs-qemu-x86_64)). It comes xz'd
-  (1 MB) after the tar in docker.img; the header gives its sha256, offset and length. `/init`
-  unpacks it onto the data disk (`/var/lib/dmx/qemu`) when the copy there is another version and
-  registers it with binfmt_misc at every boot, before anything runs, so x86 support does not wait
-  for Docker. It used to be in the initramfs, where it cost ~2 MB of idle footprint.
+  space ([compatibility.md](compatibility.md#amd64-address-layout-fixed-in-dmxs-qemu-x86_64)).
+  Both come as an xz'd tar (2.1 MB) after the payload in docker.img; the header (`dmx-docker 3`)
+  gives its sha256, offset and length. `/init` unpacks only the emulator in use onto the data
+  disk (`/var/lib/dmx/x86`) when the copy there is another version or the other emulator, and
+  registers it with binfmt_misc at every boot, before anything runs, so x86 support does not
+  wait for Docker. qemu used to be in the initramfs, where it cost ~2 MB of idle footprint.
 - **Started on first use.** Nothing of Docker runs until a client connects to docker.sock after a
   boot. The daemon then calls the agent's `docker_start`, which runs `guest/docker`: unpack if
   needed, bind the module tree over /lib/modules (the kernel's own module loader runs modprobe in

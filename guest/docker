@@ -3,7 +3,7 @@
 # Docker socket after a boot, or at boot when a container would come back by its restart policy,
 # then waits for /var/run/docker.sock; see docs/docker.md.
 #
-# Docker comes on a read-only disk whose serial is dmx-docker: a 4 KB header ("dmx-docker 2",
+# Docker comes on a read-only disk whose serial is dmx-docker: a 4 KB header ("dmx-docker 3",
 # then the sha256 and length of the payload, and fields /init reads) and a gzip'd tar. The tar is
 # unpacked onto the data disk whenever that sha256 changes, so Docker costs guest RAM only for
 # what runs.
@@ -26,7 +26,7 @@ done
 [ -n "$dev" ] || fail "no Docker disk; rebuild the guest (make guest)"
 
 set -- $(head -c 4096 "$dev" | tr -d '\0')
-[ "$#" -ge 4 ] && [ "$1 $2" = "dmx-docker 2" ] || fail "$dev is not a dmx Docker image of this version; rebuild the guest (make guest)"
+[ "$#" -ge 4 ] && [ "$1 $2" = "dmx-docker 3" ] || fail "$dev is not a dmx Docker image of this version; rebuild the guest (make guest)"
 sha=$3 len=$4
 if [ "$(cat "$root/.version" 2>/dev/null)" != "$sha" ]; then
 	echo "dmx-docker: unpacking $sha onto the data disk" >&2

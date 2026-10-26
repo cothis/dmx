@@ -302,6 +302,8 @@ def main():
     parser.add_argument("--platform", choices=PLATFORMS, action="append")
     parser.add_argument("--qemu-guest-base", help="set QEMU_GUEST_BASE in amd64 run/exec for diagnosis (0 restores upstream "
                         "QEMU's layout); never used in a default run")
+    parser.add_argument("--x86-emulator", choices=["fex", "qemu"], default="fex",
+                        help="what runs the amd64 images (the x86_emulator setting); default fex, as dmx's own default")
     parser.add_argument("--state-dir", type=Path, help="keep isolated state/layers for reruns; use a short path under /tmp")
     args = parser.parse_args()
     if args.pin:
@@ -317,12 +319,13 @@ def main():
     marker.touch()
     guest = Path(os.environ.get("DMX_HOME") or Path.home() / ".dmx") / "guest"
     if not (state / "guest").exists(): (state / "guest").symlink_to(guest)
-    (state / "config.json").write_text(json.dumps({"cpus": 2, "memory": "4G", "shares": [], "idle_timeout": 600, "disk_size": "16G"}))
+    (state / "config.json").write_text(json.dumps({"cpus": 2, "memory": "4G", "shares": [], "idle_timeout": 600, "disk_size": "16G",
+                                                   "x86_emulator": args.x86_emulator}))
     matrix = Matrix(Path(args.dmx).resolve(), state)
     matrix.qemu_guest_base = args.qemu_guest_base
     report = {"ok": False, "at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
               "pins_at": pins["pinned_at"], "cpus": 2, "ceiling_mb": 4096, "host_load": os.getloadavg(),
-              "qemu_guest_base": args.qemu_guest_base, "results": []}
+              "x86_emulator": args.x86_emulator, "qemu_guest_base": args.qemu_guest_base, "results": []}
     try:
         report["docker_versions"] = matrix.start()
         report["guest"] = matrix.dmx("exec", "--", "sh", "-c", "uname -r; awk '/^KernelPageSize/{print $2;exit}' /proc/self/smaps")

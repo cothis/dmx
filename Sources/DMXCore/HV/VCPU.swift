@@ -13,7 +13,10 @@ final class VCPU: @unchecked Sendable {
 
     /// EL1 state as `hv_vcpu_create` left it, restored on every power-on: a CPU turned off and on
     /// again must enter the kernel with the MMU off, not with its previous life's translation.
+    /// ACTLR_EL1 (only its EnTSO bit is visible) too: the guest kernel writes it only when the
+    /// thread it switches to wants another memory model, so it must start in the default one.
     private static let resetRegisters: [hv_sys_reg_t] = [
+        HV_SYS_REG_ACTLR_EL1,
         HV_SYS_REG_SCTLR_EL1, HV_SYS_REG_TCR_EL1, HV_SYS_REG_TTBR0_EL1, HV_SYS_REG_TTBR1_EL1,
         HV_SYS_REG_MAIR_EL1, HV_SYS_REG_AMAIR_EL1, HV_SYS_REG_VBAR_EL1, HV_SYS_REG_CPACR_EL1,
         HV_SYS_REG_CONTEXTIDR_EL1, HV_SYS_REG_TPIDR_EL1, HV_SYS_REG_TPIDR_EL0, HV_SYS_REG_TPIDRRO_EL0,

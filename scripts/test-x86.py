@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Run x86_64 Linux programs in the dmx guest through binfmt_misc and qemu-x86_64.
+"""Run x86_64 Linux programs in the dmx guest through binfmt_misc, with FEX-Emu and with qemu-x86_64.
 
 Real Alpine 3.24 x86_64 programs, pinned by sha256: a static busybox, the dynamically linked
-busybox of the x86_64 minirootfs with its musl loader (in a chroot, as in a container, so qemu
-is not in its file system), python3 and node (V8, a JIT) installed into that chroot, python3 with
-jemalloc and mimalloc preloaded, and addresses below x86-64's 47-bit user space. Also times
-an x86 `true` and a 100 MB sha256sum against the native ones. Runs a daemon in a throwaway
+busybox of the x86_64 minirootfs with its musl loader (in a chroot, as in a container, so the
+emulator is not in its file system), python3 and node (V8, a JIT) installed into that chroot,
+threads in both, python3 with jemalloc and mimalloc preloaded, addresses below x86-64's 47-bit
+user space, and FEX's hardware TSO. Also times an x86 `true`, a 100 MB sha256sum against the
+native one, and interpreter start-up and a python loop, per emulator. Runs a daemon in a throwaway
 DMX_HOME using $DMX_HOME/guest (default ~/.dmx/guest); downloads land in $DMX_HOME/cache/x86_64.
 Prints one JSON object and exits non-zero if any check failed.
 
@@ -183,6 +184,131 @@ print("page_size=%d" % mmap.PAGESIZE,
 """
 
 
+# Both emulators, the default first: `x86_emulator` picks the one /init registers at boot.
+EMULATORS = {"fex": ("FEX-x86_64", "FEX"), "qemu": ("qemu-x86_64", "qemu-x86_64")}
+# CPU-bound interpreted code (sha256sum spends its time in one tight loop).
+PY_LOOP = "s = 0\nfor i in range(1000000): s = (s + i * i) % 1000003\nprint(s)\n"
+THREADS = ("import threading\nn = [0]; lock = threading.Lock()\ndef work():\n    for _ in range(20000):\n        with lock: n[0] += 1\n"
+           "ts = [threading.Thread(target=work) for _ in range(8)]\n[t.start() for t in ts]; [t.join() for t in ts]\nprint(n[0])\n")
+
+
+def suite(emulator):
+    entry_name, binary = EMULATORS[emulator]
+    res = results[emulator] = {}
+
+    def check_(name, ok, detail=""):
+        check(f"{emulator}.{name}", ok, detail)
+
+    dmx("config", "set", "x86_emulator", emulator)
+    dmx("stop")
+    r = dmx("exec", "--", "true")
+    check_("boot", r.returncode == 0, out(r))
+    res["idle_footprint_mb"] = footprint()
+
+    # Only the chosen emulator is registered.
+    entries = out(sh("ls /proc/sys/fs/binfmt_misc")).split()
+    entry = out(sh(f"cat /proc/sys/fs/binfmt_misc/{entry_name}"))
+    check_("binfmt_registered", sorted(entries) == sorted([entry_name, "register", "status"]) and "enabled" in entry and
+           "flags: POCF" in entry and f"interpreter /var/lib/dmx/x86/{binary}" in entry, f"{entries} {entry}".replace("\n", "; "))
+
+    # A static x86_64 busybox: no loader, no libraries.
+    r = sh(f"mkdir -p {DIR} && cat >{DIR}/busybox && chmod +x {DIR}/busybox && {DIR}/busybox uname -m && {DIR}/busybox sh -c 'echo $((6*7))'",
+           stdin=busybox)
+    check_("static", r.returncode == 0 and r.stdout == b"x86_64\n42\n", out(r))
+    # P: argv[0] reaches the program, so busybox picks the applet by the name it was run as.
+    r = sh(f"ln -sf busybox {DIR}/basename && {DIR}/basename /a/b/c")
+    check_("argv0", r.stdout == b"c\n", out(r))
+
+    # The x86_64 minirootfs in a chroot: its dynamically linked busybox and musl loader, and
+    # python3 and node from PACKAGES. The emulator is not in the chroot; F opened it at registration.
+    # /proc is mounted, as in a container: FEX reads /proc/self/maps to reserve the address space
+    # above 2^47, and without it x86 programs get addresses there.
+    started = time.time()
+    r = sh(f"rm -rf {DIR}/root && mkdir -p {DIR}/root && tar -xzf - -C {DIR}/root && cp /etc/resolv.conf {DIR}/root/etc/ && "
+           f"mount -t proc proc {DIR}/root/proc", stdin=rootfs)
+    res["chroot_unpack_s"] = round(time.time() - started, 1)
+    check_("chroot_unpack", r.returncode == 0, out(r))
+    run = f"chroot {DIR}/root"
+    r = sh(f"{run} /bin/sh -c 'uname -m; ldd /bin/busybox | grep -o ld-musl-x86_64.so.1 | head -1; ls /usr/bin /usr/local/bin | grep -c -E \"qemu|FEX\"'")
+    check_("dynamic", r.stdout == b"x86_64\nld-musl-x86_64.so.1\n0\n", out(r))
+    r = sh(f"{run} /sbin/apk info -e musl busybox")
+    check_("dynamic_apk", r.stdout == b"musl\nbusybox\n", out(r))
+
+    r = sh(f"{run} python3 -c 'import hashlib, json, sqlite3, platform, ssl, zlib; db = sqlite3.connect(\":memory:\"); "
+           f"print(platform.machine(), db.execute(\"select 6*7\").fetchone()[0], hashlib.sha256(b\"dmx\").hexdigest()[:8], len(ssl.OPENSSL_VERSION) > 0)'")
+    check_("python3", r.stdout == b"x86_64 42 " + hashlib.sha256(b"dmx").hexdigest()[:8].encode() + b" True\n", out(r))
+    # Threads exercise the emulator's thread creation and teardown, and its memory ordering.
+    r = sh(f"cat >{DIR}/root/tmp/threads.py && {run} python3 /tmp/threads.py", stdin=THREADS.encode())
+    check_("python3_threads", r.stdout == b"160000\n", out(r))
+
+    # V8 writes x86 code at run time and patches it, which the emulator has to notice and translate again.
+    r = sh(f"{run} node -e 'let s = 0; for (let i = 0; i < 3e7; i++) s = (s + i * i) % 1000003; "
+           f"console.log(process.arch, s, [3, 1, 2].sort().join(\"\"), JSON.stringify({{a: [1, 2]}}))'")
+    check_("node", r.returncode == 0 and r.stdout.startswith(b"x64 ") and r.stdout.endswith(b" 123 {\"a\":[1,2]}\n"), out(r))
+    r = sh(f"{run} node -e 'const w = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array([0,97,115,109,1,0,0,0,1,7,1,96,2,127,127,1,127,3,2,1,0,7,7,1,3,97,100,100,0,0,10,9,1,7,0,32,0,32,1,106,11]))); console.log(w.exports.add(40, 2))'")
+    check_("node_wasm", r.stdout == b"42\n", out(r))
+    r = sh(f"{run} node -e 'const {{Worker}} = require(\"worker_threads\"); new Worker(\"require(\\\"worker_threads\\\").parentPort.postMessage(6 * 7)\", "
+           f"{{eval: true}}).on(\"message\", m => console.log(m))'")
+    check_("node_worker", r.returncode == 0 and r.stdout == b"42\n", out(r))
+
+    if emulator == "fex":
+        # FEX asks the guest kernel for the TSO memory model (Asahi's PR_SET_MEM_MODEL patches,
+        # build-kernel.py), so x86 code needs no barriers; PR_GET_MEM_MODEL passes through to it.
+        r = sh(f"{run} python3 -c 'import ctypes; print(ctypes.CDLL(None).prctl(0x6d4d444c, 0, 0, 0, 0))'")
+        check_("hardware_tso", r.stdout == b"1\n", out(r))
+
+    # All 4K operations must work. A 16K Linux guest used to fail partial msync, fixed shared
+    # mappings, MADV_DONTNEED zeroing and guard-page faults; do not count those as expected passes.
+    r = sh(f"ulimit -c 0; cat >{DIR}/root/tmp/probe.py && {run} python3 /tmp/probe.py", stdin=PROBE.encode())
+    probe = dict(f.split("=") for f in r.stdout.decode().split() if "=" in f)
+    res["pages"] = probe
+    check_("pages_4k", r.returncode == 0 and probe.get("page_size") == "4096" and
+           all(probe.get(k) == "True" for k in ["user_space_47bit", "map_shared_4k_offset", "map_fixed_shared_4k", "mincore_4k", "munmap_4k", "msync_16k", "msync_4k",
+                                                 "prot_none_16k", "prot_none_4k", "dontneed_16k", "dontneed_4k"]), out(r))
+
+    for name, lib in ALLOCATORS.items():
+        r = sh(f"ulimit -c 0; {run} env LD_PRELOAD={lib} python3 -c '{ALLOC_WORK}'")
+        check_(f"allocator_{name}", r.returncode == 0 and r.stdout == b"True\n", out(r))
+
+    if emulator == "qemu":
+        # The control: without dmx's default guest base, qemu hands out addresses above x86-64's
+        # 47-bit user space, which crashed Redis's jemalloc. Shows the probe above can tell.
+        r = sh(f"ulimit -c 0; {run} env QEMU_GUEST_BASE=0 python3 /tmp/probe.py")
+        check_("user_space_47bit_control", "user_space_47bit=False" in r.stdout.decode(), out(r))
+        res["allocators_upstream_layout"] = {
+            name: sh(f"ulimit -c 0; {run} env QEMU_GUEST_BASE=0 LD_PRELOAD={lib} python3 -c '{ALLOC_WORK}'").returncode
+            for name, lib in ALLOCATORS.items()}
+
+    # Each x86 process is the emulator: its own translated code and copies of file pages it could
+    # not map, on top of the program. qemu madvises its 128 MB code buffer for huge pages, which
+    # cost 32 MB per process until the guest stopped making transparent huge pages.
+    r = sh(f"{DIR}/busybox sleep 4 & sleep 2; grep -E '^(Rss|Anonymous|AnonHugePages):' /proc/$!/smaps_rollup; wait")
+    rss = {line.split()[0].decode().rstrip(":"): int(line.split()[1]) // 1024 for line in r.stdout.splitlines()}
+    res["x86_sleep_mb"] = rss
+    check_("x86_process_memory", 0 < rss.get("Rss", 0) < 16 and rss.get("AnonHugePages") == 0, str(rss))
+
+    # Speed against native. `true` measures start-up; sha256sum is one tight translated loop and
+    # the python loop interpreted code.
+    res["true_ms"] = {"x86_static": guest_ms(f"{DIR}/busybox true", 20), "x86_dynamic": guest_ms(f"{run} /bin/true", 20),
+                      "native": guest_ms("/bin/true", 20)}
+    res["python3_startup_ms"] = guest_ms(f"{run} python3 -c pass", 3)
+    res["node_startup_ms"] = guest_ms(f"{run} node -e 0", 3)
+    sh(f"cat >{DIR}/root/tmp/loop.py", stdin=PY_LOOP.encode())
+    res["python3_loop_ms"] = guest_ms(f"{run} python3 /tmp/loop.py", 3)
+    timed = CS + "s=$(cs); head -c 104857600 /dev/zero | BUSYBOX sha256sum; echo $(( ($(cs)-s)*10 ))"
+    native = sh(timed.replace("BUSYBOX", "")).stdout.split()
+    emulated = sh(timed.replace("BUSYBOX", f"{DIR}/busybox")).stdout.split()
+    check_("sha256_100mb", len(native) == 3 and len(emulated) == 3 and native[0] == emulated[0], f"{native} {emulated}")
+    if len(native) == 3 and len(emulated) == 3:
+        res["sha256_100mb_ms"] = {"native": int(native[2]), "x86": int(emulated[2]), "slowdown": round(int(emulated[2]) / max(1, int(native[2])), 1)}
+
+    res["footprint_after_x86_mb"] = footprint()
+    sh(f"umount {DIR}/root/proc; rm -rf {DIR}")
+    dmx("exec", "--", "sh", "-c", "sync; echo 3 >/proc/sys/vm/drop_caches")
+    time.sleep(3)
+    res["footprint_after_cleanup_mb"] = footprint()
+
+
 HOME = Path(tempfile.mkdtemp(prefix="dmx-x86-", dir="/tmp"))
 ENV = {**os.environ, "DMX_HOME": str(HOME)}
 (HOME / "guest").symlink_to(STATE / "guest")
@@ -195,92 +321,8 @@ try:
     rootfs = chroot_tar(cache)
 
     dmx("config", "set", "shares", "none")
-    r = dmx("exec", "--", "true")
-    check("boot", r.returncode == 0, out(r))
-    results["idle_footprint_mb"] = footprint()
-
-    r = sh("cat /proc/sys/fs/binfmt_misc/qemu-x86_64")
-    entry = out(r)
-    check("binfmt_registered", "enabled" in entry and "flags: POCF" in entry and "interpreter /var/lib/dmx/qemu/qemu-x86_64" in entry,
-          entry.replace("\n", "; "))
-
-    # A static x86_64 busybox: no loader, no libraries.
-    r = sh(f"mkdir -p {DIR} && cat >{DIR}/busybox && chmod +x {DIR}/busybox && {DIR}/busybox uname -m && {DIR}/busybox sh -c 'echo $((6*7))'",
-           stdin=busybox)
-    check("static", r.returncode == 0 and r.stdout == b"x86_64\n42\n", out(r))
-    # P: argv[0] reaches the program, so busybox picks the applet by the name it was run as.
-    r = sh(f"ln -sf busybox {DIR}/basename && {DIR}/basename /a/b/c")
-    check("argv0", r.stdout == b"c\n", out(r))
-
-    # The x86_64 minirootfs in a chroot: its dynamically linked busybox and musl loader, and
-    # python3 and node from PACKAGES. qemu is not in the chroot; F opened it at registration.
-    started = time.time()
-    r = sh(f"rm -rf {DIR}/root && mkdir -p {DIR}/root && tar -xzf - -C {DIR}/root && cp /etc/resolv.conf {DIR}/root/etc/", stdin=rootfs)
-    results["chroot_unpack_s"] = round(time.time() - started, 1)
-    check("chroot_unpack", r.returncode == 0, out(r))
-    run = f"chroot {DIR}/root"
-    r = sh(f"{run} /bin/sh -c 'uname -m; ldd /bin/busybox | grep -o ld-musl-x86_64.so.1 | head -1; ls /usr/bin/qemu* 2>&1 | grep -c qemu-x86_64'")
-    check("dynamic", r.stdout == b"x86_64\nld-musl-x86_64.so.1\n0\n", out(r))
-    r = sh(f"{run} /sbin/apk info -e musl busybox")
-    check("dynamic_apk", r.stdout == b"musl\nbusybox\n", out(r))
-
-    r = sh(f"{run} python3 -c 'import hashlib, json, sqlite3, platform, ssl, zlib; db = sqlite3.connect(\":memory:\"); "
-           f"print(platform.machine(), db.execute(\"select 6*7\").fetchone()[0], hashlib.sha256(b\"dmx\").hexdigest()[:8], len(ssl.OPENSSL_VERSION) > 0)'")
-    check("python3", r.stdout == b"x86_64 42 " + hashlib.sha256(b"dmx").hexdigest()[:8].encode() + b" True\n", out(r))
-
-    # V8 writes x86 code at run time and patches it, which qemu has to notice and translate again.
-    r = sh(f"{run} node -e 'let s = 0; for (let i = 0; i < 3e7; i++) s = (s + i * i) % 1000003; "
-           f"console.log(process.arch, s, [3, 1, 2].sort().join(\"\"), JSON.stringify({{a: [1, 2]}}))'")
-    check("node", r.returncode == 0 and r.stdout.startswith(b"x64 ") and r.stdout.endswith(b" 123 {\"a\":[1,2]}\n"), out(r))
-    r = sh(f"{run} node -e 'const w = new WebAssembly.Instance(new WebAssembly.Module(new Uint8Array([0,97,115,109,1,0,0,0,1,7,1,96,2,127,127,1,127,3,2,1,0,7,7,1,3,97,100,100,0,0,10,9,1,7,0,32,0,32,1,106,11]))); console.log(w.exports.add(40, 2))'")
-    check("node_wasm", r.stdout == b"42\n", out(r))
-
-    # All 4K operations must work. A 16K Linux guest used to fail partial msync, fixed shared
-    # mappings, MADV_DONTNEED zeroing and guard-page faults; do not count those as expected passes.
-    r = sh(f"ulimit -c 0; cat >{DIR}/root/tmp/probe.py && {run} python3 /tmp/probe.py", stdin=PROBE.encode())
-    probe = dict(f.split("=") for f in r.stdout.decode().split() if "=" in f)
-    results["pages"] = probe
-    check("pages_4k", r.returncode == 0 and probe.get("page_size") == "4096" and
-          all(probe.get(k) == "True" for k in ["user_space_47bit", "map_shared_4k_offset", "map_fixed_shared_4k", "mincore_4k", "munmap_4k", "msync_16k", "msync_4k",
-                                                "prot_none_16k", "prot_none_4k", "dontneed_16k", "dontneed_4k"]), out(r))
-
-    for name, lib in ALLOCATORS.items():
-        r = sh(f"ulimit -c 0; {run} env LD_PRELOAD={lib} python3 -c '{ALLOC_WORK}'")
-        check(f"allocator_{name}", r.returncode == 0 and r.stdout == b"True\n", out(r))
-
-    # The control: without dmx's default guest base, qemu hands out addresses above x86-64's
-    # 47-bit user space, which crashed Redis's jemalloc. Shows the probe above can tell.
-    r = sh(f"ulimit -c 0; {run} env QEMU_GUEST_BASE=0 python3 /tmp/probe.py")
-    check("user_space_47bit_control", "user_space_47bit=False" in r.stdout.decode(), out(r))
-    results["allocators_upstream_layout"] = {
-        name: sh(f"ulimit -c 0; {run} env QEMU_GUEST_BASE=0 LD_PRELOAD={lib} python3 -c '{ALLOC_WORK}'").returncode
-        for name, lib in ALLOCATORS.items()}
-
-    # Each x86 process is qemu: its own translated code and copies of file pages it could not
-    # map, on top of the program. qemu madvises its 128 MB code buffer for huge pages, which
-    # cost 32 MB per process until the guest stopped making transparent huge pages.
-    r = sh(f"{DIR}/busybox sleep 4 & sleep 2; grep -E '^(Rss|Anonymous|AnonHugePages):' /proc/$!/smaps_rollup; wait")
-    rss = {line.split()[0].decode().rstrip(":"): int(line.split()[1]) // 1024 for line in r.stdout.splitlines()}
-    results["x86_sleep_mb"] = rss
-    check("x86_process_memory", 0 < rss.get("Rss", 0) < 16 and rss.get("AnonHugePages") == 0, str(rss))
-
-    # Speed against native. `true` measures qemu start-up; sha256sum is CPU-bound translated code.
-    results["true_ms"] = {"x86_static": guest_ms(f"{DIR}/busybox true", 20), "x86_dynamic": guest_ms(f"{run} /bin/true", 20),
-                          "native": guest_ms("/bin/true", 20)}
-    results["python3_startup_ms"] = guest_ms(f"{run} python3 -c pass", 3)
-    results["node_startup_ms"] = guest_ms(f"{run} node -e 0", 3)
-    timed = CS + "s=$(cs); head -c 104857600 /dev/zero | BUSYBOX sha256sum; echo $(( ($(cs)-s)*10 ))"
-    native = sh(timed.replace("BUSYBOX", "")).stdout.split()
-    emulated = sh(timed.replace("BUSYBOX", f"{DIR}/busybox")).stdout.split()
-    check("sha256_100mb", len(native) == 3 and len(emulated) == 3 and native[0] == emulated[0], f"{native} {emulated}")
-    if len(native) == 3 and len(emulated) == 3:
-        results["sha256_100mb_ms"] = {"native": int(native[2]), "x86": int(emulated[2]), "slowdown": round(int(emulated[2]) / max(1, int(native[2])), 1)}
-
-    results["footprint_after_x86_mb"] = footprint()
-    sh(f"rm -rf {DIR}")
-    dmx("exec", "--", "sh", "-c", "sync; echo 3 >/proc/sys/vm/drop_caches")
-    time.sleep(3)
-    results["footprint_after_cleanup_mb"] = footprint()
+    for emulator in EMULATORS:
+        suite(emulator)
 finally:
     dmx("stop")
     out_pids = subprocess.run(["pgrep", "-f", f"{DMX} daemon"], capture_output=True, text=True).stdout.split()
