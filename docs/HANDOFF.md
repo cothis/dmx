@@ -1,4 +1,4 @@
-# 다음 세션 인계 — 2026-10-26 (v0.3.1 게시, 작업 지시서 완료)
+# 다음 세션 인계 — 2026-10-26 (v0.3.2 게시, 작업 지시서 완료)
 
 `이어서 진행해`라는 요청을 받으면 [PLAN.md](PLAN.md)의 **Next up**과 이 문서를 읽어요.
 대화 이력이나 `/tmp` 파일은 필요 없어요. 계획·결정·측정의 기준은 `PLAN.md`예요.
@@ -20,9 +20,12 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
 
 ## 현재 상태
 
-- **게시된 릴리스:** [v0.3.1](https://github.com/cothis/dmx/releases/tag/v0.3.1)(서명·공증, 2026-10-26).
-  `dmx update`(자체 업데이트)와 "응답한 데몬이 다른 버전" 안내가 들어간 릴리스예요. 0.3.0에서 `install.sh`로
-  올라오고, 그다음부터는 `dmx update` 한 줄로 올라가는 것까지 확인했어요. main에 미배포 변경은 없어요.
+- **게시된 릴리스:** [v0.3.2](https://github.com/cothis/dmx/releases/tag/v0.3.2)(서명·공증, 2026-10-26).
+  0.3.1의 `dmx update`에 더해, 게스트 파일이 같으면 62 MB를 다시 받지 않고(0.3.1 → 0.3.2 업데이트가 1.86 MB),
+  내려받은 바이너리의 Developer ID를 확인하고, 릴리스 노트는 `docs/release-notes/<버전>.md`에서 NOTES.md로
+  자동 삽입되고, `dmx doctor`가 데몬 버전을 알려줘요. main에 미배포 변경은 없어요.
+- **릴리스 절차가 하나 늘었어요**: `docs/release-notes/<버전>.md`를 먼저 쓰세요. 없으면 `make release`가 거부해요
+  (`--no-notes`로 건너뛸 수 있어요). SHA256SUMS는 이제 손으로 다시 계산하지 않아요.
   GitHub에서 설치해 selftest 96 MB, `FEX-x86` 등록, arm64·amd64·386 `docker run`까지 확인했어요.
   NOTES.md에는 손으로 쓴 "Changes since 0.2.2"가 들어 있어요. main에는 릴리스 이후 미배포 변경이
   문서(README·benchmark.md의 새 엔진 비교 수치)뿐이에요.
