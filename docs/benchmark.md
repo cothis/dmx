@@ -21,8 +21,16 @@ emulation compatibility is tested separately in [compatibility.md](compatibility
    memory pressure. Repeat each engine at least three times in alternating order; summarize
    medians and ranges. A busy-host run remains provisional even if every check passes.
 3. Pull the same digest-pinned Alpine arm64 image. Network download time is excluded from
-   steady-state timings. Let idle memory settle for 35 seconds, then measure ten seconds of
-   idle CPU, five `docker run ... true` samples, and a 256 MiB SHA-256 workload.
+   steady-state timings. Sample idle memory at 35, 50, 65, 80 and 95 seconds after the pull, then
+   measure ten seconds of idle CPU, five `docker run ... true` samples, and a 256 MiB SHA-256
+   workload. One idle reading is not one number for dmx: the idle trim and sweep fire 30 seconds
+   after the last activity and take ~70 MB back, and dockerd and containerd then read some of
+   their files again, so the footprint has a floor (`idle_min`, 185–205 MB here) and a steady
+   state (`idle`, 210–225 MB). A fixed 35-second settle sat on the edge of the trim, which is why
+   2 of 9 runs on 2026-10-25 read ~70 MB high
+   ([measurements](measurements/2026-10-26-idle-readings.json)). The tables below quote the
+   35-second reading (`idle_at_35s`), which is what every comparison so far measured; rerunning
+   the comparison would be needed to quote the steady state for all four engines.
 4. Write 2 GiB into a container's tmpfs, record host memory while held and the sampled peak,
    then remove it and the container. Record time and footprint until memory is back within
    64 MiB of the preceding baseline, with a ten-second limit.

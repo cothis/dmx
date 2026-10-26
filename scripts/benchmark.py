@@ -149,9 +149,25 @@ def main():
         image = entry["repository"] + "@" + entry["platforms"]["linux/arm64"]
         report["image"] = image
         matrix.cli("pull", "--platform", "linux/arm64", image, timeout=600)
-        images.progress("settling idle memory for 35 s")
-        time.sleep(35)
-        report["idle"] = snapshot(pids)
+        # A single idle reading is not one number: dmx trims and sweeps an idle guest 30 s after
+        # the last activity (5 s tick, the host has the memory ~2 s later), and dockerd and
+        # containerd then read some of their files back. So the footprint falls by ~70 MB at the
+        # trim and creeps back up over the next half minute. A fixed 35 s settle landed on either
+        # side of the trim, which is what made 2 of 9 runs on 2026-10-25 read ~70 MB high. Sample
+        # the whole window instead: `idle` is the steady state at the end, `idle_min` the floor
+        # the trim reaches, and `idle_at_35s` what the old runs measured.
+        images.progress("sampling idle memory for 95 s")
+        samples = []
+        settling = time.monotonic()
+        for at in (35, 50, 65, 80, 95):
+            time.sleep(max(0, settling + at - time.monotonic()))
+            snap = snapshot(pids)
+            samples.append({"at_s": at, **snap})
+            images.progress(f"idle at {at} s: {snap['footprint_mb']:.0f} MB")
+        report["idle_samples"] = samples
+        report["idle_at_35s"] = samples[0]
+        report["idle_min"] = min(samples, key=lambda s: s["footprint_mb"])
+        report["idle"] = samples[-1]
         cpu_at = time.monotonic()
         time.sleep(10)
         later = snapshot(pids)

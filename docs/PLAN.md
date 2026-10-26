@@ -442,8 +442,10 @@ BuildKit through dmx's Buildx; the deprecated legacy builder remains available t
 - [x] dmx's idle CPU, 1.4 % of one core at 2 CPUs (other engines 0.4–0.6 %): the idle trim
       repeated every 5 s, because `memory.reclaim` took dockerd's and containerd's file pages,
       which they read back. Trimming once per idle spell: 0.57 % (benchmark, three runs).
-- [ ] An idle footprint that reads ~100 MB higher in some runs (2 of 9 before the trim fix, 0 of
-      3 after). Not explained yet.
+- [x] An idle footprint that reads ~100 MB higher in some runs (2026-10-26): the reading fell
+      before the idle trim, which takes ~70 MB back 30 s after the last activity. `benchmark.py`
+      samples the whole idle window now (floor and steady state), so the number cannot land on
+      the edge of the trim again.
 - [x] x86_64 images faster than QEMU (maintainer, 2026-10-26): FEX-Emu (FEX-2610, MIT) is the
       default binfmt handler, built by `make fex` as a static musl PIE from pinned sources with a
       dmx patch; the guest kernel carries Asahi's `PR_SET_MEM_MODEL` patches, so FEX runs x86
@@ -528,10 +530,13 @@ with a new kernel (Asahi's TSO patches) and docker.img format 3. In order:
    checks (which found a broken `make release`), R1 node start (260 ms now, faster than QEMU),
    R2 FEX's extra memory (gone with R1; both emulators sit at 80 MB once the idle sweep runs),
    R3 the TSO switch cost (0.78 µs per switch, invisible unless vCPUs are oversubscribed:
-   accepted) and R4 the first-boot unpack (returned by the first sweep: accepted). Next is P2,
-   the idle footprint that sometimes reads ~100 MB high: `make benchmark` at least ten times on a
-   quiet Mac, capturing the guest's `/proc/meminfo`, `/proc/pagetypeinfo` and per-CPU free lists
-   on a high run. Then the improvements (I1 32-bit x86 images, I2 the cephes license).
+   accepted) and R4 the first-boot unpack (returned by the first sweep: accepted). P2 is done
+   too: the high idle readings were measurements taken before the idle trim, and `benchmark.py`
+   now samples the whole idle window. Next are the improvements: I1 32-bit x86 images
+   (`linux/386` through FEX, which needs the `FEX-x86` binfmt entry, an x86test case and an image
+   matrix case) and I2 the exact cephes license terms in THIRD_PARTY. Then 0.3.0, whose NOTES.md
+   needs its "Changes since 0.2.2" written by hand, and whose published idle number the maintainer
+   may want re-measured (see the O1 row).
 2. Release 0.3.0 with FEX (maintainer's call: tag and publish), after the work order.
 3. Warm `docker run` (~100 ms quiet) stays behind Colima by choice (data disk barrier flushes,
    see Decisions).
@@ -691,6 +696,7 @@ complete by the finished acceptance suites.
 | 2026-10-26 | FEX's extra guest memory (WORKORDER R2) | Explained and mostly gone with R1. The bulk was the code caches of 5000-instruction superblocks: x86test's footprint after the x86 work 275–302 → 240 MB (QEMU 225). Per process FEX is now the cheaper of the two: an x86 python holding 100 MB has RSS 117.8 MB over 69 mappings against QEMU's 126.2 MB over 43. What is left is timing, not memory: after a mix of x86 work, cleanup and `drop_caches`, FEX reads 180 MB and QEMU 176, and once the idle sweep has run both sit at 80 and 79 MB. |
 | 2026-10-26 | TSO switch cost on a real workload (WORKORDER R3) | 0.78 µs per memory-model change, and only when x86 and native threads share a vCPU. An x86 `dd` piping 80 MB to a native `cat`, one vCPU, 38,000 context switches: 68–69 ms with hardware TSO against 38–39 ms with `FEX_TSOENABLED=0`, which is (69−39) ms / 38.3k = 0.78 µs each; two x86 processes (no model change) 45–46 ms; native to native 29–30 ms. With all ten vCPUs online the switches drop to 6,500 and the TSO and non-TSO runs are the same (33–34 ms). Accepted in Decisions rather than fixed, since the fix would slow native code ([raw](measurements/2026-10-26-tso-switch-and-unpack.json)). |
 | 2026-10-26 | First boot's unpack and the idle footprint (WORKORDER R4) | The freed pages come back at the first idle sweep: fresh-disk boot 98–99 MB, then 85–87 MB five seconds later and flat after that. Two fixes were tried and measured away: `compact_memory` in /init right after the unpack changed nothing (selftest 96–100 MB; the pages are not in the buddy allocator's lists yet), and compaction in the idle sweep (plus a 4 MB touch to wake free page reporting, 4 ms in the guest) gained 2 MB on a fresh boot and nothing after heavy x86 work, so neither was kept. A manual compaction a minute after boot still finds 2–4 MB, which is the ceiling here. Accepted in Decisions. |
+| 2026-10-26 | The idle footprint that read ~100 MB high (WORKORDER O1) | Explained: it is where the reading falls in dmx's idle cycle, not lost memory. With dockerd up the footprint stays at ~260 MB until the idle trim and sweep fire 30 s after the last activity (5 s tick, the host has it ~2 s later), drops to 185–205 MB, then creeps to 210–225 MB as dockerd and containerd read files back. One run sampled every 8 s: 259.5 MB at 8, 16, 24 and 32 s, 189 MB at 40 s, with guest used 65–66 MB the whole time. Twelve runs with the old fixed 35 s settle: 203 MB once (its longer image pull pushed the reading past the trim) and 265–276 MB the rest. `benchmark.py` now samples 35, 50, 65, 80 and 95 s and reports `idle_at_35s`, `idle_min` and `idle`: three runs gave floors 191/194/204 MB, steady 226/216/224 MB, idle CPU 0.44–0.53 %. Guest compaction from the idle sweep was tried again here (it looks like an 80 MB win in the pre-trim state) and dropped: A/B with the same build gave floor 191–204 and steady 216–225 MB with it against 184–186 and 213–214 without ([raw](measurements/2026-10-26-idle-readings.json)). README and benchmark.md quote the 35 s definition, so the steady state is ~20 MB above the published 198 MB: a rerun of the four-engine comparison is the maintainer's call. |
 
 ## Progress log
 
@@ -766,3 +772,4 @@ complete by the finished acceptance suites.
 - 2026-10-26: WORKORDER B3 done, P0 complete. pressuretest passes on the FEX and TSO guest (12/12); hardware TSO survives vCPU offline/online in both directions (native litmus, 0 reorderings against 2.4M in the default model); the release dry run found `make release` broken since FEX landed (a loop variable shadowed the output path) and now packages FEX's sources, the Asahi patches and the new licenses. Next: WORKORDER P1 (node start under FEX).
 - 2026-10-26: WORKORDER R1 fixed: node started slowly under FEX because multiblock compiled 5000-instruction superblocks out of code that runs once. A translated block now holds 150 x86 instructions (build-time default), so node starts in 260 ms against QEMU's 386, its JIT loop is 8 % faster, nothing measured got slower, and the memory FEX held after x86 work fell from 275–302 to 240 MB. Next: WORKORDER R2 (the 15 MB that is left).
 - 2026-10-26: WORKORDER P1 finished. R2 was the superblock code caches R1 removed (x86test footprint after x86 work 275–302 → 240 MB; per process FEX is now cheaper than QEMU, 117.8 vs 126.2 MB, and both end at 80 MB after the idle sweep). R3 measured: 0.78 µs per TSO↔plain switch, 69 vs 39 ms on one vCPU for a pipe-bound x86-to-native workload, no difference when vCPUs are free; accepted. R4 measured: the unpack's pages come back 5 s after boot, and both compaction fixes tried were worth 0–2 MB, so accepted. Next: WORKORDER P2 (the occasional ~100 MB high idle).
+- 2026-10-26: WORKORDER P2 explained: the ~100 MB high idle readings were taken before the idle trim, which returns ~70 MB 30 s after the last activity; the footprint then settles ~20 MB above its floor as dockerd reads files back. `benchmark.py` samples 35–95 s and reports the floor and the steady state. Guest compaction was tried again and dropped on an A/B. Next: WORKORDER I1 (32-bit x86 images through FEX).

@@ -167,12 +167,23 @@ Rules for every item (on top of [AGENTS.md](../AGENTS.md)):
 
 ## P2: open items from before
 
-### O1. Idle footprint that sometimes reads ~100 MB high
+### O1. Idle footprint that sometimes read ~100 MB high (explained 2026-10-26)
 
 Phase 10's open task: 2 of 9 benchmark runs before the idle trim fix, 0 of 3 after. Reproduce
 with `make benchmark` repeated (at least 10 runs on a quiet Mac), and when a high run happens,
 capture the guest's `/proc/meminfo`, `/proc/pagetypeinfo` and the per-CPU free lists before the
 VM stops.
+
+- **Done (2026-10-26).** Reproduced 11 times out of 12 by repeating the benchmark's idle
+  measurement: it is the reading's place in the idle cycle. The footprint holds at ~260 MB until
+  the idle trim and sweep fire 30 s after the last activity, falls to 185–205 MB, and settles at
+  210–225 MB as dockerd and containerd read files back; the guest uses 65 MB throughout, so the
+  difference is guest memory that is free but not yet returned. `benchmark.py` samples 35, 50, 65,
+  80 and 95 s and reports `idle_at_35s`, `idle_min` and `idle`. Compaction in the idle sweep was
+  tried here too (it looks like 80 MB in the pre-trim state) and dropped on an A/B: floor 191–204
+  and steady 216–225 MB with it, 184–186 and 213–214 without. The published 198 MB is the 35 s
+  reading; quoting the steady state would mean rerunning the four-engine comparison, which is the
+  maintainer's call.
 
 ## Improvements after the bugs
 
