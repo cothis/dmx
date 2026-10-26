@@ -2,7 +2,7 @@ import ArgumentParser
 import DMXCore
 import Foundation
 
-let version = "0.2.1"
+let version = "0.2.2"
 
 struct GlobalOptions: ParsableArguments {
     @Flag(help: "Print one JSON object on stdout instead of text.")
