@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Talks to the dmx daemon over its control socket. Like `AgentClient`, control calls share one
 /// connection and each exec opens its own.
@@ -27,6 +28,7 @@ public final class DaemonClient: Sendable {
                 guard hello.protocol == daemonProtocol else {
                     throw DMXError("daemon_version", "the daemon speaks protocol \(hello.protocol), this dmx speaks \(daemonProtocol)", hint: "the daemon (pid \(hello.pid)) is from another dmx; run `kill \(hello.pid)`, then retry")
                 }
+                noticeOldDaemon(hello)
                 return DaemonClient(paths: paths, control: connection, hello: hello)
             } catch let error as DMXError where error.code == "daemon_unreachable" {
                 guard start else { return nil }
@@ -42,6 +44,19 @@ public final class DaemonClient: Sendable {
         }
         throw DMXError("daemon_unreachable", "no answer from the dmx daemon on \(paths.controlSocket.path)" + (lastError.map { ": \($0.message)" } ?? ""),
                        hint: "see \(paths.daemonLog.path), or run `dmx daemon` in a terminal to watch it")
+    }
+
+    /// After `dmx update` the old daemon keeps serving until it exits, so a command can run
+    /// against a version the user no longer has installed. Say so once per process, on stderr so
+    /// `--json` output stays machine-readable; it is a notice, not an error, because the daemon
+    /// speaks the same protocol and the VM and its containers are fine where they are.
+    private static let noticed = Atomic<Bool>(false)
+    private static func noticeOldDaemon(_ hello: DaemonHello) {
+        guard hello.version != dmxVersion, !noticed.exchange(true, ordering: .relaxed) else { return }
+        FileHandle.standardError.write(Data("""
+            dmx: the daemon answering is \(hello.version) (pid \(hello.pid)), this dmx is \(dmxVersion)
+            dmx: `dmx stop` powers the VM off and the daemon exits; the next command runs \(dmxVersion)\n
+            """.utf8))
     }
 
     public func close() { control.close() }

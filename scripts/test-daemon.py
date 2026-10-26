@@ -428,9 +428,15 @@ try:
     # the gateway's host address. Which macOS gives depends on the Mac's network (loopback with no
     # LAN, the LAN address on one).
     local = subprocess.run(["scutil", "--get", "LocalHostName"], capture_output=True, text=True).stdout.strip()
-    mac = subprocess.run(["dscacheutil", "-q", "host", "-a", "name", f"{local}.local"], capture_output=True, text=True).stdout
-    mac = {line.split()[1] for line in mac.splitlines() if line.startswith("ip_address:")}
+    answer = subprocess.run(["dscacheutil", "-q", "host", "-a", "name", f"{local}.local"], capture_output=True, text=True).stdout
+    mac = {line.split()[1] for line in answer.splitlines() if line.startswith("ip_address:")}
+    mac6 = {line.split()[1] for line in answer.splitlines() if line.startswith("ipv6_address:")}
     want = {"192.168.127.254" if a.startswith("127.") else a for a in mac}
+    # The Mac's loopback is the gateway's host address in both families. Link-local answers and
+    # AAAA the Mac has no route for are left out of the guest's answer (HostDNS.routable), so ::1
+    # is the only IPv6 address expected back.
+    if "::1" in mac6:
+        want.add("fd64:646d:7800::254")
     r = dmx("exec", "--", "nslookup", f"{local}.local", "192.168.127.1")
     # Addresses after the first "answer:" (the lines before it name the server).
     got = {line.split()[1].decode() for line in r.stdout.partition(b"answer:")[2].splitlines() if line.startswith(b"Address:")}
@@ -582,6 +588,44 @@ try:
     dmx("config", "unset", "disk_size")
 
     fixed_memory_checks()
+
+    # `dmx update` against the real release page: what it would install, the guard that keeps it
+    # from overwriting a build from source, and a copy of this binary actually updated to the
+    # published release (0.2.2 here, so the swap is visible in --version). The notice a command
+    # prints when the daemon answering is another version is checked with the running daemon.
+    r = dmx("update", "--check", "--json")
+    plan = json.loads(r.stdout) if r.returncode == 0 else {}
+    results["update_check"] = plan
+    check("update_check", r.returncode == 0 and plan.get("target", "").count(".") == 2 and
+          plan.get("url", "").endswith(f"dmx-{plan.get('target')}-darwin-arm64.tar.gz"), repr(r.stdout[:200]))
+    r = dmx("update", "--version", "0.2.2", "--json")
+    refused = json.loads(r.stdout) if r.stdout.startswith(b"{") else {}
+    check("update_refuses_source_build", r.returncode != 0 and
+          (refused.get("error") or {}).get("code") == "update_source_build", repr(r.stdout[:200]))
+
+    copied = HOME / "bin"
+    copied.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(DMX, copied / "dmx")
+    r = subprocess.run([str(copied / "dmx"), "update", "--version", "0.2.2", "--json"],
+                       capture_output=True, timeout=600, env=ENV)
+    done = json.loads(r.stdout) if r.stdout.startswith(b"{") else {}
+    installed = subprocess.run([str(copied / "dmx"), "--version"], capture_output=True, timeout=60, env=ENV).stdout.strip()
+    check("update_installs", r.returncode == 0 and done.get("updated") is True and installed == b"0.2.2" and
+          (done.get("daemon") or {}).get("handover") == "stop_to_switch", f"{r.stdout[:200]!r} now {installed!r}")
+    # The notice needs a daemon of another version, so the 0.2.2 copy serves one in its own home.
+    other = Path(tempfile.mkdtemp(prefix="dmx-test-old-", dir="/tmp"))
+    other_env = {**os.environ, "DMX_HOME": str(other)}
+    (other / "guest").symlink_to(GUEST)
+    dmx("stop")
+    subprocess.run([str(copied / "dmx"), "start", "--json"], capture_output=True, timeout=300, env=other_env)
+    r = subprocess.run([str(DMX), "status"], capture_output=True, timeout=120, env=other_env)
+    check("update_notices_old_daemon", b"the daemon answering is 0.2.2" in r.stderr and b"dmx stop" in r.stderr,
+          repr(r.stderr[:200]))
+    subprocess.run([str(copied / "dmx"), "stop"], capture_output=True, timeout=120, env=other_env)
+    wait_for(lambda: not subprocess.run(["pgrep", "-f", f"{copied / 'dmx'} daemon"], capture_output=True).stdout, 30)
+    shutil.rmtree(other, ignore_errors=True)
+    shutil.rmtree(copied, ignore_errors=True)
+    dmx("exec", "--", "true")
 
     # Idle: the VM stops after idle_timeout, then the daemon exits after 10 s.
     dmx("config", "set", "idle_timeout", "2s")

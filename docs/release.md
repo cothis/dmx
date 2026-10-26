@@ -16,6 +16,15 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
   into that copy of the script (or, with `DMX_VERSION` set to another version, the `.sha256` file
   next to the tarball), and installs `dmx` to `~/.local/bin` (`PREFIX` to change). It needs no
   sudo and changes nothing else: no shell profile, no launchd, no `~/.dmx`.
+- `dmx update` does the same for an installed dmx, from the binary itself: it resolves the newest
+  release (the redirect GitHub answers for `releases/latest`, so a mirror needs `--version`),
+  checks the archive against the published `.sha256`, runs the binary it unpacked to see that it
+  reports that version, and renames it over the file it is running from. It refuses to overwrite a
+  build from source (`.build/...`) without `--force`, and refuses a directory it cannot write with
+  a hint naming `install.sh` and `PREFIX`. A running VM is left alone and the report says
+  `stop_to_switch`; an idle daemon is asked to quit, so the next command runs the new version
+  (`quit`). `DaemonClient` also prints a notice whenever the daemon answering is another version,
+  because an old daemon keeps serving until it exits.
 - The dmx binary carries the sha256 of the guest it was released with
   (`Sources/DMXCore/GuestPin.swift`). Before a boot (the daemon's, or `dmx boot`) it downloads
   `<base>/<tag>/dmx-guest-<version>.tar.gz` when `~/.dmx/guest` is missing or came from another
@@ -37,7 +46,7 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
 ## Cutting a release
 
 1. Build the guest from a clean checkout: `make kernel` and `make qemu` if they changed, then `make guest`.
-2. Set `version` in `Sources/dmx/DMX.swift` (the tag is `v<version>`).
+2. Set `dmxVersion` in `Sources/DMXCore/Version.swift` (the tag is `v<version>`).
 3. Run the local checks. There is no CI: these need the real VM, which hosted runners cannot
    provide (no nested virtualization).
 

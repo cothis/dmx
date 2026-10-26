@@ -321,7 +321,8 @@ public enum DockerTools {
         }
     }
 
-    private static func untar(_ archive: URL, member: String, into dir: URL) throws {
+    /// Also used by SelfUpdate, which takes `dmx` out of a release tarball.
+    static func untar(_ archive: URL, member: String, into dir: URL) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
         process.arguments = ["-xzf", archive.path, "-C", dir.path, member]

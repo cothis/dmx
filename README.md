@@ -62,7 +62,28 @@ dmx stop                         # power off now instead of waiting for the idle
 dmx config set memory 8G         # also: cpus, idle_timeout, disk_size, shares; next boot
 dmx port add 8080:80             # forward a host port to the VM (Docker's -p needs no command)
 dmx doctor                       # check this Mac and the installation
+dmx update                       # install the newest release over this one
 ```
+
+### Updating
+
+`dmx update` downloads the newest release, checks it against the sha256 published beside it, and
+replaces the binary it is running from; `dmx update --check` only says whether a newer one exists.
+The Linux guest follows by itself: the new dmx knows the sha256 of its own guest and downloads it
+before the next boot.
+
+A VM that is running is left alone, because its containers are. The daemon serving it is still the
+old version until it exits, which `dmx update` says: `dmx stop` powers the VM off and the daemon
+exits a few seconds later, so the next command runs the new version. Any command that reaches a
+daemon of another version says so too.
+
+`dmx update` arrives after v0.3.0, so on v0.3.0 and earlier update by running the install script
+of the release you want, which replaces the binary the same way:
+
+```sh
+curl -fsSL https://github.com/cothis/dmx/releases/latest/download/install.sh | sh
+```
+
 
 ### From an AI agent
 

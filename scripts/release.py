@@ -426,9 +426,10 @@ def main():
     args = ap.parse_args()
 
     tag = f"v{args.version}"
-    declared = re.search(r'^let version = "([^"]+)"', (ROOT / "Sources" / "dmx" / "DMX.swift").read_text(), re.M).group(1)
+    version_file = ROOT / "Sources" / "DMXCore" / "Version.swift"
+    declared = re.search(r'^public let dmxVersion = "([^"]+)"', version_file.read_text(), re.M).group(1)
     if declared != args.version:
-        sys.exit(f"Sources/dmx/DMX.swift says version {declared}; set it to {args.version} first")
+        sys.exit(f"{version_file.relative_to(ROOT)} says version {declared}; set it to {args.version} first")
     out = args.out or ROOT / ".build" / "dist" / tag
     out.mkdir(parents=True, exist_ok=True)
     if not args.ad_hoc and not SIGNING_CONFIG.is_file():
