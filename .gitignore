@@ -3,3 +3,5 @@
 *.xcodeproj/
 .DS_Store
 guest/agent/target/
+__pycache__/
+*.pyc
