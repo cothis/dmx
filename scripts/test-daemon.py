@@ -283,6 +283,10 @@ def portfwd(results):
     body = http_get(18780, "/", host="::1")
     check("portfwd_ipv6_loopback", body == b"hello from the guest\n", repr(body))
 
+    # The memory checks just before free gigabytes that take a few seconds to come back; without
+    # this wait the footprint after the streams measures them, not the forward.
+    wait_for(lambda: status().get("host_footprint_mb", 1 << 20) < results.get("idle_footprint_mb", 0) + 64, 15)
+    results["portfwd_footprint_before_streams_mb"] = status().get("host_footprint_mb")
     started = time.time()
     n = len(http_get(18780, "/zero/200000000"))
     results["portfwd_guest_to_host_mb_per_s"] = int(200 / (time.time() - started))

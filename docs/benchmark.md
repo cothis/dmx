@@ -115,5 +115,5 @@ journal commit, and the fsyncs are containerd's `meta.db` (24), dockerd's networ
 
 Lima, and so Colima, uses plain `fsync` (`DiskImageSynchronizationModeFsync`), which explains its
 73 ms. dmx keeps the barrier (maintainer, 2026-10-25): with plain `fsync` the SSD may reorder
-writes across a power cut and leave the ext4 data disk (images, volumes) corrupt, and dmx does
-not fsck at boot yet. Answering early only moved the wait to the next write.
+writes across a power cut and leave the ext4 data disk (images, volumes) corrupt; the fsck at boot
+(since 0.2.1) can repair the file system but not bring back lost data. Answering early only moved the wait to the next write.
