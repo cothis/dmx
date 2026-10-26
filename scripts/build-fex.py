@@ -10,8 +10,9 @@ FEX_PATCH makes it run where containers put it, as a binfmt_misc interpreter ope
 kernel (flag F), with no FEXServer and no other file of its own; makes it ignore the caller's
 configuration when the kernel marks the exec privileged (AT_SECURE: a setuid x86 program, which
 binfmt's C flag runs with the file's credentials); reserves the address space above 2^47 by
-probing for it where /proc/self/maps cannot be read; and fixes four places that relied on glibc
-behaviour musl does not have. Output: <cache>/<guest.DMX_FEX>, a stripped
+probing for it where /proc/self/maps cannot be read; caps a translated block at 150 x86
+instructions rather than 5000, which is what made node start slowly; and fixes four places that
+relied on glibc behaviour musl does not have. Output: <cache>/<guest.DMX_FEX>, a stripped
 static PIE. `make guest` puts it in docker.img.
 
 `--lock` re-resolves TOOLCHAIN from Alpine's current APKINDEX and prints new pins.
@@ -376,6 +377,24 @@ FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
    }
  
    Alloc64 = Alloc::OSAllocator::Create64BitAllocatorWithRegions(Regions);
+--- a/FEXCore/Source/Interface/Config/Config.json.in
++++ b/FEXCore/Source/Interface/Config/Config.json.in
+@@ -12,10 +12,13 @@
+       },
+       "MaxInst": {
+         "Type": "int32",
+-        "Default": "5000",
++        "Default": "150",
+         "AffectsCodeGen": "true",
+         "Desc": [
+-          "Maximum number of instruction to store in a block"
++          "Maximum number of instruction to store in a block",
++          "dmx: 150 rather than upstream's 5000. Compiling 5000-instruction superblocks out of",
++          "code that runs once is what made node start in 0.65 s instead of 0.27 s; the long",
++          "running workloads measured did not get slower, and node's JIT loop got faster"
+         ]
+       },
+       "EnableCodeCachingWIP": {
 """
 
 TOOLCHAIN_ROOTS = [

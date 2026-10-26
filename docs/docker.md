@@ -110,7 +110,10 @@ docker CLI ──▶ ~/.dmx/docker.sock ──▶ dmx daemon ──vsock──�
   gaps with `MAP_FIXED_NOREPLACE` instead, and FEX stops with a message if neither works.
   Upstream reserves nothing there, and x86 programs then get addresses above 2^47 (jemalloc and
   mimalloc abort on them). Probing costs ~31 ms per x86 process, so it is the fallback;
-  containers always have `/proc`.
+  containers always have `/proc`. A translated block holds at most 150 x86 instructions instead of
+  upstream's 5000: compiling 5000-instruction superblocks out of code that runs once is what made
+  `node -e 0` take 650 ms instead of 260, and no workload measured got slower
+  ([measurements](measurements/2026-10-26-maxinst.json)).
   `dmx config set x86_emulator qemu` uses QEMU user mode instead, from the next boot: built by
   `make qemu` from pinned QEMU 11.0.3 source like Alpine's static build, with one dmx patch: the
   x86_64 guest base defaults to 2^47 so programs never see addresses above x86-64's 47-bit user

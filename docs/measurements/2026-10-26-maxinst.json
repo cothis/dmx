@@ -1,0 +1,162 @@
+{
+ "at": "2026-10-26",
+ "host": "Apple M4, macOS 26.6.1; the Mac had other work on it (load 4-7), so settings were alternated",
+ "question": "WORKORDER R1: node started in 650 ms under FEX against 370 ms under QEMU. Where does it go?",
+ "method": "x86_64 Alpine chroot in the dmx guest, FEX_* variables, timed on the host around N runs in the guest",
+ "node_start_ms": {
+  "note": "node -e 0, 3 runs per point",
+  "default_multiblock_maxinst_5000": [
+   641,
+   654,
+   648,
+   663,
+   763,
+   718,
+   666
+  ],
+  "multiblock_off": [
+   199,
+   198
+  ],
+  "maxinst_1000": [
+   533
+  ],
+  "maxinst_400": [
+   331,
+   335
+  ],
+  "maxinst_150": [
+   275,
+   295,
+   281,
+   260
+  ],
+  "jitless_default": [
+   616,
+   626
+  ],
+  "smcchecks_none": [
+   636
+  ],
+  "smcchecks_full": [
+   636
+  ],
+  "tso_off": [
+   646
+  ],
+  "halfbarrier_off": [
+   643
+  ],
+  "uv_threadpool_1": [
+   650
+  ]
+ },
+ "other_workloads_maxinst_5000_vs_150_alternating": {
+  "node_jit_3e7_loop_ms": {
+   "5000": [
+    4342,
+    4274,
+    3938
+   ],
+   "150": [
+    3814,
+    3686,
+    3583
+   ]
+  },
+  "python3_start_ms": {
+   "5000": [
+    91,
+    84,
+    75
+   ],
+   "150": [
+    80,
+    74,
+    74
+   ]
+  },
+  "python3_1m_loop_ms": {
+   "5000": [
+    236,
+    246,
+    195
+   ],
+   "150": [
+    251,
+    202,
+    198
+   ]
+  },
+  "python3_imports_ms": {
+   "5000": [
+    170,
+    128,
+    116
+   ],
+   "150": [
+    134,
+    117,
+    118
+   ]
+  },
+  "sha256_100mb_ms": {
+   "5000": [
+    431,
+    438,
+    398
+   ],
+   "150": [
+    452,
+    401,
+    398
+   ]
+  }
+ },
+ "multiblock_off_costs": {
+  "python3_1m_loop_ms": {
+   "on": [
+    191,
+    193
+   ],
+   "off": [
+    547,
+    540
+   ]
+  },
+  "note": "so multiblock stays on; only the block size cap changes"
+ },
+ "x86test_after": {
+  "checks": "40/40",
+  "fex_node_start_ms": 260,
+  "qemu_node_start_ms": 386,
+  "fex_footprint_after_x86_mb": 240,
+  "fex_footprint_after_x86_mb_before": [
+   275,
+   292,
+   302
+  ],
+  "qemu_footprint_after_x86_mb": 225
+ },
+ "image_matrix_amd64_after": {
+  "result": "9/9",
+  "workload_s": {
+   "alpine": 0.16,
+   "debian": 0.2,
+   "ubuntu": 0.2,
+   "python": 0.42,
+   "node": 0.76,
+   "nginx": 1.57,
+   "redis": 2.29,
+   "postgres": 2.8,
+   "eclipse-temurin": 2.08
+  },
+  "workload_s_before_maxinst_change": {
+   "python": 0.4,
+   "node": 1.05,
+   "postgres": 2.84,
+   "eclipse-temurin": 2.65
+  }
+ },
+ "decision": "MaxInst 150 as a build-time default in FEX (scripts/build-fex.py). Multiblock stays on."
+}

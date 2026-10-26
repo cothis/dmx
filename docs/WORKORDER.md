@@ -104,6 +104,14 @@ Rules for every item (on top of [AGENTS.md](../AGENTS.md)):
   the binary as a build-time default, not an environment variable.
 - **Done when** node start is at most QEMU's, or the reason it cannot be is written down with
   numbers.
+- **Done (2026-10-26).** Not the JIT, SMC tracking, TSO or node's threads: `--jitless`,
+  `FEX_SMCCHECKS=0`, `FEX_SMCCHECKS=2`, `FEX_TSOENABLED=0`, `FEX_HALFBARRIERTSOENABLED=0` and
+  `UV_THREADPOOL_SIZE=1` all left it at 616–650 ms. It was multiblock compiling superblocks of up
+  to `MaxInst` = 5000 x86 instructions out of code that runs once. Turning multiblock off gives
+  199 ms but costs CPython 2.8×, so instead `MaxInst` is 150 by build-time default
+  (`Config.json.in` in `FEX_PATCH`): node start 260 ms against QEMU's 386, node's JIT loop 8 %
+  faster, python start/loop/imports and sha256 unchanged, amd64 image matrix 9/9. See
+  [measurements](measurements/2026-10-26-maxinst.json).
 
 ### R2. FEX keeps more guest memory after x86 work
 
@@ -113,6 +121,9 @@ Rules for every item (on top of [AGENTS.md](../AGENTS.md)):
 - **Look at.** Where the extra 50–60 MB is while x86 programs run (FEX code caches, its
   allocator's arenas; `smaps_rollup` of a running x86 python), and whether it all comes back once
   they exit (it should: the processes are gone). Compare the idle sweep's result a minute later.
+- **Update (2026-10-26).** R1's block cap took most of it: footprint after the x86 work is now
+  240 MB against QEMU's 225 (was 275–292 vs 227–231), after cleanup 137 vs 124. So the code
+  caches of 5000-instruction superblocks were the bulk of it; 15 MB is left to explain.
 - **Done when** the difference is explained, and either reduced or accepted in PLAN.md's
   decisions with the numbers.
 
