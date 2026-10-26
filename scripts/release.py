@@ -156,8 +156,12 @@ def inventory(cache: Path, kernel_tar: Path) -> list:
         "name": "FEX-Emu", "version": fex_build.VERSION, "license": "MIT", "upstream": "https://fex-emu.com/",
         "source": fex_source, "source_sha256": fex_build.SOURCES["."][2],
         "notes": f"with dmx's patch, built as in {guest.DMX_FEX}.build.py ({REPO}). Its tree also carries SoftFloat-3e "
-                 "(BSD-3-Clause), tiny-json (MIT) and parts of the Cephes math library (\"BSD licensed\", per "
-                 "External/cephes/LICENSE in the source)",
+                 "(BSD-3-Clause), tiny-json (MIT) and, in the x87 path, ten files of Stephen L. Moshier's Cephes math "
+                 "library (the 128-bit set: sinll, tanll, atanll, exp2ll, log2ll, floorll, polevll, constll, mtherr and "
+                 "FEX's Impl.cpp), Copyright 1984-1995 Stephen L. Moshier, releases 2.0 to 2.3. Netlib's own terms "
+                 "(https://www.netlib.org/cephes/readme) are \"What you see here may be used freely but it comes with no "
+                 "support or guarantee\"; the author gave written permission to license it as BSD (\"BSD license is fine, "
+                 "modification is OK\", quoted in full in External/cephes/LICENSE in the source bundle)",
         "from": "dmx",
     })
     licenses = {"External/fmt": "MIT", "External/xxhash": "BSD-2-Clause", "External/range-v3": "BSL-1.0",

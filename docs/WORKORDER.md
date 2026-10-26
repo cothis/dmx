@@ -192,6 +192,13 @@ VM stops.
   qemu-i386 if it is cheap.
 - **I2. cephes license.** The THIRD_PARTY entry quotes FEX's "BSD licensed" note. Find the exact
   terms of the cephes files FEX vendors and record them precisely.
+  **Done (2026-10-26).** Ten files are linked into dmx's FEX (the symbols are in the binary):
+  `sinll`, `tanll`, `atanll`, `exp2ll`, `log2ll`, `floorll`, `polevll`, `constll`, `mtherr` and
+  FEX's own `Impl.cpp`, from Cephes releases 2.0 to 2.3, Copyright 1984-1995 Stephen L. Moshier.
+  Netlib's readme says "What you see here may be used freely but it comes with no support or
+  guarantee"; the author later gave written permission to license it as BSD ("BSD license is fine,
+  modification is OK"), and FEX's `External/cephes/LICENSE` quotes that e-mail in full. The
+  THIRD_PARTY note in `release.py` now says exactly that.
 
 ## Then
 
