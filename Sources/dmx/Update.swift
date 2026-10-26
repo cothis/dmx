@@ -45,11 +45,13 @@ struct Update: AsyncParsableCommand {
                     ? "dmx \(result.target) is out; this is \(result.current). `dmx update` installs it."
                     : "dmx \(result.target) was not installed"
             case (false, false):
-                text = "dmx \(result.current) is the newest release"
+                text = result.target == result.current
+                    ? "dmx \(result.current) is the newest release"
+                    : "dmx \(result.current) is newer than the newest release (\(result.target))"
             }
             if let daemon = result.daemon {
                 switch daemon.handover {
-                case "quit": text += "\n  the idle daemon (pid \(daemon.pid)) exited; the next command runs \(result.target)"
+                case "exits_soon": text += "\n  the daemon (pid \(daemon.pid)) is idle and exits shortly; the next command runs \(result.target)"
                 case "stop_to_switch": text += "\n  the VM still runs on \(daemon.version) (pid \(daemon.pid)); `dmx stop` hands it over"
                 default: text += "\n  a daemon from \(daemon.version) (pid \(daemon.pid)) is running"
                 }

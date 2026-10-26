@@ -210,7 +210,9 @@ public struct GuestStore: Sendable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let target = (dir ?? paths.guest).appendingPathComponent("release.json")
-        try encoder.encode(release).write(to: target)
+        // Atomic: `state()` reads this without the lock, and a truncated file would make a
+        // downloaded guest look locally built, which dmx never replaces.
+        try encoder.encode(release).write(to: target, options: .atomic)
     }
 
     /// One fetch at a time per DMX_HOME. Polls instead of blocking, so a daemon waiting here

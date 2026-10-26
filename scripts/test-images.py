@@ -355,6 +355,10 @@ def main():
                     # Only some images publish the optional platforms (see OPTIONAL_PLATFORMS).
                     continue
                 report["results"].append(matrix.test(name, entry, platform))
+        # `--image node --platform linux/386` has no pin, so nothing runs: that is not a pass.
+        if not report["results"]:
+            raise RuntimeError(f"no image has a pin for {args.platform or 'any platform'}"
+                               f"{' among ' + ', '.join(args.image) if args.image else ''}")
         report["ok"] = all(r["ok"] for r in report["results"])
         report["status"] = json.loads(matrix.dmx("status", "--json"))
         log = matrix.dmx("exec", "--", "dmesg")

@@ -9,7 +9,8 @@ Only the `FEX` program is built (FEXInterpreter): no FEXServer, FEXConfig, thunk
 FEX_PATCH makes it run where containers put it, as a binfmt_misc interpreter opened by the
 kernel (flag F), with no FEXServer and no other file of its own; makes it ignore the caller's
 configuration when the kernel marks the exec privileged (AT_SECURE: a setuid x86 program, which
-binfmt's C flag runs with the file's credentials); reserves the address space above 2^47 by
+binfmt's C flag runs with the file's credentials) and read its config, data and cache directories
+from the system-wide path rather than the caller's $HOME; reserves the address space above 2^47 by
 probing for it where /proc/self/maps cannot be read; caps a translated block at 150 x86
 instructions rather than 5000, which is what made node start slowly; makes the vsyscall page a
 32-bit program enters the kernel through executable, which it is not without the VDSO thunks; and
@@ -216,6 +217,53 @@ FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
    FEXCore::Config::Load();
  }
  
+@@ -620,7 +638,26 @@
+ }
+ #endif
+ 
++/*
++ * dmx: for a setuid or file-capability x86 program the kernel sets AT_SECURE, and $HOME, the XDG
++ * variables and the FEX_* overrides below all come from a caller who is not the owner of the
++ * credentials FEX now runs with. LoadConfig already drops the configuration layers that use them,
++ * but these three functions have other callers (the thunk database in LinuxEmulation's
++ * FileManager, the code cache, the profiler), so make them answer with the system-wide directory
++ * instead and keep every consumer out of the caller's home.
++ */
++static bool SecureExec() {
++#ifndef _WIN32
++  return getauxval(AT_SECURE) != 0;
++#else
++  return false;
++#endif
++}
++
+ fextl::string GetDataDirectory(bool Global, const PortableInformation& PortableInfo) {
++  if (SecureExec()) {
++    return GLOBAL_DATA_DIRECTORY;
++  }
+ #ifdef FEX_STEAM_SUPPORT
+   const char* SteamDataPath = getenv("STEAM_COMPAT_DATA_PATH");
+   if (SteamDataPath) {
+@@ -661,6 +698,9 @@
+ }
+ 
+ fextl::string GetConfigDirectory(bool Global, const PortableInformation& PortableInfo) {
++  if (SecureExec()) {
++    return GLOBAL_DATA_DIRECTORY;
++  }
+   const char* ConfigOverride = getenv("FEX_APP_CONFIG_LOCATION");
+   if (PortableInfo.IsPortable && Global) {
+     return fextl::fmt::format("{}/../share/fex-emu/", PortableInfo.InterpreterPath);
+@@ -709,6 +749,9 @@
+ }
+ 
+ fextl::string GetCacheDirectory() {
++  if (SecureExec()) {
++    return GLOBAL_DATA_DIRECTORY;
++  }
+   const char* CacheOverride = getenv("FEX_APP_CACHE_LOCATION");
+   if (CacheOverride) {
+     return CacheOverride;
 --- a/Source/Tools/FEXInterpreter/FEXInterpreter.cpp
 +++ b/Source/Tools/FEXInterpreter/FEXInterpreter.cpp
 @@ -381,12 +381,38 @@
@@ -267,7 +315,7 @@ FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
  #endif
  
  namespace fextl::pmr {
-@@ -214,6 +215,54 @@
+@@ -214,6 +215,56 @@
    FEX_UNREACHABLE;
  }
  
@@ -304,9 +352,11 @@ FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
 +    return false;
 +  }
 +
-+  // EEXIST: something is mapped in here. ENOMEM: the range is too large to map in one piece.
-+  // Anything else is this host refusing the mapping outright.
-+  if (errno != EEXIST && errno != ENOMEM) {
++  // EEXIST means something is mapped in here, so the free parts are found by halving. Any other
++  // error is the kernel refusing the mapping itself (ENOMEM under an RLIMIT_AS, a map count
++  // limit): halving would ask it 68 billion times for the same answer, so stop and let the caller
++  // say it cannot reserve the space.
++  if (errno != EEXIST) {
 +    return false;
 +  }
 +
@@ -322,7 +372,7 @@ FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
  fextl::vector<MemoryRegion> StealMemoryRegion(uintptr_t Begin, uintptr_t End) {
    const uintptr_t StackLocation_u64 = reinterpret_cast<uintptr_t>(alloca(0));
  
-@@ -221,8 +270,39 @@
+@@ -221,8 +272,39 @@
    if (MapsFD == -1) {
      // No procfs, as in BuildKit's emulator probe (an empty chroot). The assert
      // above it compiles out in release, and CollectMemoryGaps then spins on
@@ -364,7 +414,7 @@ FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
    }
  
    auto Regions = CollectMemoryGaps(Begin, End, MapsFD);
-@@ -288,7 +368,12 @@
+@@ -288,7 +370,12 @@
    uintptr_t End48BitVA = 0x1'0000'0000'0000ULL;
    auto Regions = StealMemoryRegion(Begin48BitVA, End48BitVA);
    if (Regions.empty()) {

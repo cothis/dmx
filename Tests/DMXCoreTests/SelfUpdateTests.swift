@@ -38,6 +38,34 @@ import Testing
         #expect(SelfUpdate.teamIdentifier(of: URL(fileURLWithPath: "/no/such/binary")) == nil)
     }
 
+    /// `--version` becomes a URL and a directory that is later removed, so only a version shape
+    /// is accepted.
+    @Test func onlyAVersionIsAccepted() throws {
+        #expect(try SelfUpdate.checked(version: "0.3.2") == "0.3.2")
+        #expect(try SelfUpdate.checked(version: "1.0.0-rc.2") == "1.0.0-rc.2")
+        for bad in ["", "latest", "0.3", "../../etc", "0.3.2/../..", "0.3.2 ", "0.3.2;rm -rf /"] {
+            do {
+                _ = try SelfUpdate.checked(version: bad)
+                Issue.record("accepted \(bad.debugDescription)")
+            } catch let error as DMXError {
+                #expect(error.code == "update_bad_version")
+            }
+        }
+    }
+
+    /// Without a version named, an update only moves forwards: a dmx newer than the newest
+    /// release must not be replaced by it.
+    @Test func newerIsNewer() {
+        #expect(SelfUpdate.isNewer("0.3.2", than: "0.3.1"))
+        #expect(SelfUpdate.isNewer("0.4.0", than: "0.3.9"))
+        #expect(SelfUpdate.isNewer("1.0.0", than: "0.30.0"))
+        #expect(SelfUpdate.isNewer("0.3.2", than: "0.3.2-rc.1"))
+        #expect(!SelfUpdate.isNewer("0.3.1", than: "0.3.2"))
+        #expect(!SelfUpdate.isNewer("0.3.2", than: "0.3.2"))
+        #expect(!SelfUpdate.isNewer("0.3.2-rc.1", than: "0.3.2"))
+        #expect(!SelfUpdate.isNewer("0.2.9", than: "0.10.0"))
+    }
+
     /// Replacing a build from source needs --force: it is not an installed release.
     @Test func refusesToOverwriteASourceBuild() throws {
         let build = URL(fileURLWithPath: "/Users/someone/dmx/.build/release/dmx")

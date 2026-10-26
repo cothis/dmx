@@ -336,7 +336,10 @@ def suite(emulator):
     # /proc/self/maps to reserve the space above 2^47 and, with dmx's patch (build-fex.py), probes
     # for it with MAP_FIXED_NOREPLACE when it cannot be read; upstream reserved nothing there, so
     # x86 programs got addresses above 2^47 and jemalloc and mimalloc aborted on them.
-    sh(f"umount {DIR}/root/proc")
+    # The umount has to be confirmed: with /proc still mounted this would test the ordinary path
+    # and pass even if the fallback were broken.
+    r = sh(f"umount {DIR}/root/proc && ls {DIR}/root/proc | wc -l")
+    check_("without_proc_unmounted", r.returncode == 0 and r.stdout.strip() == b"0", out(r))
     r = sh(f"ulimit -c 0; {run} python3 /tmp/probe.py")
     probe = dict(f.split("=") for f in r.stdout.decode().split() if "=" in f)
     res["pages_without_proc"] = probe

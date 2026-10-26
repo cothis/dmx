@@ -62,6 +62,36 @@ public struct SelfUpdate: Sendable {
     var isDefaultBase: Bool { baseURL == GuestRelease.defaultBaseURL }
     var asset: (String) -> String { { "dmx-\($0)-darwin-arm64.tar.gz" } }
 
+    /// `--version` reaches a URL and a directory name that is later removed, so it has to look
+    /// like a version and nothing else.
+    static func checked(version: String) throws -> String {
+        let ok = version.range(of: "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.]+)?$", options: .regularExpression) != nil
+        guard ok else {
+            throw DMXError("update_bad_version", "\"\(version)\" is not a version",
+                           hint: "name it as the release does, for example `dmx update --version 0.3.2`")
+        }
+        return version
+    }
+
+    /// True when `target` is a later version than `current` (numeric fields, left to right; a
+    /// pre-release suffix sorts before the plain version, as SemVer says).
+    static func isNewer(_ target: String, than current: String) -> Bool {
+        func parts(_ v: String) -> ([Int], String) {
+            let core = v.split(separator: "-", maxSplits: 1)
+            let numbers = core[0].split(separator: ".").map { Int($0) ?? 0 }
+            return (numbers, core.count > 1 ? String(core[1]) : "")
+        }
+        let (a, aPre) = parts(target), (b, bPre) = parts(current)
+        for i in 0..<max(a.count, b.count) {
+            let x = i < a.count ? a[i] : 0, y = i < b.count ? b[i] : 0
+            if x != y { return x > y }
+        }
+        if aPre == bPre { return false }
+        if aPre.isEmpty { return true }   // 0.3.2 is newer than 0.3.2-rc
+        if bPre.isEmpty { return false }
+        return aPre > bPre
+    }
+
     func archiveURL(_ version: String) throws -> URL {
         guard let url = URL(string: "\(baseURL)/v\(version)/\(asset(version))") else {
             throw DMXError("update_url_invalid", "cannot build a download URL from \(baseURL)",
@@ -102,8 +132,8 @@ public struct SelfUpdate: Sendable {
     /// Resolves what an update would install without downloading anything.
     public func check(version wanted: String?) async throws -> Report {
         let target: String
-        if let wanted { target = wanted } else { target = try await latest() }
-        return Report(current: current, target: target, available: target != current, updated: false,
+        if let wanted { target = try Self.checked(version: wanted) } else { target = try await latest() }
+        return Report(current: current, target: target, available: Self.isNewer(target, than: current), updated: false,
                       path: executable.path, url: try archiveURL(target).absoluteString, sha256: nil, bytes: nil,
                       daemon: nil, signature: nil)
     }
@@ -113,16 +143,25 @@ public struct SelfUpdate: Sendable {
     public func update(version wanted: String?, force: Bool,
                        progress: @Sendable (String) -> Void = { _ in }) async throws -> Report {
         let target: String
-        if let wanted { target = wanted } else { target = try await latest() }
+        if let wanted { target = try Self.checked(version: wanted) } else { target = try await latest() }
         guard target != current || force else {
             return Report(current: current, target: target, available: false, updated: false,
                           path: executable.path, url: nil, sha256: nil, bytes: nil, daemon: nil, signature: nil)
+        }
+        // Without a version named, only ever move forwards: a dmx newer than the newest release
+        // (a build from source, or a release page that lost its latest tag) must not be replaced
+        // by an older one behind the user's back.
+        guard wanted != nil || force || Self.isNewer(target, than: current) else {
+            throw DMXError("update_not_newer", "the newest release is \(target), older than this dmx (\(current))",
+                           hint: "install it anyway with `dmx update --version \(target)`")
         }
         try checkDestination(force: force)
 
         let url = try archiveURL(target)
         let expected = try await publishedSHA256(of: url)
-        let work = paths.downloads.appendingPathComponent("update-\(target)", isDirectory: true)
+        // Per process: two updates running at once must not share the directory one of them is
+        // verifying, or the file checked and the file installed could be different.
+        let work = paths.downloads.appendingPathComponent("update-\(target)-\(getpid())", isDirectory: true)
         let fm = FileManager.default
         try? fm.removeItem(at: work)
         try fm.createDirectory(at: work, withIntermediateDirectories: true)
@@ -136,8 +175,17 @@ public struct SelfUpdate: Sendable {
         try DockerTools.untar(archive, member: "dmx", into: work)
         let new = work.appendingPathComponent("dmx")
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: new.path)
-        try check(binary: new, is: target)
+        // Signature first: running the binary to read its version executes it, and until the
+        // signature is checked the only thing vouching for it is a sha256 from the same server.
+        // A link named `dmx` in the archive would make every check below read the binary it
+        // points at — this one — and the rename would then replace it with a link to itself.
+        let kind = try fm.attributesOfItem(atPath: new.path)[.type] as? FileAttributeType
+        guard kind == .typeRegular else {
+            throw DMXError("update_failed", "\(asset(target)) does not hold a plain dmx binary (\(kind?.rawValue ?? "unknown"))",
+                           hint: "the release may be broken or the download tampered with; report it to dmx")
+        }
         let signature = try checkSignature(of: new)
+        try check(binary: new, is: target)
 
         // Same directory, so the rename is atomic and cannot leave a half-written dmx behind.
         let staged = executable.deletingLastPathComponent().appendingPathComponent(".dmx.update-\(getpid())")
@@ -159,7 +207,7 @@ public struct SelfUpdate: Sendable {
         progress("installed dmx \(target) at \(executable.path)")
         return Report(current: current, target: target, available: true, updated: true,
                       path: executable.path, url: url.absoluteString, sha256: expected, bytes: bytes,
-                      daemon: try await handOver(progress: progress), signature: signature)
+                      daemon: try await handOver(target: target, progress: progress), signature: signature)
     }
 
     /// The sha256 the release publishes next to the archive. install.sh checks the same file when
@@ -237,9 +285,12 @@ public struct SelfUpdate: Sendable {
             throw DMXError("update_signature_mismatch", "the downloaded dmx is signed by team \(signed), this one by \(team)",
                            hint: "the release may be broken or the download tampered with; report it to dmx")
         }
+        // Not just "the signature is intact": the requirement ties it to Apple's anchor and this
+        // team, so a validly signed binary from anyone else is refused.
         let verify = Process()
         verify.executableURL = URL(fileURLWithPath: "/usr/bin/codesign")
-        verify.arguments = ["--verify", "--strict", binary.path]
+        verify.arguments = ["--verify", "--strict", "-R",
+                            "=anchor apple generic and certificate leaf[subject.OU] = \"\(team)\"", binary.path]
         verify.standardOutput = Pipe()
         verify.standardError = Pipe()
         try? verify.run()
@@ -271,24 +322,24 @@ public struct SelfUpdate: Sendable {
         return nil
     }
 
-    /// The new binary only takes over when the old daemon is gone. With the VM off, ask it to
-    /// quit so the next command starts the new one; with the VM running, leave it alone and say so.
-    func handOver(progress: @Sendable (String) -> Void) async throws -> Report.Daemon? {
+    /// The new binary only takes over when the old daemon is gone, so say what that will take.
+    ///
+    /// This asks the daemon to quit in no case. `quit` powers the VM off, and the states a daemon
+    /// reports are `stopped`, `starting`, `running` and `stopping`: treating everything that is
+    /// not `running` as idle would kill a VM that is booting, and a `status` call that fails or
+    /// times out would look the same. A daemon whose VM is off exits by itself ten seconds after
+    /// its last client anyway, which is the whole benefit, without the race.
+    func handOver(target: String, progress: @Sendable (String) -> Void) async throws -> Report.Daemon? {
         let connected = try? await DaemonClient.connect(paths: paths, start: false)
         guard let client = connected else { return nil }
         defer { client.close() }
         let hello = client.hello
-        let status = try? await client.status()
-        let running = (status?.state ?? "") == "running"
-        if hello.version == current, !running {
-            try? await client.quit()
-            progress("the idle daemon (pid \(hello.pid)) exited; the next command runs \(dmxVersion)")
-            return Report.Daemon(version: hello.version, pid: hello.pid, vmRunning: false, handover: "quit")
+        let state = (try? await client.status())?.state
+        if state == "stopped" {
+            progress("the daemon (pid \(hello.pid)) is idle and exits shortly; the next command runs \(target)")
+            return Report.Daemon(version: hello.version, pid: hello.pid, vmRunning: false, handover: "exits_soon")
         }
-        if running {
-            progress("the VM keeps running on dmx \(hello.version) (pid \(hello.pid)); `dmx stop` hands it over")
-            return Report.Daemon(version: hello.version, pid: hello.pid, vmRunning: true, handover: "stop_to_switch")
-        }
-        return Report.Daemon(version: hello.version, pid: hello.pid, vmRunning: false, handover: "older_cli")
+        progress("the VM keeps running on dmx \(hello.version) (pid \(hello.pid)); `dmx stop` hands it over")
+        return Report.Daemon(version: hello.version, pid: hello.pid, vmRunning: state == "running", handover: "stop_to_switch")
     }
 }
