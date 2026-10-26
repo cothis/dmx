@@ -85,9 +85,10 @@ make selftest              # 이후 daemontest, dockertest, sandboxtest, mcptest
 
 ## 남은 작업
 
-PLAN.md의 Next up 순서를 따라요. 요약하면: 0.3.0 릴리스(maintainer 결정, `make release` 결과물 먼저
-확인), FEX에서 node 시작이 느린 원인(650 vs 370 ms), 가끔 ~100 MB 높게 읽히는 idle footprint, 커뮤니티 홍보
-(maintainer 결정), 실제 회사망에서 Phase 11 확인.
+버그와 회귀부터 고쳐요(maintainer, 2026-10-26). [WORKORDER.md](WORKORDER.md)를 위에서부터 진행해요:
+P0(setuid x86 프로그램에서 FEX가 `FEX_*` 환경 변수를 따르는지 확인, `/proc` 없을 때 2^47 위 주소,
+pressuretest·TSO hotplug·릴리스 리허설), P1(node 시작, FEX 메모리, TSO 전환 비용, 첫 부팅 압축 해제),
+P2(가끔 ~100 MB 높은 idle), 그다음 개선. 0.3.0 릴리스는 그 뒤예요(태그·게시는 maintainer 결정).
 
 무거운 빌드·측정(make kernel, make fex, 이미지 매트릭스, 데몬 VM 안 컨테이너 빌드)은 동시에 돌리지 않아요.
 두 VM이 코어를 나눠 쓰면 둘 다 몇 배 느려지고 측정값도 못 믿어요(커널 315초 → 3110초). 실험 컨테이너는

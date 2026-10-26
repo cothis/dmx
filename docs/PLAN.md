@@ -519,12 +519,13 @@ v0.2.2 is published (signed and notarized, 2026-10-26). main adds, unreleased: t
 (1.4 → 0.57 %) and FEX-Emu with hardware TSO as the default x86 emulator (QEMU as a setting),
 with a new kernel (Asahi's TSO patches) and docker.img format 3. In order:
 
-1. Release 0.3.0 with FEX (maintainer's call: tag and publish). `make release` now packages
-   FEX's sources and licenses and the TSO kernel patches; check the release directory before
-   publishing, it has not been run since.
-2. Node starts slower under FEX (650 vs 370 ms); profile it (FEX's `SMCChecks`, code cache).
-3. The idle footprint that sometimes reads ~100 MB high (phase 10). Warm `docker run` (~100 ms
-   quiet) stays behind Colima by choice (data disk barrier flushes, see Decisions).
+1. Bugs and regressions first (maintainer, 2026-10-26): work through [WORKORDER.md](WORKORDER.md)
+   top to bottom: P0 (FEX ignoring `AT_SECURE`, FEX without `/proc`, pressuretest / TSO hotplug /
+   release dry run), P1 (node start, FEX memory, TSO switch cost, first-boot unpack), P2 (the
+   ~100 MB high idle), then the improvements.
+2. Release 0.3.0 with FEX (maintainer's call: tag and publish), after the work order.
+3. Warm `docker run` (~100 ms quiet) stays behind Colima by choice (data disk barrier flushes,
+   see Decisions).
 4. Community announcement (Show HN, Reddit, GeekNews): phase 11 is out in 0.2.0, so this waits only
    on the maintainer's word (maintainer, 2026-10-25: after more improvements).
 5. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
@@ -741,3 +742,4 @@ complete by the finished acceptance suites.
 - 2026-10-26: Engine comparison rerun on a quiet Mac (Docker Desktop, OrbStack, Colima installed briefly, then removed): same picture with narrow ranges; README shows the new numbers. dmx's idle CPU is the highest of the four and predates 0.2.2. Next: what wakes dmx at idle.
 - 2026-10-26: dmx's idle CPU came from the idle trim repeating (dockerd's file pages reclaimed and read back every few seconds); trimming once per idle spell takes it from 1.4 to 0.57 % of a core. The WFI cap and the mapping remaps were ruled out by measurement. Next: x86_64 images faster than QEMU (FEX-Emu, hardware TSO).
 - 2026-10-26: x86_64 images run through FEX-Emu with the Apple CPU's hardware TSO (Asahi's kernel patches, ACTLR_EL1 written only when the memory model changes); QEMU stays as `x86_emulator qemu`. CPU-bound x86 code 2.5–9× faster, image matrix 18/18. Next: release 0.3.0 (maintainer's call).
+- 2026-10-26: Maintainer: fix bugs and regressions before releasing. docs/WORKORDER.md lists them in order (FEX and setuid programs, FEX without /proc, unrun checks, node start, FEX memory, TSO switch cost, first-boot unpack, the high idle readings). Next: WORKORDER B1.
