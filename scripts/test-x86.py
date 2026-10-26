@@ -287,10 +287,14 @@ def suite(emulator):
         env = "HOME=/tmp/h FEX_OUTPUTLOG=/tmp/h/env.log FEX_SILENTLOG=0"
         r = sh(f"{setup} && {as_nobody} 'id -u; {env} /suid/true true && echo ran; ls -A /tmp/h'")
         check_("setuid_ignores_caller_config", r.stdout == b"65534\nran\n.fex-emu\n", out(r))
-        # The control: the same program without setuid is an ordinary exec, so FEX does read the
-        # caller's configuration and writes the log. Without it the check above proves nothing.
+        # Two controls, because the two sources have to be shown separately: the same program
+        # without setuid writes env.log from the variable, and with no variable set it writes
+        # home.log from $HOME/.fex-emu/Config.json. Checking only the variable would pass even if
+        # the file were never read, which is half of what the setuid case has to ignore.
         r = sh(f"{as_nobody} 'rm -f /tmp/h/*.log; {env} /plain/true true && echo ran; ls -A /tmp/h'")
-        check_("setuid_control_reads_config", r.stdout == b"ran\n.fex-emu\nenv.log\n", out(r))
+        check_("setuid_control_reads_env", r.stdout == b"ran\n.fex-emu\nenv.log\n", out(r))
+        r = sh(f"{as_nobody} 'rm -f /tmp/h/*.log; HOME=/tmp/h FEX_SILENTLOG=0 /plain/true true && echo ran; ls -A /tmp/h'")
+        check_("setuid_control_reads_home_config", r.stdout == b"ran\n.fex-emu\nhome.log\n", out(r))
         sh(f"rm -rf {DIR}/root/suid {DIR}/root/plain {DIR}/root/tmp/h")
 
         # 32-bit x86 (linux/386 images). FEX takes its vsyscall entry from a VDSO thunk, and

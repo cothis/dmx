@@ -40,6 +40,15 @@ This repo is public: no private hostnames, IPs or personal details here.
   files outside the repo, so put the symptom, what is ruled out, build specifics and code excerpts in the prompt, ask
   for ranked hypotheses plus the cheapest diagnostic, and verify the answer yourself. It found the FEX 32-bit cause
   (fallback vsyscall page mapped read-only) after a wrong lead of mine.
+- Two models reviewing the same diff is worth the tokens (2026-10-26, the maintainer asked for
+  "sonnet 5.5 및 gpt sol6.1로 검수"): Claude Sonnet 5.5 through the Agent tool and
+  `codex exec -m gpt-6.1-sol -s read-only` (if it answers "Selected model is at capacity", fall back to
+  `gpt-6-astra`). Both found the same two worst defects in code that had already shipped, and between them nine more.
+  Give them the diff range, the project rules and the riskiest areas, ask for file:line plus the sequence that breaks
+  it, and verify every claim against the code before fixing: a few were already handled or needed narrowing.
+- Review a self-updater as hostile input end to end: check the signature before running the downloaded binary, treat
+  only an explicit `stopped` as idle before touching a VM, reject an archive member that is not a plain file, validate
+  anything that reaches a URL or a path, and write receipts atomically.
 - `guest_used_mb` from `MemAvailable` overstates use; use `total - free - buffers - cached + shmem`. Intermediate
   balloon growth is not successful reclaim: wait for balloon state and footprint recovery. Unplug virtio-mem surplus
   before ballooning.

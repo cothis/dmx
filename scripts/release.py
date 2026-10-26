@@ -431,7 +431,10 @@ def main():
 
     tag = f"v{args.version}"
     version_file = ROOT / "Sources" / "DMXCore" / "Version.swift"
-    declared = re.search(r'^public let dmxVersion = "([^"]+)"', version_file.read_text(), re.M).group(1)
+    found = re.search(r'^public let dmxVersion = "([^"]+)"', version_file.read_text(), re.M)
+    if not found:
+        sys.exit(f"{version_file.relative_to(ROOT)} has no `public let dmxVersion = \"...\"` line to read the version from")
+    declared = found.group(1)
     if declared != args.version:
         sys.exit(f"{version_file.relative_to(ROOT)} says version {declared}; set it to {args.version} first")
     out = args.out or ROOT / ".build" / "dist" / tag

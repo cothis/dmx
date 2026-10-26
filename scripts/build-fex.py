@@ -315,10 +315,12 @@ FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
  #endif
  
  namespace fextl::pmr {
-@@ -214,6 +215,56 @@
+@@ -212,6 +213,56 @@
+     Cursor = line_end + 1;
+   }
    FEX_UNREACHABLE;
- }
- 
++}
++
 +/**
 + * @brief Reserve the free parts of [Begin, End) without reading /proc/self/maps.
 + *
@@ -367,12 +369,10 @@ FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
 +  }
 +
 +  return ProbeMemoryRegion(Begin, Mid, Prot, PageSize, Out) && ProbeMemoryRegion(Mid, End, Prot, PageSize, Out);
-+}
-+
- fextl::vector<MemoryRegion> StealMemoryRegion(uintptr_t Begin, uintptr_t End) {
-   const uintptr_t StackLocation_u64 = reinterpret_cast<uintptr_t>(alloca(0));
+ }
  
-@@ -221,8 +272,39 @@
+ fextl::vector<MemoryRegion> StealMemoryRegion(uintptr_t Begin, uintptr_t End) {
+@@ -221,8 +272,48 @@
    if (MapsFD == -1) {
      // No procfs, as in BuildKit's emulator probe (an empty chroot). The assert
      // above it compiles out in release, and CollectMemoryGaps then spins on
@@ -404,9 +404,18 @@ FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
 +      Reserved = ProbeMemoryRegion(Begin, End, PROT_NONE, PageSize, &Regions);
 +    }
 +
-+    if (!Reserved) {
++    if (!Reserved || Regions.empty()) {
 +      for (const auto& Region : Regions) {
 +        ::munmap(Region.Ptr, Region.Size);
++      }
++      // Only this path refuses to run: with nothing reserved the guest would be left the host's
++      // layout, which on a 48-bit AArch64 host means addresses x86-64 programs cannot hold. The
++      // procfs path above keeps upstream's behaviour, where an empty result is the host's own
++      // answer rather than a failure to ask.
++      if (Begin == 0x0'8000'0000'0000ULL) {
++        constexpr char Message[] = "FEX: could not reserve the address space above 2^47 for x86-64 programs; refusing to run\n";
++        [[maybe_unused]] const auto Written = ::write(STDERR_FILENO, Message, sizeof(Message) - 1);
++        ::_exit(1);
 +      }
 +      return {};
 +    }
@@ -414,20 +423,16 @@ FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
    }
  
    auto Regions = CollectMemoryGaps(Begin, End, MapsFD);
-@@ -288,7 +370,12 @@
+@@ -288,6 +379,9 @@
    uintptr_t End48BitVA = 0x1'0000'0000'0000ULL;
    auto Regions = StealMemoryRegion(Begin48BitVA, End48BitVA);
    if (Regions.empty()) {
--    return {};
-+    // dmx: the host has a 48-bit address space and none of its upper half could be taken, so
-+    // x86-64 programs would be handed addresses they cannot hold. Say why and stop, rather than
-+    // run them with a layout that makes allocators abort somewhere later.
-+    constexpr char Message[] = "FEX: could not reserve the address space above 2^47 for x86-64 programs; refusing to run\n";
-+    [[maybe_unused]] const auto Written = ::write(STDERR_FILENO, Message, sizeof(Message) - 1);
-+    ::_exit(1);
++    // dmx: the probe path stops by itself when it cannot reserve anything (StealMemoryRegion).
++    // Here, with /proc readable, an empty result is what the host's own map says and upstream
++    // runs with the host allocator, so keep that rather than refusing to start.
+     return {};
    }
  
-   Alloc64 = Alloc::OSAllocator::Create64BitAllocatorWithRegions(Regions);
 --- a/FEXCore/Source/Interface/Config/Config.json.in
 +++ b/FEXCore/Source/Interface/Config/Config.json.in
 @@ -12,10 +12,13 @@

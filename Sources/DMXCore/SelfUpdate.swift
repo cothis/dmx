@@ -95,7 +95,7 @@ public struct SelfUpdate: Sendable {
     func archiveURL(_ version: String) throws -> URL {
         guard let url = URL(string: "\(baseURL)/v\(version)/\(asset(version))") else {
             throw DMXError("update_url_invalid", "cannot build a download URL from \(baseURL)",
-                           hint: "check the release_url setting (`dmx config get release_url`)")
+                           hint: "check it with `dmx config get release_url`, or clear it with `dmx config unset release_url`")
         }
         return url
     }
@@ -174,18 +174,21 @@ public struct SelfUpdate: Sendable {
 
         try DockerTools.untar(archive, member: "dmx", into: work)
         let new = work.appendingPathComponent("dmx")
-        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: new.path)
-        // Signature first: running the binary to read its version executes it, and until the
-        // signature is checked the only thing vouching for it is a sha256 from the same server.
-        // A link named `dmx` in the archive would make every check below read the binary it
-        // points at — this one — and the rename would then replace it with a link to itself.
+        // Before anything touches it: a link named `dmx` in the archive would make the checks
+        // below read the binary it points at — this one — the chmod change that binary's mode,
+        // and the install replace it with a link to itself. attributesOfItem does not follow it.
         let kind = try fm.attributesOfItem(atPath: new.path)[.type] as? FileAttributeType
         guard kind == .typeRegular else {
             throw DMXError("update_failed", "\(asset(target)) does not hold a plain dmx binary (\(kind?.rawValue ?? "unknown"))",
-                           hint: "the release may be broken or the download tampered with; report it to dmx")
+                           hint: "the release may be broken or the download tampered with; report it at \(Self.issues)")
         }
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: new.path)
+        // Signature before execution: running the binary to read its version executes it, and
+        // until the signature is checked the only thing vouching for it is a sha256 that came
+        // from the same server as the binary.
         let signature = try checkSignature(of: new)
         try check(binary: new, is: target)
+        let checked = try sha256Hex(of: new)
 
         // Same directory, so the rename is atomic and cannot leave a half-written dmx behind.
         let staged = executable.deletingLastPathComponent().appendingPathComponent(".dmx.update-\(getpid())")
@@ -193,6 +196,12 @@ public struct SelfUpdate: Sendable {
         do {
             try fm.copyItem(at: new, to: staged)
             try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: staged.path)
+            // The copy is what gets installed, so the copy is what has to match: another process
+            // of this user could otherwise swap it between the checks and the rename.
+            guard try sha256Hex(of: staged) == checked else {
+                throw DMXError("update_failed", "the copy at \(staged.path) is not the binary that was checked",
+                               hint: "run `dmx update` again")
+            }
         } catch {
             try? fm.removeItem(at: staged)
             throw DMXError("update_not_writable", "cannot write next to \(executable.path): \(error.localizedDescription)",
@@ -225,9 +234,12 @@ public struct SelfUpdate: Sendable {
             throw DMXError("update_failed", "\(url.absoluteString) answered HTTP \(http.statusCode)",
                            hint: "check the version exists: \(baseURL.replacingOccurrences(of: "/download", with: ""))")
         }
-        let hex = String(decoding: data, as: UTF8.self).split(separator: " ").first.map(String.init) ?? ""
+        // The file is "<hex>  <name>" as shasum writes it, or just the digest; either case.
+        let hex = String(decoding: data, as: UTF8.self)
+            .split(whereSeparator: \.isWhitespace).first.map { $0.lowercased() } ?? ""
         guard hex.count == 64, hex.allSatisfy(\.isHexDigit) else {
-            throw DMXError("update_failed", "\(url.absoluteString) does not hold a sha256")
+            throw DMXError("update_failed", "\(url.absoluteString) does not hold a sha256",
+                           hint: "that release is incomplete; install another with `dmx update --version <x.y.z>`")
         }
         return hex
     }
@@ -276,14 +288,9 @@ public struct SelfUpdate: Sendable {
     /// source, or `--ad-hoc` released) has nothing to compare against, so the check is skipped
     /// rather than faked.
     func checkSignature(of binary: URL) throws -> String {
-        guard let team = Self.teamIdentifier(of: executable) else { return "skipped: this dmx is not Developer ID signed" }
-        guard let signed = Self.teamIdentifier(of: binary) else {
-            throw DMXError("update_unsigned", "the downloaded dmx is not signed by a Developer ID, but this one is (team \(team))",
-                           hint: "the release may be broken or the download tampered with; report it to dmx")
-        }
-        guard signed == team else {
-            throw DMXError("update_signature_mismatch", "the downloaded dmx is signed by team \(signed), this one by \(team)",
-                           hint: "the release may be broken or the download tampered with; report it to dmx")
+        guard let team = try Self.teamToRequire(current: Self.teamIdentifier(of: executable),
+                                                downloaded: Self.teamIdentifier(of: binary)) else {
+            return "skipped: this dmx is not Developer ID signed"
         }
         // Not just "the signature is intact": the requirement ties it to Apple's anchor and this
         // team, so a validly signed binary from anyone else is refused.
@@ -293,7 +300,13 @@ public struct SelfUpdate: Sendable {
                             "=anchor apple generic and certificate leaf[subject.OU] = \"\(team)\"", binary.path]
         verify.standardOutput = Pipe()
         verify.standardError = Pipe()
-        try? verify.run()
+        do {
+            try verify.run()
+        } catch {
+            // waitUntilExit() on a process that never launched raises, which would end dmx here.
+            throw DMXError("update_signature_invalid", "cannot run codesign: \(error.localizedDescription)",
+                           hint: "check that /usr/bin/codesign exists, then run `dmx update` again")
+        }
         verify.waitUntilExit()
         guard verify.terminationStatus == 0 else {
             throw DMXError("update_signature_invalid", "codesign rejects the downloaded dmx (exit \(verify.terminationStatus))",
@@ -301,6 +314,24 @@ public struct SelfUpdate: Sendable {
         }
         return team
     }
+
+    /// Which team the download has to satisfy: none when this dmx is unsigned, so there is
+    /// nothing to compare against; otherwise this dmx's team, with an error when the download
+    /// carries no team or a different one. Split out so every branch can be tested.
+    static func teamToRequire(current: String?, downloaded: String?) throws -> String? {
+        guard let team = current else { return nil }
+        guard let signed = downloaded else {
+            throw DMXError("update_unsigned", "the downloaded dmx is not signed by a Developer ID, but this one is (team \(team))",
+                           hint: "the release may be broken or the download tampered with; report it at \(issues)")
+        }
+        guard signed == team else {
+            throw DMXError("update_signature_mismatch", "the downloaded dmx is signed by team \(signed), this one by \(team)",
+                           hint: "the release may be broken or the download tampered with; report it at \(issues)")
+        }
+        return team
+    }
+
+    static let issues = "https://github.com/cothis/dmx/issues"
 
     /// The Developer ID team a binary is signed with, nil for ad-hoc or unsigned ones.
     /// `codesign -dv` prints to stderr, one `TeamIdentifier=` line, `not set` without a team.

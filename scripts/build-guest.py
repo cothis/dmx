@@ -101,7 +101,7 @@ DMX_KERNEL_RELEASE = "6.18.58-dmx-4k"
 # qemu-x86_64, the other x86 emulator, from scripts/build-qemu.py (`make qemu`).
 DMX_QEMU = "qemu-x86_64-11.0.3-dmx1"
 # FEX-Emu, the default x86 emulator, from scripts/build-fex.py (`make fex`).
-DMX_FEX = "fex-2610-dmx7"
+DMX_FEX = "fex-2610-dmx8"
 
 # Modules the guest may load. Dependencies are added from modules.dep; the ones the kernel has
 # built in are skipped.

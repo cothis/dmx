@@ -61,9 +61,18 @@ struct Doctor: AsyncParsableCommand {
     func run() async throws {
         try await report(global) {
             let paths = Paths()
-            let client = try? await DaemonClient.connect(paths: paths, start: false)
+            // A daemon that speaks another protocol throws rather than answering; doctor is where
+            // that belongs, so keep the error instead of dropping the check.
+            var client: DaemonClient?
+            var daemonError: DMXError?
+            do {
+                client = try await DaemonClient.connect(paths: paths, start: false)
+            } catch let error as DMXError {
+                daemonError = error
+            }
             defer { client?.close() }
-            let result = runDoctor(paths: paths, daemon: client.map { ($0.hello.version, $0.hello.pid) })
+            let result = runDoctor(paths: paths, daemon: client.map { ($0.hello.version, $0.hello.pid) },
+                                   daemonError: daemonError)
             let text = result.checks.map { check in
                 var line = "\(check.ok ? "ok  " : "FAIL") \(check.name): \(check.detail)"
                 if let hint = check.hint { line += "\n     hint: \(hint)" }

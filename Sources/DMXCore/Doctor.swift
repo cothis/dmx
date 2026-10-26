@@ -17,7 +17,8 @@ public struct DoctorReport: Encodable, Sendable {
 /// Everything that has to be true before `dmx boot` can work, in the order to fix it.
 /// `daemon` is the version and pid of a daemon that answers, which only an async caller can ask
 /// for: after an update the old daemon keeps serving, and that is worth saying here too.
-public func runDoctor(paths: Paths, daemon: (version: String, pid: Int32)? = nil) -> DoctorReport {
+public func runDoctor(paths: Paths, daemon: (version: String, pid: Int32)? = nil,
+                      daemonError: DMXError? = nil) -> DoctorReport {
     var checks: [Check] = []
     let info = ProcessInfo.processInfo
 
@@ -38,7 +39,11 @@ public func runDoctor(paths: Paths, daemon: (version: String, pid: Int32)? = nil
 
     checks.append(guestCheck(GuestStore(paths: paths)))
 
-    if let daemon {
+    if let daemonError {
+        // Reaching a daemon that speaks another protocol is a real problem: it is another dmx's,
+        // and nothing of this one works against it until it is gone.
+        checks.append(Check(name: "daemon", ok: false, detail: daemonError.message, hint: daemonError.hint))
+    } else if let daemon {
         // Not a failure: the VM and its containers are fine where they are, and the user decides
         // when to hand them over.
         let same = daemon.version == dmxVersion

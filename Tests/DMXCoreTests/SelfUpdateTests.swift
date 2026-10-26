@@ -31,6 +31,26 @@ import Testing
         }
     }
 
+    /// What the signature check decides, for every combination of what the two binaries carry.
+    /// The `codesign` requirement itself needs a signed binary, so only this part is unit-tested;
+    /// x86test and a real `dmx update` cover the rest.
+    @Test func signatureDecision() throws {
+        // An unsigned dmx (built from source) has nothing to compare against.
+        #expect(try SelfUpdate.teamToRequire(current: nil, downloaded: "V4YA23448U") == nil)
+        #expect(try SelfUpdate.teamToRequire(current: nil, downloaded: nil) == nil)
+        // A signed dmx requires the same team.
+        #expect(try SelfUpdate.teamToRequire(current: "V4YA23448U", downloaded: "V4YA23448U") == "V4YA23448U")
+        for (downloaded, code) in [(String?.none, "update_unsigned"), ("AAAAAAAAAA", "update_signature_mismatch")] {
+            do {
+                _ = try SelfUpdate.teamToRequire(current: "V4YA23448U", downloaded: downloaded)
+                Issue.record("accepted \(downloaded ?? "an unsigned binary")")
+            } catch let error as DMXError {
+                #expect(error.code == code)
+                #expect(error.hint?.contains("github.com/cothis/dmx/issues") == true)
+            }
+        }
+    }
+
     /// Platform binaries and builds from source carry no Developer ID team, so an update from one
     /// has nothing to compare the download against and says it skipped the check.
     @Test func unsignedBinariesHaveNoTeam() {
