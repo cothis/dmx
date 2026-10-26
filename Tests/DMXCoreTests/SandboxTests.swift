@@ -18,6 +18,37 @@ import Testing
         #expect(throws: DMXError.self) { try p.validate() }
     }
 
+    @Test func malformedAllowlistReturnsAnError() throws {
+        let sandboxes = Sandboxes(paths: Paths())
+        for bad in ["/", "//", "", "/24", "127.0.0.1/", "127.0.0.1//24", "127.0.0.1/33"] {
+            var policy = SandboxPolicy()
+            policy.network = "allowlist"
+            policy.allow = [bad]
+            #expect(throws: DMXError.self) { try sandboxes.resolveAllowlist(policy) }
+        }
+        var policy = SandboxPolicy()
+        try policy.setNetwork("127.0.0.1,10.0.0.0/8")
+        #expect(try sandboxes.resolveAllowlist(policy) == ["127.0.0.1", "10.0.0.0/8"])
+    }
+
+    @Test func sizesFitHostAPIs() throws {
+        #expect(try parseSize("8G") == 8 << 30)
+        #expect(try parseSize(String(Int64.max)) == UInt64(Int64.max))
+        for bad in ["9223372036854775808", "18446744073709551615", "8388608T"] {
+            #expect(throws: DMXError.self) { try parseSize(bad) }
+            var config = Config()
+            #expect(throws: DMXError.self) { try config.set("memory", bad) }
+            #expect(throws: DMXError.self) { try config.set("disk_size", bad) }
+            var policy = SandboxPolicy()
+            policy.memory = bad
+            #expect(throws: DMXError.self) { try policy.validate() }
+        }
+        #expect(JSONValue.double(1e100).intValue == nil)
+        #expect(JSONValue.double(.infinity).intValue == nil)
+        #expect(JSONValue.double(1.5).intValue == nil)
+        #expect(JSONValue.double(2).intValue == 2)
+    }
+
     @Test func policyLimits() throws {
         var p = SandboxPolicy()
         try p.validate()

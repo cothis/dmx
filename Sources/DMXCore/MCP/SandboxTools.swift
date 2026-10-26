@@ -298,7 +298,7 @@ private func ttlArgument(_ args: MCPArguments) throws -> Int? {
     switch args.values["ttl"] {
     case nil, .null: return nil
     case .int(let n): return n
-    case .double(let n) where n == n.rounded(): return Int(n)
+    case .double: return try args.integer("ttl")
     case .string(let s):
         do { return try parseDuration(s) } catch { throw args.error("ttl must be seconds or a duration like \"30m\", not \"\(s)\"") }
     default: throw args.error("ttl must be seconds or a duration like \"30m\"")

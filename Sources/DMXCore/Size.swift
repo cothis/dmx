@@ -14,7 +14,11 @@ public func parseSize(_ text: String) throws -> UInt64 {
         throw DMXError("bad_size", "cannot parse size \"\(text)\"", hint: "use a number with K, M, G or T, e.g. 8G")
     }
     let (bytes, overflow) = value.multipliedReportingOverflow(by: scale)
-    guard !overflow else { throw DMXError("bad_size", "size \"\(text)\" is too large") }
+    // mmap lengths, file offsets and Docker's JSON memory limit all use signed host integers.
+    // A value that only fits UInt64 would otherwise trap later, after it was accepted/saved.
+    guard !overflow, bytes <= UInt64(Int64.max) else {
+        throw DMXError("bad_size", "size \"\(text)\" is too large", hint: "use a smaller size, e.g. 8G")
+    }
     return bytes
 }
 

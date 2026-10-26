@@ -119,10 +119,12 @@ using them carries no obligation, and every release attaches their complete sour
 lists every component and its license. Docker Hub's own terms and pull limits still apply to
 images pulled from it, whatever engine pulls them.
 
-**What dmx contacts.** Only GitHub Releases for the guest, and `download.docker.com` and GitHub
+**What dmx contacts.** GitHub Releases for dmx updates and the guest, and `download.docker.com` and GitHub
 for the docker CLI tools; `dmx config set release_url …` and `tools_url …` point both at a
 company mirror (files keep their upstream names; `dmx tools ls --json` lists the URLs), and dmx
-checks every download against the sha256 built into it. No telemetry. Containers
+checks the guest and tools against sha256s built into it. Self-updates use the published sha256
+and the running binary's Developer ID team (the signature check is skipped for ad-hoc source
+builds). No telemetry. Containers
 and image pulls reach the network through dmx's own host sockets, so the Mac's VPN, firewall and
 routing apply to them as to any app.
 
@@ -161,7 +163,10 @@ BuildKit in the VM, as on Docker Desktop. Certificates handed out as a file go i
 **DNS** in the VM goes through macOS's resolver, so names only a VPN's DNS servers know (split
 DNS) and `.local` names resolve in containers as they do on the Mac.
 
-**Known gaps:** IPv6 in the VM network. Progress is tracked in [docs/PLAN.md](docs/PLAN.md#next-up).
+**Known gaps:** PAC proxy configuration, shared-file ACLs, and connecting to arbitrary Mac Unix
+sockets from containers. IPv6 is implemented in the VM network and published ports; external
+IPv6 and an actual corporate TLS-inspection network still need acceptance tests in environments
+that provide them. Progress is tracked in [docs/PLAN.md](docs/PLAN.md#next-up).
 
 **Uninstalling.**
 

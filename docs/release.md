@@ -7,7 +7,7 @@ maintainer's Mac by `make release`; nothing is uploaded by a script.
 ## What a user gets
 
 ```sh
-curl -fsSL https://github.com/cothis/dmx/releases/download/v0.3.0/install.sh | sh
+curl -fsSL https://github.com/cothis/dmx/releases/download/v0.3.3/install.sh | sh
 dmx install            # optional: launchd and the docker context
 dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks it
 ```
@@ -24,8 +24,9 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
   running from. It refuses to overwrite a
   build from source (`.build/...`) without `--force`, and refuses a directory it cannot write with
   a hint naming `install.sh` and `PREFIX`. A running VM is left alone and the report says
-  `stop_to_switch`; an idle daemon is asked to quit, so the next command runs the new version
-  (`quit`). `DaemonClient` also prints a notice whenever the daemon answering is another version,
+  `stop_to_switch`; an idle daemon exits on its own after ten seconds without clients
+  (`exits_soon`). The updater never sends `quit`, including while a VM is starting or its state
+  cannot be read. `DaemonClient` also prints a notice whenever the daemon answering is another version,
   because an old daemon keeps serving until it exits.
 - The dmx binary carries the sha256 of the guest it was released with
   (`Sources/DMXCore/GuestPin.swift`). Before a boot (the daemon's, or `dmx boot`) it downloads
@@ -51,7 +52,8 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
 
 ## Cutting a release
 
-1. Build the guest from a clean checkout: `make kernel` and `make qemu` if they changed, then `make guest`.
+1. Build the guest from a clean checkout: `make kernel`, `make qemu` and `make fex` if they changed,
+   then `make guest`.
 2. Set `dmxVersion` in `Sources/DMXCore/Version.swift` (the tag is `v<version>`).
 3. Run the local checks. There is no CI: these need the real VM, which hosted runners cannot
    provide (no nested virtualization).
@@ -59,6 +61,7 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
    ```sh
    make build && make test && make selftest
    make daemontest && make mcptest && make x86test && make dockertest
+   make sandboxtest && make imagetest
    ```
 
 4. Write what changed since the last release in `docs/release-notes/<version>.md`, starting with
@@ -97,6 +100,7 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
 | `kernel-<release>.config` | the exact config of the guest kernel |
 | `kernel-<release>.build.py` | the build recipe, pinned inputs and exact reporting-budget source patch |
 | `qemu-x86_64-<version>.build.py` | qemu-x86_64's recipe: pinned source, Alpine patches, guest-base patch, configure line |
+| `fex-<version>.build.py` | FEX-Emu's recipe: pinned sources, musl and x86 compatibility patches, build configuration |
 | `third-party.json` | every package in the guest and the binary: version, license, upstream, source |
 | `dmx-sources-<version>.tar` (+ `.sha256`) | the complete corresponding source of the guest (README inside) |
 | `NOTES.md` | release text: install line, assets, where the source is |
@@ -135,8 +139,12 @@ still carries obligations. What `release.py` does for them:
     GCC runtime libraries in it are the Alpine packages listed in `THIRD_PARTY.md`.
   - The kernel: `linux-<version>.tar.xz` from kernel.org (sha256 in `scripts/build-kernel.py`),
     with `kernel-<release>.config` and `scripts/build-kernel.py`. The build script contains the
-    exact `mm/page_reporting.c` free-list budget patch and refuses a source that does not match;
+    exact `mm/page_reporting.c` free-list budget patch, the Asahi TSO patches and dmx's
+    ACTLR_EL1 change, and refuses a source that does not match;
     its modified source must be included when delivering the corresponding kernel source.
+  - FEX-Emu: pinned source, submodules, dmx's patches and `scripts/build-fex.py` under `fex/`
+    in the source bundle; the release also attaches the recipe separately. Its third-party
+    license notices, including Cephes, travel with the inventory and sources.
 
   Pointing at Alpine's and kernel.org's servers is not enough on its own: the distributor must
   make sure the source stays available as long as it offers the binaries. So every release

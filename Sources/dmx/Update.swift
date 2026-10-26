@@ -14,7 +14,7 @@ struct Update: AsyncParsableCommand {
             A VM that is running is left alone, because its containers are. The daemon serving it
             is the old version until it exits, so this prints what to do: `dmx stop` powers the VM
             off and the daemon exits a few seconds later. With the VM already off, the idle daemon
-            is asked to quit, so the next command runs the new version.
+            exits on its own after ten seconds without clients; a later command runs the new version.
 
             The release_url setting (or DMX_RELEASE_URL) replaces the base URL; a mirror has no
             "latest" page, so with one set the version has to be named.

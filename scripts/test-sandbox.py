@@ -260,6 +260,11 @@ try:
     check("not_found", r["isError"] and "sandbox_not_found" in text(r) and "hint:" in text(r), r)
     r = c.call("dmx_sandbox_create", {"network": "all", "cpus": 0.5, "memory": "lots"})
     check("bad_policy", r["isError"] and "bad_sandbox_policy" in text(r), r)
+    for label, args in [("empty_cidr", {"network": ["/"]}),
+                        ("empty_host", {"network": [""]}),
+                        ("size_overflow", {"memory": "9223372036854775808"})]:
+        r = c.call("dmx_sandbox_create", args)
+        check(label, r["isError"] and "bad_sandbox_policy" in text(r), r)
     r = c.call("dmx_sandbox_create", {"mounts": [{"host": "/System/Library"}]})
     check("mount_not_shared", r["isError"] and "mount_not_shared" in text(r), r)
     r = c.call("dmx_sandbox_create", {"name": "none"})

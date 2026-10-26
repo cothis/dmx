@@ -125,6 +125,56 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: root + "/x"))
     }
 
+    @Test func readOnlyOpenCannotChangeHostPermissions() throws {
+        defer { cleanup() }
+        let path = root + "/file"
+        try "kept".write(toFile: path, atomically: false, encoding: .utf8)
+        #expect(chmod(path, 0o6755) == 0)
+        let ro = try FUSEServer(path: root, readOnly: true)
+        let entry = try #require(data(ro.handle(opcode: FUSE.Opcode.lookup.rawValue, node: FUSE.rootID,
+                                              args: name("file"), input: [], output: [])))
+        let node = entry.withUnsafeBytes { $0.loadUnaligned(as: UInt64.self) }
+        let reply = ro.handle(opcode: FUSE.Opcode.open.rawValue, node: node,
+                              args: u32(0) + u32(FUSE.openKillSUIDGID), input: [], output: [])
+        #expect(errno(reply) == Linux.EROFS)
+        var st = stat()
+        #expect(stat(path, &st) == 0 && st.st_mode & 0o7777 == 0o6755)
+    }
+
+    @Test func inFlightDescriptorSurvivesGuestRelease() throws {
+        defer { cleanup() }
+        let dir = try #require(lookup(FUSE.rootID, "d"))
+        let node = try #require(lookup(dir, "secret"))
+        let opened = try #require(data(call(.open, node, u32(2) + u32(0))))
+        let fh = opened.withUnsafeBytes { $0.loadUnaligned(as: UInt64.self) }
+        // Pause an I/O after it acquired its fd, then let a guest RELEASE and a host open run.
+        let fd = try server.duplicateDescriptor(fh)
+        defer { close(fd) }
+        #expect(fcntl(fd, F_GETFD) & FD_CLOEXEC != 0)
+        #expect(data(call(.release, node, opened.prefix(8))) != nil)
+        let outside = open(base + "/outside/secret", O_RDWR)
+        #expect(outside >= 0)
+        defer { if outside >= 0 { close(outside) } }
+        #expect(pwrite(fd, "kept!", 5, 0) == 5)
+        #expect(try String(contentsOfFile: root + "/d/secret", encoding: .utf8) == "kept!e")
+        #expect(try String(contentsOfFile: base + "/outside/secret", encoding: .utf8) == "secret")
+        #expect(throws: FUSEError.self) { try server.duplicateDescriptor(fh) }
+    }
+
+    @Test func directoryReleaseCanRaceARead() throws {
+        defer { cleanup() }
+        for _ in 0..<100 {
+            let opened = try #require(data(call(.opendir, FUSE.rootID, Data(count: 8))))
+            let fh = Data(opened.prefix(8))
+            let read = fh + Data(count: 8) + u32(4096) + Data(count: 20)
+            let shared = server
+            DispatchQueue.concurrentPerform(iterations: 2) { i in
+                _ = shared.handle(opcode: (i == 0 ? FUSE.Opcode.readdir : .releasedir).rawValue,
+                                  node: FUSE.rootID, args: i == 0 ? read : fh, input: [], output: [])
+            }
+        }
+    }
+
     @Test func socketsAreBound() throws {
         defer { cleanup() }
         let reply = call(.mknod, FUSE.rootID, u32(UInt32(S_IFSOCK) | 0o755) + Data(count: 12) + name("s.sock"))

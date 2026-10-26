@@ -259,6 +259,13 @@ try:
     r = c.call("dmx_config_set", {"key": "memory", "value": "1M"})
     check("config_bad_value", r["isError"] is True and "bad_config_value" in r["content"][0]["text"], r)
 
+    # JSON numbers can fit Double but not Int; malformed inputs must not take down stdio.
+    for ttl in [1e100, -1e100]:
+        r = c.call("dmx_sandbox_create", {"ttl": ttl})
+        check(f"ttl_out_of_range_{ttl}", r["isError"] is True and "ttl" in r["content"][0]["text"], r)
+    r = c.call("dmx_config_set", {"key": "disk_size", "value": "9223372036854775808"})
+    check("config_size_overflow", r["isError"] is True and "bad_size" in r["content"][0]["text"], r)
+
     # Status, stop, start.
     r = c.call("dmx_status", modern=True)
     s = r["structuredContent"]

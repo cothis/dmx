@@ -49,7 +49,7 @@ mcptest: build
 sandboxtest: build
 	python3 -I scripts/test-sandbox.py $(BIN)
 
-# x86_64 programs through binfmt_misc and qemu: static, dynamic, python3, node, speed against
+# x86 programs through binfmt_misc and FEX/QEMU: static, dynamic, python3, node, speed against
 # native (pinned Alpine x86_64 packages, ~40 MB the first time; about 2 min).
 x86test: build
 	python3 -I scripts/test-x86.py $(BIN)
@@ -59,7 +59,7 @@ x86test: build
 dockertest: build
 	python3 -I scripts/test-docker.py $(BIN)
 
-# Workloads in nine digest-pinned images, arm64 and amd64; failures are not skipped.
+# Workloads in nine digest-pinned images, arm64/amd64 and six available 386 images; no skipped failures.
 imagetest: build
 	python3 -I scripts/test-images.py $(BIN)
 

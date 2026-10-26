@@ -110,6 +110,7 @@ final class FUSEServer: @unchecked Sendable {
         var entries: [(name: String, ino: UInt64, type: UInt8)] = []
         var loaded = false
         init(dir: UnsafeMutablePointer<DIR>, node: UInt64) { self.dir = dir; self.node = node }
+        deinit { closedir(dir) }
         var fd: Int32 { dirfd(dir) }
     }
 
@@ -250,7 +251,9 @@ final class FUSEServer: @unchecked Sendable {
             case .flush: return .data(Data())  // nothing is buffered on the host
             case .fsync, .fsyncdir:
                 let fh = try r.u64()
-                guard fsync(try descriptor(fh)) == 0 else { throw FUSEError.last }
+                let fd = try duplicateDescriptor(fh)
+                defer { close(fd) }
+                guard fsync(fd) == 0 else { throw FUSEError.last }
                 return .data(Data())
             case .opendir: return .data(try openDir(node))
             case .readdir, .readdirplus: return .data(try readDir(&r, plus: opcode == .readdirplus))
@@ -659,7 +662,8 @@ final class FUSEServer: @unchecked Sendable {
 
     private func getattr(_ id: UInt64, fh: UInt64?) throws -> Attr {
         var st = stat()
-        if let fh, let fd = try? descriptor(fh) {
+        if let fh, let fd = try? duplicateDescriptor(fh) {
+            defer { close(fd) }
             guard fstat(fd, &st) == 0 else { throw FUSEError.last }
             return attr(st, fd, nil)
         }
@@ -682,7 +686,8 @@ final class FUSEServer: @unchecked Sendable {
         let mode = try r.u32()
         try r.skip(4)
         let uid = try r.u32(), gid = try r.u32()
-        let file = valid & FUSE.SetattrValid.fh != 0 ? try? descriptor(fh) : nil
+        let file = valid & FUSE.SetattrValid.fh != 0 ? try duplicateDescriptor(fh) : nil
+        defer { if let file { close(file) } }
 
         func apply(_ dirfd: Int32, _ name: String) throws {
             if valid & FUSE.SetattrValid.mode != 0 {
@@ -875,18 +880,26 @@ final class FUSEServer: @unchecked Sendable {
     private func release(_ handle: Handle) {
         switch handle {
         case .file(let fd, _): close(fd)
-        case .directory(let d): closedir(d.dir)
+        // A readdir may still hold this object after RELEASEDIR removes the handle. Its
+        // destructor closes the stream only after that request has finished with it.
+        case .directory: break
         }
     }
 
-    private func descriptor(_ fh: UInt64) throws -> Int32 {
+    /// The caller owns this duplicate and closes it. A bare fd would become a different host
+    /// file if RELEASE ran during an I/O request and another thread reused its descriptor.
+    func duplicateDescriptor(_ fh: UInt64) throws -> Int32 {
         lock.lock()
         defer { lock.unlock() }
+        let fd: Int32
         switch handles[fh] {
-        case .file(let fd, _): return fd
-        case .directory(let d): return d.fd
+        case .file(let file, _): fd = file
+        case .directory(let d): fd = d.fd
         case nil: throw FUSEError(Linux.EBADF)
         }
+        let copy = fcntl(fd, F_DUPFD_CLOEXEC, 0)
+        guard copy >= 0 else { throw FUSEError.last }
+        return copy
     }
 
     /// Opens a regular file. O_NONBLOCK so a FIFO the host put in its place cannot hang us; it is
@@ -945,6 +958,7 @@ final class FUSEServer: @unchecked Sendable {
     /// looks the name up again (fresh size and mtime, which also drops stale cached pages) and
     /// retries, which succeeds whatever happened in between.
     private func openNode(_ id: UInt64, flags: UInt32, dropSetID drop: Bool) throws -> Data {
+        guard !readOnly || !drop else { throw FUSEError(Linux.EROFS) }
         let (fd, st) = try withNode(id) { dirfd, name, expected in
             let (fd, st) = try openFile(dirfd, name, flags)
             guard Inode(st) == Inode(expected) else { close(fd); throw FUSEError(Linux.ESTALE) }
@@ -1007,7 +1021,8 @@ final class FUSEServer: @unchecked Sendable {
     private func readFile(_ r: inout FUSEReader, _ output: [iovec]) throws -> Int {
         let fh = try r.u64(), offset = try r.u64(), size = Int(try r.u32())
         guard offset <= UInt64(Int64.max) else { throw FUSEError(Linux.EINVAL) }
-        let fd = try descriptor(fh)
+        let fd = try duplicateDescriptor(fh)
+        defer { close(fd) }
         var iov = slice(output, from: 0, count: size)
         var done = 0
         while !iov.isEmpty {
@@ -1024,7 +1039,8 @@ final class FUSEServer: @unchecked Sendable {
     private func writeFile(_ r: inout FUSEReader, _ input: [iovec]) throws -> Data {
         let fh = try r.u64(), offset = try r.u64(), size = Int(try r.u32()), writeFlags = try r.u32()
         guard offset <= UInt64(Int64.max) else { throw FUSEError(Linux.EINVAL) }
-        let fd = try descriptor(fh)
+        let fd = try duplicateDescriptor(fh)
+        defer { close(fd) }
         if writeFlags & FUSE.writeKillSUIDGID != 0 {
             var st = stat()
             if fstat(fd, &st) == 0 { dropSetID(st) { fchmod(fd, $0) } }
@@ -1141,12 +1157,7 @@ final class FUSEServer: @unchecked Sendable {
         // A descriptor of its own: fdopendir takes it, and the listing uses its offset.
         let fd = try withDirectory(id) { openat($0, ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC) }
         guard fd >= 0, let stream = fdopendir(fd) else { let e = FUSEError.last; if fd >= 0 { close(fd) }; throw e }
-        do {
-            return openReply(try addHandle(.directory(Directory(dir: stream, node: id))))
-        } catch {
-            closedir(stream)
-            throw error
-        }
+        return openReply(try addHandle(.directory(Directory(dir: stream, node: id))))
     }
 
     /// Lists a directory. Offsets are indexes into a snapshot taken when the guest reads from

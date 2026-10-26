@@ -8,8 +8,8 @@ import Foundation
 ///
 /// What this deliberately does not do is restart a running VM. A daemon that is already up keeps
 /// serving the old version until it exits, so the report says what that daemon is and what the
-/// user can do about it; when the VM is already off, the daemon is asked to quit so the next
-/// command starts the new one.
+/// user can do about it; when the VM is already off, the daemon exits on its own after its
+/// idle grace period, so a later command starts the new one.
 public struct SelfUpdate: Sendable {
     public struct Report: Encodable, Sendable {
         public let ok = true
@@ -35,7 +35,7 @@ public struct SelfUpdate: Sendable {
             public let version: String
             public let pid: Int32
             public let vmRunning: Bool
-            /// What happened, or what the user has to do: `quit`, `stop_to_switch` or `older_cli`.
+            /// How to switch: `exits_soon` for an idle daemon, otherwise `stop_to_switch`.
             public let handover: String
         }
     }

@@ -199,7 +199,8 @@ public struct Sandboxes: Sendable {
         guard policy.network == "allowlist" else { return [] }
         var out: [String] = []
         for item in policy.allow {
-            let parts = item.split(separator: "/", maxSplits: 1).map(String.init)
+            let parts = item.split(separator: "/", maxSplits: 1, omittingEmptySubsequences: false).map(String.init)
+            guard !parts[0].isEmpty else { throw policyError("bad host or CIDR \"\(item)\"") }
             if isIPv4(parts[0]) {
                 if parts.count == 2 {
                     guard let bits = Int(parts[1]), (0...32).contains(bits) else { throw policyError("bad CIDR \"\(item)\"") }
@@ -482,7 +483,7 @@ extension JSONValue {
     var intValue: Int? {
         switch self {
         case .int(let n): n
-        case .double(let n): Int(n)
+        case .double(let n): Int(exactly: n)
         default: nil
         }
     }

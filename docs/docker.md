@@ -323,10 +323,12 @@ and `HOME`, on host ports 20080 to 20090. It needs the internet for Docker Hub. 
 the context store, installing the tools (from file URLs), the plist, published-port selection
 and the DNS answers.
 
-`make imagetest` runs nine digest-pinned official images on arm64 and amd64, with actual SQL,
-HTTP, JIT, mmap and persistence workloads. The 4K guest resolves the previous Python loader
+`make imagetest` runs nine digest-pinned official images on arm64 and amd64 and the six that
+publish 386 images, with actual SQL, HTTP, JIT, mmap and persistence workloads. FEX is the default
+for both x86 platforms. The 4K guest resolves the previous Python loader
 and Java partial-msync failures; dmx's qemu-x86_64 keeps x86_64 addresses below 2^47, which
-fixed the amd64 Redis (jemalloc) crash. All 18 rows pass. See [compatibility.md](compatibility.md)
+fixed the amd64 Redis (jemalloc) crash with the QEMU fallback. All 24 default rows passed the
+2026-10-26 matrix. See [compatibility.md](compatibility.md)
 for exact inputs and the full matrix, and [benchmark.md](benchmark.md) for the measurement protocol.
 
 ## Measurements (2026-10-24, 8G, 10 vCPU, host load 25 to 50 from other agents' VMs)

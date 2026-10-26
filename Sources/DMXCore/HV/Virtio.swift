@@ -84,9 +84,19 @@ final class Virtqueue: @unchecked Sendable {
         nextAvail = 0; nextUsed = 0
     }
 
+    /// Validate whole rings before adding offsets to guest-controlled addresses. Checking only
+    /// the final load is too late: an address near UInt64.max traps during the addition itself.
+    private var validLayout: Bool {
+        ready && size > 0 && size <= maxSize && size & (size - 1) == 0
+            && ram.pointer(descriptors, 16 * Int(size)) != nil
+            && ram.pointer(driverArea, 4 + 2 * Int(size)) != nil
+            && ram.pointer(deviceArea, 4 + 8 * Int(size)) != nil
+    }
+
     /// The next chain the driver made available, or nil if there is none (or it is malformed).
     func pop() -> VirtqueueChain? {
-        guard ready, let availIdx = ram.load(driverArea + 2, as: UInt16.self), availIdx != nextAvail else { return nil }
+        guard validLayout, let availIdx = ram.load(driverArea + 2, as: UInt16.self),
+              availIdx != nextAvail, availIdx &- nextAvail <= size else { return nil }
         atomicMemoryFence(ordering: .acquiring)
         guard let head = ram.load(driverArea + 4 + 2 * UInt64(nextAvail % size), as: UInt16.self) else { return nil }
         nextAvail &+= 1
@@ -94,9 +104,9 @@ final class Virtqueue: @unchecked Sendable {
         var chain = VirtqueueChain(head: head)
         var index = head
         for _ in 0..<size {
+            guard index < size else { return nil }
             let entry = descriptors + 16 * UInt64(index)
-            guard index < size,
-                  let address = ram.load(entry, as: UInt64.self),
+            guard let address = ram.load(entry, as: UInt64.self),
                   let length = ram.load(entry + 8, as: UInt32.self),
                   let flags = ram.load(entry + 12, as: UInt16.self),
                   let next = ram.load(entry + 14, as: UInt16.self),
@@ -111,9 +121,10 @@ final class Virtqueue: @unchecked Sendable {
 
     /// Hands a chain back to the driver with the number of bytes the device wrote.
     func push(_ chain: VirtqueueChain, written: Int) {
+        guard validLayout, let count = UInt32(exactly: written) else { return }
         let slot = deviceArea + 4 + 8 * UInt64(nextUsed % size)
         ram.store(slot, UInt32(chain.head))
-        ram.store(slot + 4, UInt32(written))
+        ram.store(slot + 4, count)
         nextUsed &+= 1
         atomicMemoryFence(ordering: .releasing)
         ram.store(deviceArea + 2, nextUsed)
@@ -123,6 +134,7 @@ final class Virtqueue: @unchecked Sendable {
     /// Hands several chains back with one index update, so the driver sees all of them or none:
     /// a frame spread over mergeable receive buffers must not show up in part.
     func push(_ chains: [(chain: VirtqueueChain, written: Int)]) {
+        guard validLayout, chains.allSatisfy({ UInt32(exactly: $0.written) != nil }) else { return }
         for (chain, written) in chains {
             let slot = deviceArea + 4 + 8 * UInt64(nextUsed % size)
             ram.store(slot, UInt32(chain.head))
