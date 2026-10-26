@@ -47,7 +47,7 @@ Rules for every item (on top of [AGENTS.md](../AGENTS.md)):
   `fex.setuid_ignores_caller_config`, plus `fex.setuid_control_reads_config` so the check cannot
   pass for the wrong reason. 38/38, selftest 96 MB; FEX is now `fex-2610-dmx2`.
 
-### B2. Without `/proc`, FEX hands x86 programs addresses above 2^47
+### B2. Without `/proc`, FEX handed x86 programs addresses above 2^47 (fixed 2026-10-26)
 
 - **Known (measured).** FEX reserves [2^47, 2^48) by reading `/proc/self/maps`. In a chroot
   without `/proc`, mmap returned `0xffff...` addresses and `ldd` failed. Containers always have
@@ -58,6 +58,14 @@ Rules for every item (on top of [AGENTS.md](../AGENTS.md)):
   that is not possible, exit with a clear message rather than run with a wrong layout.
 - **Done when** x86test has a second probe run in a chroot *without* `/proc` and it reports
   `user_space_47bit=True` (and jemalloc passes there too).
+- **Done (2026-10-26).** `FEX_PATCH` adds a probe to `StealMemoryRegion`: where `/proc/self/maps`
+  cannot be opened it reserves [Begin, End) with `MAP_FIXED_NOREPLACE`, halving only the chunks
+  that answer EEXIST or ENOMEM, and maps the 64 MB below the stack pointer readable-writable (as
+  the procfs path does for the gap under the stack) so the stack can still grow. If the host
+  ignores the flag, nothing is reserved and `Setup48BitAllocatorIfExists` writes a message and
+  exits. x86test's `pages_4k_without_proc` runs the page probe and both allocators in the chroot
+  with `/proc` unmounted, for both emulators: 40/40. Cost: x86 `true` 3 → 34 ms without `/proc`,
+  61 mappings and 6.3 MB RSS for an x86 `sleep`; unchanged with `/proc`.
 
 ### B3. Checks not yet run on the FEX and TSO guest
 

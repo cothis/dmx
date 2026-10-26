@@ -104,9 +104,13 @@ docker CLI ──▶ ~/.dmx/docker.sock ──▶ dmx daemon ──vsock──�
   the guest set it, so translated x86 loads and stores need no barriers. In a VM each
   `ACTLR_EL1` access traps (~0.7 µs), so dmx's kernel writes it only when the next thread wants
   another memory model, not on every context switch as the patches do (that made a pipe round
-  trip 4× slower), and the VMM resets it when a vCPU is turned on. FEX needs `/proc` in the
-  program's root (containers have it): it reads `/proc/self/maps` to reserve the address space
-  above 2^47, and without it x86 programs get addresses there.
+  trip 4× slower), and the VMM resets it when a vCPU is turned on. FEX reserves the address space above 2^47, which x86-64
+  programs cannot hold, from the gaps it reads in `/proc/self/maps`; where `/proc` is not in the
+  program's root (BuildKit's emulator probe runs in an empty chroot) dmx's patch probes for those
+  gaps with `MAP_FIXED_NOREPLACE` instead, and FEX stops with a message if neither works.
+  Upstream reserves nothing there, and x86 programs then get addresses above 2^47 (jemalloc and
+  mimalloc abort on them). Probing costs ~31 ms per x86 process, so it is the fallback;
+  containers always have `/proc`.
   `dmx config set x86_emulator qemu` uses QEMU user mode instead, from the next boot: built by
   `make qemu` from pinned QEMU 11.0.3 source like Alpine's static build, with one dmx patch: the
   x86_64 guest base defaults to 2^47 so programs never see addresses above x86-64's 47-bit user

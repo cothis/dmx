@@ -5,7 +5,8 @@ Real Alpine 3.24 x86_64 programs, pinned by sha256: a static busybox, the dynami
 busybox of the x86_64 minirootfs with its musl loader (in a chroot, as in a container, so the
 emulator is not in its file system), python3 and node (V8, a JIT) installed into that chroot,
 threads in both, python3 with jemalloc and mimalloc preloaded, addresses below x86-64's 47-bit
-user space, and FEX's hardware TSO. Also times an x86 `true`, a 100 MB sha256sum against the
+user space with and without /proc in the chroot, a setuid x86 program (FEX must ignore the
+caller's configuration for it), and FEX's hardware TSO. Also times an x86 `true`, a 100 MB sha256sum against the
 native one, and interpreter start-up and a python loop, per emulator. Runs a daemon in a throwaway
 DMX_HOME using $DMX_HOME/guest (default ~/.dmx/guest); downloads land in $DMX_HOME/cache/x86_64.
 Prints one JSON object and exits non-zero if any check failed.
@@ -221,8 +222,8 @@ def suite(emulator):
 
     # The x86_64 minirootfs in a chroot: its dynamically linked busybox and musl loader, and
     # python3 and node from PACKAGES. The emulator is not in the chroot; F opened it at registration.
-    # /proc is mounted, as in a container: FEX reads /proc/self/maps to reserve the address space
-    # above 2^47, and without it x86 programs get addresses there.
+    # /proc is mounted, as in a container: that is where FEX reads the gaps it reserves above
+    # 2^47 from (the probe without /proc is checked separately below).
     started = time.time()
     r = sh(f"rm -rf {DIR}/root && mkdir -p {DIR}/root && tar -xzf - -C {DIR}/root && cp /etc/resolv.conf {DIR}/root/etc/ && "
            f"mount -t proc proc {DIR}/root/proc", stdin=rootfs)
@@ -290,6 +291,20 @@ def suite(emulator):
     for name, lib in ALLOCATORS.items():
         r = sh(f"ulimit -c 0; {run} env LD_PRELOAD={lib} python3 -c '{ALLOC_WORK}'")
         check_(f"allocator_{name}", r.returncode == 0 and r.stdout == b"True\n", out(r))
+
+    # The same probe in a chroot without /proc, as BuildKit's emulator probe runs in. FEX reads
+    # /proc/self/maps to reserve the space above 2^47 and, with dmx's patch (build-fex.py), probes
+    # for it with MAP_FIXED_NOREPLACE when it cannot be read; upstream reserved nothing there, so
+    # x86 programs got addresses above 2^47 and jemalloc and mimalloc aborted on them.
+    sh(f"umount {DIR}/root/proc")
+    r = sh(f"ulimit -c 0; {run} python3 /tmp/probe.py")
+    probe = dict(f.split("=") for f in r.stdout.decode().split() if "=" in f)
+    res["pages_without_proc"] = probe
+    allocators = {name: sh(f"ulimit -c 0; {run} env LD_PRELOAD={lib} python3 -c '{ALLOC_WORK}'").stdout == b"True\n"
+                  for name, lib in ALLOCATORS.items()}
+    check_("pages_4k_without_proc", r.returncode == 0 and probe.get("page_size") == "4096" and
+           probe.get("user_space_47bit") == "True" and all(allocators.values()), f"{out(r)} {allocators}")
+    sh(f"mount -t proc proc {DIR}/root/proc")
 
     if emulator == "qemu":
         # The control: without dmx's default guest base, qemu hands out addresses above x86-64's

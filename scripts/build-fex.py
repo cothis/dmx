@@ -9,7 +9,8 @@ Only the `FEX` program is built (FEXInterpreter): no FEXServer, FEXConfig, thunk
 FEX_PATCH makes it run where containers put it, as a binfmt_misc interpreter opened by the
 kernel (flag F), with no FEXServer and no other file of its own; makes it ignore the caller's
 configuration when the kernel marks the exec privileged (AT_SECURE: a setuid x86 program, which
-binfmt's C flag runs with the file's credentials); and fixes four places that relied on glibc
+binfmt's C flag runs with the file's credentials); reserves the address space above 2^47 by
+probing for it where /proc/self/maps cannot be read; and fixes four places that relied on glibc
 behaviour musl does not have. Output: <cache>/<guest.DMX_FEX>, a stripped
 static PIE. `make guest` puts it in docker.img.
 
@@ -55,8 +56,7 @@ def source_url(repo: str, commit: str) -> str:
     return f"https://github.com/{repo}/archive/{commit}.tar.gz"
 
 
-FEX_PATCH = """\
---- a/FEXCore/Source/Utils/FileUtils.cpp
+FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
 +++ b/FEXCore/Source/Utils/FileUtils.cpp
 @@ -58,7 +58,7 @@ static bool RecursiveRemoveDirectory(int parent_fd, const char* Directory) {
    }
@@ -255,6 +255,127 @@ FEX_PATCH = """\
    const bool ExecutedWithFD = getauxval(AT_EXECFD) != 0;
    const auto PortableInfo = FEX::ReadPortabilityInformation();
    const bool InterpreterInstalled = QueryInterpreterInstalled(ExecutedWithFD, PortableInfo);
+--- a/FEXCore/Source/Utils/Allocator.cpp
++++ b/FEXCore/Source/Utils/Allocator.cpp
+@@ -24,6 +24,7 @@
+ #ifndef _WIN32
+ #include <sys/mman.h>
+ #include <sys/user.h>
++#include <unistd.h>
+ #endif
+ 
+ namespace fextl::pmr {
+@@ -214,6 +215,54 @@
+   FEX_UNREACHABLE;
+ }
+ 
++/**
++ * @brief Reserve the free parts of [Begin, End) without reading /proc/self/maps.
++ *
++ * dmx: `MAP_FIXED_NOREPLACE` fails with EEXIST where a mapping is already there, so the gaps can
++ * be found by probing for them. Only the chunks that fail are halved, so the whole upper half
++ * costs a few thousand calls: one per level for each existing mapping's two edges.
++ *
++ * Returns false if the host cannot be probed this way at all (a kernel before 4.17 ignores
++ * `MAP_FIXED_NOREPLACE` and answers with an address of its own); what it reserved until then is
++ * in Out. Regions come out in ascending order, as CollectMemoryGaps' do. Out may be null to
++ * reserve without handing the memory to the allocator.
++ */
++static bool ProbeMemoryRegion(uintptr_t Begin, uintptr_t End, int Prot, size_t PageSize, fextl::vector<MemoryRegion>* Out) {
++  if (Begin >= End) {
++    return true;
++  }
++
++  const size_t Size = End - Begin;
++  void* Ptr = ::mmap(reinterpret_cast<void*>(Begin), Size, Prot, MAP_ANONYMOUS | MAP_NORESERVE | MAP_PRIVATE | MAP_FIXED_NOREPLACE, -1, 0);
++  if (Ptr == reinterpret_cast<void*>(Begin)) {
++    // As in the loop below: a core dump must not try to write these out.
++    ::madvise(Ptr, Size, MADV_DONTDUMP);
++    if (Out) {
++      Out->emplace_back(MemoryRegion {Ptr, Size});
++    }
++    return true;
++  }
++
++  if (Ptr != MAP_FAILED) {
++    ::munmap(Ptr, Size);
++    return false;
++  }
++
++  // EEXIST: something is mapped in here. ENOMEM: the range is too large to map in one piece.
++  // Anything else is this host refusing the mapping outright.
++  if (errno != EEXIST && errno != ENOMEM) {
++    return false;
++  }
++
++  const uintptr_t Mid = Begin + FEXCore::AlignDown(Size / 2, PageSize);
++  if (Mid == Begin || Mid == End) {
++    // A single page that is already taken.
++    return true;
++  }
++
++  return ProbeMemoryRegion(Begin, Mid, Prot, PageSize, Out) && ProbeMemoryRegion(Mid, End, Prot, PageSize, Out);
++}
++
+ fextl::vector<MemoryRegion> StealMemoryRegion(uintptr_t Begin, uintptr_t End) {
+   const uintptr_t StackLocation_u64 = reinterpret_cast<uintptr_t>(alloca(0));
+ 
+@@ -221,8 +270,39 @@
+   if (MapsFD == -1) {
+     // No procfs, as in BuildKit's emulator probe (an empty chroot). The assert
+     // above it compiles out in release, and CollectMemoryGaps then spins on
+-    // read(-1) forever; reserve nothing instead.
+-    return {};
++    // read(-1) forever.
++    //
++    // dmx: reserving nothing leaves the guest with the host's layout, and on a 48-bit AArch64
++    // host that means addresses above 2^47, which x86-64 programs cannot hold (jemalloc and
++    // mimalloc abort on them). Probe for the gaps instead.
++    const auto PageSizeRet = sysconf(_SC_PAGESIZE);
++    const size_t PageSize = PageSizeRet > 0 ? static_cast<size_t>(PageSizeRet) : FEXCore::Utils::FEX_PAGE_SIZE;
++    // The stack grows down into unmapped memory, so reserving everything below it would cap it
++    // at its current size. Map the window below the stack pointer readable and writable, as the
++    // procfs path does with the gap under the stack, and keep it out of the allocator's regions.
++    constexpr size_t StackHeadroom = 64ULL * 1024 * 1024;
++    const uintptr_t StackTop = FEXCore::AlignDown(StackLocation_u64, PageSize);
++    const uintptr_t StackBottom = StackTop > StackHeadroom ? StackTop - StackHeadroom : 0;
++
++    fextl::vector<MemoryRegion> Regions;
++    bool Reserved;
++    if (StackTop > Begin && StackBottom < End) {
++      const uintptr_t WindowBegin = std::max(Begin, StackBottom);
++      const uintptr_t WindowEnd = std::min(End, StackTop);
++      Reserved = ProbeMemoryRegion(WindowBegin, WindowEnd, PROT_READ | PROT_WRITE, PageSize, nullptr) &&
++                 ProbeMemoryRegion(Begin, WindowBegin, PROT_NONE, PageSize, &Regions) &&
++                 ProbeMemoryRegion(WindowEnd, End, PROT_NONE, PageSize, &Regions);
++    } else {
++      Reserved = ProbeMemoryRegion(Begin, End, PROT_NONE, PageSize, &Regions);
++    }
++
++    if (!Reserved) {
++      for (const auto& Region : Regions) {
++        ::munmap(Region.Ptr, Region.Size);
++      }
++      return {};
++    }
++    return Regions;
+   }
+ 
+   auto Regions = CollectMemoryGaps(Begin, End, MapsFD);
+@@ -288,7 +368,12 @@
+   uintptr_t End48BitVA = 0x1'0000'0000'0000ULL;
+   auto Regions = StealMemoryRegion(Begin48BitVA, End48BitVA);
+   if (Regions.empty()) {
+-    return {};
++    // dmx: the host has a 48-bit address space and none of its upper half could be taken, so
++    // x86-64 programs would be handed addresses they cannot hold. Say why and stop, rather than
++    // run them with a layout that makes allocators abort somewhere later.
++    constexpr char Message[] = "FEX: could not reserve the address space above 2^47 for x86-64 programs; refusing to run\n";
++    [[maybe_unused]] const auto Written = ::write(STDERR_FILENO, Message, sizeof(Message) - 1);
++    ::_exit(1);
+   }
+ 
+   Alloc64 = Alloc::OSAllocator::Create64BitAllocatorWithRegions(Regions);
 """
 
 TOOLCHAIN_ROOTS = [

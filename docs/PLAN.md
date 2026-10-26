@@ -520,9 +520,10 @@ v0.2.2 is published (signed and notarized, 2026-10-26). main adds, unreleased: t
 with a new kernel (Asahi's TSO patches) and docker.img format 3. In order:
 
 1. Bugs and regressions first (maintainer, 2026-10-26): work through [WORKORDER.md](WORKORDER.md)
-   top to bottom. B1 (FEX ignoring `AT_SECURE`) is fixed; next is P0's rest (FEX without `/proc`,
-   pressuretest / TSO hotplug / release dry run), then P1 (node start, FEX memory, TSO switch
-   cost, first-boot unpack), P2 (the ~100 MB high idle), then the improvements.
+   top to bottom. B1 (FEX ignoring `AT_SECURE`) and B2 (FEX without `/proc`) are fixed; next is
+   B3 (pressuretest, CPU hotplug with a TSO thread, a release dry run on the FEX and TSO guest),
+   then P1 (node start, FEX memory, TSO switch cost, first-boot unpack), P2 (the ~100 MB high
+   idle), then the improvements.
 2. Release 0.3.0 with FEX (maintainer's call: tag and publish), after the work order.
 3. Warm `docker run` (~100 ms quiet) stays behind Colima by choice (data disk barrier flushes,
    see Decisions).
@@ -674,6 +675,7 @@ complete by the finished acceptance suites.
 | 2026-10-26 | Unpacking the x86 emulators at boot | selftest boots a fresh data disk, so it pays the unpack each time: idle 78 MB without docker.img, 88–91 with qemu alone, 105 with both emulators unpacked (dropping the page cache afterwards changed nothing: freed pages, not cache), 94–97 unpacking only FEX. The daemon's data disk keeps the unpacked copy, so this happens once per version. docker.img 53.3 → 54.3 MB (x86 tar 2.1 MB xz). |
 | 2026-10-26 | Gates with FEX, the TSO kernel and the ACTLR fix | Unit tests pass, selftest 94 MB, daemon 53/53 (`dns_host_resolver` now compares with the Mac's own answer: on a LAN macOS answers its `.local` name with the LAN address, not loopback), x86 36/36, Docker 69/69, MCP 30/30, sandbox 41/41, image matrix 18/18. Kernel alone 315 s (3110 s with a FEX build in the daemon VM at the same time). |
 | 2026-10-26 | FEX and setuid x86 programs (WORKORDER B1) | Confirmed, then fixed. binfmt's `C` flag runs FEX with the x86 file's credentials, and FEX read the caller's configuration for such an exec: as `nobody`, `FEX_OUTPUTLOG` made a setuid-root x86 program create a root-owned file at a path the caller chose, and a `FEX_APP_CONFIG` file the caller owned was parsed. The configuration also chooses the rootfs x86 libraries load from, so this was worse than QEMU's accepted `QEMU_LOG_FILENAME`. dmx's FEX now checks `AT_SECURE`: it drops every `FEX_*` variable from the environment and keeps only the built-in defaults and the system-wide config (no `$HOME/.fex-emu`, `FEX_APP_CONFIG`, Steam layers). x86test gained `fex.setuid_ignores_caller_config` and a control that shows the same program without setuid still writes the log: 38/38, selftest 96 MB, idle 100 MB (FEX), footprint after the x86 work 273 MB. FEX is `fex-2610-dmx2`. |
+| 2026-10-26 | FEX without `/proc` (WORKORDER B2) | Fixed. FEX reserves [2^47, 2^48) from the gaps it reads in `/proc/self/maps`; without them upstream reserves nothing, and x86 programs got host addresses above 2^47 (`0xffff...`), which jemalloc and mimalloc abort on. dmx's patch probes for the gaps with `MAP_FIXED_NOREPLACE`, halving only the chunks that come back EEXIST, and keeps a 64 MB readable-writable window below the stack so it can still grow; if even that fails it writes a message and exits instead of running with the wrong layout. In a chroot with `/proc` unmounted: `user_space_47bit=True` and all 11 page checks pass, jemalloc and mimalloc pass, x86 `sleep` 6.3 MB RSS over 61 mappings. The probe costs 31 ms per x86 process (x86 `true` 3 → 34 ms), so it stays the fallback; containers always have `/proc`. x86test gained `pages_4k_without_proc` for both emulators: 40/40, selftest 95 MB. FEX is `fex-2610-dmx3`. |
 
 ## Progress log
 
@@ -745,3 +747,4 @@ complete by the finished acceptance suites.
 - 2026-10-26: x86_64 images run through FEX-Emu with the Apple CPU's hardware TSO (Asahi's kernel patches, ACTLR_EL1 written only when the memory model changes); QEMU stays as `x86_emulator qemu`. CPU-bound x86 code 2.5–9× faster, image matrix 18/18. Next: release 0.3.0 (maintainer's call).
 - 2026-10-26: Maintainer: fix bugs and regressions before releasing. docs/WORKORDER.md lists them in order (FEX and setuid programs, FEX without /proc, unrun checks, node start, FEX memory, TSO switch cost, first-boot unpack, the high idle readings). Next: WORKORDER B1.
 - 2026-10-26: WORKORDER B1 fixed: FEX took its configuration from the caller even for a setuid x86 program, which binfmt's `C` flag runs with the file's credentials. dmx's FEX now honours `AT_SECURE` (no `FEX_*` variables, no user config), x86test checks it with a control, and docker.md says so. Next: WORKORDER B2 (FEX without `/proc`).
+- 2026-10-26: WORKORDER B2 fixed: without `/proc` FEX reserved nothing above 2^47 and x86 programs got addresses they cannot hold; dmx's FEX now probes for the free parts with `MAP_FIXED_NOREPLACE` (31 ms per process, only on that path) and refuses to run if it cannot. x86test checks the layout and both allocators in a chroot without `/proc`. Next: WORKORDER B3 (pressuretest, TSO with CPU hotplug, release dry run).
