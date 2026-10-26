@@ -126,6 +126,10 @@ Rules for every item (on top of [AGENTS.md](../AGENTS.md)):
   caches of 5000-instruction superblocks were the bulk of it; 15 MB is left to explain.
 - **Done when** the difference is explained, and either reduced or accepted in PLAN.md's
   decisions with the numbers.
+- **Done (2026-10-26).** It was the superblock code caches; R1's block cap removed most of it.
+  Per process FEX is now cheaper than QEMU (an x86 python holding 100 MB: RSS 117.8 MB over 69
+  mappings against 126.2 MB over 43), and after a mix of x86 work plus cleanup both end at the
+  same place once the idle sweep runs: 180 → 80 MB for FEX, 176 → 79 for QEMU.
 
 ### R3. Switching between TSO and non-TSO threads costs ~0.8 µs per switch
 
@@ -137,6 +141,13 @@ Rules for every item (on top of [AGENTS.md](../AGENTS.md)):
   and a busy x86 container before optimising. Leaving TSO on for a native thread would be safe
   (TSO is stricter) but slows native code, so measure that trade too before changing anything.
 - **Done when** measured on a real workload and either fixed or accepted in PLAN.md.
+- **Done (2026-10-26), accepted.** An x86 `dd` piping 80 MB in 4 KB writes to a native `cat`, both
+  on one vCPU (38,000 context switches): 68–69 ms with hardware TSO, 38–39 ms with
+  `FEX_TSOENABLED=0`, so 0.78 µs per model change, the trap cost measured before. Two x86
+  processes, which never change the model, 45–46 ms; native to native 29–30 ms. With all ten
+  vCPUs online the same workload switches 6× less and TSO costs nothing measurable (33–34 ms
+  either way). So it bites only when x86 and native threads are forced onto one vCPU, and the fix
+  (leaving TSO on for native threads) would slow all native code: accepted in PLAN's decisions.
 
 ### R4. Unpacking the emulator at first boot leaves freed guest pages
 
@@ -146,6 +157,13 @@ Rules for every item (on top of [AGENTS.md](../AGENTS.md)):
 - **Look at.** Unpacking with less memory churn (unxz with a smaller buffer, or `dd` with
   `iflag=direct`), or letting the idle sweep run before selftest measures.
 - **Done when** selftest idle is within 2 MB of the qemu-only number, or this is accepted.
+- **Done (2026-10-26), accepted.** The pages come back at the first idle sweep: fresh-disk boot
+  98–99 MB, 85–87 MB five seconds later, flat after that. `compact_memory` in /init straight after
+  the unpack does nothing (selftest 96–100 MB; the freed pages are not in the buddy allocator's
+  lists yet), and compaction in the idle sweep, with a 4 MB touch to wake free page reporting,
+  gained 2 MB on a fresh boot and nothing after heavy x86 work, for a new agent call and 4 ms per
+  idle spell; both were reverted. selftest measures before any sweep by design, and a user's disk
+  unpacks once per version.
 
 ## P2: open items from before
 

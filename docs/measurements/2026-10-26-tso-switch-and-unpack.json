@@ -1,0 +1,184 @@
+{
+ "at": "2026-10-26",
+ "host": "Apple M4, macOS 26.6.1",
+ "r3_tso_switch_cost_on_a_real_pattern": {
+  "workload": "x86 dd writing 20000 x 4 KB from /dev/zero into a pipe, read by a native cat; 80 MB per run, 3 runs",
+  "note": "with one vCPU online the two processes share it, so every pipe buffer hands the CPU from a TSO thread to a plain one; context switches counted from /proc/stat",
+  "one_vcpu_ms_and_switches": {
+   "x86_writer_native_reader_hardware_tso": [
+    [
+     69,
+     38429
+    ],
+    [
+     68,
+     38345
+    ],
+    [
+     69,
+     38214
+    ]
+   ],
+   "x86_writer_native_reader_fex_tso_off": [
+    [
+     39,
+     38206
+    ],
+    [
+     38,
+     38624
+    ],
+    [
+     39,
+     38385
+    ]
+   ],
+   "x86_writer_x86_reader_hardware_tso": [
+    [
+     46,
+     37168
+    ],
+    [
+     46,
+     36554
+    ],
+    [
+     45,
+     37429
+    ]
+   ],
+   "x86_writer_x86_reader_fex_tso_off": [
+    [
+     42,
+     33039
+    ],
+    [
+     43,
+     33592
+    ],
+    [
+     42,
+     33654
+    ]
+   ],
+   "native_writer_native_reader": [
+    [
+     29,
+     33652
+    ],
+    [
+     30,
+     37781
+    ],
+    [
+     30,
+     37443
+    ]
+   ]
+  },
+  "all_ten_vcpus_ms_and_switches": {
+   "x86_writer_native_reader_hardware_tso": [
+    [
+     34,
+     6531
+    ],
+    [
+     34,
+     6587
+    ],
+    [
+     33,
+     6465
+    ]
+   ],
+   "x86_writer_native_reader_fex_tso_off": [
+    [
+     34,
+     6242
+    ],
+    [
+     33,
+     6107
+    ],
+    [
+     32,
+     6148
+    ]
+   ],
+   "x86_writer_x86_reader_hardware_tso": [
+    [
+     33,
+     4696
+    ],
+    [
+     32,
+     5462
+    ],
+    [
+     32,
+     5126
+    ]
+   ],
+   "native_writer_native_reader": [
+    [
+     24,
+     1407
+    ],
+    [
+     24,
+     1918
+    ],
+    [
+     24,
+     1513
+    ]
+   ]
+  },
+  "per_switch_cost_us": 0.78,
+  "conclusion": "The ACTLR_EL1 write costs 0.78 us per memory-model change, which matches the pipe round trip measured on 2026-10-26. It only shows up when x86 and native threads are forced onto one vCPU (69 vs 39 ms, +75 %); with vCPUs free the same workload shows no difference (33-34 ms either way) because the processes stay on their own vCPUs and switch 6x less. Two x86 processes never pay it. Leaving TSO on for native threads would remove it but slow all native code, so nothing is changed."
+ },
+ "r4_first_boot_unpack": {
+  "note": "fresh data disk, so /init unpacks the emulator; host footprint over time, FEX guest",
+  "footprint_mb_over_time": {
+   "at_boot": [
+    99,
+    99,
+    98
+   ],
+   "after_first_idle_sweep_5s": [
+    87,
+    86,
+    85
+   ],
+   "plateau_30s": [
+    87,
+    86,
+    85
+   ]
+  },
+  "manual_compaction_after_the_sweep": {
+   "footprint_mb": [
+    91,
+    83,
+    83
+   ],
+   "note": "echo 1 > /proc/sys/vm/compact_memory in the guest, then 5 s"
+  },
+  "compaction_in_init_right_after_the_unpack": {
+   "selftest_footprint_mb": [
+    100,
+    96,
+    99
+   ],
+   "verdict": "no effect; the pages are not yet in the buddy allocator's lists at that point"
+  },
+  "compaction_in_the_idle_sweep": {
+   "fresh_boot_plateau_mb": 85,
+   "without_it": 80,
+   "after_the_x86_mix_plateau_mb": 80,
+   "cost": "4 ms in the guest plus a 4 MB touch to wake free page reporting",
+   "verdict": "0 to 2 MB; not adopted"
+  },
+  "conclusion": "What selftest sees is the unpack's freed pages before the first idle sweep: they go back 5 s later (99 -> 85-87 MB). selftest measures right after boot by design, so its FEX number stays a few MB above the qemu-only one; the memory is not lost. Accepted."
+ }
+}
