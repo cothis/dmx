@@ -9,7 +9,8 @@
   "dmx9": "5468c106014cd11cf74b04b7858778b0ee7145b43b19817aa45f0ca8338e9741",
   "stale_recheck_candidate": "cac8608849e28f51f8bdb4cad7d891b2060135ac22f0482c07aa92feaa8146a1",
   "dmx10": "40037e01de7d1af2b3b346da3d9b4f09c2ab5374fec7d0320d62f5abd84c2ab5",
-  "qemu": "e5e7c40cde4a9489019e1b580b8ce5936ef3b4b19c9f528be4406d708e1d4ed4"
+  "qemu": "e5e7c40cde4a9489019e1b580b8ce5936ef3b4b19c9f528be4406d708e1d4ed4",
+  "dmx11": "ade3c89ddc3bca41bee0d953e2ca63f6b148e81bf6d27c3ca3ca14ce8b0dfc1c"
  },
  "guest_dmx10_docker_img_sha256": "a518eefb4e4d9eadeca1df946a5dc4e9abe9fe8dee1ff2a8a1857d86b9df92de",
  "hs_err_reconstruction": {
@@ -89,6 +90,12 @@
     "probe_sha256": "276462ae07d1413f371468eda8aa7aca3713b806a0fb4f49f21ef28f5e013c32",
     "args": [],
     "failures": []
+   },
+   "dmx11": {
+    "passed": 20,
+    "runs": 20,
+    "live_emulator_sha256": "ade3c89ddc3bca41bee0d953e2ca63f6b148e81bf6d27c3ca3ca14ce8b0dfc1c",
+    "probe_sha256": "276462ae07d1413f371468eda8aa7aca3713b806a0fb4f49f21ef28f5e013c32"
    }
   }
  },
@@ -132,6 +139,12 @@
      "300"
     ],
     "failures": []
+   },
+   "dmx11": {
+    "passed": 20,
+    "runs": 20,
+    "live_emulator_sha256": "ade3c89ddc3bca41bee0d953e2ca63f6b148e81bf6d27c3ca3ca14ce8b0dfc1c",
+    "probe_sha256": "a87231d0ada397280e91e00c0e00ac2684e79c6a436daf89fceccab92d635c94"
    }
   },
   "draft_probe_3M_calls": {
@@ -329,8 +342,121 @@
   "entry-flip draft, decoder_only round 4: writer made no progress during the reader loop (exit 4, invalid round); the fixture now waits for 1M rewrites"
  ],
  "limits": [
-  "dmx10 is on main, not released; v0.3.4 still ships dmx9",
-  "unit, daemon, mcp, docker and sandbox suites were not rerun: no host code changed (selftest, x86, image matrix and Java were)",
+  "dmx10 was never released; v0.3.5 ships dmx11",
+  "dmx10 ran selftest, x86, images and Java only; dmx11 ran every suite",
   "writes from another process into shared code memory are not stopped by protection; after 8 changed decodes such a block runs once uncached"
- ]
+ ],
+ "guest_dmx11_docker_img_sha256": "bf216b3410931e0c20abf6cc528e50b2888d8233d53fcbb0d197b6305196205c",
+ "compile_storm_benchmark": {
+  "program": "scripts/fixtures/compile-storm-x86_64.S: 262144 distinct 16-byte functions in 4 MiB RWX, each called once (time of the call phase)",
+  "dmx9": [
+   {
+    "emulator_sha256": "5468c106014cd11cf74b04b7858778b0ee7145b43b19817aa45f0ca8338e9741",
+    "runs_ms": [
+     272.4,
+     340.3,
+     292.3,
+     258.8,
+     262.5,
+     264.1,
+     267.7
+    ],
+    "median_ms": 267.7
+   },
+   {
+    "emulator_sha256": "5468c106014cd11cf74b04b7858778b0ee7145b43b19817aa45f0ca8338e9741",
+    "runs_ms": [
+     266.3,
+     269.9,
+     260.3,
+     256.2,
+     276.4,
+     270.0,
+     271.6
+    ],
+    "median_ms": 269.9
+   }
+  ],
+  "dmx10": [
+   {
+    "emulator_sha256": "40037e01de7d1af2b3b346da3d9b4f09c2ab5374fec7d0320d62f5abd84c2ab5",
+    "runs_ms": [
+     338.5,
+     318.5,
+     319.2,
+     342.6,
+     317.0,
+     300.6,
+     297.4
+    ],
+    "median_ms": 318.5
+   },
+   {
+    "emulator_sha256": "40037e01de7d1af2b3b346da3d9b4f09c2ab5374fec7d0320d62f5abd84c2ab5",
+    "runs_ms": [
+     341.9,
+     335.5,
+     330.8,
+     322.0,
+     317.7,
+     321.9,
+     323.9
+    ],
+    "median_ms": 323.9
+   }
+  ],
+  "dmx11": [
+   {
+    "emulator_sha256": "ade3c89ddc3bca41bee0d953e2ca63f6b148e81bf6d27c3ca3ca14ce8b0dfc1c",
+    "runs_ms": [
+     264.4,
+     258.2,
+     256.1,
+     262.8,
+     258.7,
+     259.7,
+     259.2
+    ],
+    "median_ms": 259.2
+   },
+   {
+    "emulator_sha256": "ade3c89ddc3bca41bee0d953e2ca63f6b148e81bf6d27c3ca3ca14ce8b0dfc1c",
+    "runs_ms": [
+     250.9,
+     247.9,
+     247.9,
+     245.9,
+     251.0,
+     255.9,
+     248.3
+    ],
+    "median_ms": 248.3
+   }
+  ],
+  "note": "dmx10 re-protected already protected pages on every compile (~0.2 us each); dmx11 remembers pages it protected until their next invalidation. dmx11's binary is byte-identical to the measured candidate (only a comment differs)"
+ },
+ "dmx11_suites": {
+  "unit": 59,
+  "selftest": "23/23",
+  "daemon": "57/57",
+  "mcp": "33/33",
+  "x86": "53/53",
+  "docker": "69/69",
+  "sandbox": "44/44",
+  "images": "24/24",
+  "java_repeats": "100/100",
+  "java_median_workload_s": 2.08,
+  "host_memory_ri_phys_footprint_mib": {
+   "idle_mb": 97,
+   "after_free_mb": 1123,
+   "after_reclaim_mb": 104,
+   "returned_ms": 320
+  },
+  "x86_fex": {
+   "node_startup_ms": 270,
+   "python3_loop_ms": 200,
+   "footprint_after_x86_mb": 236,
+   "footprint_after_cleanup_mb": 140
+  }
+ }
 }

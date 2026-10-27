@@ -23,11 +23,11 @@
   원자적 entry 패치를 옛 opcode와 새 operand로 섞어 디코드한 결과와 정확히 일치해요. 새 fixture
   `entry-patch`가 기존 FEX에서 18/20 실패하고 decoder 수정본·dmx9·QEMU에서 통과해요.
   같은 조사에서 **오래된 번역이 계속 실행되는 두 번째 결함**을 찾았어요. 번역 중에 바뀐 코드가
-  새 바이트 게시와 직렬화 뒤에도 실행돼요(dmx9 0/20, QEMU 30/30). `main`의 `fex-2610-dmx10`이
-  고쳤지만 아직 릴리스하지 않았어요. 게시된 v0.3.4는 dmx9예요.
+  새 바이트 게시와 직렬화 뒤에도 실행돼요(dmx9 0/20, QEMU 30/30). `fex-2610-dmx11`이 고쳤고
+  컴파일 비용도 없앴어요(첫 수정 dmx10은 컴파일 폭주에서 19% 느렸어요). v0.3.5로 릴리스해요.
   `make javatest`는 같은 고정 이미지의 javac/JIT 작업을
   100회 반복하고, 한 번이라도 실패하면 실패예요. 전체 이미지 검사는 `make imagetest`예요.
-- 기본 x86 에뮬레이터는 FEX-Emu예요. `main`의 게스트 pin은 `fex-2610-dmx10`, v0.3.4 게시본은 dmx9이고
+- 기본 x86 에뮬레이터는 FEX-Emu예요. v0.3.5 게스트는 `fex-2610-dmx11`이고(v0.3.4는 dmx9)
   amd64와 386을 지원해요.
   QEMU는 `dmx config set x86_emulator qemu`로 선택하고 amd64만 지원해요.
 - [WORKORDER.md](WORKORDER.md)는 완료됐어요. FEX·TSO·32비트 지원과 성능 수정은 이미 0.3.0에
@@ -76,8 +76,7 @@ make javatest
 
 ## 남은 검증과 알려진 제한
 
-1. dmx10(오래된 번역 수정)을 담은 패치 릴리스와 커뮤니티 공개(Show HN, Reddit, GeekNews)는
-   maintainer의 다음 결정이에요.
+1. 커뮤니티 공개(Show HN, Reddit, GeekNews)는 maintainer의 다음 결정이에요.
 2. 실제 사내 TLS 검사 프록시·VPN 환경과 외부 IPv6 연결: 해당 환경에서 수용 시험이 필요해요.
    로컬 프록시·사설 CA·IPv6 loopback 검사는 이 증거를 대신하지 않아요.
 3. QEMU는 386을 지원하지 않아요. FEX는 32비트 프로세스의 `uname -m`에도 `x86_64`를 반환해요.

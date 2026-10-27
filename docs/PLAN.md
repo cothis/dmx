@@ -558,13 +558,13 @@ The follow-up investigation (2026-10-27) confirmed the Java cause: the crash rep
 and fault addresses are exactly what a decode mixing HotSpot's old and new method-entry bytes
 produces, and a new fixture fails 18/20 on the old FEX and passes on dmx9. It also found stale
 translations: code rewritten while a block was being translated kept running after the new
-bytes were published, on every FEX build including the shipped dmx9. `fex-2610-dmx10` on main
-fixes that; v0.3.4 still ships dmx9. See [the follow-up](fex-java-2026-10-27.md#follow-up-cause-confirmed-and-a-second-defect-2026-10-27).
+bytes were published, on every FEX build including the shipped dmx9. `fex-2610-dmx11` fixes it
+without slowing compiles (dmx10, the first fix, cost 19 % in a compile storm) and ships in v0.3.5. See [the follow-up](fex-java-2026-10-27.md#follow-up-cause-confirmed-and-a-second-defect-2026-10-27).
 
 In order:
 
-1. A patch release with `fex-2610-dmx10` (stale translations) is the maintainer's call; the
-   guest pin on main already builds it, and x86test now carries both code-patching fixtures.
+1. v0.3.5 (dmx11) is being released at the maintainer's request (2026-10-27): sign, notarize,
+   rehearse locally, publish, then verify the downloaded assets and an update from 0.3.4.
 2. Community announcement (Show HN, Reddit, GeekNews) is now the maintainer’s next decision.
    The requested review, documentation and v0.3.4 release are complete; no community post was
    sent by this release work.
@@ -607,7 +607,11 @@ decoder-only 20/20, dmx9 20/20, dmx10 20/20, QEMU 20/20. `code-stale` fixture: d
 0/10 (every run still executed an old version), QEMU 30/30, dmx10 20/20 and the candidate 15/15.
 dmx10 suites: selftest (idle 96 MiB, reclaim 1121 → 102 MiB in 217 ms; dmx9: 97, 1125 → 105 in
 105 ms), x86 53/53 (node 256 ms, python loop 193 ms, both unchanged), image matrix 24/24, Java 100/100 with javac's
-median 2.08 s (dmx9 2.09). Details, hashes and excluded runs:
+median 2.08 s (dmx9 2.09). A compile storm (262,144 new blocks) exposed dmx10's cost: 318–324 ms
+against dmx9's 268–270, from re-protecting protected pages. dmx11 skips pages it protected since
+their last invalidation: 248–259 ms. dmx11 passed every suite: unit 59, selftest 23 (idle 97 MiB,
+1123 → 104 MiB in 320 ms), daemon 57, MCP 33, x86 53 (node 270 ms, python loop 200 ms), Docker
+69, sandbox 44, images 24 and Java 100 (median 2.08 s). Details, hashes and excluded runs:
 [measurements](measurements/2026-10-27-fex-code-patching.json).
 
 ### Earlier measurements
@@ -863,3 +867,4 @@ median 2.08 s (dmx9 2.09). Details, hashes and excluded runs:
 
 - 2026-10-27: Published signed/notarized v0.3.4 from 04ef90d. Verified all 14 uploaded/downloaded assets, fresh installation and selftest (97 MiB), update from a running 0.3.3 with VM/data preservation and new guest activation, and arm64/amd64/386 containers. Review, documentation and release are complete; community posting remains the maintainer’s decision.
 - 2026-10-27: Java crash cause confirmed and a second FEX defect fixed. All six crash reports match a mixed decode of HotSpot's atomic method-entry patch (fault addresses and registers recomputed exactly). A new fixture fails 18/20 on the old FEX and the signal-only build and passes on the decoder fix, dmx9 and QEMU. FEX also kept running translations of code that changed between decoding and write protection (0/20 on dmx9). `fex-2610-dmx10` rechecks the decoded words once the pages are protected and redecodes; x86test gains both fixtures (53/53), image matrix 24/24, Java 100/100, selftest 96 MiB. Not released. Next: the maintainer's call on a patch release.
+- 2026-10-27: Removed dmx10's compile cost: it re-protected already protected pages on every compile (262,144-block storm 318–324 ms against dmx9's 268–270). `fex-2610-dmx11` remembers protected pages until their next invalidation (248–259 ms), passes both fixtures and every suite, and is pinned for v0.3.5 (release notes written; the maintainer asked to release after the tuning). Next: package, sign, publish and verify v0.3.5.

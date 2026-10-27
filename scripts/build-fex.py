@@ -18,7 +18,8 @@ fixes four places that relied on glibc behaviour musl does not have. Signal retu
 its syscall marker even when the handler leaves RIP unchanged; the decoder takes aligned
 eight-byte snapshots so an atomic HotSpot method-entry rewrite cannot mix opcode and operand
 bytes; and a block decoded from writable code is checked against memory once its pages are
-write-protected and decoded again if another thread changed it in between. Output: <cache>/<guest.DMX_FEX>, a stripped static PIE. `make guest` puts it in docker.img.
+write-protected and decoded again if another thread changed it in between (pages already known
+to be protected are not protected again). Output: <cache>/<guest.DMX_FEX>, a stripped static PIE. `make guest` puts it in docker.img.
 
 `--lock` re-resolves TOOLCHAIN from Alpine's current APKINDEX and prints new pins.
 """
@@ -755,6 +756,60 @@ FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
  }
  
  struct ReadELFHeadersResult {
+--- a/FEXCore/Source/Interface/Context/Context.h
++++ b/FEXCore/Source/Interface/Context/Context.h
+@@ -379,6 +379,11 @@
+   bool HostRNGAvailable {};
+ 
+   FEXCore::Utils::WritePriorityMutex::Mutex CodeInvalidationMutex {};
++  // Pages of mutable code CompileBlock has write-protected since their last invalidation. Every change
++  // that makes a page writable again is followed by one, under CodeInvalidationMutex, before the guest
++  // can rely on it.
++  std::mutex ProtectedCodePagesMutex;
++  fextl::set<uint64_t> ProtectedCodePages;
+ 
+   uint32_t StrictSplitLockMutex {};
+ 
+--- a/FEXCore/Source/Interface/Core/Core.cpp
++++ b/FEXCore/Source/Interface/Core/Core.cpp
+@@ -933,14 +933,23 @@
+ 
+   // Another thread can write mutable code between decoding and the write protection below, and that
+   // write does not fault, so the block would keep running the old bytes. Protect every page first,
+-  // including those another thread marked but may not have protected yet; writers then fault and wait
+-  // on CodeInvalidationMutex for this compile. Decode again if the bytes changed in the meantime.
++  // including those another thread marked but may not have protected yet (pages known to be protected
++  // are skipped); writers then fault and wait on CodeInvalidationMutex for this compile. Decode again
++  // if the bytes changed in the meantime.
+   // Writes protection cannot stop (another process sharing the memory) may defeat the retries;
+   // such a block runs once and is not cached.
+   const bool RecheckCode = NeedsAddGuestCodeRanges && Thread->FrontendDecoder->DecodedFromMutableCode();
+   if (RecheckCode) {
+     for (auto CodePage : Thread->FrontendDecoder->GetDecodedBlockInfo()->CodePages) {
++      {
++        std::scoped_lock ProtectedLock(ProtectedCodePagesMutex);
++        if (ProtectedCodePages.contains(CodePage)) {
++          continue;
++        }
++      }
+       SyscallHandler->MarkGuestExecutableRange(Thread, CodePage, FEXCore::Utils::FEX_PAGE_SIZE);
++      std::scoped_lock ProtectedLock(ProtectedCodePagesMutex);
++      ProtectedCodePages.insert(CodePage);
+     }
+     if (!Thread->FrontendDecoder->MutableCodeUnchanged()) {
+       if (++DecodeAttempts < 8) {
+@@ -1076,6 +1085,11 @@
+   FEXCORE_PROFILE_SCOPED("InvalidateCodeBuffersCodeRange");
+ 
+   LOGMAN_THROW_A_FMT(CodeInvalidationMutex.try_lock() == false, "CodeInvalidationMutex needs to be unique_locked here");
++  {
++    std::scoped_lock ProtectedLock(ProtectedCodePagesMutex);
++    ProtectedCodePages.erase(ProtectedCodePages.lower_bound(Start & FEXCore::Utils::FEX_PAGE_MASK),
++                             ProtectedCodePages.lower_bound(Start + Length));
++  }
+   std::scoped_lock lk {CodeBufferListLock};
+   auto it = CodeBufferList.begin();
+   while (it != CodeBufferList.end()) {
 """
 
 TOOLCHAIN_ROOTS = [
