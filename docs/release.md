@@ -91,6 +91,31 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
    gh release create v0.1.0 --title "dmx 0.1.0" --notes-file .build/dist/v0.1.0/NOTES.md .build/dist/v0.1.0/*
    ```
 
+### Guardrails (from mistakes in 0.3.4–0.3.9)
+
+- **Build and test in a throwaway `DMX_HOME`, not `~/.dmx`.** An installed dmx may run from
+  `~/.dmx/guest`, which `make guest` overwrites. Build with
+  `python3 -I scripts/build-guest.py --out .build/guest-<version>`, and point a temporary
+  `DMX_HOME` at it with `guest` and `cache` symlinks. Pass it to every suite and to `make release`.
+  **Keep that directory until the second packaging is done**: removing it early made 0.3.9's
+  first packaging fail.
+- **Never chain a step after a pipe.** `make release | tail && git commit` commits even when
+  `make release` failed, because the pipeline returns `tail`'s status. 0.3.9's release commit was
+  made without its guest pin that way, and was amended before the push. Check the command's own
+  exit status, or use `set -o pipefail`.
+- **Before tagging**, `git show --stat HEAD` lists `Sources/DMXCore/GuestPin.swift` and
+  `Version.swift`, the second packaging says `"pin_changed": false`, and the tree is clean.
+- **A suite failure blocks the release until it is explained with evidence.** A green rerun is
+  not an explanation. 0.3.8 shipped after daemontest's network checks failed once and a rerun
+  passed; it was a real one-in-a-hundred receive deadlock that a user then hit (fixed in 0.3.9).
+  Loop the failing step in isolation first.
+- **After publishing**, verify from the downloaded assets: a fresh install, an update from the
+  previous release with a running VM and data, containers on arm64, amd64 and 386. Then exercise
+  the release's own fix with the published binary (0.3.8: `dmx install` with the VM up;
+  0.3.9: 300 fresh VM starts with a download each).
+- **Release notes quote measurements, not expectations.** Fill in the qualification numbers only
+  after the suites have run.
+
 ## What is in the release directory
 
 | File | What |

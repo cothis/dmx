@@ -43,6 +43,16 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-10-27: Confirm a cause with a diagnostic before writing its fix. For the guest network stall I first wrote
+  a change that moved mDNSResponder calls off the network queue, on a guess; a diagnostic build then logged the
+  real cause (a receive-buffer deadlock), and the guess was reverted unshipped. Log the suspected state at the
+  moment of failure, reproduce it, then fix.
+- 2026-10-27: Run every command you put in a document. README's signature check first used `codesign -dv`,
+  which does not print the Authority chain it was meant to show; only running it caught that.
+- 2026-10-27: A pipeline's exit status is its last command's. `cmd | tail && next` runs `next` after `cmd`
+  failed (the v0.3.9 release commit lost its guest pin that way), and a reader at the end of a pipe can run
+  before the writer finished (a rehearsal check read its result file too early). Capture exit codes, and read
+  result files after the command returns.
 - 2026-10-27: A suite failure is not "the environment" until something shows it. daemontest lost 6 network
   checks during v0.3.8's qualification; I blamed a DNS switch, a rerun passed, and I shipped. The same stall
   then hit a user's Mac: a 1-in-100 receive deadlock at boot (64 KB frames vs. the 32 x 1536 bytes of
