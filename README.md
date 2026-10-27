@@ -15,7 +15,8 @@ driven by AI agents as easily as by people.
 | After it frees the 2 GiB (10 s at most) | **356 MB** | 2699 MB | 3164 MB | 3157 MB |
 | Warm `docker run --rm alpine true` | 104 ms | 97 ms | 52 ms | 63 ms |
 
-Medians of three rounds on a quiet Mac; whole engine, VM included. Idle memory is the steady
+Medians of three rounds on a quiet Mac, measured with dmx 0.3.0; dmx 0.3.6 measured the same
+([re-check](docs/benchmark.md#dmx-re-check-2026-10-27-036)). Whole engine, VM included. Idle memory is the steady
 state 95 s after the last command: dmx's dips to 194 MB when it trims the guest and settles at
 222 MB. OrbStack gives the 2 GiB back about 20 s after the container exits, past the 10 s this
 table allows; Colima and Docker Desktop still hold it five minutes later. Method, raw data

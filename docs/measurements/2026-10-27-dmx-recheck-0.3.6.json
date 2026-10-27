@@ -1,0 +1,604 @@
+{
+ "what": "dmx alone, same protocol and Mac as the 2026-10-26 0.3.0 comparison: is the README table still dmx's?",
+ "dmx": "main 4ee75e8 (0.3.6 plus the dangling-link fix, which does not touch the VM), guest v0.3.6 (fex-2610-dmx11)",
+ "other_engines": "not re-measured: dmx changes cannot move them, and reinstalling them was not worth it",
+ "runs": [
+  {
+   "ok": true,
+   "engine": "dmx",
+   "at": "2026-10-27T03:01:44.831817+00:00",
+   "host": {
+    "macos": "26.6.1",
+    "arch": "arm64",
+    "cores": 10
+   },
+   "host_load_start": [
+    1.2275390625,
+    1.31787109375,
+    1.3505859375
+   ],
+   "host_pressure_start": 1,
+   "mach_timebase": {
+    "numer": 125,
+    "denom": 3
+   },
+   "cpu_reader_check": {
+    "getrusage_s": 0.050005,
+    "reader_s": 0.05002304166666668
+   },
+   "settings": {
+    "cpus": 2,
+    "ceiling_mb": 4096,
+    "container_cpus": 2,
+    "shares": "none"
+   },
+   "vm_start_ms": 323,
+   "before_docker": {
+    "footprint_mb": 87.95,
+    "cpu_s": 0.3237468333333333,
+    "processes": [
+     {
+      "pid": 97468,
+      "footprint_mb": 87.95,
+      "cpu_s": 0.3237468333333333
+     }
+    ]
+   },
+   "docker_versions": "29.9.2 / 29.9.2",
+   "first_docker_ms": 1228,
+   "process_commands": {
+    "97468": "/Users/cothis/dev/dockermax/.build/out/Products/Release/dmx"
+   },
+   "docker_info": {
+    "ServerVersion": "29.9.2",
+    "KernelVersion": "6.18.58-dmx-4k",
+    "NCPU": 2,
+    "MemTotal": 1439281152,
+    "Architecture": "aarch64",
+    "Driver": "overlayfs"
+   },
+   "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+   "idle_samples": [
+    {
+     "at_s": 35,
+     "footprint_mb": 197.77,
+     "cpu_s": 2.52215725,
+     "processes": [
+      {
+       "pid": 97468,
+       "footprint_mb": 197.77,
+       "cpu_s": 2.52215725
+      }
+     ]
+    },
+    {
+     "at_s": 50,
+     "footprint_mb": 202.06,
+     "cpu_s": 2.5938944583333337,
+     "processes": [
+      {
+       "pid": 97468,
+       "footprint_mb": 202.06,
+       "cpu_s": 2.5938944583333337
+      }
+     ]
+    },
+    {
+     "at_s": 65,
+     "footprint_mb": 222.56,
+     "cpu_s": 2.6825299166666663,
+     "processes": [
+      {
+       "pid": 97468,
+       "footprint_mb": 222.56,
+       "cpu_s": 2.6825299166666663
+      }
+     ]
+    },
+    {
+     "at_s": 80,
+     "footprint_mb": 222.45,
+     "cpu_s": 2.739706125,
+     "processes": [
+      {
+       "pid": 97468,
+       "footprint_mb": 222.45,
+       "cpu_s": 2.739706125
+      }
+     ]
+    },
+    {
+     "at_s": 95,
+     "footprint_mb": 222.49,
+     "cpu_s": 2.7962894583333333,
+     "processes": [
+      {
+       "pid": 97468,
+       "footprint_mb": 222.49,
+       "cpu_s": 2.7962894583333333
+      }
+     ]
+    }
+   ],
+   "idle_at_35s": {
+    "at_s": 35,
+    "footprint_mb": 197.77,
+    "cpu_s": 2.52215725,
+    "processes": [
+     {
+      "pid": 97468,
+      "footprint_mb": 197.77,
+      "cpu_s": 2.52215725
+     }
+    ]
+   },
+   "idle_min": {
+    "at_s": 35,
+    "footprint_mb": 197.77,
+    "cpu_s": 2.52215725,
+    "processes": [
+     {
+      "pid": 97468,
+      "footprint_mb": 197.77,
+      "cpu_s": 2.52215725
+     }
+    ]
+   },
+   "idle": {
+    "at_s": 95,
+    "footprint_mb": 222.49,
+    "cpu_s": 2.7962894583333333,
+    "processes": [
+     {
+      "pid": 97468,
+      "footprint_mb": 222.49,
+      "cpu_s": 2.7962894583333333
+     }
+    ]
+   },
+   "idle_cpu_percent_of_one_core": 0.383,
+   "run_true_ms": {
+    "samples": [
+     202.85,
+     91.52,
+     112.33,
+     91.05,
+     111.69
+    ],
+    "median": 111.69
+   },
+   "sha256_256m_ms": 836,
+   "holding_2g": {
+    "footprint_mb": 2392.78,
+    "cpu_s": 5.029529625,
+    "processes": [
+     {
+      "pid": 97468,
+      "footprint_mb": 2392.78,
+      "cpu_s": 5.029529625
+     }
+    ]
+   },
+   "return_after_2g": {
+    "baseline_mb": 295.5,
+    "after": {
+     "footprint_mb": 357.94,
+     "cpu_s": 5.232661166666667,
+     "processes": [
+      {
+       "pid": 97468,
+       "footprint_mb": 357.94,
+       "cpu_s": 5.232661166666667
+      }
+     ]
+    },
+    "elapsed_s": 1.95
+   },
+   "peak_2g_footprint_mb": 2399.82,
+   "host_load_end": [
+    1.18798828125,
+    1.2802734375,
+    1.32568359375
+   ],
+   "host_pressure_end": 1
+  },
+  {
+   "ok": true,
+   "engine": "dmx",
+   "at": "2026-10-27T03:04:10.295263+00:00",
+   "host": {
+    "macos": "26.6.1",
+    "arch": "arm64",
+    "cores": 10
+   },
+   "host_load_start": [
+    1.11279296875,
+    1.251953125,
+    1.31396484375
+   ],
+   "host_pressure_start": 1,
+   "mach_timebase": {
+    "numer": 125,
+    "denom": 3
+   },
+   "cpu_reader_check": {
+    "getrusage_s": 0.050004999999999994,
+    "reader_s": 0.05002041666666668
+   },
+   "settings": {
+    "cpus": 2,
+    "ceiling_mb": 4096,
+    "container_cpus": 2,
+    "shares": "none"
+   },
+   "vm_start_ms": 321,
+   "before_docker": {
+    "footprint_mb": 87.63,
+    "cpu_s": 0.3238988333333333,
+    "processes": [
+     {
+      "pid": 97593,
+      "footprint_mb": 87.63,
+      "cpu_s": 0.3238988333333333
+     }
+    ]
+   },
+   "docker_versions": "29.9.2 / 29.9.2",
+   "first_docker_ms": 1201,
+   "process_commands": {
+    "97593": "/Users/cothis/dev/dockermax/.build/out/Products/Release/dmx"
+   },
+   "docker_info": {
+    "ServerVersion": "29.9.2",
+    "KernelVersion": "6.18.58-dmx-4k",
+    "NCPU": 2,
+    "MemTotal": 1439281152,
+    "Architecture": "aarch64",
+    "Driver": "overlayfs"
+   },
+   "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+   "idle_samples": [
+    {
+     "at_s": 35,
+     "footprint_mb": 190.58,
+     "cpu_s": 2.4590195833333337,
+     "processes": [
+      {
+       "pid": 97593,
+       "footprint_mb": 190.58,
+       "cpu_s": 2.4590195833333337
+      }
+     ]
+    },
+    {
+     "at_s": 50,
+     "footprint_mb": 199.11,
+     "cpu_s": 2.5348276666666667,
+     "processes": [
+      {
+       "pid": 97593,
+       "footprint_mb": 199.11,
+       "cpu_s": 2.5348276666666667
+      }
+     ]
+    },
+    {
+     "at_s": 65,
+     "footprint_mb": 223.92,
+     "cpu_s": 2.618392375,
+     "processes": [
+      {
+       "pid": 97593,
+       "footprint_mb": 223.92,
+       "cpu_s": 2.618392375
+      }
+     ]
+    },
+    {
+     "at_s": 80,
+     "footprint_mb": 223.47,
+     "cpu_s": 2.6748054583333336,
+     "processes": [
+      {
+       "pid": 97593,
+       "footprint_mb": 223.47,
+       "cpu_s": 2.6748054583333336
+      }
+     ]
+    },
+    {
+     "at_s": 95,
+     "footprint_mb": 223.52,
+     "cpu_s": 2.7296462916666666,
+     "processes": [
+      {
+       "pid": 97593,
+       "footprint_mb": 223.52,
+       "cpu_s": 2.7296462916666666
+      }
+     ]
+    }
+   ],
+   "idle_at_35s": {
+    "at_s": 35,
+    "footprint_mb": 190.58,
+    "cpu_s": 2.4590195833333337,
+    "processes": [
+     {
+      "pid": 97593,
+      "footprint_mb": 190.58,
+      "cpu_s": 2.4590195833333337
+     }
+    ]
+   },
+   "idle_min": {
+    "at_s": 35,
+    "footprint_mb": 190.58,
+    "cpu_s": 2.4590195833333337,
+    "processes": [
+     {
+      "pid": 97593,
+      "footprint_mb": 190.58,
+      "cpu_s": 2.4590195833333337
+     }
+    ]
+   },
+   "idle": {
+    "at_s": 95,
+    "footprint_mb": 223.52,
+    "cpu_s": 2.7296462916666666,
+    "processes": [
+     {
+      "pid": 97593,
+      "footprint_mb": 223.52,
+      "cpu_s": 2.7296462916666666
+     }
+    ]
+   },
+   "idle_cpu_percent_of_one_core": 0.369,
+   "run_true_ms": {
+    "samples": [
+     200.05,
+     104.46,
+     95.76,
+     92.58,
+     101.5
+    ],
+    "median": 101.5
+   },
+   "sha256_256m_ms": 842,
+   "holding_2g": {
+    "footprint_mb": 2389.3,
+    "cpu_s": 5.02037775,
+    "processes": [
+     {
+      "pid": 97593,
+      "footprint_mb": 2389.3,
+      "cpu_s": 5.02037775
+     }
+    ]
+   },
+   "return_after_2g": {
+    "baseline_mb": 294.0,
+    "after": {
+     "footprint_mb": 352.09,
+     "cpu_s": 5.217127083333333,
+     "processes": [
+      {
+       "pid": 97593,
+       "footprint_mb": 352.09,
+       "cpu_s": 5.217127083333333
+      }
+     ]
+    },
+    "elapsed_s": 1.94
+   },
+   "peak_2g_footprint_mb": 2396.5,
+   "host_load_end": [
+    1.13134765625,
+    1.2216796875,
+    1.29443359375
+   ],
+   "host_pressure_end": 1
+  },
+  {
+   "ok": true,
+   "engine": "dmx",
+   "at": "2026-10-27T03:06:34.916789+00:00",
+   "host": {
+    "macos": "26.6.1",
+    "arch": "arm64",
+    "cores": 10
+   },
+   "host_load_start": [
+    1.2138671875,
+    1.23095703125,
+    1.29443359375
+   ],
+   "host_pressure_start": 1,
+   "mach_timebase": {
+    "numer": 125,
+    "denom": 3
+   },
+   "cpu_reader_check": {
+    "getrusage_s": 0.050003000000000006,
+    "reader_s": 0.050016416666666674
+   },
+   "settings": {
+    "cpus": 2,
+    "ceiling_mb": 4096,
+    "container_cpus": 2,
+    "shares": "none"
+   },
+   "vm_start_ms": 323,
+   "before_docker": {
+    "footprint_mb": 88.81,
+    "cpu_s": 0.31856908333333334,
+    "processes": [
+     {
+      "pid": 97711,
+      "footprint_mb": 88.81,
+      "cpu_s": 0.31856908333333334
+     }
+    ]
+   },
+   "docker_versions": "29.9.2 / 29.9.2",
+   "first_docker_ms": 1178,
+   "process_commands": {
+    "97711": "/Users/cothis/dev/dockermax/.build/out/Products/Release/dmx"
+   },
+   "docker_info": {
+    "ServerVersion": "29.9.2",
+    "KernelVersion": "6.18.58-dmx-4k",
+    "NCPU": 2,
+    "MemTotal": 1439281152,
+    "Architecture": "aarch64",
+    "Driver": "overlayfs"
+   },
+   "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+   "idle_samples": [
+    {
+     "at_s": 35,
+     "footprint_mb": 193.38,
+     "cpu_s": 2.4445199583333337,
+     "processes": [
+      {
+       "pid": 97711,
+       "footprint_mb": 193.38,
+       "cpu_s": 2.4445199583333337
+      }
+     ]
+    },
+    {
+     "at_s": 50,
+     "footprint_mb": 201.61,
+     "cpu_s": 2.5130301666666663,
+     "processes": [
+      {
+       "pid": 97711,
+       "footprint_mb": 201.61,
+       "cpu_s": 2.5130301666666663
+      }
+     ]
+    },
+    {
+     "at_s": 65,
+     "footprint_mb": 220.3,
+     "cpu_s": 2.5928634583333334,
+     "processes": [
+      {
+       "pid": 97711,
+       "footprint_mb": 220.3,
+       "cpu_s": 2.5928634583333334
+      }
+     ]
+    },
+    {
+     "at_s": 80,
+     "footprint_mb": 219.77,
+     "cpu_s": 2.6516698333333335,
+     "processes": [
+      {
+       "pid": 97711,
+       "footprint_mb": 219.77,
+       "cpu_s": 2.6516698333333335
+      }
+     ]
+    },
+    {
+     "at_s": 95,
+     "footprint_mb": 219.78,
+     "cpu_s": 2.706398875,
+     "processes": [
+      {
+       "pid": 97711,
+       "footprint_mb": 219.78,
+       "cpu_s": 2.706398875
+      }
+     ]
+    }
+   ],
+   "idle_at_35s": {
+    "at_s": 35,
+    "footprint_mb": 193.38,
+    "cpu_s": 2.4445199583333337,
+    "processes": [
+     {
+      "pid": 97711,
+      "footprint_mb": 193.38,
+      "cpu_s": 2.4445199583333337
+     }
+    ]
+   },
+   "idle_min": {
+    "at_s": 35,
+    "footprint_mb": 193.38,
+    "cpu_s": 2.4445199583333337,
+    "processes": [
+     {
+      "pid": 97711,
+      "footprint_mb": 193.38,
+      "cpu_s": 2.4445199583333337
+     }
+    ]
+   },
+   "idle": {
+    "at_s": 95,
+    "footprint_mb": 219.78,
+    "cpu_s": 2.706398875,
+    "processes": [
+     {
+      "pid": 97711,
+      "footprint_mb": 219.78,
+      "cpu_s": 2.706398875
+     }
+    ]
+   },
+   "idle_cpu_percent_of_one_core": 0.365,
+   "run_true_ms": {
+    "samples": [
+     196.17,
+     105.13,
+     89.93,
+     99.34,
+     95.67
+    ],
+    "median": 99.34
+   },
+   "sha256_256m_ms": 839,
+   "holding_2g": {
+    "footprint_mb": 2388.25,
+    "cpu_s": 4.906350541666667,
+    "processes": [
+     {
+      "pid": 97711,
+      "footprint_mb": 2388.25,
+      "cpu_s": 4.906350541666667
+     }
+    ]
+   },
+   "return_after_2g": {
+    "baseline_mb": 293.78,
+    "after": {
+     "footprint_mb": 357.67,
+     "cpu_s": 5.097532,
+     "processes": [
+      {
+       "pid": 97711,
+       "footprint_mb": 357.67,
+       "cpu_s": 5.097532
+      }
+     ]
+    },
+    "elapsed_s": 1.94
+   },
+   "peak_2g_footprint_mb": 2396.63,
+   "host_load_end": [
+    1.02490234375,
+    1.15185546875,
+    1.24951171875
+   ],
+   "host_pressure_end": 1
+  }
+ ]
+}

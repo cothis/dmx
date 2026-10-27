@@ -63,6 +63,27 @@ CPU is shown as a percentage of one core; the footprint peak is sampled every 10
 lifetime peak. `--cpus` and `--ceiling-gb` support other acceptance profiles, but comparisons
 must use the same profile for every engine; the container workload remains limited to 2 CPUs.
 
+## dmx re-check, 2026-10-27 (0.3.6)
+
+0.3.1 to 0.3.6 changed the update path, host/guest boundary checks, the x86 emulator and the
+idle sweep (which now also trims the data disk), so dmx alone was measured again with the
+protocol and Mac of the 0.3.0 comparison below. Three rounds, host load 1.1 to 1.4, v0.3.6
+guest ([raw](measurements/2026-10-27-dmx-recheck-0.3.6.json)). The other engines were not
+measured again: nothing in dmx can move their numbers. Medians, with ranges in parentheses:
+
+| | dmx 0.3.0 (2026-10-26) | dmx 0.3.6 |
+|---|---|---|
+| Idle, steady state at 95 s, MB | 222 (219–223) | 222 (220–224) |
+| Idle, lowest reading in the window, MB | 194 (188–195) | 193 (191–198) |
+| Idle CPU, % of one core | 0.40 (0.39–0.42) | 0.37 (0.37–0.38) |
+| Holding 2 GiB in tmpfs, MB | 2390 (2389–2391) | 2389 (2388–2393) |
+| After freeing it, MB / time back within baseline +64 MB | 356 (352–358) / 2 s (2–5) | 358 (352–358) / 2 s (2–2) |
+| `docker run --rm alpine true`, ms | 104 (98–104) | 102 (99–112) |
+| SHA-256 of 256 MiB, ms | 847 (838–864) | 839 (836–842) |
+
+Every number is inside or next to the 0.3.0 range, so the README table still describes dmx;
+the idle disk trim costs nothing visible.
+
 ## Results, 2026-10-26 (dmx 0.3.0, quiet Mac)
 
 Same Mac as below (macOS 26.6.1, 10 cores, 16 GB), host load 1.0 to 1.7 for every run, one engine
