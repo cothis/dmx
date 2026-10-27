@@ -1,12 +1,14 @@
-# 다음 세션 인계 — 2026-10-27 (v0.3.9 릴리스 완료)
+# 다음 세션 인계 — 2026-10-27 (v0.3.10 릴리스 완료)
 
 `이어서 진행해`라는 요청을 받으면 [PLAN.md](PLAN.md)의 **Next up**과 이 문서를 읽어요.
 계획·결정·측정의 기준은 `PLAN.md`, 공유 작업 메모는 [memory.md](memory.md)예요.
 
 ## 현재 상태
 
-- 게시된 최신 릴리스는 [v0.3.9](https://github.com/cothis/dmx/releases/tag/v0.3.9)이에요(태그 커밋 `1051460`,
-  Developer ID 서명·Apple 공증). 게스트 MTU를 49126으로 낮춰, 새로 켠 VM의 수신이 약 1% 확률로 영구히 멈추던 교착을 고쳤어요.
+- 게시된 최신 릴리스는 [v0.3.10](https://github.com/cothis/dmx/releases/tag/v0.3.10)이에요(태그 커밋 `aa061fc`,
+  Developer ID 서명·Apple 공증). `dmx install`이 Docker Desktop 경로 `~/.docker/run/docker.sock`을 dmx 소켓에 링크해,
+  docker context를 읽지 않는 도구(SDK·IDE 플러그인·Testcontainers)도 dmx를 찾아요. 게스트 부팅 파일은 0.3.9와 같아요.
+  v0.3.9(`1051460`)는 게스트 MTU를 49126으로 낮춰, 새로 켠 VM의 수신이 약 1% 확률로 영구히 멈추던 교착을 고쳤어요.
   v0.3.8(`7f32e3f`)은 `dmx install`이 launchd 재등록을 기다려요(보안 에이전트가 있는 Mac에서 실패하던 문제).
   v0.3.7(`b4f9da0`)은 깨진 `docker` 링크를 교체하고 README에 서명 확인법을 적었어요.
   v0.3.6(`14d7866`)은 idle 정리 때 데이터 디스크를 trim해 discard가 놓친 공간을 Mac에 돌려줘요.

@@ -578,6 +578,13 @@ Same published checks from a running 0.3.7, and the published binary installed 5
 **v0.3.9 is published** (2026-10-27, tag commit `1051460`): guest MTU 49126 against the receive
 deadlock. Same published checks from a running 0.3.8, and the published binary started 300 fresh
 VMs with a download each without a stall (0.3.8: 3 in 300).
+**v0.3.10 is published** (2026-10-27, tag commit `aa061fc`): `dmx install` links
+`~/.docker/run/docker.sock` to dmx's socket. Same published checks from a running 0.3.9, plus
+the published binary's `dmx install` creating the link on a free path and over a dangling one.
+Found while verifying, not new in 0.3.10: when the boot files are unchanged, the guest receipt
+(`release.json`) is rewritten only by `dmx guest fetch`, not by a boot, so `dmx guest` on this
+Mac still names v0.3.6 under 0.3.10 (`GuestStore.fetch`'s same-files branch; the boot path skips
+`fetch` when `needsFetch` is false). Cosmetic: the files are the pinned ones.
 
 In order:
 
@@ -916,3 +923,4 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 - 2026-10-27: Published signed/notarized v0.3.9 from 1051460. The first packaging failed because I had removed the temporary DMX_HOME it reads the guest from, and the release commit was made without the pin; it was amended before any push. Second packaging kept the pin; local rehearsal (selftest 97 MiB), 14 uploaded and re-downloaded digests, a fresh install (97 MiB), an update of a running 0.3.8, the dangling-link replacement and arm64/amd64/386 containers passed, then the published binary started 300 fresh VMs with a 1 MiB download each without a stall. Next: the maintainer's call on the community announcement.
 - 2026-10-27: `dmx install` links `~/.docker/run/docker.sock` (Docker Desktop's path) to `~/.dmx/docker.sock`, keeping a socket another engine serves; `dmx uninstall` removes only its own link. A user's tool failed on Docker Desktop's hardcoded paths while the docker CLI worked through the context. Unit test (free, taken, dead and dangling paths); on this Mac `dmx install` made the link, `docker -H unix://~/.docker/run/docker.sock version` answered 29.9.2 and `curl --unix-socket` `_ping` OK. No VM or memory change. Not released.
 - 2026-10-27: v0.3.10 qualified (`~/.docker/run/docker.sock` link; guest boot files byte-identical to 0.3.9): unit 62, selftest 23 (96 MiB, 1122 → 101 MiB in 214 ms), daemon 58 (64 MB at 501 MB/s), MCP 33, x86 53, Docker 69, sandbox 44, images 24, Java 100. Next: publish and verify v0.3.10.
+- 2026-10-27: Published signed/notarized v0.3.10 from aa061fc. Second packaging kept the pin; local rehearsal (selftest 23/23, 101 MiB) and install.sh from it; 14 uploaded and re-downloaded files byte-identical to the local ones; a fresh install from GitHub (selftest 23/23, 101 MiB, guest v0.3.10 downloaded); `dmx update` of a running 0.3.9 with a container (stop_to_switch, container kept, volume data kept, the unchanged guest not downloaded); arm64, amd64 and 386 (LONG_BIT 32) containers; the published `dmx install` made the link on a free path and replaced a dangling one, and docker and curl `_ping` answered through it. The guest receipt still names v0.3.6 (recorded in Next up). Next: the maintainer's call on the community announcement.
