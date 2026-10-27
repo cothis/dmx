@@ -571,6 +571,9 @@ disk. Same checks as 0.3.5, from a running 0.3.5, plus an idle trim in the updat
 **v0.3.7 is published** (2026-10-27, tag commit `b4f9da0`): a dangling `docker` link is replaced,
 README documents signing. Same checks from a running 0.3.6 (unchanged guest kept, not
 downloaded again), plus the published binary replacing a dangling link in a throwaway HOME. See [the follow-up](fex-java-2026-10-27.md#follow-up-cause-confirmed-and-a-second-defect-2026-10-27).
+**v0.3.8 is published** (2026-10-27, tag commit `7f32e3f`): `dmx install` waits for launchd.
+Same published checks from a running 0.3.7, and the published binary installed 5/5 with the VM up
+(0.3.7: 5/10).
 
 In order:
 
@@ -903,3 +906,4 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 - 2026-10-27: Published signed/notarized v0.3.7 from b4f9da0. Second packaging kept the pin; local rehearsal (selftest 96 MiB), 14 uploaded and re-downloaded digests, a fresh install (97 MiB), an update of a running 0.3.6 that kept VM, data and the unchanged guest, the published binary replacing a dangling docker link, and arm64/amd64/386 containers passed. Next: the maintainer's call on the community announcement.
 - 2026-10-27: `dmx install` failed on another Mac ("launchd did not start the daemon") although launchd ran the daemon. Reproduced here as a race: `launchctl bootout` returns while the old daemon is still exiting (over a second when it powers a VM off), so the immediate bootstrap fails with EIO or loads a job whose socket does not answer yet, and install tried to connect exactly once. With the VM up before each run, 0.3.7 installed 5/10 (all failures `Bootstrap failed: 5: Input/output error`). install now waits until launchd has let go of the job and its process, retries bootstrap on EIO for 5 s and connects for up to 10 s, and its error names the connect errno and launchd's job state: 10/10 with the VM up, 10/10 without. Not released.
 - 2026-10-27: v0.3.8 qualified (dmx install waits for launchd; guest byte-identical to 0.3.7): unit 60, selftest 23 (96 MiB, 1123 → 102 MiB in 321 ms), MCP 33, x86 53, Docker 69, sandbox 44, images 24, Java 100. daemontest's first run failed 6 network checks (DNS timeouts, the 64 MB HTTP download, IPv6) while the Mac's DNS switched to Tailscale's resolver mid-run; the rerun under the same network passed 58/58. Next: publish and verify v0.3.8.
+- 2026-10-27: Published signed/notarized v0.3.8 from 7f32e3f. Second packaging kept the pin; local rehearsal (selftest 97 MiB), 14 uploaded and re-downloaded digests, a fresh install (96 MiB), an update of a running 0.3.7 (VM, data and unchanged guest kept), the dangling-link replacement and arm64/amd64/386 containers passed. The published binary then ran `dmx install` 5/5 with the VM up on this Mac. Next: the maintainer's call on the community announcement.
