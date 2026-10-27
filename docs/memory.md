@@ -30,6 +30,12 @@ This repo is public: no private hostnames, IPs or personal details here.
 - Installing Docker Desktop, OrbStack or Colima briefly on this Mac for comparison benchmarks is OK
   (2026-10-25). Back up and restore what they change (`~/.docker`, contexts, PATH links), stop them while measuring
   others, uninstall afterwards. License and admin-password prompts stay the maintainer's.
+  Removing the apps is not enough (2026-10-27: they had been left behind): also undo what they write
+  outside their own folders. Docker Desktop: PATH blocks in `~/.zprofile` and `~/.profile`, a
+  completion block with `compinit` in `~/.zshrc`, `credsStore` in `~/.docker/config.json` (the
+  helper goes with the app, which breaks later pulls), a `com.docker.helper` launchd job. OrbStack:
+  `~/.zprofile` and `~/.ssh/config` includes, `~/OrbStack`, its group container. Colima: an
+  `~/.ssh/config` include, `~/Library/Caches/colima` (317 MB).
 - Delegate simple checks (summaries, disassembly, reviews) to Sonnet subagents while doing the hard reasoning
   yourself (2026-10-27: "단순작업은 sonnet으로 확인하면서"). Verify what they report before relying on it.
 - "남은 작업 진행하자. 문서도 현행화해": start at PLAN.md and HANDOFF.md, do one coherent next item, update
