@@ -43,7 +43,7 @@ slower than Colima's because dmx keeps write ordering on the data disk across a 
 
 ## Quick start
 
-Requires macOS 15 or later on Apple Silicon.
+Requires macOS 15 or later on Apple Silicon. Intel Macs are not supported.
 
 ```sh
 curl -fsSL https://github.com/cothis/dmx/releases/download/v0.3.9/install.sh | sh
