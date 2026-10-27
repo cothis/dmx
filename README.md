@@ -126,7 +126,7 @@ allow only notarized software run it, and a copy downloaded with a browser asks 
 first launch. (0.1.0 was ad-hoc signed.) To check an installed copy:
 
 ```sh
-codesign -dv ~/.local/bin/dmx 2>&1 | grep -E 'Authority|TeamIdentifier'   # V4YA23448U
+codesign -dv --verbose=2 ~/.local/bin/dmx 2>&1 | grep -E 'Authority|TeamIdentifier'
 codesign --verify --strict --check-notarization ~/.local/bin/dmx && echo notarized
 ```
 
