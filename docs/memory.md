@@ -18,7 +18,7 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 - Chat with the maintainer in Korean, every message (status updates and plans too, not only the final report).
   Code, commits and docs stay English as the repo does (HANDOFF is Korean). The maintainer had to say "한글로 말해라"
-  twice on 2026-10-24.
+  twice on 2026-10-24, and again on 2026-10-27 after a status message written in English mid-release.
 - Commit, then `git push` without asking (2026-10-23: "묻지말고푸시하고"). Never force-push. Work on `main` in the
   existing checkout, no branches or worktrees.
 - Keep asking before: scope, naming, licensing, tags, GitHub releases, anything public.
