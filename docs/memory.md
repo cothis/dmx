@@ -30,11 +30,17 @@ This repo is public: no private hostnames, IPs or personal details here.
 - Installing Docker Desktop, OrbStack or Colima briefly on this Mac for comparison benchmarks is OK
   (2026-10-25). Back up and restore what they change (`~/.docker`, contexts, PATH links), stop them while measuring
   others, uninstall afterwards. License and admin-password prompts stay the maintainer's.
+- Delegate simple checks (summaries, disassembly, reviews) to Sonnet subagents while doing the hard reasoning
+  yourself (2026-10-27: "단순작업은 sonnet으로 확인하면서"). Verify what they report before relying on it.
 - "남은 작업 진행하자. 문서도 현행화해": start at PLAN.md and HANDOFF.md, do one coherent next item, update
   plan/progress/measurements in the same work, verify on a real VM, commit, push.
 
 ## Lessons
 
+- 2026-10-27: Diagnose an emulator crash from what the crash report recorded, not from repeat counts. Asking which
+  byte mix of the old and new code produces exactly the recorded fault address and registers pinned the FEX Java
+  crash in one pass, after 330 Java runs had stayed statistically inconclusive. A race probe must hit one site
+  continuously and hold each state long enough; it is a regression test only once old and new emulators differ on it.
 - 2026-10-27: Candidate emulator tests count only after the file packed into docker.img and the
   live `/var/lib/dmx/x86/FEX` match the candidate's sha256. `build-guest.py`'s `X86_EMULATORS`
   captures `DMX_FEX` at import time; changing only the latter on an imported module still packages

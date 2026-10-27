@@ -554,13 +554,22 @@ It passed the 100-run Java gate and all release suites; the decoder-only candida
 [release measurements](measurements/2026-10-27-release-0.3.4.json). The published guest was also
 verified to load dmx9 after an update, preserving the existing data disk.
 
+The follow-up investigation (2026-10-27) confirmed the Java cause: the crash reports' registers
+and fault addresses are exactly what a decode mixing HotSpot's old and new method-entry bytes
+produces, and a new fixture fails 18/20 on the old FEX and passes on dmx9. It also found stale
+translations: code rewritten while a block was being translated kept running after the new
+bytes were published, on every FEX build including the shipped dmx9. `fex-2610-dmx10` on main
+fixes that; v0.3.4 still ships dmx9. See [the follow-up](fex-java-2026-10-27.md#follow-up-cause-confirmed-and-a-second-defect-2026-10-27).
+
 In order:
 
-1. Community announcement (Show HN, Reddit, GeekNews) is now the maintainer’s next decision.
+1. A patch release with `fex-2610-dmx10` (stale translations) is the maintainer's call; the
+   guest pin on main already builds it, and x86test now carries both code-patching fixtures.
+2. Community announcement (Show HN, Reddit, GeekNews) is now the maintainer’s next decision.
    The requested review, documentation and v0.3.4 release are complete; no community post was
    sent by this release work.
-2. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
-3. Open, not blocking: `qemu-x86_64` cannot run 32-bit programs, so `linux/386` needs
+3. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
+4. Open, not blocking: `qemu-x86_64` cannot run 32-bit programs, so `linux/386` needs
    `x86_emulator fex` (the default); adding qemu-i386 would be a separate build. Warm `docker run`
    (~100 ms on a quiet Mac) stays behind Colima by choice (data disk barrier flushes, see
    Decisions). FEX's emulated `uname -m` says `x86_64` even for a 32-bit process.
@@ -587,6 +596,19 @@ The installer fetched the signed/notarized binary, and its guest selftest passed
 Updating a running 0.3.3
 kept the old VM alive, retained its data, then loaded the new guest/FEX at the next boot. The
 published binary ran arm64, amd64 and 386 containers. Tag: `v0.3.4`, commit: `04ef90d`.
+
+### FEX code patching (2026-10-27, after v0.3.4)
+
+The six Java crash reports are reproduced byte for byte by decoding the first one or two bytes of
+HotSpot's verified-entry word from the old version and the rest from the patched `jmp`. That
+includes three fault addresses, a register truncated by the mixed `mov ebx, edi`, and the
+SIGILL/#GP offsets. `entry-patch` fixture, 20 runs each: dmx8 2/20, signal-only 2/20,
+decoder-only 20/20, dmx9 20/20, dmx10 20/20, QEMU 20/20. `code-stale` fixture: dmx9 0/20 and dmx8
+0/10 (every run still executed an old version), QEMU 30/30, dmx10 20/20 and the candidate 15/15.
+dmx10 suites: selftest (idle 96 MiB, reclaim 1121 → 102 MiB in 217 ms; dmx9: 97, 1125 → 105 in
+105 ms), x86 53/53 (node 256 ms, python loop 193 ms, both unchanged), image matrix 24/24, Java 100/100 with javac's
+median 2.08 s (dmx9 2.09). Details, hashes and excluded runs:
+[measurements](measurements/2026-10-27-fex-code-patching.json).
 
 ### Earlier measurements
 
@@ -840,3 +862,4 @@ published binary ran arm64, amd64 and 386 containers. Tag: `v0.3.4`, commit: `04
 - 2026-10-27: Completed v0.3.4 qualification after fixing FEX signal-return state and atomic instruction-word decoding. Added a deterministic signal regression and the 100-run Java gate, verified live emulator hashes, and recorded failed controls and the initial candidate-packaging error. All release suites passed; signing and publication remain next.
 
 - 2026-10-27: Published signed/notarized v0.3.4 from 04ef90d. Verified all 14 uploaded/downloaded assets, fresh installation and selftest (97 MiB), update from a running 0.3.3 with VM/data preservation and new guest activation, and arm64/amd64/386 containers. Review, documentation and release are complete; community posting remains the maintainer’s decision.
+- 2026-10-27: Java crash cause confirmed and a second FEX defect fixed. All six crash reports match a mixed decode of HotSpot's atomic method-entry patch (fault addresses and registers recomputed exactly). A new fixture fails 18/20 on the old FEX and the signal-only build and passes on the decoder fix, dmx9 and QEMU. FEX also kept running translations of code that changed between decoding and write protection (0/20 on dmx9). `fex-2610-dmx10` rechecks the decoded words once the pages are protected and redecodes; x86test gains both fixtures (53/53), image matrix 24/24, Java 100/100, selftest 96 MiB. Not released. Next: the maintainer's call on a patch release.

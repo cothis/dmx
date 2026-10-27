@@ -1,0 +1,336 @@
+{
+ "date": "2026-10-27",
+ "subject": "FEX code patching: cause of the amd64 Java crash, and stale translations",
+ "base_commit": "e2246aa",
+ "emulators_sha256": {
+  "dmx8": "f6c78ffe2a93c55ab0d9b708132a6827ac74f8cba66fc878106e5ce5a70a2b7c",
+  "sigreturn_only": "67278fc5ec0e0c7384ff91e66e198d3a6ad3c4e209570971e976afebcee80ed6",
+  "decoder_only": "55ee8c4df48708439cee1cbfab6c082a0af33ab67d033a57ecf283118d13fce6",
+  "dmx9": "5468c106014cd11cf74b04b7858778b0ee7145b43b19817aa45f0ca8338e9741",
+  "stale_recheck_candidate": "cac8608849e28f51f8bdb4cad7d891b2060135ac22f0482c07aa92feaa8146a1",
+  "dmx10": "40037e01de7d1af2b3b346da3d9b4f09c2ab5374fec7d0320d62f5abd84c2ab5",
+  "qemu": "e5e7c40cde4a9489019e1b580b8ce5936ef3b4b19c9f528be4406d708e1d4ed4"
+ },
+ "guest_dmx10_docker_img_sha256": "a518eefb4e4d9eadeca1df946a5dc4e9abe9fe8dee1ff2a8a1857d86b9df92de",
+ "hs_err_reconstruction": {
+  "reports": 6,
+  "note": "two of the seven files are byte-identical; old word 89 84 24 00 c0 fe ff 55, new e9 <rel32> fe ff 55",
+  "matches": {
+   "current-fex-14": "old 89 84 + new rest: mov [rdi+2*rax-0x1f8ba],eax -> 0x2d02b3fe6 == si_addr",
+   "current-fex-147": "old 89 84: mov [rbp+8*rbp-0x1f8ad],eax -> 0x47fffa948d723 == si_addr",
+   "multiblock-0-58": "old 89: mov [rbx-0x1f8af7b],ebx -> 0x7fff9507d9d5 == si_addr",
+   "previous-fex-26": "old 89: mov ebx,edi; insb -> RBX 0x980a9b28 == low32(RDI), #GP at +2",
+   "current-fex-7": "old 89: mov [rbx-0x61],edi; cmp eax,[rdi]; fe ff -> SIGILL at +5",
+   "current-fex-27": "old 89: mov [rbx],ebx; fadd [rbx+7]; fe ff -> SIGILL at +5"
+  },
+  "timing": "4 of 6 within 5-8 ms of the same method's C2 install; the other two windows do not show it"
+ },
+ "entry_patch_fixture": {
+  "source": "scripts/fixtures/entry-patch-x86_64.S",
+  "results": {
+   "dmx8": {
+    "passed": 2,
+    "runs": 20,
+    "live_emulator_sha256": "f6c78ffe2a93c55ab0d9b708132a6827ac74f8cba66fc878106e5ce5a70a2b7c",
+    "probe_sha256": "276462ae07d1413f371468eda8aa7aca3713b806a0fb4f49f21ef28f5e013c32",
+    "args": [],
+    "failures": [
+     "entry-patch-mixed eax=0x000000000000003b",
+     "entry-patch-mixed eax=0x0000000000202380"
+    ]
+   },
+   "sigreturn_only": {
+    "passed": 2,
+    "runs": 20,
+    "live_emulator_sha256": "67278fc5ec0e0c7384ff91e66e198d3a6ad3c4e209570971e976afebcee80ed6",
+    "probe_sha256": "276462ae07d1413f371468eda8aa7aca3713b806a0fb4f49f21ef28f5e013c32",
+    "args": [],
+    "failures": [
+     "entry-patch-mixed eax=0x000000000000003b",
+     "entry-patch-mixed eax=0x0000000000202380"
+    ]
+   },
+   "decoder_only": {
+    "passed": 20,
+    "runs": 20,
+    "live_emulator_sha256": "55ee8c4df48708439cee1cbfab6c082a0af33ab67d033a57ecf283118d13fce6",
+    "probe_sha256": "276462ae07d1413f371468eda8aa7aca3713b806a0fb4f49f21ef28f5e013c32",
+    "args": [],
+    "failures": []
+   },
+   "dmx9": {
+    "passed": 20,
+    "runs": 20,
+    "live_emulator_sha256": "5468c106014cd11cf74b04b7858778b0ee7145b43b19817aa45f0ca8338e9741",
+    "probe_sha256": "276462ae07d1413f371468eda8aa7aca3713b806a0fb4f49f21ef28f5e013c32",
+    "args": [],
+    "failures": []
+   },
+   "stale_recheck_candidate": {
+    "passed": 20,
+    "runs": 20,
+    "live_emulator_sha256": "cac8608849e28f51f8bdb4cad7d891b2060135ac22f0482c07aa92feaa8146a1",
+    "probe_sha256": "276462ae07d1413f371468eda8aa7aca3713b806a0fb4f49f21ef28f5e013c32",
+    "args": [],
+    "failures": []
+   },
+   "dmx10": {
+    "passed": 20,
+    "runs": 20,
+    "live_emulator_sha256": "40037e01de7d1af2b3b346da3d9b4f09c2ab5374fec7d0320d62f5abd84c2ab5",
+    "probe_sha256": "276462ae07d1413f371468eda8aa7aca3713b806a0fb4f49f21ef28f5e013c32",
+    "args": [],
+    "failures": []
+   },
+   "qemu": {
+    "passed": 20,
+    "runs": 20,
+    "live_emulator_sha256": "e5e7c40cde4a9489019e1b580b8ce5936ef3b4b19c9f528be4406d708e1d4ed4",
+    "probe_sha256": "276462ae07d1413f371468eda8aa7aca3713b806a0fb4f49f21ef28f5e013c32",
+    "args": [],
+    "failures": []
+   }
+  }
+ },
+ "code_stale_fixture": {
+  "source": "scripts/fixtures/code-stale-x86_64.S",
+  "argument": "writer spin iterations",
+  "results": {
+   "dmx9": {
+    "passed": 0,
+    "runs": 20,
+    "live_emulator_sha256": "5468c106014cd11cf74b04b7858778b0ee7145b43b19817aa45f0ca8338e9741",
+    "probe_sha256": "a87231d0ada397280e91e00c0e00ac2684e79c6a436daf89fceccab92d635c94",
+    "args": [
+     "300"
+    ],
+    "failures": [
+     "300 code-stale-old got=0x0000000000000000 want>=0x0000000000",
+     "300 code-stale-old got=0x000000000000000c want>=0x0000000000",
+     "300 code-stale-old got=0x0000000000000c44 want>=0x0000000000",
+     "300 code-stale-old got=0x00000000000014c2 want>=0x0000000000",
+     "300 code-stale-old got=0x00000000000026c4 want>=0x0000000000",
+     "300 code-stale-old got=0x0000000000004ea1 want>=0x0000000000"
+    ]
+   },
+   "dmx10": {
+    "passed": 20,
+    "runs": 20,
+    "live_emulator_sha256": "40037e01de7d1af2b3b346da3d9b4f09c2ab5374fec7d0320d62f5abd84c2ab5",
+    "probe_sha256": "a87231d0ada397280e91e00c0e00ac2684e79c6a436daf89fceccab92d635c94",
+    "args": [
+     "300"
+    ],
+    "failures": []
+   },
+   "qemu": {
+    "passed": 20,
+    "runs": 20,
+    "live_emulator_sha256": "e5e7c40cde4a9489019e1b580b8ce5936ef3b4b19c9f528be4406d708e1d4ed4",
+    "probe_sha256": "a87231d0ada397280e91e00c0e00ac2684e79c6a436daf89fceccab92d635c94",
+    "args": [
+     "300"
+    ],
+    "failures": []
+   }
+  },
+  "draft_probe_3M_calls": {
+   "dmx9_spin_0": {
+    "passed": 0,
+    "runs": 5,
+    "live_emulator_sha256": "5468c106014cd11cf74b04b7858778b0ee7145b43b19817aa45f0ca8338e9741",
+    "probe_sha256": "fe5f41b61bd0670f3bfad14e2dd5e22088f90395428cb7edb0c670ecc9a7e81d",
+    "args": [
+     "0"
+    ],
+    "failures": [
+     "0 entry-stale-old got=0x0000000000000000 want>=0x00000000000",
+     "0 entry-stale-old got=0x00000000002bc1ac want>=0x00000000002"
+    ]
+   },
+   "dmx9_spin_300": {
+    "passed": 0,
+    "runs": 5,
+    "live_emulator_sha256": "5468c106014cd11cf74b04b7858778b0ee7145b43b19817aa45f0ca8338e9741",
+    "probe_sha256": "fe5f41b61bd0670f3bfad14e2dd5e22088f90395428cb7edb0c670ecc9a7e81d",
+    "args": [
+     "300"
+    ],
+    "failures": [
+     "300 entry-stale-old got=0x0000000000000000 want>=0x000000000",
+     "300 entry-stale-old got=0x0000000000002747 want>=0x000000000",
+     "300 entry-stale-old got=0x0000000000005153 want>=0x000000000"
+    ]
+   },
+   "dmx9_spin_3000": {
+    "passed": 0,
+    "runs": 5,
+    "live_emulator_sha256": "5468c106014cd11cf74b04b7858778b0ee7145b43b19817aa45f0ca8338e9741",
+    "probe_sha256": "fe5f41b61bd0670f3bfad14e2dd5e22088f90395428cb7edb0c670ecc9a7e81d",
+    "args": [
+     "3000"
+    ],
+    "failures": [
+     "3000 entry-stale-old got=0x0000000000000000 want>=0x00000000",
+     "3000 entry-stale-old got=0x0000000000000001 want>=0x00000000",
+     "3000 entry-stale-old got=0x0000000000000006 want>=0x00000000"
+    ]
+   },
+   "dmx9_spin_30000": {
+    "passed": 0,
+    "runs": 5,
+    "live_emulator_sha256": "5468c106014cd11cf74b04b7858778b0ee7145b43b19817aa45f0ca8338e9741",
+    "probe_sha256": "fe5f41b61bd0670f3bfad14e2dd5e22088f90395428cb7edb0c670ecc9a7e81d",
+    "args": [
+     "30000"
+    ],
+    "failures": [
+     "30000 entry-stale-old got=0x0000000000000000 want>=0x0000000",
+     "30000 entry-stale-old got=0x0000000000000001 want>=0x0000000",
+     "30000 entry-stale-old got=0x0000000000000045 want>=0x0000000"
+    ]
+   },
+   "dmx8_spin_300": {
+    "passed": 0,
+    "runs": 5,
+    "live_emulator_sha256": "f6c78ffe2a93c55ab0d9b708132a6827ac74f8cba66fc878106e5ce5a70a2b7c",
+    "probe_sha256": "fe5f41b61bd0670f3bfad14e2dd5e22088f90395428cb7edb0c670ecc9a7e81d",
+    "args": [
+     "300"
+    ],
+    "failures": [
+     "300 entry-stale-old got=0x0000000000000000 want>=0x000000000"
+    ]
+   },
+   "dmx8_spin_30000": {
+    "passed": 0,
+    "runs": 5,
+    "live_emulator_sha256": "f6c78ffe2a93c55ab0d9b708132a6827ac74f8cba66fc878106e5ce5a70a2b7c",
+    "probe_sha256": "fe5f41b61bd0670f3bfad14e2dd5e22088f90395428cb7edb0c670ecc9a7e81d",
+    "args": [
+     "30000"
+    ],
+    "failures": [
+     "30000 entry-stale-old got=0x0000000000000000 want>=0x0000000"
+    ]
+   },
+   "qemu_spin_300": {
+    "passed": 5,
+    "runs": 5,
+    "live_emulator_sha256": "e5e7c40cde4a9489019e1b580b8ce5936ef3b4b19c9f528be4406d708e1d4ed4",
+    "probe_sha256": "fe5f41b61bd0670f3bfad14e2dd5e22088f90395428cb7edb0c670ecc9a7e81d",
+    "args": [
+     "300"
+    ],
+    "failures": []
+   },
+   "qemu_spin_30000": {
+    "passed": 5,
+    "runs": 5,
+    "live_emulator_sha256": "e5e7c40cde4a9489019e1b580b8ce5936ef3b4b19c9f528be4406d708e1d4ed4",
+    "probe_sha256": "fe5f41b61bd0670f3bfad14e2dd5e22088f90395428cb7edb0c670ecc9a7e81d",
+    "args": [
+     "30000"
+    ],
+    "failures": []
+   },
+   "recheck_spin_0": {
+    "passed": 5,
+    "runs": 5,
+    "live_emulator_sha256": "cac8608849e28f51f8bdb4cad7d891b2060135ac22f0482c07aa92feaa8146a1",
+    "probe_sha256": "fe5f41b61bd0670f3bfad14e2dd5e22088f90395428cb7edb0c670ecc9a7e81d",
+    "args": [
+     "0"
+    ],
+    "failures": []
+   },
+   "recheck_spin_300": {
+    "passed": 5,
+    "runs": 5,
+    "live_emulator_sha256": "cac8608849e28f51f8bdb4cad7d891b2060135ac22f0482c07aa92feaa8146a1",
+    "probe_sha256": "fe5f41b61bd0670f3bfad14e2dd5e22088f90395428cb7edb0c670ecc9a7e81d",
+    "args": [
+     "300"
+    ],
+    "failures": []
+   },
+   "recheck_spin_30000": {
+    "passed": 5,
+    "runs": 5,
+    "live_emulator_sha256": "cac8608849e28f51f8bdb4cad7d891b2060135ac22f0482c07aa92feaa8146a1",
+    "probe_sha256": "fe5f41b61bd0670f3bfad14e2dd5e22088f90395428cb7edb0c670ecc9a7e81d",
+    "args": [
+     "30000"
+    ],
+    "failures": []
+   }
+  }
+ },
+ "java_gate": {
+  "workload": "make javatest (100 repeats, eclipse-temurin 21 pinned digest)",
+  "dmx9_release": {
+   "passed": 100,
+   "median_workload_s": 2.09
+  },
+  "stale_recheck_candidate": {
+   "passed": 100,
+   "median_workload_s": 2.09,
+   "host_load": [
+    2.35791015625,
+    2.72265625,
+    2.00341796875
+   ]
+  },
+  "dmx10": {
+   "passed": 100,
+   "median_workload_s": 2.08,
+   "host_load": [
+    1.75390625,
+    2.833984375,
+    2.453125
+   ]
+  }
+ },
+ "dmx10_suites": {
+  "selftest": true,
+  "x86": "53/53",
+  "java_repeats": "100/100",
+  "host_memory_ri_phys_footprint_mib": {
+   "before_dmx9": {
+    "idle_mb": 97,
+    "after_free_mb": 1125,
+    "after_reclaim_mb": 105,
+    "returned_ms": 105
+   },
+   "after_dmx10": {
+    "idle_mb": 96,
+    "after_free_mb": 1121,
+    "after_reclaim_mb": 102,
+    "returned_ms": 217
+   }
+  },
+  "x86_fex_before_dmx9": {
+   "node_startup_ms": 256,
+   "python3_loop_ms": 193,
+   "footprint_after_x86_mb": 248,
+   "footprint_after_cleanup_mb": 129
+  },
+  "x86_fex_after_dmx10": {
+   "node_startup_ms": 256,
+   "python3_loop_ms": 193,
+   "footprint_after_x86_mb": 239,
+   "footprint_after_cleanup_mb": 138
+  },
+  "images": "24/24 (arm64, amd64, 386)"
+ },
+ "invalid_or_excluded": [
+  "Luna entry-race v1/v2 drafts: writer held the second version for one instruction; all valid runs passed on every emulator; not evidence either way",
+  "Luna dmx8 'entry-race-failed': from an earlier build; the final binary has no path to that string",
+  "entry-flip draft, decoder_only round 4: writer made no progress during the reader loop (exit 4, invalid round); the fixture now waits for 1M rewrites"
+ ],
+ "limits": [
+  "dmx10 is on main, not released; v0.3.4 still ships dmx9",
+  "unit, daemon, mcp, docker and sandbox suites were not rerun: no host code changed (selftest, x86, image matrix and Java were)",
+  "writes from another process into shared code memory are not stopped by protection; after 8 changed decodes such a block runs once uncached"
+ ]
+}

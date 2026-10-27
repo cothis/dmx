@@ -17,7 +17,8 @@ instructions rather than 5000, which is what made node start slowly; makes the v
 fixes four places that relied on glibc behaviour musl does not have. Signal return restores
 its syscall marker even when the handler leaves RIP unchanged; the decoder takes aligned
 eight-byte snapshots so an atomic HotSpot method-entry rewrite cannot mix opcode and operand
-bytes. Output: <cache>/<guest.DMX_FEX>, a stripped static PIE. `make guest` puts it in docker.img.
+bytes; and a block decoded from writable code is checked against memory once its pages are
+write-protected and decoded again if another thread changed it in between. Output: <cache>/<guest.DMX_FEX>, a stripped static PIE. `make guest` puts it in docker.img.
 
 `--lock` re-resolves TOOLCHAIN from Alpine's current APKINDEX and prints new pins.
 """
@@ -582,6 +583,178 @@ FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
    // Contains the full decoded instruction, unless it is a `Thunk` instruction.
    std::array<uint8_t, MAX_INST_SIZE> Instruction;
    uint8_t LastEscapePrefix {};
+--- a/FEXCore/Source/Interface/Core/Core.cpp
++++ b/FEXCore/Source/Interface/Core/Core.cpp
+@@ -875,6 +875,9 @@
+     return HostCode;
+   }
+ 
++  int DecodeAttempts = 0;
++  bool CacheBlock = true;
++DecodeAgain:
+   Thread->FrontendDecoder->SetupDecodeInstructionsAtEntry(Thread, GuestRIP, MaxInst);
+ 
+   std::optional<ExecutableFileSectionInfo> Region = SyscallHandler->LookupExecutableFileSection(Thread, GuestRIP);
+@@ -928,6 +931,28 @@
+     return reinterpret_cast<uintptr_t>(CodePtr);
+   }
+ 
++  // Another thread can write mutable code between decoding and the write protection below, and that
++  // write does not fault, so the block would keep running the old bytes. Protect every page first,
++  // including those another thread marked but may not have protected yet; writers then fault and wait
++  // on CodeInvalidationMutex for this compile. Decode again if the bytes changed in the meantime.
++  // Writes protection cannot stop (another process sharing the memory) may defeat the retries;
++  // such a block runs once and is not cached.
++  const bool RecheckCode = NeedsAddGuestCodeRanges && Thread->FrontendDecoder->DecodedFromMutableCode();
++  if (RecheckCode) {
++    for (auto CodePage : Thread->FrontendDecoder->GetDecodedBlockInfo()->CodePages) {
++      SyscallHandler->MarkGuestExecutableRange(Thread, CodePage, FEXCore::Utils::FEX_PAGE_SIZE);
++    }
++    if (!Thread->FrontendDecoder->MutableCodeUnchanged()) {
++      if (++DecodeAttempts < 8) {
++        if (!CodeCache.IsGeneratingCache) {
++          Thread->CPUBackend->ClearRelocations();
++        }
++        goto DecodeAgain;
++      }
++      CacheBlock = false;
++    }
++  }
++
+   if (DiskCacheGuestCodeKey && Hit && DiskCache.IsValidating()) {
+     DiskCache.Validate(*DiskCacheGuestCodeKey, *Hit, CompiledCode, Region);
+   }
+@@ -983,14 +1008,14 @@
+     CodePages.reserve(BlockInfo->CodePages.size());
+     CodePages.insert(CodePages.end(), BlockInfo->CodePages.begin(), BlockInfo->CodePages.end());
+     for (auto CodePage : BlockInfo->CodePages) {
+-      if (Thread->LookupCache->AddBlockExecutableRange(Thread, BlockInfo->EntryPoints, CodePage, FEXCore::Utils::FEX_PAGE_SIZE)) {
++      if (Thread->LookupCache->AddBlockExecutableRange(Thread, BlockInfo->EntryPoints, CodePage, FEXCore::Utils::FEX_PAGE_SIZE) && !RecheckCode) {
+         SyscallHandler->MarkGuestExecutableRange(Thread, CodePage, FEXCore::Utils::FEX_PAGE_SIZE);
+       }
+     }
+   }
+ 
+   // Disk Cache
+-  if (!CodeCache.IsGeneratingCache) {
++  if (!CodeCache.IsGeneratingCache && CacheBlock) {
+     if (DiskCacheGuestCodeKey) {
+       std::span<const FEXCore::CPU::Relocation> Relocations;
+       if (DebugData && DebugData->Relocations) {
+@@ -1009,7 +1034,9 @@
+ 
+   // Insert to lookup cache
+   for (auto [GuestAddr, HostAddr] : CompiledCode.EntryPoints) {
+-    Thread->LookupCache->AddBlockMapping(Thread, GuestAddr, CodePages, HostAddr);
++    if (CacheBlock) {
++      Thread->LookupCache->AddBlockMapping(Thread, GuestAddr, CodePages, HostAddr);
++    }
+   }
+ 
+   // Clear any relocations that might have been generated
+--- a/FEXCore/Source/Interface/Core/Frontend.cpp
++++ b/FEXCore/Source/Interface/Core/Frontend.cpp
+@@ -99,6 +99,7 @@
+     ExecutableRangeBase = RangeInfo.Base;
+     ExecutableRangeEnd = RangeInfo.Base + RangeInfo.Size;
+     ExecutableRangeWritable = RangeInfo.Writable;
++    ExecutableRangeMayChange = RangeInfo.MayChange;
+ 
+     if (RangeInfo.Size == 0) {
+       return false;
+@@ -145,6 +146,9 @@
+       // word once so opcode and operands cannot come from different versions.
+       InstructionWords[Index] = __atomic_load_n(reinterpret_cast<const uint64_t*>(WordAddress), __ATOMIC_RELAXED);
+       InstructionWordMask |= 1U << Index;
++      if (ExecutableRangeMayChange && CTX->Config.SMCChecks == FEXCore::Config::CONFIG_SMC_MTRACK) {
++        MutableCodeWords.push_back({WordAddress, InstructionWords[Index]});
++      }
+     }
+     return uint8_t(InstructionWords[Index] >> (8 * (ByteAddress & 7)));
+   } else {
+@@ -152,6 +156,15 @@
+   }
+ }
+ 
++bool Decoder::MutableCodeUnchanged() const {
++  for (const auto& Word : MutableCodeWords) {
++    if (__atomic_load_n(reinterpret_cast<const uint64_t*>(Word.Address), __ATOMIC_RELAXED) != Word.Value) {
++      return false;
++    }
++  }
++  return true;
++}
++
+ std::pair<uint64_t, bool> Decoder::ReadData(uint8_t Size) {
+   LOGMAN_THROW_A_FMT(Size != 0 && Size <= sizeof(uint64_t), "Unknown data size to read");
+ 
+@@ -1812,6 +1825,7 @@
+   CurrentCodePage = PC & FEXCore::Utils::FEX_PAGE_MASK;
+ 
+   BlockInfo.CodePages = {CurrentCodePage};
++  MutableCodeWords.clear();
+ 
+   EntryBlock = true;
+   FinalInstruction = false;
+--- a/FEXCore/Source/Interface/Core/Frontend.h
++++ b/FEXCore/Source/Interface/Core/Frontend.h
+@@ -89,6 +89,13 @@
+     ExecutableRangeBase = ExecutableRangeEnd = 0;
+   }
+ 
++  // True if the block was decoded from guest code that may change before its pages are
++  // write-protected (SMC tracking by mprotect only).
++  bool DecodedFromMutableCode() const {
++    return !MutableCodeWords.empty();
++  }
++  bool MutableCodeUnchanged() const;
++
+ private:
+   // To pass any information from instruction prefixes
+   // down into the actual instruction handling machinery.
+@@ -151,6 +158,7 @@
+   uint64_t ExecutableRangeBase {};
+   uint64_t ExecutableRangeEnd {};
+   bool ExecutableRangeWritable {};
++  bool ExecutableRangeMayChange {};
+   bool HitNonExecutableRange {};
+   bool HitBadRelocation {};
+ 
+@@ -184,6 +192,12 @@
+   // At most three aligned words cover one 15-byte x86 instruction.
+   uint64_t InstructionWords[3] {};
+   uint8_t InstructionWordMask {};
++  struct CodeWord {
++    uint64_t Address;
++    uint64_t Value;
++  };
++  // Every aligned word of mutable guest code this block was decoded from.
++  fextl::vector<CodeWord> MutableCodeWords;
+   // Contains the full decoded instruction, unless it is a `Thunk` instruction.
+   std::array<uint8_t, MAX_INST_SIZE> Instruction;
+   uint8_t LastEscapePrefix {};
+--- a/FEXCore/include/FEXCore/HLE/SyscallHandler.h
++++ b/FEXCore/include/FEXCore/HLE/SyscallHandler.h
+@@ -21,6 +21,8 @@
+   uint64_t Base;
+   uint64_t Size;
+   bool Writable;
++  // Writable here or through another mapping of the same memory.
++  bool MayChange {};
+ };
+ 
+ class SyscallHandler;
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SyscallsSMCTracking.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SyscallsSMCTracking.cpp
+@@ -226,7 +226,7 @@
+       (!Entry->second.Prot.Executable && (!(ThreadObject->persona & READ_IMPLIES_EXEC) || !Entry->second.Prot.Readable))) {
+     return {0, 0, false};
+   }
+-  return {Entry->first, Entry->second.Length, Entry->second.Prot.Writable};
++  return {Entry->first, Entry->second.Length, Entry->second.Prot.Writable, Entry->second.Prot.Writable || Entry->second.Flags.Shared};
+ }
+ 
+ struct ReadELFHeadersResult {
 """
 
 TOOLCHAIN_ROOTS = [

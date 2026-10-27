@@ -109,13 +109,13 @@ def check(name, ok, detail=""):
     checks.append({"name": name, "ok": bool(ok), "detail": detail})
 
 
-def signal_fixture():
-    """Assemble our Linux x86 signal-return regression with the existing Xcode/Rust tools."""
-    source = ROOT / "scripts/fixtures/signal-frame-x86_64.S"
+def fixture(name):
+    """Assemble one of our Linux x86 regressions in scripts/fixtures with the existing Xcode/Rust tools."""
+    source = ROOT / f"scripts/fixtures/{name}-x86_64.S"
     toolchain = Path(subprocess.check_output(["rustc", "--print", "sysroot"], text=True).strip())
     linker = toolchain / "lib/rustlib/aarch64-apple-darwin/bin/rust-lld"
-    with tempfile.TemporaryDirectory(prefix="dmx-signal-build-") as tmp:
-        obj, binary = Path(tmp) / "signal.o", Path(tmp) / "signal"
+    with tempfile.TemporaryDirectory(prefix="dmx-fixture-build-") as tmp:
+        obj, binary = Path(tmp) / f"{name}.o", Path(tmp) / name
         subprocess.run(["xcrun", "clang", "--target=x86_64-linux-gnu", "-c", str(source), "-o", str(obj)], check=True)
         subprocess.run([str(linker), "-flavor", "gnu", "-m", "elf_x86_64", "-static", "-o", str(binary), str(obj)],
                        check=True, env={**os.environ, "DYLD_LIBRARY_PATH": str(toolchain / "lib")})
@@ -250,8 +250,18 @@ def suite(emulator):
     # Returning from a signal without changing RIP must restore the syscall spill marker,
     # or the next signal can build its frame from an old stack pointer and overwrite locals.
     r = sh(f"cat >{DIR}/signal-frame && chmod +x {DIR}/signal-frame && "
-           f"for i in 1 2 3; do {DIR}/signal-frame || exit; done", stdin=signal_binary, timeout=30)
+           f"for i in 1 2 3; do {DIR}/signal-frame || exit; done", stdin=fixtures["signal-frame"], timeout=30)
     check_("signal_frame_integrity", r.returncode == 0 and r.stdout == b"signal-frames-ok\n" * 3, out(r))
+    # HotSpot rewrites a method entry with one aligned eight-byte store while other threads run
+    # it: the decoder must not take the opcode from one version and the operand from the other.
+    r = sh(f"cat >{DIR}/entry-patch && chmod +x {DIR}/entry-patch && "
+           f"for i in 1 2 3; do {DIR}/entry-patch || exit; done", stdin=fixtures["entry-patch"], timeout=60)
+    check_("code_patch_decode", r.returncode == 0 and r.stdout == b"entry-patch-ok\n" * 3, out(r))
+    # Code another thread rewrites while a block is being translated must not keep running
+    # once the new bytes are published and the caller has serialized.
+    r = sh(f"cat >{DIR}/code-stale && chmod +x {DIR}/code-stale && "
+           f"for i in 1 2 3; do {DIR}/code-stale 300 || exit; done", stdin=fixtures["code-stale"], timeout=120)
+    check_("code_patch_not_stale", r.returncode == 0 and r.stdout == b"code-stale-ok\n" * 3, out(r))
 
     # The x86_64 minirootfs in a chroot: its dynamically linked busybox and musl loader, and
     # python3 and node from PACKAGES. The emulator is not in the chroot; F opened it at registration.
@@ -426,7 +436,7 @@ try:
     with tarfile.open(guest.fetch("i386-busybox-static", cache32), "r:gz", ignore_zeros=True) as tar:
         busybox32 = tar.extractfile("bin/busybox.static").read()
     rootfs32 = guest.fetch("i386-minirootfs", cache32).read_bytes()
-    signal_binary = signal_fixture()
+    fixtures = {name: fixture(name) for name in ("signal-frame", "entry-patch", "code-stale")}
 
     dmx("config", "set", "shares", "none")
     for emulator in EMULATORS:

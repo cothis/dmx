@@ -1,5 +1,9 @@
 # Claude Code 작업 지시서: FEX / Java 간헐 충돌 추가 조사
 
+> 결과(2026-10-27): 원인을 확정했고 두 번째 결함(오래된 번역)을 `fex-2610-dmx10`으로 고쳤어요.
+> [진단 기록의 후속 절](fex-java-2026-10-27.md#follow-up-cause-confirmed-and-a-second-defect-2026-10-27)과
+> [측정 기록](measurements/2026-10-27-fex-code-patching.json)을 보세요. 아래는 작성 당시의 지시서예요.
+
 작성일: 2026-10-27. 작업 경로: `~/dev/dockermax`.
 
 ## 목표
