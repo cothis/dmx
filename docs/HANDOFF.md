@@ -1,12 +1,13 @@
-# 다음 세션 인계 — 2026-10-27 (v0.3.8 릴리스 완료)
+# 다음 세션 인계 — 2026-10-27 (v0.3.9 릴리스 완료)
 
 `이어서 진행해`라는 요청을 받으면 [PLAN.md](PLAN.md)의 **Next up**과 이 문서를 읽어요.
 계획·결정·측정의 기준은 `PLAN.md`, 공유 작업 메모는 [memory.md](memory.md)예요.
 
 ## 현재 상태
 
-- 게시된 최신 릴리스는 [v0.3.8](https://github.com/cothis/dmx/releases/tag/v0.3.8)이에요(태그 커밋 `7f32e3f`,
-  Developer ID 서명·Apple 공증). `dmx install`이 launchd 재등록을 기다려요(보안 에이전트가 있는 Mac에서 실패하던 문제).
+- 게시된 최신 릴리스는 [v0.3.9](https://github.com/cothis/dmx/releases/tag/v0.3.9)이에요(태그 커밋 `1051460`,
+  Developer ID 서명·Apple 공증). 게스트 MTU를 49126으로 낮춰, 새로 켠 VM의 수신이 약 1% 확률로 영구히 멈추던 교착을 고쳤어요.
+  v0.3.8(`7f32e3f`)은 `dmx install`이 launchd 재등록을 기다려요(보안 에이전트가 있는 Mac에서 실패하던 문제).
   v0.3.7(`b4f9da0`)은 깨진 `docker` 링크를 교체하고 README에 서명 확인법을 적었어요.
   v0.3.6(`14d7866`)은 idle 정리 때 데이터 디스크를 trim해 discard가 놓친 공간을 Mac에 돌려줘요.
   그 전 v0.3.5(`610c3c5`)는 FEX dmx11(오래된 번역 수정)을 담았어요. 그 전 릴리스 v0.3.4(`04ef90d`)는 아래와 같아요.
@@ -72,7 +73,7 @@ make javatest
 
 [release.md](release.md)를 따르세요. `docs/release-notes/<버전>.md`를 먼저 쓰고,
 버전·게스트 pin·README 설치 URL을 같은 릴리스로 맞춰요. `make release`가 NOTES.md와 SHA256SUMS를
-자동 생성하므로 손으로 요약을 넣거나 해시를 다시 계산하지 않아요. v0.3.8의 태그·게시·게시본 검증은 완료됐어요.
+자동 생성하므로 손으로 요약을 넣거나 해시를 다시 계산하지 않아요. v0.3.9의 태그·게시·게시본 검증은 완료됐어요.
 
 서명 설정은 저장소 밖에 있어요. 자세한 절차는 release.md와 `scripts/release.py`를 사용하고,
 키·암호·개인 인프라 정보는 이 공개 저장소에 적지 않아요. CLI 바이너리의 `spctl` 결과가
