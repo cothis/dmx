@@ -113,6 +113,44 @@ import Testing
         #expect(!FileManager.default.fileExists(atPath: metaDir.path))
     }
 
+    @Test func socketLinkTakesOnlyAFreePath() throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory() + "dmx-sock-\(UUID().uuidString.prefix(8))")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let socket = dir.appendingPathComponent("dmx/docker.sock")
+        let link = dir.appendingPathComponent(".docker/run/docker.sock")
+        let fm = FileManager.default
+
+        // A free path (and a missing directory) gets the link; a second install changes nothing.
+        #expect(DockerSocketLink.install(socket: socket, link: link).linked)
+        #expect(try fm.destinationOfSymbolicLink(atPath: link.path) == socket.path)
+        #expect(DockerSocketLink.install(socket: socket, link: link) == .init(path: link.path, target: socket.path, linked: true, skipped: nil))
+
+        // Docker Desktop serving its socket there keeps it; once nothing serves it, dmx takes over.
+        unlink(link.path)
+        var address = try unixAddress(link)
+        let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
+        #expect(withUnsafePointer(to: &address) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) } } == 0)
+        listen(fd, 1)
+        let kept = DockerSocketLink.install(socket: socket, link: link)
+        #expect(!kept.linked && kept.skipped != nil)
+        close(fd)
+        #expect(DockerSocketLink.install(socket: socket, link: link).linked)
+
+        // A link to another engine's existing socket stays; a dangling one is replaced.
+        let other = dir.appendingPathComponent("other.sock")
+        try Data().write(to: other)
+        unlink(link.path)
+        try fm.createSymbolicLink(atPath: link.path, withDestinationPath: other.path)
+        #expect(!DockerSocketLink.install(socket: socket, link: link).linked)
+        DockerSocketLink.uninstall(socket: socket, link: link)
+        #expect(try fm.destinationOfSymbolicLink(atPath: link.path) == other.path)
+        try fm.removeItem(at: other)
+        #expect(DockerSocketLink.install(socket: socket, link: link).linked)
+
+        DockerSocketLink.uninstall(socket: socket, link: link)
+        #expect((try? fm.destinationOfSymbolicLink(atPath: link.path)) == nil)
+    }
+
     @Test func contextLeavesABrokenConfigAlone() throws {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory() + "dmx-docker-config-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }

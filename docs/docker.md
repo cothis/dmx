@@ -199,6 +199,13 @@ dockerd cannot start, the client gets an HTTP 503 whose message the CLI prints
   and permissions; a config.json that is not JSON is left alone with an error. `dmx uninstall`
   removes the context and, if it was selected, the selection. `DOCKER_HOST` and `DOCKER_CONTEXT`
   still override it, as with any context.
+  It also links `~/.docker/run/docker.sock`, where Docker Desktop keeps its socket, to
+  `~/.dmx/docker.sock`, for tools that look there instead of reading the context (SDKs, IDE
+  plugins, Testcontainers). A socket something answers on, a link to another existing socket, or a
+  file is left alone and reported; a dangling link or a dead socket (an engine since removed) is
+  replaced. It is not probed by connecting when it is a link, since that could boot another dmx's
+  VM. `/var/run/docker.sock` is root's and is not touched: Docker Desktop writes it through a
+  privileged helper, and dmx asks for no password. `dmx uninstall` removes the link if it is dmx's.
 - **Standalone** (no `dmx install`): the daemon binds docker.sock itself and removes it on exit.
   Since nothing else would answer there, a daemon that has served a Docker client does not exit
   when the VM goes idle (4 MB with the VM stopped, as with forwarded ports) until `dmx stop`.

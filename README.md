@@ -55,6 +55,12 @@ docker run --rm hello-world      # the first run downloads the Linux guest (~62 
 The script installs `dmx` into `~/.local/bin` without sudo. `dmx install` is optional: without it,
 `dmx exec` and `dmx start` start the daemon themselves.
 
+Tools that ignore the docker context and look for Docker Desktop's socket find dmx too:
+`dmx install` links `~/.docker/run/docker.sock` to `~/.dmx/docker.sock` (unless Docker Desktop
+serves it). For one that only tries `/var/run/docker.sock`, which needs root, set
+`DOCKER_HOST=unix://$HOME/.dmx/docker.sock` where it runs (for Testcontainers, also
+`docker.host=unix:///Users/<you>/.dmx/docker.sock` in `~/.testcontainers.properties`).
+
 ```sh
 dmx status                       # VM state, guest memory, host footprint (--json for scripts)
 dmx exec -- uname -a             # run a command in the VM, booting it if needed
@@ -185,7 +191,7 @@ that provide them. Progress is tracked in [docs/PLAN.md](docs/PLAN.md#next-up).
 **Uninstalling.**
 
 ```sh
-dmx uninstall          # remove the launchd agent and the docker context; powers the VM off
+dmx uninstall          # remove the launchd agent, the docker context and the socket link; powers the VM off
 dmx tools uninstall    # remove dmx's docker, compose and buildx and their links
 rm -rf ~/.dmx ~/.local/bin/dmx    # the guest, settings, and all images, containers and volumes
 ```

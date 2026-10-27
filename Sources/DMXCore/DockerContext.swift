@@ -87,3 +87,70 @@ public enum DockerContext {
         }
     }
 }
+
+/// `~/.docker/run/docker.sock`, where Docker Desktop puts its socket, as a symlink to
+/// `~/.dmx/docker.sock`: tools that look there instead of reading the docker context (some SDKs and
+/// IDE plugins, Testcontainers' fallbacks) then find dmx too. It is in the user's own directory, so
+/// no sudo; `/var/run/docker.sock` needs root (Docker Desktop's privileged helper) and is left to
+/// `DOCKER_HOST`. A socket something else serves there, or a link to another engine's socket, stays.
+public enum DockerSocketLink {
+    public struct Report: Codable, Sendable, Equatable {
+        public let path: String
+        public let target: String
+        /// Whether the path leads to dmx now.
+        public let linked: Bool
+        /// Why it was left alone, when it was.
+        public let skipped: String?
+    }
+
+    public static func path(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
+        home.appendingPathComponent(".docker/run/docker.sock")
+    }
+
+    /// Points `link` at `socket` unless it is taken. Never fails: a tool that reads the docker
+    /// context does not need the link, so a taken path is reported, not thrown.
+    public static func install(socket: URL, link: URL) -> Report {
+        func report(_ linked: Bool, _ skipped: String? = nil) -> Report {
+            Report(path: link.path, target: socket.path, linked: linked, skipped: skipped)
+        }
+        var info = stat()
+        if lstat(link.path, &info) == 0 {
+            switch info.st_mode & S_IFMT {
+            case S_IFLNK:
+                let destination = (try? FileManager.default.destinationOfSymbolicLink(atPath: link.path)) ?? ""
+                if destination == socket.path { return report(true) }
+                // Not probed by connecting: a link to another dmx's docker.sock would boot its VM.
+                if FileManager.default.fileExists(atPath: link.path) {
+                    return report(false, "it links to \(destination), which exists")
+                }
+            case S_IFSOCK:
+                if accepts(link.path) { return report(false, "another engine (Docker Desktop?) serves it") }
+            default:
+                return report(false, "it is not a socket or a symlink")
+            }
+            // A dangling link or a socket nobody serves: left behind by an engine that is gone.
+            unlink(link.path)
+        }
+        do {
+            try FileManager.default.createDirectory(at: link.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createSymbolicLink(atPath: link.path, withDestinationPath: socket.path)
+        } catch {
+            return report(false, error.localizedDescription)
+        }
+        return report(true)
+    }
+
+    /// Removes the link if it is dmx's.
+    public static func uninstall(socket: URL, link: URL) {
+        if (try? FileManager.default.destinationOfSymbolicLink(atPath: link.path)) == socket.path { unlink(link.path) }
+    }
+
+    private static func accepts(_ path: String) -> Bool {
+        guard var address = try? unixAddress(URL(fileURLWithPath: path)) else { return false }
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        defer { close(fd) }
+        return withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
+        } == 0
+    }
+}
