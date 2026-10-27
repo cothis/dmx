@@ -119,6 +119,22 @@ using them carries no obligation, and every release attaches their complete sour
 lists every component and its license. Docker Hub's own terms and pull limits still apply to
 images pulled from it, whatever engine pulls them.
 
+**Signing and notarization.** Every release from 0.2.0 on is signed with the Developer ID
+"Developer ID Application: MINHO YUN (V4YA23448U)", with the hardened runtime, a secure timestamp
+and a single entitlement (`com.apple.security.hypervisor`), and notarized by Apple. Macs that
+allow only notarized software run it, and a copy downloaded with a browser asks once before its
+first launch. (0.1.0 was ad-hoc signed.) To check an installed copy:
+
+```sh
+codesign -dv ~/.local/bin/dmx 2>&1 | grep -E 'Authority|TeamIdentifier'   # V4YA23448U
+codesign --verify --strict --check-notarization ~/.local/bin/dmx && echo notarized
+```
+
+`spctl --assess` says "the code is valid but does not seem to be an app" for any command-line
+tool. That is not a rejection. A command-line tool cannot carry a stapled ticket, so Gatekeeper
+looks the notarization up online at first launch. `dmx update` installs only a binary signed by
+the same team.
+
 **What dmx contacts.** GitHub Releases for dmx updates and the guest, and `download.docker.com` and GitHub
 for the docker CLI tools; `dmx config set release_url …` and `tools_url …` point both at a
 company mirror (files keep their upstream names; `dmx tools ls --json` lists the URLs), and dmx
@@ -143,10 +159,6 @@ use the user's keys, as on Docker Desktop. Containers and
 sandboxes share one VM and its kernel: their isolation is Docker's, not a VM per sandbox, and
 sandboxes with a host allowlist can still resolve any DNS name. Report vulnerabilities as
 described in [SECURITY.md](SECURITY.md).
-
-**Signing.** From 0.2.0, dmx is signed with a Developer ID and notarized by Apple, so Macs that
-allow only notarized software run it, and a copy downloaded with a browser asks once before its
-first launch. (0.1.0 was ad-hoc signed.)
 
 **Proxies and Docker Engine settings.** dockerd pulls through the HTTP and HTTPS proxy set in
 System Settings (Network, Proxies), with its exceptions; a proxy on the Mac's own loopback is
