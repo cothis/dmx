@@ -125,10 +125,13 @@ public struct GuestStore: Sendable {
 
     /// Before a boot: downloads the pinned guest when there is none, or when it came from another
     /// release. A guest built with `make guest` is used as it is. If updating an older release
-    /// fails (offline), that guest boots instead.
+    /// fails (offline), that guest boots instead. A release with the same boot files downloads
+    /// nothing, but `fetch` still records the new tag: otherwise `dmx guest` kept naming the
+    /// release the files first came from (v0.3.6 under 0.3.10 on one Mac).
     public func ensure(log: @Sendable (String) -> Void) async throws {
         let current = state()
-        guard current.needsFetch else { return }
+        let renamed = current.source == .release && current.pinnedTag != nil && current.tag != current.pinnedTag
+        guard current.needsFetch || renamed else { return }
         do {
             _ = try await fetch(force: false, log: log)
         } catch let error as DMXError where current.source == .release {

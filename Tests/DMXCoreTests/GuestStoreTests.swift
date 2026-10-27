@@ -66,6 +66,19 @@ import Testing
         #expect(GuestStore(paths: paths, pin: v1).verify() == ["docker.img does not match release v1"])
     }
 
+    @Test func bootRecordsTheNewTagOfTheSameFiles() async throws {
+        defer { try? FileManager.default.removeItem(at: home) }
+        let (paths, v1) = try install(tag: "v1")
+        try writeReceipt(v1, paths)
+        // Nothing listens there, so a download would fail and leave the receipt at v1.
+        let pin = GuestRelease(tag: "v2", archive: "b", bytes: 1, sha256: "other", files: v1.files)
+        let store = GuestStore(paths: paths, pin: pin, environment: ["DMX_RELEASE_URL": "http://127.0.0.1:1"])
+        try await store.ensure { _ in }
+        let state = store.state()
+        #expect(state.tag == "v2" && !state.needsFetch)
+        #expect(store.verify().isEmpty)
+    }
+
     @Test func rebuiltGuestIsLocalAndLeftAlone() throws {
         defer { try? FileManager.default.removeItem(at: home) }
         let (paths, v1) = try install(tag: "v1")
