@@ -559,17 +559,18 @@ and fault addresses are exactly what a decode mixing HotSpot's old and new metho
 produces, and a new fixture fails 18/20 on the old FEX and passes on dmx9. It also found stale
 translations: code rewritten while a block was being translated kept running after the new
 bytes were published, on every FEX build including the shipped dmx9. `fex-2610-dmx11` fixes it
-without slowing compiles (dmx10, the first fix, cost 19 % in a compile storm) and ships in v0.3.5. See [the follow-up](fex-java-2026-10-27.md#follow-up-cause-confirmed-and-a-second-defect-2026-10-27).
+without slowing compiles (dmx10, the first fix, cost 19 % in a compile storm) and ships in v0.3.5.
+**v0.3.5 is published** (2026-10-27, signed and notarized, tag commit `610c3c5`): all 14 assets
+checked after download, fresh installation and an update from a running 0.3.4 verified (VM and
+data kept, dmx11 loaded at the next boot), arm64/amd64/386 containers ran. See [the follow-up](fex-java-2026-10-27.md#follow-up-cause-confirmed-and-a-second-defect-2026-10-27).
 
 In order:
 
-1. v0.3.5 (dmx11) is being released at the maintainer's request (2026-10-27): sign, notarize,
-   rehearse locally, publish, then verify the downloaded assets and an update from 0.3.4.
-2. Community announcement (Show HN, Reddit, GeekNews) is now the maintainer’s next decision.
+1. Community announcement (Show HN, Reddit, GeekNews) is now the maintainer’s next decision.
    The requested review, documentation and v0.3.4 release are complete; no community post was
    sent by this release work.
-3. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
-4. Open, not blocking: `qemu-x86_64` cannot run 32-bit programs, so `linux/386` needs
+2. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
+3. Open, not blocking: `qemu-x86_64` cannot run 32-bit programs, so `linux/386` needs
    `x86_emulator fex` (the default); adding qemu-i386 would be a separate build. Warm `docker run`
    (~100 ms on a quiet Mac) stays behind Colima by choice (data disk barrier flushes, see
    Decisions). FEX's emulated `uname -m` says `x86_64` even for a 32-bit process.
@@ -868,3 +869,4 @@ their last invalidation: 248–259 ms. dmx11 passed every suite: unit 59, selfte
 - 2026-10-27: Published signed/notarized v0.3.4 from 04ef90d. Verified all 14 uploaded/downloaded assets, fresh installation and selftest (97 MiB), update from a running 0.3.3 with VM/data preservation and new guest activation, and arm64/amd64/386 containers. Review, documentation and release are complete; community posting remains the maintainer’s decision.
 - 2026-10-27: Java crash cause confirmed and a second FEX defect fixed. All six crash reports match a mixed decode of HotSpot's atomic method-entry patch (fault addresses and registers recomputed exactly). A new fixture fails 18/20 on the old FEX and the signal-only build and passes on the decoder fix, dmx9 and QEMU. FEX also kept running translations of code that changed between decoding and write protection (0/20 on dmx9). `fex-2610-dmx10` rechecks the decoded words once the pages are protected and redecodes; x86test gains both fixtures (53/53), image matrix 24/24, Java 100/100, selftest 96 MiB. Not released. Next: the maintainer's call on a patch release.
 - 2026-10-27: Removed dmx10's compile cost: it re-protected already protected pages on every compile (262,144-block storm 318–324 ms against dmx9's 268–270). `fex-2610-dmx11` remembers protected pages until their next invalidation (248–259 ms), passes both fixtures and every suite, and is pinned for v0.3.5 (release notes written; the maintainer asked to release after the tuning). Next: package, sign, publish and verify v0.3.5.
+- 2026-10-27: Published signed/notarized v0.3.5 (dmx11) from 610c3c5 at the maintainer's request. Second packaging kept the pin; the local rehearsal, the 14 uploaded and re-downloaded digests, a fresh install (selftest 94 MiB), an update from a running 0.3.4 that kept the VM and data and loaded dmx11 next boot, and arm64/amd64/386 containers all passed. Next: the maintainer's call on the community announcement.

@@ -342,7 +342,7 @@
   "entry-flip draft, decoder_only round 4: writer made no progress during the reader loop (exit 4, invalid round); the fixture now waits for 1M rewrites"
  ],
  "limits": [
-  "dmx10 was never released; v0.3.5 ships dmx11",
+  "dmx10 was never released; v0.3.5 (published 2026-10-27) ships dmx11",
   "dmx10 ran selftest, x86, images and Java only; dmx11 ran every suite",
   "writes from another process into shared code memory are not stopped by protection; after 8 changed decodes such a block runs once uncached"
  ],
@@ -458,5 +458,20 @@
    "footprint_after_x86_mb": 236,
    "footprint_after_cleanup_mb": 140
   }
+ },
+ "publication_v0_3_5": {
+  "tag": "v0.3.5",
+  "commit": "610c3c568d9aa007f22769ababa9ac764dc69c34",
+  "assets": 14,
+  "guest_archive_sha256": "ba025b8580a10817fccd8f95594c74511a8374ec976e008d5ee449c7f13da3b8",
+  "binary_archive_sha256": "e40ff69e679ca1aa6396a60dfc25256cca7355e3269b07f47c706ec73843bde4",
+  "checks": [
+   "second packaging pin_changed false",
+   "local rehearsal: install.sh, Developer ID V4YA23448U, notarization, guest fetch, selftest 23/23 (94 MiB)",
+   "14 uploaded digests matched, then downloaded again and matched SHA256SUMS",
+   "fresh install from the published install.sh: guest fetch and selftest (94 MiB)",
+   "update of a running signed 0.3.4: VM and data kept, next boot loaded dmx11 ade3c89ddc3bca41bee0d953e2ca63f6b148e81bf6d27c3ca3ca14ce8b0dfc1c",
+   "published binary ran linux/arm64, linux/amd64 and linux/386 containers"
+  ]
  }
 }
