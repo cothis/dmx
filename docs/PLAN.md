@@ -574,11 +574,17 @@ downloaded again), plus the published binary replacing a dangling link in a thro
 
 In order:
 
-1. Community announcement (Show HN, Reddit, GeekNews) is now the maintainer’s next decision.
+1. Measure Apple's `container` (and a Container Machine) with the engine comparison's protocol
+   when the Mac is quiet (maintainer, 2026-10-27: worth adding, not now). It runs on
+   Virtualization.framework and its docs give a machine half the host's memory by default; HN's
+   Container Machines thread (1269 points) argued about exactly this. Install Apple's signed
+   package, record idle, 2 GiB held/returned, `docker run` equivalent, then uninstall and undo
+   what it changed (see docs/memory.md). The announcement drafts say it was not measured yet.
+2. Community announcement (Show HN, Reddit, GeekNews) is now the maintainer’s next decision.
    The requested review, documentation and v0.3.4 release are complete; no community post was
    sent by this release work.
-2. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
-3. Open, not blocking: `qemu-x86_64` cannot run 32-bit programs, so `linux/386` needs
+3. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
+4. Open, not blocking: `qemu-x86_64` cannot run 32-bit programs, so `linux/386` needs
    `x86_emulator fex` (the default); adding qemu-i386 would be a separate build. Warm `docker run`
    (~100 ms on a quiet Mac) stays behind Colima by choice (data disk barrier flushes, see
    Decisions). FEX's emulated `uname -m` says `x86_64` even for a 32-bit process.
