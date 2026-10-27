@@ -565,7 +565,9 @@ bytes were published, on every FEX build including the shipped dmx9. `fex-2610-d
 without slowing compiles (dmx10, the first fix, cost 19 % in a compile storm) and ships in v0.3.5.
 **v0.3.5 is published** (2026-10-27, signed and notarized, tag commit `610c3c5`): all 14 assets
 checked after download, fresh installation and an update from a running 0.3.4 verified (VM and
-data kept, dmx11 loaded at the next boot), arm64/amd64/386 containers ran. See [the follow-up](fex-java-2026-10-27.md#follow-up-cause-confirmed-and-a-second-defect-2026-10-27).
+data kept, dmx11 loaded at the next boot), arm64/amd64/386 containers ran.
+**v0.3.6 is published** (2026-10-27, tag commit `14d7866`): the idle sweep also trims the data
+disk. Same checks as 0.3.5, from a running 0.3.5, plus an idle trim in the updated VM. See [the follow-up](fex-java-2026-10-27.md#follow-up-cause-confirmed-and-a-second-defect-2026-10-27).
 
 In order:
 
@@ -885,3 +887,4 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 - 2026-10-27: Published signed/notarized v0.3.5 (dmx11) from 610c3c5 at the maintainer's request. Second packaging kept the pin; the local rehearsal, the 14 uploaded and re-downloaded digests, a fresh install (selftest 94 MiB), an update from a running 0.3.4 that kept the VM and data and loaded dmx11 next boot, and arm64/amd64/386 containers all passed. Next: the maintainer's call on the community announcement.
 - 2026-10-27: The idle sweep trims the data disk (FITRIM through a new agent call): one Mac's data.img held 5.9 GB for 260 MB of data because blocks freed without online discard (journal replay, e2fsck, a killed VM's lost discards) were never punched. daemontest's `disk_idle_trim` fails on the v0.3.5 guest and passes now (58/58); idle footprint unchanged at 97 MiB. Not released. Next: the maintainer's call on v0.3.6.
 - 2026-10-27: v0.3.6 qualified with the idle disk trim: unit 59, selftest 23 (97 MiB, 1123 → 102 MiB in 320 ms), daemon 58, MCP 33, x86 53, Docker 69, sandbox 44, images 24, Java 100. The guest differs from 0.3.5 only in its initramfs (agent). Next: publish and verify v0.3.6.
+- 2026-10-27: Published signed/notarized v0.3.6 (idle disk trim) from 14d7866. Second packaging kept the pin; local rehearsal (selftest 97 MiB), the 14 uploaded and re-downloaded digests, a fresh install, an update of a running 0.3.5 (VM and data kept, new guest next boot, idle trim logged in 32 ms) and arm64/amd64/386 containers passed. Next: the maintainer's call on the community announcement.
