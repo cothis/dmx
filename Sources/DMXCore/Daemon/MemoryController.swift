@@ -14,7 +14,10 @@ import Foundation
 ///   small files leave tens of MB free in blocks under 512 KB, which reporting skips (and
 ///   compaction does not merge); this hands them back within seconds. Once the guest is in use
 ///   again, reporting goes back to 512 KB blocks, so a busy guest does not hand back, and fault in
-///   again, single pages it keeps reusing.
+///   again, single pages it keeps reusing. The sweep also trims the data disk (FITRIM): online
+///   discard misses blocks freed by a journal replay or e2fsck, or whose discard a killed VM lost,
+///   and those stayed allocated in data.img (5.4 GB on one Mac). 10 ms on a 64 GB disk after boot,
+///   0 ms when nothing was freed since, 0.24 s after deleting 3 GB.
 /// - Host pressure warning: the same trim at once, and after 5 s of idle instead of 30.
 /// - Host pressure critical: the guest also pushes cold anonymous and tmpfs pages into zram, and the
 ///   hotplug policy removes spare memory with 256 MB headroom, following its use as it changes.
@@ -73,6 +76,8 @@ final class MemoryController {
     private var sweeps = 0
     /// When the guest was last trimmed for being idle; again only after it is used.
     private var idleTrimmed: ContinuousClock.Instant?
+    /// False once the guest cannot trim its data disk (no data disk, or an agent without the call).
+    private var diskTrims = true
 
     var pressure: Pressure { simulated ?? hostPressure }
 
@@ -103,6 +108,7 @@ final class MemoryController {
         swept = nil
         sweeps = 0
         idleTrimmed = nil
+        diskTrims = true
         lastActivity = .now
         loop = Task { await run(machine: machine, agent: agent) }
     }
@@ -259,6 +265,20 @@ final class MemoryController {
             log("memory: idle sweep in \(ms) ms, empty slabs freed \(freed) MB")
         } catch {
             log("memory: shrinking slabs failed: \((error as? DMXError)?.message ?? "\(error)")")
+        }
+        guard diskTrims else { return }
+        let trimStarted = ContinuousClock.now
+        let image = machine?.spec.dataDisk?.url
+        let before = image.flatMap(DataDisk.usage)?.allocatedMb
+        do {
+            _ = try await agent.trimDisk()
+            let ms = Int(seconds(ContinuousClock.now - trimStarted) * 1000)
+            let after = image.flatMap(DataDisk.usage)?.allocatedMb
+            let returned = before.flatMap { b in after.map { max(b - $0, 0) } }
+            log("disk: idle trim in \(ms) ms, data.img gave back \(returned.map { "\($0) MB" } ?? "an unknown amount")")
+        } catch {
+            diskTrims = false
+            log("disk: not trimmed, and not again for this VM: \((error as? DMXError)?.message ?? "\(error)")")
         }
     }
 

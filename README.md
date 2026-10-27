@@ -130,7 +130,8 @@ routing apply to them as to any app.
 
 **Where data lives.** Everything is under `~/.dmx` (`DMX_HOME` to change): the guest, the
 settings, and the data disk `data.img` (a sparse file, 64 GB at most by default, holding images,
-containers and volumes).
+containers and volumes). Space the guest frees on it goes back to the Mac when the files are
+deleted, and anything that missed that at the next idle moment.
 
 **Security model.** Defaults follow Docker Desktop. `/Users`, `/Volumes`, `/private`, `/tmp` and
 `/var/folders` are shared read-write with the VM at the same paths (`dmx config set shares` to

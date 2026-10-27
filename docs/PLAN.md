@@ -279,7 +279,10 @@ Result: verified with launchd and without; see Findings for timings and memory.
       write-zeroes punch holes, requests off the vCPU thread, image locked against a second VM).
       `/init` formats a blank disk with pinned e2fsprogs (deleted after mount), ext4 at /var/lib
       with discard; the agent freezes it before power-off. Checked at every boot (e2fsck -p, then -fy
-      if that cannot repair it; 2026-10-25), and grown when `disk_size` is raised.
+      if that cannot repair it; 2026-10-25), and grown when `disk_size` is raised. The idle sweep
+      also trims it (FITRIM, 2026-10-27): online discard misses blocks freed by a journal replay
+      or e2fsck, or whose discard a killed VM lost, and one Mac's data.img held 5.9 GB for 260 MB
+      of data until a manual fstrim.
 - [x] Network: our virtio-net (MTU 65520, mergeable rx buffers, no checksums) with a passt-like
       user space NAT in dmx ([network.md](network.md)): guest TCP/UDP/ICMP echo flows mapped onto
       host sockets, no TCP stack of our own; DNS on the gateway forwarded to the host's first
@@ -615,6 +618,16 @@ their last invalidation: 248–259 ms. dmx11 passed every suite: unit 59, selfte
 69, sandbox 44, images 24 and Java 100 (median 2.08 s). Details, hashes and excluded runs:
 [measurements](measurements/2026-10-27-fex-code-patching.json).
 
+### Data disk idle trim (2026-10-27)
+
+One Mac's `data.img` held 5.9 GB on the host while the guest used 260 MB; `fstrim` gave back
+5.4 GB. Reproduced: 2 GB deleted with online discard off left the host file at 2059 MB, one
+FITRIM returned it to 11 MB. The idle sweep now trims the disk: 10 ms after boot on a 64 GB disk,
+0 ms when nothing was freed since, 0.24 s right after deleting 3 GB, 40 ms in a fresh daemon.
+daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0.3.5 guest
+(266 → 266 MB) and passes with the new agent (266 → 10 MB), 58/58. Selftest unchanged: idle
+97 MiB, 1123 → 102–103 MiB in 217–322 ms (v0.3.5: 97, 1123 → 104 in 320 ms). Unit 59/59.
+
 ### Earlier measurements
 
 | Date | What | Result |
@@ -870,3 +883,4 @@ their last invalidation: 248–259 ms. dmx11 passed every suite: unit 59, selfte
 - 2026-10-27: Java crash cause confirmed and a second FEX defect fixed. All six crash reports match a mixed decode of HotSpot's atomic method-entry patch (fault addresses and registers recomputed exactly). A new fixture fails 18/20 on the old FEX and the signal-only build and passes on the decoder fix, dmx9 and QEMU. FEX also kept running translations of code that changed between decoding and write protection (0/20 on dmx9). `fex-2610-dmx10` rechecks the decoded words once the pages are protected and redecodes; x86test gains both fixtures (53/53), image matrix 24/24, Java 100/100, selftest 96 MiB. Not released. Next: the maintainer's call on a patch release.
 - 2026-10-27: Removed dmx10's compile cost: it re-protected already protected pages on every compile (262,144-block storm 318–324 ms against dmx9's 268–270). `fex-2610-dmx11` remembers protected pages until their next invalidation (248–259 ms), passes both fixtures and every suite, and is pinned for v0.3.5 (release notes written; the maintainer asked to release after the tuning). Next: package, sign, publish and verify v0.3.5.
 - 2026-10-27: Published signed/notarized v0.3.5 (dmx11) from 610c3c5 at the maintainer's request. Second packaging kept the pin; the local rehearsal, the 14 uploaded and re-downloaded digests, a fresh install (selftest 94 MiB), an update from a running 0.3.4 that kept the VM and data and loaded dmx11 next boot, and arm64/amd64/386 containers all passed. Next: the maintainer's call on the community announcement.
+- 2026-10-27: The idle sweep trims the data disk (FITRIM through a new agent call): one Mac's data.img held 5.9 GB for 260 MB of data because blocks freed without online discard (journal replay, e2fsck, a killed VM's lost discards) were never punched. daemontest's `disk_idle_trim` fails on the v0.3.5 guest and passes now (58/58); idle footprint unchanged at 97 MiB. Not released. Next: the maintainer's call on v0.3.6.

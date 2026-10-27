@@ -260,6 +260,38 @@ pub fn shrink_slabs() -> io::Result<ShrinkSlabsResult> {
     Ok(ShrinkSlabsResult { free_before: before, free_after: memory()?.free })
 }
 
+#[derive(Serialize)]
+pub struct TrimDiskResult {
+    /// Bytes of free space the kernel discarded; ext4 skips groups it trimmed since mount and
+    /// has not freed blocks in since.
+    pub trimmed: u64,
+}
+
+/// Discards the free blocks of the data disk at /var/lib (FITRIM, as fstrim does), so the host
+/// punches them out of data.img. Online discard misses blocks freed without it: those freed by
+/// a journal replay or e2fsck after an unclean stop, or whose discard was lost when the VM was
+/// killed after the commit.
+pub fn trim_disk() -> io::Result<TrimDiskResult> {
+    use std::os::unix::fs::MetadataExt;
+    use std::os::unix::io::AsRawFd;
+    const FITRIM: libc::c_ulong = 0xC018_5879; // _IOWR('X', 121, struct fstrim_range)
+    #[repr(C)]
+    struct Range {
+        start: u64,
+        len: u64,
+        minlen: u64,
+    }
+    if fs::metadata("/var/lib")?.dev() == fs::metadata("/var")?.dev() {
+        return Err(io::Error::new(io::ErrorKind::Unsupported, "no data disk at /var/lib"));
+    }
+    let dir = fs::File::open("/var/lib")?;
+    let mut range = Range { start: 0, len: u64::MAX, minlen: 0 };
+    if unsafe { libc::ioctl(dir.as_raw_fd(), FITRIM as _, &mut range) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(TrimDiskResult { trimmed: range.len })
+}
+
 #[derive(Deserialize)]
 pub struct TimeSyncParams {
     pub unix_ns: i128,

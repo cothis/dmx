@@ -140,6 +140,14 @@ def memory_checks(results):
     check("memory_trim_on_warning", back and (m.get("last_trim") or {}).get("reason") == "host pressure warning",
           f"footprint {fp} MB, {m}")
 
+    # Blocks freed without online discard (after a journal replay, or a discard a killed VM lost)
+    # stay allocated in data.img until the idle sweep trims the disk.
+    r = dmx("exec", "--", "sh", "-c", "mount -o remount,nodiscard /var/lib && dd if=/dev/urandom of=/var/lib/untrimmed "
+            "bs=1M count=256 2>/dev/null && sync && rm /var/lib/untrimmed && sync; s=$?; mount -o remount,discard /var/lib; exit $s")
+    def allocated():
+        return (status().get("disk") or {}).get("allocated_mb", 0)
+    leaked = allocated()
+
     # Idle: under pressure the guest trims after 5 s without an exec (30 s without pressure).
     dmx("exec", "--", "sh", "-c", fill)
     started = time.time()
@@ -150,6 +158,8 @@ def memory_checks(results):
     # The idle sweep (reporting from 16 KB blocks, empty slabs freed) comes with the idle trim.
     swept = wait_for(lambda: (memory()[1].get("sweeps") or 0) >= 1, 10)
     check("memory_idle_sweep", swept, str(memory()[1]))
+    returned = wait_for(lambda: allocated() < leaked - 200, 10)
+    check("disk_idle_trim", r.returncode == 0 and returned, f"data.img {leaked} -> {allocated()} MB, exit {r.returncode}")
 
     # Grow well beyond boot RAM, then free it. Critical pressure must unplug immediately,
     # rather than wait for normal hysteresis or pin it in the balloon.

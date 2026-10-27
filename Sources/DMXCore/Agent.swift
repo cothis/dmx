@@ -442,6 +442,14 @@ public final class AgentClient: @unchecked Sendable {
         return (result.freeBefore, result.freeAfter)
     }
 
+    /// Discards the free blocks of the guest's data disk (FITRIM on /var/lib), so data.img gives
+    /// back what online discard missed; returns the bytes the kernel trimmed.
+    public func trimDisk() async throws -> UInt64 {
+        struct Result: Decodable { let trimmed: UInt64 }
+        let result: Result = try await call("trim_disk", Empty())
+        return result.trimmed
+    }
+
     /// Sets the guest clock to the host clock and returns how far off it was, in nanoseconds.
     public func syncTime() async throws -> Int64 {
         struct Params: Encodable { let unixNs: Int64 }
