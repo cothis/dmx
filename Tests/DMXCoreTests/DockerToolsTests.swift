@@ -140,6 +140,23 @@ import Testing
         #expect(FileManager.default.fileExists(atPath: bin.appendingPathComponent("docker").path))
     }
 
+    @Test func replacesALinkThatPointsAtNothing() async throws {
+        let f = try Fixture()
+        defer { try? FileManager.default.removeItem(at: f.root) }
+        let bin = f.root.appendingPathComponent("home/.local/bin")
+        try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+        // What a deleted DMX_HOME (or an uninstalled engine) leaves behind.
+        try FileManager.default.createSymbolicLink(atPath: bin.appendingPathComponent("docker").path,
+                                                   withDestinationPath: f.root.appendingPathComponent("gone/bin/docker").path)
+        #expect(DockerTools.status(paths: f.paths, configDir: f.configDir, environment: f.environment, tools: f.tools)
+            .links.map(\.state) == ["broken"])
+        let report = try await DockerTools.install(paths: f.paths, configDir: f.configDir, environment: f.environment, tools: f.tools)
+        #expect(report.links.map(\.state) == ["replaced"])
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: bin.appendingPathComponent("docker").path)
+            == f.paths.dockerBin.appendingPathComponent("docker").path)
+        #expect(report.dmxDockerOnPath)
+    }
+
     @Test func pinsAreComplete() {
         for tool in DockerTools.pinned {
             #expect(tool.sha256.count == 64 && tool.url.scheme == "https" && tool.size > 0)

@@ -75,7 +75,8 @@ public enum DockerTools {
     public struct Link: Encodable, Sendable {
         public let path: String
         public let target: String
-        /// `created`, `present`, or `skipped` when something else has that name.
+        /// `created`, `present`, `replaced` (a link that pointed at nothing), or `skipped` when
+        /// something else has that name. `dmx tools ls` reports such a dangling link as `broken`.
         public let state: String
     }
 
@@ -159,7 +160,8 @@ public enum DockerTools {
             let path = dir.appendingPathComponent(tool.file)
             let target = destination(tool, paths)
             guard let existing = try? FileManager.default.destinationOfSymbolicLink(atPath: path.path) else { return nil }
-            return Link(path: path.path, target: existing, state: existing == target.path ? "present" : "skipped")
+            let state = existing == target.path ? "present" : FileManager.default.fileExists(atPath: path.path) ? "skipped" : "broken"
+            return Link(path: path.path, target: existing, state: state)
         }
         return report(paths: paths, configDir: configDir, environment: environment, tools: installed, links: links)
     }
@@ -230,8 +232,16 @@ public enum DockerTools {
     private static func link(_ target: URL, in dir: URL) throws -> Link {
         let fm = FileManager.default
         let path = dir.appendingPathComponent(target.lastPathComponent)
+        var replaced = false
         if let existing = try? fm.destinationOfSymbolicLink(atPath: path.path) {
-            return Link(path: path.path, target: existing, state: existing == target.path ? "present" : "skipped")
+            // A link to nothing (fileExists follows it) is nobody's working docker: typically dmx's
+            // own, left by a DMX_HOME that was deleted, or an uninstalled engine's. Left alone it
+            // would keep `docker` broken; anything that still resolves stays untouched.
+            guard existing != target.path, !fm.fileExists(atPath: path.path) else {
+                return Link(path: path.path, target: existing, state: existing == target.path ? "present" : "skipped")
+            }
+            try? fm.removeItem(at: path)
+            replaced = true
         }
         if fm.fileExists(atPath: path.path) {
             return Link(path: path.path, target: path.path, state: "skipped")
@@ -243,7 +253,7 @@ public enum DockerTools {
             throw DMXError("link_failed", "cannot link \(path.path) to \(target.path): \(error.localizedDescription)",
                            hint: "check that \(dir.path) is writable, or put \(target.deletingLastPathComponent().path) on PATH yourself")
         }
-        return Link(path: path.path, target: target.path, state: "created")
+        return Link(path: path.path, target: target.path, state: replaced ? "replaced" : "created")
     }
 
     /// Downloads `tool` into `part`, resuming what an earlier attempt left, retrying network

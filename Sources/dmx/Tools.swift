@@ -74,7 +74,12 @@ func describeTools(_ r: DockerTools.Report) -> String {
         return "\(tool.name.padding(toLength: 30, withPad: " ", startingAt: 0)) \(tool.version.padding(toLength: 8, withPad: " ", startingAt: 0)) \(tool.path) (\(state))"
     }
     for link in r.links {
-        lines.append(link.state == "skipped" ? "left \(link.path) alone: it is not dmx's" : "\(link.path) -> \(link.target) (\(link.state))")
+        let line = switch link.state {
+        case "skipped": "left \(link.path) alone: it is not dmx's"
+        case "broken": "\(link.path) points at \(link.target), which is gone; `dmx tools install` replaces it"
+        default: "\(link.path) -> \(link.target) (\(link.state))"
+        }
+        lines.append(line)
     }
     lines.append("plugins: \(r.cliPlugins) " + (r.pluginsConfigured ? "in cliPluginsExtraDirs of \(r.configDir)/config.json" : "not in \(r.configDir)/config.json"))
     lines.append("docker on PATH: " + (r.dockerOnPath.map { "\($0)\(r.dmxDockerOnPath ? " (dmx's)" : "")" } ?? "none"))
