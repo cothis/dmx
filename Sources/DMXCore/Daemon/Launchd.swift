@@ -35,17 +35,13 @@ public enum LaunchAgent {
 
         let data = try plistData(paths: paths, executable: executable)
         try FileManager.default.createDirectory(at: plist.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let previous = runningPid()
         _ = try? launchctl(["bootout", "\(domain)/\(label)"])
+        try await waitUntilGone(previous)
         try data.write(to: plist, options: .atomic)
-        do {
-            try launchctl(["bootstrap", domain, plist.path])
-        } catch let error as DMXError {
-            throw DMXError("install_failed", error.message, hint: "check \(plist.path), then run `dmx install` again")
-        }
+        try await bootstrap()
 
-        guard let client = try await DaemonClient.connect(paths: paths, start: false) else {
-            throw DMXError("install_failed", "launchd did not start the daemon on \(paths.controlSocket.path)", hint: "see \(paths.daemonLog.path)")
-        }
+        let client = try await firstConnection(paths)
         defer { client.close() }
         var report = Report(label: label, plist: plist.path, socket: paths.controlSocket.path, executable: executable, daemonPid: client.hello.pid)
         report.dockerContext = try DockerContext.install(socket: paths.dockerSocket, configDir: DockerContext.configDir())
@@ -55,6 +51,80 @@ public enum LaunchAgent {
             throw DMXError(error.code, "the launchd agent and the docker context are installed, but not the docker CLI: \(error.message)", hint: error.hint)
         }
         return report
+    }
+
+    /// The pid of the job's running daemon, if launchd has one.
+    private static func runningPid() -> pid_t? {
+        guard let text = try? launchctl(["print", "\(domain)/\(label)"]) else { return nil }
+        return text.split(separator: "\n").lazy
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { $0.hasPrefix("pid = ") }
+            .flatMap { pid_t($0.dropFirst(6)) }
+    }
+
+    /// `launchctl bootout` returns while the old daemon is still exiting, which takes a second or
+    /// more when it powers a VM off. Until launchd has let go of the job, bootstrapping it again
+    /// fails ("Bootstrap failed: 5: Input/output error") or loads a job whose sockets do not
+    /// answer yet: on one Mac `dmx install` failed every time it ran with the VM up.
+    @MainActor
+    private static func waitUntilGone(_ pid: pid_t?) async throws {
+        let deadline = ContinuousClock.now + .seconds(30)
+        while ContinuousClock.now < deadline {
+            let loaded = (try? launchctl(["print", "\(domain)/\(label)"])) != nil
+            let alive = pid.map { kill($0, 0) == 0 } ?? false
+            if !loaded && !alive { return }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+    }
+
+    /// Loads the plist, retrying for a few seconds while launchd still answers EIO for a job it
+    /// is tearing down.
+    @MainActor
+    private static func bootstrap() async throws {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while true {
+            do {
+                try launchctl(["bootstrap", domain, plist.path])
+                return
+            } catch let error as DMXError {
+                if error.message.contains(": 5: "), ContinuousClock.now < deadline {
+                    try await Task.sleep(for: .milliseconds(100))
+                    continue
+                }
+                throw DMXError("install_failed", error.message, hint: "check \(plist.path), then run `dmx install` again")
+            }
+        }
+    }
+
+    /// The daemon behind launchd's socket, right after bootstrap. launchd may set the socket up
+    /// a moment after `launchctl bootstrap` returns (a Mac reported `install_failed` while the
+    /// job was running and serving the Docker socket), so keep trying for a few seconds, and say
+    /// why the last attempt failed and what launchd reports if it never answers.
+    @MainActor
+    private static func firstConnection(_ paths: Paths) async throws -> DaemonClient {
+        let deadline = ContinuousClock.now + .seconds(10)
+        while true {
+            if let client = try await DaemonClient.connect(paths: paths, start: false) { return client }
+            guard ContinuousClock.now < deadline else { break }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        let state = (try? launchctl(["print", "\(domain)/\(label)"]))?
+            .split(separator: "\n").first { $0.trimmingCharacters(in: .whitespaces).hasPrefix("state =") }
+            .map { $0.trimmingCharacters(in: .whitespaces) } ?? "not loaded"
+        throw DMXError("install_failed",
+                       "launchd did not answer on \(paths.controlSocket.path) within 10 s (\(connectError(paths.controlSocket)); launchd job \(state))",
+                       hint: "see \(paths.daemonLog.path) and `launchctl print \(domain)/\(label)`, then run `dmx install` again")
+    }
+
+    /// Why connecting to `path` fails right now, as strerror text, or "it accepts connections".
+    private static func connectError(_ path: URL) -> String {
+        guard var address = try? unixAddress(path) else { return "socket path too long" }
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        defer { close(fd) }
+        let result = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
+        }
+        return result == 0 ? "it accepts connections" : "connect: \(String(cString: strerror(errno)))"
     }
 
     /// The job launchd runs: `dmx daemon` with both sockets, started on the first connection.
