@@ -20,6 +20,15 @@ import Testing
         try body(ram, queue)
     }
 
+    /// The largest frame dmx sends must fit what Linux always keeps posted on the 64-slot receive
+    /// ring, or one frame can stall every frame behind it until the VM restarts.
+    @Test func largestFrameFitsGuaranteedReceiveBuffers() {
+        let net = VirtioNet()
+        #expect(net.queueSizes[0] == 64)
+        #expect(VirtioNet.headerSize + 14 + VirtioNet.mtu <= VirtioNet.guaranteedReceive)
+        #expect(UserNet.mss(UserNet.FlowKey(guestPort: 1, remote: IPAddress(v4: 0x0808_0808), remotePort: 80)) + 40 == VirtioNet.mtu)
+    }
+
     @Test func validChainCompletes() throws {
         try withQueue { ram, queue in
             let chain = try #require(queue.pop())

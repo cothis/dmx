@@ -43,6 +43,11 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-10-27: A suite failure is not "the environment" until something shows it. daemontest lost 6 network
+  checks during v0.3.8's qualification; I blamed a DNS switch, a rerun passed, and I shipped. The same stall
+  then hit a user's Mac: a 1-in-100 receive deadlock at boot (64 KB frames vs. the 32 x 1536 bytes of
+  buffers Linux always keeps posted). Loop the failing step in isolation (here 300 fresh boots) before
+  calling a failure environmental, and keep the first failure in the record either way.
 - 2026-10-27: Diagnose an emulator crash from what the crash report recorded, not from repeat counts. Asking which
   byte mix of the old and new code produces exactly the recorded fault address and registers pinned the FEX Java
   crash in one pass, after 330 Java runs had stayed statistically inconclusive. A race probe must hit one site

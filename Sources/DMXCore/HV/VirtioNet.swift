@@ -4,8 +4,9 @@ import Foundation
 /// and come from `UserNet`, dmx's user space NAT, so the host needs no network interface, root or
 /// entitlement (see docs/network.md). All state lives on one serial queue, shared with `UserNet`.
 ///
-/// The MTU is 65520, like passt's: a 64 KB TCP segment crosses as one frame, without TSO or
-/// segmentation on either side. Checksums are skipped both ways (CSUM, GUEST_CSUM): the NAT ends
+/// The MTU is the largest that always fits the receive buffers the guest keeps posted (49126, see
+/// `guaranteedReceive`): a 48 KB TCP segment crosses as one frame, without TSO or segmentation
+/// on either side. Checksums are skipped both ways (CSUM, GUEST_CSUM): the NAT ends
 /// every TCP and UDP flow, so nothing would check them. Mergeable receive buffers let a large
 /// frame span several small guest buffers instead of the guest preallocating 64 KB per slot.
 final class VirtioNet: VirtioDevice, @unchecked Sendable {
@@ -14,9 +15,18 @@ final class VirtioNet: VirtioDevice, @unchecked Sendable {
     static let mtuFeature: UInt64 = 1 << 3
     static let macFeature: UInt64 = 1 << 5
     static let mergeableRx: UInt64 = 1 << 15
-    static let mtu = 65520
     /// `virtio_net_hdr_v1`: with VIRTIO_F_VERSION_1 always 12 bytes, `num_buffers` included.
     static let headerSize = 12
+    /// Receive capacity the guest always has posted. Linux's virtio_net refills its receive ring
+    /// only once more than 32 slots are empty (half of NAPI's budget of 64), and never posts a
+    /// buffer under 1536 bytes (GOOD_PACKET_LEN plus header, aligned), so 32 of the 64 slots hold
+    /// at least 49152 bytes. A frame larger than that can wait for buffers the guest only adds
+    /// after receiving something, and frames go in order: with an MTU of 65520 a 64 KB segment
+    /// stalled every frame behind it for good (1 boot in 20 to 200; "guest posted 59360 bytes in
+    /// 38 buffers" for a 65546-byte frame), until the VM restarted.
+    static let guaranteedReceive = 32 * 1536
+    /// The IP MTU whose largest frame, with its Ethernet and virtio-net headers, fits that.
+    static let mtu = guaranteedReceive - headerSize - 14
     /// Frames waiting for guest receive buffers. TCP produces data only below this; ARP, ICMP
     /// and UDP replies may go over it up to `outboxLimit`, then they are dropped like on a wire.
     static let outboxHigh = 512 << 10
@@ -104,7 +114,9 @@ final class VirtioNet: VirtioDevice, @unchecked Sendable {
 
     /// Queues an Ethernet frame for the guest. Called by `UserNet`, on `queue`.
     func send(_ frame: [UInt8]) {
-        guard transport != nil, outboxBytes + frame.count <= Self.outboxLimit else { return }
+        // A frame over the MTU could never be received (see `guaranteedReceive`): drop it rather
+        // than hold everything queued behind it.
+        guard transport != nil, frame.count <= 14 + Self.mtu, outboxBytes + frame.count <= Self.outboxLimit else { return }
         outbox.append(frame)
         outboxBytes += frame.count
         deliver()

@@ -92,8 +92,12 @@ the agent):
 
 The device:
 
-- **MTU 65520** (like passt): a 64 KB TCP segment crosses as one frame, with no TSO or
-  segmentation code on either side. IPv6 headers are 20 bytes longer, so its MSS is 65460.
+- **MTU 49126**: a 48 KB TCP segment crosses as one frame, with no TSO or segmentation code
+  on either side. It is the largest IP packet whose frame always fits the receive buffers Linux
+  keeps posted (at least 32 of 64 slots, each at least 1536 bytes). The MTU was 65520, like
+  passt's, until 2026-10-27: a 64 KB frame then sometimes waited for buffers the guest adds only
+  after it receives something, and every frame behind it, DNS replies included, waited with it
+  until the VM restarted. IPv6 headers are 20 bytes longer, so its MSS is 49066.
 - **Mergeable receive buffers**: a large frame spans several small guest buffers, so the guest
   does not preallocate 64 KB per ring slot. All buffers of a frame are published to the used ring
   with one index update; publishing them one by one let the guest see a partial frame and drop
