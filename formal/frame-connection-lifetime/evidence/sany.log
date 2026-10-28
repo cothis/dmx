@@ -1,0 +1,15 @@
+
+****** SANY2 Version 2.2 created 08 July 2020
+
+Parsing file /Users/cothis/dev/dockermax/formal/frame-connection-lifetime/tla/Spec.tla
+Parsing file /private/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/tlc-12147016767952415344/Naturals.tla (jar:file:/Users/cothis/.cache/proof-skills/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /private/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/tlc-12147016767952415344/FiniteSets.tla (jar:file:/Users/cothis/.cache/proof-skills/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /Users/cothis/dev/dockermax/formal/frame-connection-lifetime/tla/Properties.tla
+Parsing file /private/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/tlc-12147016767952415344/Sequences.tla (jar:file:/Users/cothis/.cache/proof-skills/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module Properties
+Semantic processing of module Spec
+Linting of module Properties
+Linting of module Spec

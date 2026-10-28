@@ -143,14 +143,8 @@ public final class FrameConnection: @unchecked Sendable {
 
     deinit { close() }
 
-    /// Ends the connection even while a call waits on it: the waiting read sees the end of the
-    /// stream (closing alone does not wake it).
-    func abort() {
-        closeLock.lock()
-        if !closed { Darwin.shutdown(fd, SHUT_RDWR) }
-        closeLock.unlock()
-        close()
-    }
+    /// Ends the connection even while a call waits on it.
+    func abort() { close() }
 
     /// Closes once; later calls do nothing, so a reused descriptor number is never closed.
     public func close() {
@@ -158,7 +152,21 @@ public final class FrameConnection: @unchecked Sendable {
         defer { closeLock.unlock() }
         guard !closed else { return }
         closed = true
+        // Wake I/O on the frame's duplicate too; closing one descriptor alone cannot do that.
+        Darwin.shutdown(fd, SHUT_RDWR)
         closeConnection()
+    }
+
+    /// A frame keeps the same socket across short transfers, even if close releases `fd` and
+    /// the OS reuses its number. Checking `closed` alone would race the following syscall.
+    private func withOpenFD<T>(_ body: (Int32) throws -> T) throws -> T {
+        closeLock.lock()
+        let copy = closed ? -1 : fcntl(fd, F_DUPFD_CLOEXEC, 0)
+        let failure = closed ? "connection closed" : String(cString: strerror(errno))
+        closeLock.unlock()
+        guard copy >= 0 else { throw DMXError("\(peer)_disconnected", "\(peer): \(failure)") }
+        defer { Darwin.close(copy) }
+        return try body(copy)
     }
 
     public func call<P: Encodable & Sendable, R: Decodable>(_ method: String, _ params: P) async throws -> R {
@@ -236,14 +244,14 @@ public final class FrameConnection: @unchecked Sendable {
         header[4] = kind.rawValue
         writeLock.lock()
         defer { writeLock.unlock() }
-        try writeAll(header + payload)
+        try withOpenFD { try writeAll(header + payload, fd: $0) }
     }
 
     private func writeJSON(_ value: some Encodable) throws {
         try writeFrame(.json, try Self.encoder.encode(value))
     }
 
-    private func writeAll(_ data: Data) throws {
+    private func writeAll(_ data: Data, fd: Int32) throws {
         try data.withUnsafeBytes { (buf: UnsafeRawBufferPointer) in
             var offset = 0
             while offset < buf.count {
@@ -257,7 +265,7 @@ public final class FrameConnection: @unchecked Sendable {
         }
     }
 
-    private func readExactly(_ count: Int) throws -> Data? {
+    private func readExactly(_ count: Int, fd: Int32) throws -> Data? {
         var data = Data(count: count)
         var offset = 0
         while offset < count {
@@ -276,12 +284,16 @@ public final class FrameConnection: @unchecked Sendable {
     }
 
     func readFrame() throws -> (FrameKind, Data)? {
-        guard let header = try readExactly(4) else { return nil }
+        try withOpenFD { try readFrame(fd: $0) }
+    }
+
+    private func readFrame(fd: Int32) throws -> (FrameKind, Data)? {
+        guard let header = try readExactly(4, fd: fd) else { return nil }
         let length = Int(header.withUnsafeBytes { UInt32(bigEndian: $0.loadUnaligned(as: UInt32.self)) })
         guard length >= 1, length <= 16 << 20 else {
             throw DMXError("\(peer)_protocol", "bad frame length \(length)")
         }
-        guard let body = try readExactly(length) else {
+        guard let body = try readExactly(length, fd: fd) else {
             throw DMXError("\(peer)_disconnected", "\(peer) closed the connection mid-frame")
         }
         guard let kind = FrameKind(rawValue: body[body.startIndex]) else {

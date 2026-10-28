@@ -1,0 +1,43 @@
+Building for debugging...
+[2 / 7] DMXCoreTests-product
+[4 / 9] DMXCoreTests-product
+[10 / 14] DMXCoreTests-product
+Build complete! (0.74초)
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite FrameConnectionTests started.
+◇ Test closedWriterCannotSendToReusedDescriptor() started.
+✘ Test closedWriterCannotSendToReusedDescriptor() recorded an issue at FrameConnectionTests.swift:45:13: Expectation failed: rejected
+↳ a closed connection must reject a late frame writer
+↳ rejected → <not evaluated>
+✘ Test closedWriterCannotSendToReusedDescriptor() recorded an issue at FrameConnectionTests.swift:48:13: Expectation failed: received == -1 && errno == EAGAIN
+↳ the unrelated socket must receive no bytes
+↳ received == -1 && errno == EAGAIN → false
+↳   received == -1 → false
+↳   errno == EAGAIN → <not evaluated>
+✘ Test closedWriterCannotSendToReusedDescriptor() failed after 0.001 seconds with 2 issues.
+◇ Test closedReaderCannotConsumeFromReusedDescriptor() started.
+✘ Test closedReaderCannotConsumeFromReusedDescriptor() recorded an issue at FrameConnectionTests.swift:60:13: Expectation failed: rejected
+↳ a closed connection must reject a late frame reader
+↳ rejected → <not evaluated>
+✘ Test closedReaderCannotConsumeFromReusedDescriptor() recorded an issue at FrameConnectionTests.swift:63:13: Expectation failed: remaining == frame.count
+↳ the new connection's frame must remain unread
+↳ remaining == frame.count → false
+↳   remaining → -1
+↳   frame.count → 8
+✘ Test closedReaderCannotConsumeFromReusedDescriptor() failed after 0.001 seconds with 2 issues.
+◇ Test frameKeepsItsSocketAcrossCloseBetweenHeaderAndBody() started.
+✘ Test frameKeepsItsSocketAcrossCloseBetweenHeaderAndBody() recorded an issue at FrameConnectionTests.swift:107:9: Expectation failed: ended
+↳ close must finish the pending read
+↳ ended → <not evaluated>
+✘ Test frameKeepsItsSocketAcrossCloseBetweenHeaderAndBody() recorded an issue at FrameConnectionTests.swift:111:9: Expectation failed: remaining == body.count
+↳ the unrelated socket's body must remain unread
+↳ remaining == body.count → false
+↳   remaining → 0
+↳   body.count → 4
+✘ Test frameKeepsItsSocketAcrossCloseBetweenHeaderAndBody() failed after 4.021 seconds with 2 issues.
+✘ Suite FrameConnectionTests failed after 4.021 seconds with 6 issues.
+✘ Test run with 3 tests in 1 suite failed after 4.022 seconds with 6 issues.
+Note: Some test targets reported failures:
+  - DMXCoreTests (Swift Testing)

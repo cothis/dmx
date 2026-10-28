@@ -586,6 +586,13 @@ rewrote the guest receipt (`release.json`), so `dmx guest` on this Mac named v0.
 Fixed on main after the release (`GuestStore.ensure` now also runs `fetch` for a renamed
 release, which downloads nothing and records the tag); not released yet.
 
+The 2026-10-29 formal bug hunt also fixed `FrameConnection` I/O using a descriptor number
+after close, when that number could name another connection. Frames now retain an owned
+duplicate acquired under the close lock, and close shuts down pending I/O. Three real-socket
+regressions fail on the original code and pass with the fix; the bounded TLA+ model checks
+134 reachable states. See [the report](../formal/reports/frame-connection-lifetime.html)
+and [re-run instructions](../formal/README.md). This fix is also **not released**.
+
 In order:
 
 1. Measure Apple's `container` (and a Container Machine) with the engine comparison's protocol
@@ -608,6 +615,33 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### FrameConnection formal bug hunt (2026-10-29)
+
+- [x] Scope close versus queued/in-flight framed socket I/O; freeze two protocol invariants
+  before running the model, record a source correspondence map and the model's assumptions.
+- [x] Reproduce wrong-socket reads and writes on unchanged `2ed2c21` with forced descriptor
+  reuse. Keep failing property assertions in `formal/frame-connection-lifetime/evidence/repro-before.log`.
+  A third test observes the header/body boundary before close; the original pending read
+  did not finish by its deadline. This is code-path evidence, not a demonstrated guest escape
+  or a measurement of production failure frequency.
+- [x] Fix frame ownership with a close-locked `F_DUPFD_CLOEXEC` lease, released on frame
+  completion; shut down on close to wake pending I/O. Public signatures and framing stay the same.
+- [x] Recheck TLA+: one connection, two frame operations, two syscalls each, one descriptor
+  reuse; 290 generated / 134 distinct states, graph depth 13. `NoForeignIO`, `NoLateAcquire`
+  and `TypeOK` hold. All actions are exercised; both must-fail reachability checks and the
+  unfixed mutation fail as expected. No fairness, state constraints, unbounded proof or
+  blocked-I/O liveness claim. Frozen properties are unchanged.
+- [x] `make build`, `make guest`, selftest 23/23, unit 66/66, daemon 58/58, MCP 33/33.
+  Single before/after `ri_phys_footprint` samples: idle **94 → 96 MiB**; after touching/freeing
+  1 GiB **1122 → 101 MiB in 309 ms** before, **1123 → 104 MiB in 110 ms** after. These
+  samples do not establish a memory or speed improvement/regression. No new guest RAM allocation.
+- The model excludes raw `.fd` users (splice/relay, Docker HTTP), kernel internals, VM
+  destruction and guest vsock flow control. The report, JSON findings, model, reproduction,
+  correspondence checks and all cited logs are in `formal/`. No Artifact tool was available,
+  so the report is self-contained local HTML. No GitHub CI or signed release was added.
+- Next verification candidates, not findings: old VM memory callbacks versus reattachment;
+  virtio-block flush ordering with the guest's request submission rules included.
 
 ### v0.3.4 qualification (2026-10-27)
 
@@ -817,6 +851,11 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-10-29: Formal verification found and reproduced framed socket I/O crossing into a new
+  connection after descriptor reuse. Fixed frame descriptor lifetime and pending-read shutdown;
+  three new regressions pass, bounded TLC checks 134 states and rejects the unfixed mutation.
+  Unit 66, selftest 23 (96 MiB), daemon 58 and MCP 33 pass. Evidence and the local HTML report
+  are in `formal/`. Not released; the existing Next up priorities remain unchanged.
 - 2026-10-23: Phase 1 done. Repo published at https://github.com/cothis/dmx (commit e630133).
 - 2026-10-23: Phase 2 started. Rust agent cross compiles on macOS and runs in the guest.
 - 2026-10-23: Phase 2 done. Host and guest talk over vsock; the selftest runs entirely through the agent.

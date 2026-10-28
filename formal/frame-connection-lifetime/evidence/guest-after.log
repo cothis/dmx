@@ -1,0 +1,3 @@
+python3 -I scripts/build-guest.py
+    Finished `release` profile [optimized] target(s) in 0.06s
+{"ok": true, "out": "/Users/cothis/.dmx/guest", "image_bytes": 16932872, "initramfs_bytes": 2196430, "modules": 7, "docker": {"bytes": 54349824, "sha256": "9e697b65271a8ed37c1e83043be196e337ee61e74e8b7cf501ce718c180dd024", "x86_sha256": "89c5c3274d0236e671f5367330f87a6c0e66a466636e515d6b9309b3eddc8672", "reused": true}}

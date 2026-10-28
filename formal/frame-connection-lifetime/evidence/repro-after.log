@@ -1,0 +1,39 @@
+Building for debugging...
+[2 / 11] DMXCore
+[4 / 13] DMXCore
+[14 / 23] DMXCore
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:579:24: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+577 |         func params<P: Decodable>(_: P.Type) throws -> P {
+578 |             do {
+579 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+    |                        `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+580 |             } catch {
+581 |                 throw DMXError("bad_request", "\(method): \(error)")
+
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:580:15: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+578 |             do {
+579 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+580 |             } catch {
+    |               `- warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+581 |                 throw DMXError("bad_request", "\(method): \(error)")
+582 |             }
+
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+[20 / 30] DMXCore
+[21 / 30] DMXCore
+[25 / 30] DMXCoreTests-product
+[28 / 34] dmx-product
+[33 / 37] DMXCoreTests-product
+Build complete! (2.54초)
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite FrameConnectionTests started.
+◇ Test closedWriterCannotSendToReusedDescriptor() started.
+✔ Test closedWriterCannotSendToReusedDescriptor() passed after 0.001 seconds.
+◇ Test closedReaderCannotConsumeFromReusedDescriptor() started.
+✔ Test closedReaderCannotConsumeFromReusedDescriptor() passed after 0.001 seconds.
+◇ Test frameKeepsItsSocketAcrossCloseBetweenHeaderAndBody() started.
+✔ Test frameKeepsItsSocketAcrossCloseBetweenHeaderAndBody() passed after 0.001 seconds.
+✔ Suite FrameConnectionTests passed after 0.002 seconds.
+✔ Test run with 3 tests in 1 suite passed after 0.002 seconds.

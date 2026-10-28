@@ -1,0 +1,203 @@
+swift build -c release
+Building for production...
+[1 / 3]
+[2 / 2] dmx-product
+[3 / 3] dmx-product
+Build complete! (0.79초)
+codesign --force --sign - --entitlements dmx.entitlements .build/release/dmx
+.build/release/dmx: replacing existing signature
+python3 -I scripts/test-mcp.py .build/release/dmx
+{
+  "ok": true,
+  "tools": [
+    "dmx_config_get",
+    "dmx_config_set",
+    "dmx_exec",
+    "dmx_logs",
+    "dmx_sandbox_checkpoint",
+    "dmx_sandbox_create",
+    "dmx_sandbox_exec",
+    "dmx_sandbox_fork",
+    "dmx_sandbox_list",
+    "dmx_sandbox_rm",
+    "dmx_sandbox_rollback",
+    "dmx_start",
+    "dmx_status",
+    "dmx_stop"
+  ],
+  "cold_exec_ms": 372,
+  "warm_exec_ms": 0,
+  "large_output_200mb_s": 0.52,
+  "mcp_rss_before_mb": 9,
+  "mcp_rss_peak_during_200mb_mb": 10,
+  "timeout_2s_returned_s": 2.11,
+  "footprint_running_mb": 90,
+  "mcp_max_rss_mb": 11,
+  "checks": [
+    {
+      "name": "initialize",
+      "ok": true,
+      "detail": "{'id': 1, 'jsonrpc': '2.0', 'result': {'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.3.10'}}, 'capabilities': {'tools': {}}, 'instructions': 'dmx runs Linux commands in a small VM on this Mac. dmx_exec boots the VM on first use in well under a second; "
+    },
+    {
+      "name": "initialize_unknown_version",
+      "ok": true,
+      "detail": "{'id': 2, 'jsonrpc': '2.0', 'result': {'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.3.10'}}, 'capabilities': {'tools': {}}, 'instructions': 'dmx runs Linux commands in a small VM on this Mac. dmx_exec boots the VM on first use in well under a second; "
+    },
+    {
+      "name": "ping",
+      "ok": true,
+      "detail": "{'id': 3, 'jsonrpc': '2.0', 'result': {'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.3.10'}}, 'resultType': 'complete'}}"
+    },
+    {
+      "name": "tools_list",
+      "ok": true,
+      "detail": "['dmx_config_get', 'dmx_config_set', 'dmx_exec', 'dmx_logs', 'dmx_sandbox_checkpoint', 'dmx_sandbox_create', 'dmx_sandbox_exec', 'dmx_sandbox_fork', 'dmx_sandbox_list', 'dmx_sandbox_rm', 'dmx_sandbox_rollback', 'dmx_start', 'dmx_status', 'dmx_stop']"
+    },
+    {
+      "name": "discover",
+      "ok": true,
+      "detail": "{'id': 5, 'jsonrpc': '2.0', 'result': {'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.3.10'}}, 'cacheScope': 'public', 'capabilities': {'tools': {}}, 'instructions': 'dmx runs Linux commands in a small VM on this Mac. dmx_exec boots the VM on first use "
+    },
+    {
+      "name": "unsupported_version",
+      "ok": true,
+      "detail": "{'error': {'code': -32022, 'data': {'requested': '1900-01-01', 'supported': ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05']}, 'message': 'Unsupported protocol version'}, 'id': 6, 'jsonrpc': '2.0'}"
+    },
+    {
+      "name": "missing_capabilities",
+      "ok": true,
+      "detail": "{'error': {'code': -32602, 'message': '_meta is missing io.modelcontextprotocol/clientCapabilities'}, 'id': 7, 'jsonrpc': '2.0'}"
+    },
+    {
+      "name": "exec_uname",
+      "ok": true,
+      "detail": "{'duration_ms': 372, 'exit_code': 0, 'signal': None, 'stderr': '', 'stderr_bytes': 0, 'stderr_omitted_bytes': 0, 'stdout': 'Linux dmx 6.18.58-dmx-4k #1 SMP PREEMPT_DYNAMIC 2026-01-01 aarch64 Linux\\n', 'stdout_bytes': 73, 'stdout_omitted_bytes': 0, 'timed_out': False}"
+    },
+    {
+      "name": "exec_stdin_env_cwd",
+      "ok": true,
+      "detail": "{'duration_ms': 0, 'exit_code': 3, 'signal': None, 'stderr': 'err\\n', 'stderr_bytes': 4, 'stderr_omitted_bytes': 0, 'stdout': 'in\\nb /tmp\\n', 'stdout_bytes': 10, 'stdout_omitted_bytes': 0, 'timed_out': False}"
+    },
+    {
+      "name": "large_output_capped",
+      "ok": true,
+      "detail": "{'duration_ms': 519, 'exit_code': 0, 'signal': None, 'stderr_bytes': 0, 'stderr_omitted_bytes': 0, 'stdout_bytes': 200000009, 'stdout_omitted_bytes': 199991817, 'timed_out': False}"
+    },
+    {
+      "name": "large_output_bounded_memory",
+      "ok": true,
+      "detail": "rss 9968 -> peak 10768 KB"
+    },
+    {
+      "name": "utf8_boundaries",
+      "ok": true,
+      "detail": "{'duration_ms': 0, 'exit_code': 0, 'signal': None, 'stderr': '', 'stderr_bytes': 0, 'stderr_omitted_bytes': 0, 'stdout': 'x\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\\n[... dmx: 102 bytes omitted ...]\\n\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9', 'stdout_bytes': 201, 'stdout_omitted_bytes': 102, 'timed_out': False}"
+    },
+    {
+      "name": "max_output_zero",
+      "ok": true,
+      "detail": "{'duration_ms': 0, 'exit_code': 0, 'signal': None, 'stderr': '', 'stderr_bytes': 0, 'stderr_omitted_bytes': 0, 'stdout': '\\n[... dmx: 6 bytes omitted ...]\\n', 'stdout_bytes': 6, 'stdout_omitted_bytes': 6, 'timed_out': False}"
+    },
+    {
+      "name": "timeout",
+      "ok": true,
+      "detail": "(2.11, {'duration_ms': 2109, 'exit_code': None, 'signal': None, 'stderr': '', 'stderr_bytes': 0, 'stderr_omitted_bytes': 0, 'stdout': 'before\\n', 'stdout_bytes': 7, 'stdout_omitted_bytes': 0, 'timed_out': True})"
+    },
+    {
+      "name": "timeout_killed_guest_processes",
+      "ok": true,
+      "detail": "gone"
+    },
+    {
+      "name": "cancel",
+      "ok": true,
+      "detail": "process gone True, no reply True"
+    },
+    {
+      "name": "bad_argument",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.3.10'}}, 'content': [{'text': 'error (bad_argument): dmx_exec: unknown argument \"timeout_s\"; it takes argv, cwd, env, max_output_bytes, stdin, timeout\\nhint: see the input schema of dmx_exec in tools/list'"
+    },
+    {
+      "name": "missing_binary",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.3.10'}}, 'content': [{'text': 'error (agent_exec_failed): exec: nosuch-binary: No such file or directory (os error 2)', 'type': 'text'}], 'isError': True, 'resultType': 'complete'}"
+    },
+    {
+      "name": "unknown_tool",
+      "ok": true,
+      "detail": "{'error': {'code': -32602, 'message': 'Unknown tool: nosuch'}, 'id': 20, 'jsonrpc': '2.0'}"
+    },
+    {
+      "name": "unknown_method",
+      "ok": true,
+      "detail": "{'error': {'code': -32601, 'message': 'method not found: nosuch/method'}, 'id': 21, 'jsonrpc': '2.0'}"
+    },
+    {
+      "name": "parse_error",
+      "ok": true,
+      "detail": "{'error': {'code': -32700, 'message': 'parse error: not JSON'}, 'id': None, 'jsonrpc': '2.0'}"
+    },
+    {
+      "name": "config_set",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.3.10'}}, 'content': [{'text': '{\"configured\":[\"idle_timeout\"],\"file\":\"/tmp/dmx-mcp-e37a1k4_/config.json\",\"settings\":{\"idle_timeout\":\"7m\"}}', 'type': 'text'}], 'isError': False, 'resultType': 'complete', 's"
+    },
+    {
+      "name": "config_get",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.3.10'}}, 'content': [{'text': '{\"configured\":[\"idle_timeout\"],\"file\":\"/tmp/dmx-mcp-e37a1k4_/config.json\",\"settings\":{\"cpus\":\"10\",\"disk_size\":\"64.0G\",\"idle_timeout\":\"7m\",\"memory\":\"8.0G\",\"release_url\":\"https"
+    },
+    {
+      "name": "config_unset",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.3.10'}}, 'content': [{'text': '{\"configured\":[],\"file\":\"/tmp/dmx-mcp-e37a1k4_/config.json\",\"settings\":{\"idle_timeout\":\"5m\"}}', 'type': 'text'}], 'isError': False, 'resultType': 'complete', 'structuredConte"
+    },
+    {
+      "name": "config_bad_value",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.3.10'}}, 'content': [{'text': 'error (bad_config_value): memory must be at least 512M, not \"1M\"', 'type': 'text'}], 'isError': True, 'resultType': 'complete'}"
+    },
+    {
+      "name": "ttl_out_of_range_1e+100",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.3.10'}}, 'content': [{'text': 'error (bad_argument): dmx_sandbox_create: ttl must be a whole number\\nhint: see the input schema of dmx_sandbox_create in tools/list', 'type': 'text'}], 'isError': True, 'res"
+    },
+    {
+      "name": "ttl_out_of_range_-1e+100",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.3.10'}}, 'content': [{'text': 'error (bad_argument): dmx_sandbox_create: ttl must be a whole number\\nhint: see the input schema of dmx_sandbox_create in tools/list', 'type': 'text'}], 'isError': True, 'res"
+    },
+    {
+      "name": "config_size_overflow",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.3.10'}}, 'content': [{'text': 'error (bad_size): size \"9223372036854775808\" is too large\\nhint: use a smaller size, e.g. 8G', 'type': 'text'}], 'isError': True, 'resultType': 'complete'}"
+    },
+    {
+      "name": "status_running",
+      "ok": true,
+      "detail": "{'clients': 0, 'console_log': '/tmp/dmx-mcp-e37a1k4_/logs/console.log', 'cpus': 10, 'disk': {'allocated_mb': 10, 'path': '/tmp/dmx-mcp-e37a1k4_/data.img', 'size_mb': 65536}, 'docker_socket': '/tmp/dmx-mcp-e37a1k4_/docker.sock', 'execs': 0, 'guest_used_mb': 38, 'host_footprint_mb': 90, 'host_peak_foo"
+    },
+    {
+      "name": "stop",
+      "ok": true,
+      "detail": "{'clients': 0, 'console_log': '/tmp/dmx-mcp-e37a1k4_/logs/console.log', 'disk': {'allocated_mb': 10, 'path': '/tmp/dmx-mcp-e37a1k4_/data.img', 'size_mb': 65536}, 'docker_socket': '/tmp/dmx-mcp-e37a1k4_/docker.sock', 'execs': 0, 'host_footprint_mb': 10, 'host_peak_footprint_mb': 106, 'idle_timeout_s'"
+    },
+    {
+      "name": "start",
+      "ok": true,
+      "detail": "{'clients': 0, 'console_log': '/tmp/dmx-mcp-e37a1k4_/logs/console.log', 'cpus': 10, 'disk': {'allocated_mb': 10, 'path': '/tmp/dmx-mcp-e37a1k4_/data.img', 'size_mb': 65536}, 'docker_socket': '/tmp/dmx-mcp-e37a1k4_/docker.sock', 'execs': 0, 'guest_used_mb': 34, 'host_footprint_mb': 82, 'host_peak_foo"
+    },
+    {
+      "name": "stdout_only_protocol",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "exit_on_eof",
+      "ok": true,
+      "detail": "returncode 0"
+    }
+  ]
+}

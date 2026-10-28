@@ -1,0 +1,5 @@
+model-after: expected exit 0; 290 states generated, 134 distinct states found, 0 states left on queue.
+mutation: expected exit 12; 77 states generated, 50 distinct states found, 22 states left on queue.
+sanity-completion: expected exit 12; 135 states generated, 76 distinct states found, 23 states left on queue.
+sanity-reuse: expected exit 12; 13 states generated, 10 distinct states found, 5 states left on queue.
+correspondence: 17 valid pointers

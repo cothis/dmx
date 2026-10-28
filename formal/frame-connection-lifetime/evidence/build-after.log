@@ -1,0 +1,14 @@
+swift build -c release
+Building for production...
+[Planning deferred tasks]
+[3 / 13]
+[6 / 16] DMXCore
+[7 / 17] ArgumentParserToolInfo
+[14 / 22] ArgumentParser
+[16 / 22] DMXCore
+[23 / 26] dmx-product
+[25 / 26] dmx-product
+[26 / 26] dmx-product
+Build complete! (21.18초)
+codesign --force --sign - --entitlements dmx.entitlements .build/release/dmx
+.build/release/dmx: replacing existing signature
