@@ -593,6 +593,13 @@ regressions fail on the original code and pass with the fix; the bounded TLA+ mo
 134 reachable states. See [the report](../formal/reports/frame-connection-lifetime.html)
 and [re-run instructions](../formal/README.md). This fix is also **not released**.
 
+**v0.3.11 is qualified** (2026-10-29, maintainer requested the release). It combines the
+receipt and socket lifetime fixes above. All release suites passed: unit 66, VM selftest 23
+(idle 96 MiB), daemon 58, MCP 33, x86 53, Docker 69, sandbox 44, images 24, Java 100.
+The four guest boot files are byte-identical to 0.3.10. Signed packaging, local rehearsal,
+publication and verification of the downloaded release follow; see
+[the measurements](measurements/2026-10-29-release-0.3.11.json).
+
 In order:
 
 1. Measure Apple's `container` (and a Container Machine) with the engine comparison's protocol
@@ -615,6 +622,20 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### v0.3.11 qualification (2026-10-29)
+
+All checks ran sequentially against a guest built in `.build/guest-0.3.11`, through an
+isolated `DMX_HOME`; the installed guest was not overwritten by this release work. Unit 66,
+selftest 23, daemon 58, MCP 33, x86 53, Docker 69, sandbox 44, all 24 pinned image cases and
+the 100-run Java gate passed on their first runs. The formal model, mutation and reachability
+sanity checks also passed their expected outcomes in an isolated copy, preserving the
+original investigation's evidence. The four boot files match 0.3.10's pin byte for byte.
+
+Selftest measured **96 MiB idle**, returning the 1 GiB allocation from **1121 to 100 MiB
+in 2112 ms**. This is a single fresh-boot sample, not a comparative performance claim.
+Commands, durations, check results, image digests, live emulator identity and memory readings
+are in [the release record](measurements/2026-10-29-release-0.3.11.json).
 
 ### FrameConnection formal bug hunt (2026-10-29)
 
@@ -851,6 +872,10 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-10-29: Qualified v0.3.11 (socket lifetime and guest receipt fixes): unit 66, selftest 23
+  (96 MiB; 1121 → 100 MiB in 2112 ms), daemon 58, MCP 33, x86 53, Docker 69, sandbox 44,
+  images 24, Java 100, plus the bounded formal checks. Guest boot files match 0.3.10 exactly.
+  The maintainer requested publication; signed packaging and release verification follow.
 - 2026-10-29: Formal verification found and reproduced framed socket I/O crossing into a new
   connection after descriptor reuse. Fixed frame descriptor lifetime and pending-read shutdown;
   three new regressions pass, bounded TLC checks 134 states and rejects the unfixed mutation.

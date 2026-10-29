@@ -5,6 +5,11 @@
 
 ## 현재 상태
 
+- **v0.3.11 릴리스 진행 중:** maintainer가 2026-10-29에 게시를 지시했어요. 소켓 수명과 게스트 영수증
+  수정 모두 포함해 단위 66, selftest 23(96 MiB), daemon 58, MCP 33, x86 53, Docker 69,
+  sandbox 44, 이미지 24, Java 100과 수학적 모델 재검증을 통과했어요. 게스트 부팅 파일은 0.3.10과
+  바이트 단위로 같아요. 서명·공증 패키징과 로컬/게시본 검증을 마친 뒤 이 상태를 갱신하세요.
+  [측정 기록](measurements/2026-10-29-release-0.3.11.json)을 보세요.
 - 게시된 최신 릴리스는 [v0.3.10](https://github.com/cothis/dmx/releases/tag/v0.3.10)이에요(태그 커밋 `aa061fc`,
   Developer ID 서명·Apple 공증). `dmx install`이 Docker Desktop 경로 `~/.docker/run/docker.sock`을 dmx 소켓에 링크해,
   docker context를 읽지 않는 도구(SDK·IDE 플러그인·Testcontainers)도 dmx를 찾아요. 게스트 부팅 파일은 0.3.9와 같아요.
