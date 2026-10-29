@@ -1,0 +1,71 @@
+name: One-time v0.4.0 source upload
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: dmx-v040-source-upload
+  cancel-in-progress: false
+jobs:
+  upload:
+    if: github.repository == 'cothis/dmx' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Fetch the pinned previous public source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --retry 3 --max-time 600 \
+            https://github.com/cothis/dmx/releases/download/v0.3.12/dmx-sources-0.3.12.tar -o previous.tar
+      - name: Reconstruct the exact locally qualified archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I - previous.tar dmx-sources-0.4.0.tar <<'PYCODE'
+          import hashlib,io,sys,tarfile
+          from pathlib import Path
+          old,new=map(Path,sys.argv[1:])
+          def sha(path):
+           with path.open('rb') as f:return hashlib.file_digest(f,'sha256').hexdigest()
+          assert sha(old)=='4df14eda667bddb071c44c6813b5b7aeba36594a042e1763de8178b963752008'
+          with tarfile.open(old) as source,tarfile.open(new,'w',format=tarfile.PAX_FORMAT) as dest:
+           for member in source:
+            prefix='dmx-sources-0.3.12';assert member.name==prefix or member.name.startswith(prefix+'/')
+            info=tarfile.TarInfo(member.name.replace(prefix,'dmx-sources-0.4.0',1));info.type=member.type;info.mode=member.mode;info.mtime=0
+            if member.isfile():
+             stream=source.extractfile(member)
+             if member.name==prefix+'/README.md':
+              assert member.size<16384
+              data=stream.read().replace(b'0.3.12',b'0.4.0');info.size=len(data);dest.addfile(info,io.BytesIO(data))
+             else:info.size=member.size;dest.addfile(info,stream)
+            else:assert member.isdir();dest.addfile(info)
+          assert new.stat().st_size==496209920
+          assert sha(new)=='ff958e5f94157f84c34c64fda74ab5fbdcc3726627740c0dfd29bf898b882579'
+          print('Reconstructed source archive is byte-identical to the locally qualified v0.4.0 archive.')
+          PYCODE
+      - name: Upload only the missing asset to the existing release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -I - <<'PYCODE'
+          import json,subprocess
+          def gh(*args):
+              return subprocess.check_output(['gh',*args],text=True)
+          release=json.loads(gh('api','repos/cothis/dmx/releases/427835061'))
+          assert release['id']==427835061 and release['tag_name']=='v0.4.0' and release['draft'] is True
+          expected='sha256:ff958e5f94157f84c34c64fda74ab5fbdcc3726627740c0dfd29bf898b882579'
+          assets=[x for x in release['assets'] if x['name']=='dmx-sources-0.4.0.tar']
+          if not assets:
+              upload=release['upload_url'].split('{',1)[0]
+              assert upload=='https://uploads.github.com/repos/cothis/dmx/releases/427835061/assets'
+              gh('api','--method','POST','-H','Content-Type: application/octet-stream',upload+'?name=dmx-sources-0.4.0.tar','--input','dmx-sources-0.4.0.tar')
+              release=json.loads(gh('api','repos/cothis/dmx/releases/427835061'))
+              assets=[x for x in release['assets'] if x['name']=='dmx-sources-0.4.0.tar']
+          assert len(assets)==1 and assets[0]['size']==496209920 and assets[0]['state']=='uploaded' and assets[0]['digest']==expected
+          print('Exact source asset uploaded and its GitHub digest verified. Publication remains with the local release process.')
+          PYCODE

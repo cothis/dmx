@@ -16,6 +16,11 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Maintainer preferences
 
+- 2026-10-29: Allowed one manually dispatched GitHub Actions job to reconstruct the byte-identical,
+  pinned GPL source archive from the previous public release and upload it to the existing draft.
+  App builds and tests stay local; remove the active workflow after upload. This is a one-time
+  distribution exception, not adoption of GitHub CI.
+
 - 2026-10-29: Requested actual Opus 5.5 review and authorized release conditional on resolving
   review defects. The public app installation should include its CLI in one installation, with
   whole-app updates preserving the signed bundle; old CLI-only updaters require the new
