@@ -657,5 +657,305 @@
     "phase": "Final source, first launch ready, menu never opened, preinstalled pinned tools; ad-hoc QA bundle with isolated DMX_HOME",
     "source_index": "fde17c1b6e8d749eda0d13b4b5679af1f9019d42"
   },
-  "final_source_normal_stop_ui_exit": true
+  "final_source_normal_stop_ui_exit": true,
+  "final_tagged_signed_package": {
+    "ok": true,
+    "pin_changed": false,
+    "tag_commit": "9297d39ebb90d9c7c27e4282db0fd61b46e20a46",
+    "notary_app": "df0826c9-2a5b-40fb-b2f4-1c64443c7eb6",
+    "notary_cli": "66a23bd8-e241-4d59-bd2b-cbc21650b739",
+    "compiled_sections_match_tagged_source": true,
+    "helper_matches_signed_cli": true,
+    "binary_sha256": "5c01c86b721b28a653cdcfaacce493cd1481b94ee36e16d289e156ca97c41a12",
+    "guest_sha256": "39f9716e0c945dcd4ab0935aea13ee7fbe1fe0392734fde863d4e5c238e88070",
+    "archive_bytes": 5400328,
+    "app_files": 8,
+    "packaging_note": "Resumed existing Apple submission after transport failure. Used the normal release archive/pin/notice/checksum functions with identical pinned license bytes from the first verified guest archive."
+  },
+  "final_signed_installer_roundtrip": {
+    "ok": true,
+    "app_cli_tools_one_installer": true,
+    "engine_not_started": true,
+    "archive_sha256": "5c01c86b721b28a653cdcfaacce493cd1481b94ee36e16d289e156ca97c41a12",
+    "signature_checks": [
+      "codesign deep/strict/check-notarization passed",
+      "stapler validate passed",
+      "Gatekeeper accepted, Notarized Developer ID"
+    ]
+  },
+  "final_notarization": {
+    "id": "df0826c9-2a5b-40fb-b2f4-1c64443c7eb6",
+    "zip_sha256": "23a9e4fc21498d70a010a154d5a2a4ebc03bb4ee30cc9ac33a2351bb21a6b541",
+    "upload_complete": true,
+    "transport": "Official Apple Notary REST API, verified TLS with 512-byte records, signed-SHA256 S3 PUT; no global network changes",
+    "upload_elapsed_s": 345.936,
+    "upload_http_status": 200,
+    "status": "Accepted",
+    "log_status": "Accepted",
+    "log_status_code": 0,
+    "issues": []
+  },
+  "publication": {
+    "complete": true,
+    "release_id": 427835061,
+    "tag": "v0.4.0",
+    "phase": "public_verification_passed",
+    "uploaded": 14,
+    "expected": 14,
+    "draft": false,
+    "all14_remote_sizes_digests_match": true,
+    "published_url": "https://github.com/cothis/dmx/releases/tag/v0.4.0",
+    "published_at": "2026-10-29T14:07:11Z",
+    "all14_public_downloads_match": true,
+    "initial_public_harness_error": "Guest CLI report nests tag under guest; the first assertion incorrectly read the root. Product output is correct; no product code changed.",
+    "public_checks": 14
+  },
+  "public_download_install_update_verification": {
+    "ok": true,
+    "work": "/tmp/dmx-public-3jmzha5l",
+    "checks": [
+      {
+        "name": "all14_assets_downloaded_and_match_built_bytes",
+        "ok": true,
+        "detail": [
+          {
+            "name": "NOTES.md",
+            "bytes": 4741,
+            "sha256": "4cef0236a56b9171cde9050c6e1e329cadfcee8c618993b4e73356d6c7de29c8"
+          },
+          {
+            "name": "SHA256SUMS",
+            "bytes": 889,
+            "sha256": "c7cff840505cf1d0feb578d3c93916c95cbf134ce1b4cd48715f72e4044d6a6b"
+          },
+          {
+            "name": "dmx-0.4.0-darwin-arm64.tar.gz",
+            "bytes": 5400328,
+            "sha256": "5c01c86b721b28a653cdcfaacce493cd1481b94ee36e16d289e156ca97c41a12"
+          },
+          {
+            "name": "dmx-0.4.0-darwin-arm64.tar.gz.sha256",
+            "bytes": 96,
+            "sha256": "8ad8246a70cacfd9df46b12e1b4485087eca0141f5fcffa587102fe916a35b1d"
+          },
+          {
+            "name": "dmx-guest-0.4.0.tar.gz",
+            "bytes": 62890723,
+            "sha256": "39f9716e0c945dcd4ab0935aea13ee7fbe1fe0392734fde863d4e5c238e88070"
+          },
+          {
+            "name": "dmx-guest-0.4.0.tar.gz.sha256",
+            "bytes": 89,
+            "sha256": "d7c7d8365bcd465f75651ca374421e97905b1d42a7a78145e12179f86c11a36d"
+          },
+          {
+            "name": "dmx-sources-0.4.0.tar",
+            "bytes": 496209920,
+            "sha256": "ff958e5f94157f84c34c64fda74ab5fbdcc3726627740c0dfd29bf898b882579"
+          },
+          {
+            "name": "dmx-sources-0.4.0.tar.sha256",
+            "bytes": 88,
+            "sha256": "adb09086b0078230e3a553d433c09efc49cd5371c02b977101e6e94f7cd42b73"
+          },
+          {
+            "name": "fex-2610-dmx11.build.py",
+            "bytes": 46966,
+            "sha256": "6f6b8f71fa15e46104d4421ed456af3843008a1b96044151bc426d93846d2832"
+          },
+          {
+            "name": "install.sh",
+            "bytes": 4295,
+            "sha256": "94ced090066797bce0d3d6e4e16f07456051aa5ab32947867da942af4f5e6eb6"
+          },
+          {
+            "name": "kernel-6.18.58-dmx-4k.build.py",
+            "bytes": 20141,
+            "sha256": "8c130d00d9a267ac91e68e8b47d326cd0755d1cd36ea9446bcc3bdc51b6fe107"
+          },
+          {
+            "name": "kernel-6.18.58-dmx-4k.config",
+            "bytes": 94622,
+            "sha256": "4a1315db472ec88e6857dac27afb49db310abb69ac5cde98af16d5211ffbf60e"
+          },
+          {
+            "name": "qemu-x86_64-11.0.3-dmx1.build.py",
+            "bytes": 17224,
+            "sha256": "029608626a77b62fed86f67579150905bf3589e4cc3735b132475ec2e7e23202"
+          },
+          {
+            "name": "third-party.json",
+            "bytes": 24571,
+            "sha256": "491bfd106845feb3e3eebb1d7d33bae1ce383524191d0e5f03bd600d575465d1"
+          }
+        ]
+      },
+      {
+        "name": "fresh_one_installer",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "fresh_published_selftest23",
+        "ok": true,
+        "detail": {
+          "host": {
+            "footprint_mb": 104,
+            "peak_footprint_mb": 104,
+            "pid": 5261
+          },
+          "checks": 23
+        }
+      },
+      {
+        "name": "fresh_guest_pinned_release",
+        "ok": true,
+        "detail": {
+          "guest": {
+            "kernel": "6.18.58-dmx-4k",
+            "needs_fetch": false,
+            "path": "/tmp/dmx-public-3jmzha5l/fresh/home/guest",
+            "pinned_tag": "v0.4.0",
+            "source": "release",
+            "tag": "v0.4.0"
+          },
+          "ok": true,
+          "pinned": {
+            "archive": "dmx-guest-0.4.0.tar.gz",
+            "bytes": 62890723,
+            "files": {
+              "Image": "fa487e1461eac6012fb5c43281b815e36cfea99d4f4ce4ed30498811f7650bf3",
+              "docker.img": "bf216b3410931e0c20abf6cc528e50b2888d8233d53fcbb0d197b6305196205c",
+              "initramfs.gz": "7211f3cf803c7140ce26b2fcb70d524197874d3c5e945f1a7ff177931e5c8b5c",
+              "manifest.json": "0173ec4bd836e7195dae1a0db75262971bda1663521a6fba5c9f070b35a03310"
+            },
+            "sha256": "39f9716e0c945dcd4ab0935aea13ee7fbe1fe0392734fde863d4e5c238e88070",
+            "tag": "v0.4.0"
+          },
+          "url": "https://github.com/cothis/dmx/releases/download/v0.4.0/dmx-guest-0.4.0.tar.gz"
+        }
+      },
+      {
+        "name": "published_linux/arm64",
+        "ok": true,
+        "detail": "aarch64\n 127  69  76  70   2"
+      },
+      {
+        "name": "published_linux/amd64",
+        "ok": true,
+        "detail": "x86_64\n 127  69  76  70   2"
+      },
+      {
+        "name": "published_linux/386",
+        "ok": true,
+        "detail": "x86_64\n 127  69  76  70   1"
+      },
+      {
+        "name": "published_whole_app_update_vm",
+        "ok": true,
+        "detail": {
+          "available": true,
+          "bytes": 5400328,
+          "current": "0.4.0",
+          "daemon": {
+            "handover": "stop_to_switch",
+            "pid": 5824,
+            "version": "0.4.0",
+            "vm_running": true
+          },
+          "ok": true,
+          "path": "/tmp/dmx-public-3jmzha5l/fresh/Applications/dmx.app",
+          "sha256": "5c01c86b721b28a653cdcfaacce493cd1481b94ee36e16d289e156ca97c41a12",
+          "signature": "V4YA23448U",
+          "target": "0.4.0",
+          "updated": true,
+          "url": "https://github.com/cothis/dmx/releases/download/v0.4.0/dmx-0.4.0-darwin-arm64.tar.gz"
+        }
+      },
+      {
+        "name": "published_whole_app_update_container_volume",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "fresh_daemon_cleanup",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "previous_public_archive_checksum",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "previous_cli_updates_to_040_without_restart",
+        "ok": true,
+        "detail": {
+          "available": true,
+          "bytes": 5400328,
+          "current": "0.3.12",
+          "daemon": {
+            "handover": "stop_to_switch",
+            "pid": 6835,
+            "version": "0.3.12",
+            "vm_running": true
+          },
+          "ok": true,
+          "path": "/tmp/dmx-public-3jmzha5l/legacy/prefix/bin/dmx",
+          "sha256": "5c01c86b721b28a653cdcfaacce493cd1481b94ee36e16d289e156ca97c41a12",
+          "signature": "V4YA23448U",
+          "target": "0.4.0",
+          "updated": true,
+          "url": "https://github.com/cothis/dmx/releases/download/v0.4.0/dmx-0.4.0-darwin-arm64.tar.gz"
+        }
+      },
+      {
+        "name": "legacy_unified_installer_keeps_vm_container_volume",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "legacy_daemon_cleanup",
+        "ok": true,
+        "detail": null
+      }
+    ]
+  },
+  "default_published_install": {
+    "ok": true,
+    "version": "0.4.0",
+    "app": "~/Applications/dmx.app",
+    "cli": "~/.local/bin/dmx -> app/Contents/MacOS/dmx",
+    "helper_matches_published_archive": true,
+    "publisher": "V4YA23448U",
+    "codesign_stapler_gatekeeper_pass": true,
+    "before": {
+      "socket_exists": true,
+      "state": "stopped",
+      "pid": 85858,
+      "version": "0.3.12"
+    },
+    "after": {
+      "socket_exists": true,
+      "state": "stopped",
+      "pid": 85858,
+      "version": "0.3.12"
+    },
+    "engine_started_by_installer": false
+  },
+  "public_verification_reproduction": {
+    "script": "docs/reviews/2026-10-29-menu-opus55/public-verification/verify.py",
+    "sha256": "cf36e3211a53240b5d954da566e1c48ec9f5c3e7dcccf9f951e35c4f6235f863",
+    "image_matrix_sha256": "ec5c48ce7f25e39817ae13ca2fc5119ee7c6a2157e73bafe745f51d3731d86e1",
+    "initial_harness_error_preserved": true,
+    "product_changes_for_harness_fix": false
+  },
+  "distribution_upload": {
+    "one_time_exception_authorized": true,
+    "run_url": "https://github.com/cothis/dmx/actions/runs/40888198984",
+    "conclusion": "success",
+    "active_workflow_removed": true,
+    "application_builds_tests_local": true,
+    "sources_sha256": "ff958e5f94157f84c34c64fda74ab5fbdcc3726627740c0dfd29bf898b882579"
+  }
 }

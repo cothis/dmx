@@ -552,26 +552,32 @@ Done when: on a Mac whose only way out is an HTTP proxy (no authentication) with
 - [x] Unified app/CLI archive, Developer ID signing, hardened runtime, notarization/staple,
       archive roundtrip and whole-app update implementation. Source signing requires an explicit
       exception to replace an installed Developer ID app.
-- [ ] Publish v0.4.0 after final-source packaging and verify downloaded assets, unified install
-      and live VM/container/volume preservation. The maintainer already authorized publication
-      after Opus 5.5 defects are resolved; no repeated publication permission is needed.
+- [x] Publish v0.4.0 from `9297d39`; all 14 public assets match the qualified local bytes.
+      Fresh unified installation, public VM selftest and arm64/amd64/386 containers pass.
+      Whole-app updates and migration from the previous public CLI keep the live VM, running
+      container and named-volume data. The published app/CLI is installed locally too.
 
-Local implementation and proof: [menu-app.md](menu-app.md). The remaining GUI proof and public
-distribution are not silently marked complete by the passing Core/VM tests.
+Local implementation and proof: [menu-app.md](menu-app.md). Direct GUI acceptance remains
+separate from Core/VM tests and the completed public distribution checks.
 
 ## Next up
 
 For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md).
 
-**Active: qualify and publish v0.4.0**, the first native app distribution, authorized
-conditionally on Opus 5.5 review (2026-10-29). The first actual `claude-opus-5-5` review required
-fixes. The candidate now separates operation/lifecycle errors, preserves independent CLI socket
-use, refuses menu-triggered idle boots, handles 304, cancels first-run downloads, bounds control
-calls and reaps every spawned helper. One installer owns the whole app and terminal link;
-whole-app updates preserve the signed bundle and live VM. Actual Opus 5.5 final code gate is **approve**; all reported defects, including the cosmetic
-initial Retry timing, are resolved. The full matrix passed, followed by final-source targeted
-checks. First signed/notarized archive roundtrip passes codesign, stapler and Gatekeeper.
-Finish final packaging and public-download verification before declaring the release published. Do not call this candidate published or fully GUI accepted.
+**v0.4.0 is published**, the first unified native app/CLI distribution, from tagged commit
+`9297d39`. Actual Opus 5.5 final code review approved after all reported defects were resolved.
+The full matrix and final-source targeted checks passed. Final packaging kept the guest pin;
+Apple accepted the CLI and app, and the app has its stapled ticket. All 14 public downloads
+match the qualified local files. Fresh installation, real-VM selftest, arm64/amd64/386 images,
+whole-app update and migration from the previous public CLI pass; the latter two retain the
+running VM, container and named-volume contents. The published signed app and CLI are installed
+on this Mac, with no engine started by installation.
+
+See [release v0.4.0](https://github.com/cothis/dmx/releases/tag/v0.4.0),
+[reviews](reviews/2026-10-29-menu-opus55/README.md) and
+[measurements](measurements/2026-10-29-release-0.4.0.json).
+The remaining Phase 12 work is direct menu/submenu GUI acceptance, separate from the completed
+review and public distribution. Community publication is still the maintainer's decision.
 
 The native tool cannot select a windowless menu app. Actual Finder launch/reopen, real refresh
 error, subsequent idle stop and UI exit are verified through production callback receipts.
@@ -662,10 +668,9 @@ daemon cleanup. See [the release](https://github.com/cothis/dmx/releases/tag/v0.
 
 In order:
 
-1. Finish v0.4.0 final-source packaging, commit/tag, publication and downloaded-asset verification.
-   Actual Opus 5.5 code review, full matrix and first notarized installer roundtrip passed. Publication is already
-   authorized if defects are resolved. Keep Phase 12's direct GUI acceptance open where the
-   native tool lacks access; never describe API tests as GUI-click proof.
+1. Finish Phase 12's direct menu/submenu GUI acceptance with a tool that can reach the status
+   item, or a manual check. v0.4.0's review and public distribution are complete; never describe
+   API tests as GUI-click proof.
 2. Measure Apple's `container` (and a Container Machine) with the engine comparison's protocol
    when the Mac is quiet (maintainer, 2026-10-27: worth adding, not now). It runs on
    Virtualization.framework and its docs give a machine half the host's memory by default; HN's
@@ -687,7 +692,7 @@ acceptance suites.
 
 ## Findings and measurements
 
-### Native app review and unified installation (2026-10-29, v0.4.0 candidate)
+### Native app review and unified installation (2026-10-29, v0.4.0 published)
 
 Actual `claude-opus-5-5` reviewed immutable source snapshots read-only. Initial and follow-up
 findings were repaired: setup and operation errors no longer retain a normally stopped UI;
@@ -710,7 +715,33 @@ remain outside the available native tool's proof. Initial/final selftest engine 
 memory improvement or regression. [Reviews](reviews/2026-10-29-menu-opus55/README.md),
 [measurements and staged checks](measurements/2026-10-29-release-0.4.0.json).
 
-### Native menu app (2026-10-29, source/local installation)
+Final signed package at `9297d39` kept `pin_changed: false`. Apple accepted CLI submission
+`66a23bd8-e241-4d59-bd2b-cbc21650b739` and app submission
+`df0826c9-2a5b-40fb-b2f4-1c64443c7eb6` (no issues). The compiled sections outside
+`__LINKEDIT` match the tagged source build, and the bundled helper matches the signed CLI.
+The 5,400,328-byte app/CLI archive has SHA256
+`5c01c86b721b28a653cdcfaacce493cd1481b94ee36e16d289e156ca97c41a12`.
+Its generated installer installs the complete app, CLI link and pinned tools without starting
+the engine; codesign, stapler and Gatekeeper accept the installed result. Stock notarytool
+uploads timed out; an authenticated official Apple REST/S3 upload completed over verified TLS
+and was accepted. This transport workaround changed no product code or global network settings.
+
+Distribution upload: the maintainer authorized one manual upload-only GitHub Actions job after
+local large-file transfer remained slow. The job reconstructed the exact pinned source archive
+from the previous public release, uploaded it in 25 seconds, and its active workflow was then
+removed from main. App builds and acceptance stayed local. This does not adopt GitHub CI.
+[Reviewed workflow and run evidence](reviews/2026-10-29-menu-opus55/distribution-upload/README.md).
+
+Public distribution: all 14 uploaded sizes/digests and all 14 re-downloaded files match.
+A fresh public installer (uncached pinned tools and guest) passes signature/ticket/Gatekeeper
+checks, VM selftest 23 and real arm64/amd64/386 container checks. Public whole-app update retains
+VM PID, running container ID and named-volume contents. The previous public v0.3.12 CLI updates
+to v0.4.0, then the unified installer adds the app and CLI link while the same old daemon,
+container and volume stay alive. All isolated daemons are cleaned up. The published installer
+then updates this Mac's app/CLI without starting its engine. Detailed outcomes are in the
+release measurement file; direct GUI Start/Stop/Quit acceptance remains open.
+
+### Native menu app (earlier on 2026-10-29, source/local installation)
 
 The maintainer approved dmx.app with engine/container controls and normal/idle UI exit.
 The local ad-hoc-signed app is installed in ~/Applications; the CLI binary does not link
@@ -1043,6 +1074,8 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 | 2026-10-27 | Pre-announcement review of 0.3.3 | Six code findings fixed, stale docs corrected. Unit 59/59; selftest 23/23; daemon 57/57; MCP 33/33; x86 47/47; Docker 69/69; sandbox 44/44; image matrix 24/24; pressure 12/12 rounds (12 GiB host allocation). Selftest host footprint 97 MiB before, 94–97 after; final 1 GiB reclaim 1123 → 103 MiB in 329 ms (before 1122 → 102 in 214 ms). Published 0.3.3 installer, guest fetch, strict signature/notarization check, selftest (97 MiB) and signed same-version update pass; local guest hashes match published. [Review](review-2026-10-27.md), [bounded results](measurements/2026-10-27-preannouncement-review.json). These fixes are not released. |
 
 ## Progress log
+
+- 2026-10-29: Published signed/notarized/stapled v0.4.0 from `9297d39` after actual Opus 5.5 approval. All 14 public assets, fresh unified install, selftest23, arm64/amd64/386 containers, public whole-app update and previous-CLI migration pass; live VM/container/volume preservation and daemon cleanup verified. Installed the published app/CLI locally without starting the engine. Direct status-menu GUI acceptance remains open.
 
 - 2026-10-29: Qualified the unified v0.4.0 native app candidate after actual Opus 5.5 reviews;
   fixed lifecycle/setup/snapshot races, passive CLI independence, cancellable first startup,

@@ -1,0 +1,109 @@
+{
+  "ok": false,
+  "work": "/tmp/dmx-public-s7hl5zs_",
+  "checks": [
+    {
+      "name": "all14_assets_downloaded_and_match_built_bytes",
+      "ok": true,
+      "detail": [
+        {
+          "name": "NOTES.md",
+          "bytes": 4741,
+          "sha256": "4cef0236a56b9171cde9050c6e1e329cadfcee8c618993b4e73356d6c7de29c8"
+        },
+        {
+          "name": "SHA256SUMS",
+          "bytes": 889,
+          "sha256": "c7cff840505cf1d0feb578d3c93916c95cbf134ce1b4cd48715f72e4044d6a6b"
+        },
+        {
+          "name": "dmx-0.4.0-darwin-arm64.tar.gz",
+          "bytes": 5400328,
+          "sha256": "5c01c86b721b28a653cdcfaacce493cd1481b94ee36e16d289e156ca97c41a12"
+        },
+        {
+          "name": "dmx-0.4.0-darwin-arm64.tar.gz.sha256",
+          "bytes": 96,
+          "sha256": "8ad8246a70cacfd9df46b12e1b4485087eca0141f5fcffa587102fe916a35b1d"
+        },
+        {
+          "name": "dmx-guest-0.4.0.tar.gz",
+          "bytes": 62890723,
+          "sha256": "39f9716e0c945dcd4ab0935aea13ee7fbe1fe0392734fde863d4e5c238e88070"
+        },
+        {
+          "name": "dmx-guest-0.4.0.tar.gz.sha256",
+          "bytes": 89,
+          "sha256": "d7c7d8365bcd465f75651ca374421e97905b1d42a7a78145e12179f86c11a36d"
+        },
+        {
+          "name": "dmx-sources-0.4.0.tar",
+          "bytes": 496209920,
+          "sha256": "ff958e5f94157f84c34c64fda74ab5fbdcc3726627740c0dfd29bf898b882579"
+        },
+        {
+          "name": "dmx-sources-0.4.0.tar.sha256",
+          "bytes": 88,
+          "sha256": "adb09086b0078230e3a553d433c09efc49cd5371c02b977101e6e94f7cd42b73"
+        },
+        {
+          "name": "fex-2610-dmx11.build.py",
+          "bytes": 46966,
+          "sha256": "6f6b8f71fa15e46104d4421ed456af3843008a1b96044151bc426d93846d2832"
+        },
+        {
+          "name": "install.sh",
+          "bytes": 4295,
+          "sha256": "94ced090066797bce0d3d6e4e16f07456051aa5ab32947867da942af4f5e6eb6"
+        },
+        {
+          "name": "kernel-6.18.58-dmx-4k.build.py",
+          "bytes": 20141,
+          "sha256": "8c130d00d9a267ac91e68e8b47d326cd0755d1cd36ea9446bcc3bdc51b6fe107"
+        },
+        {
+          "name": "kernel-6.18.58-dmx-4k.config",
+          "bytes": 94622,
+          "sha256": "4a1315db472ec88e6857dac27afb49db310abb69ac5cde98af16d5211ffbf60e"
+        },
+        {
+          "name": "qemu-x86_64-11.0.3-dmx1.build.py",
+          "bytes": 17224,
+          "sha256": "029608626a77b62fed86f67579150905bf3589e4cc3735b132475ec2e7e23202"
+        },
+        {
+          "name": "third-party.json",
+          "bytes": 24571,
+          "sha256": "491bfd106845feb3e3eebb1d7d33bae1ce383524191d0e5f03bd600d575465d1"
+        }
+      ]
+    },
+    {
+      "name": "fresh_one_installer",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "fresh_published_selftest23",
+      "ok": true,
+      "detail": {
+        "host": {
+          "footprint_mb": 98,
+          "peak_footprint_mb": 98,
+          "pid": 90113
+        },
+        "checks": 23
+      }
+    },
+    {
+      "name": "fresh_guest_pinned_release",
+      "ok": false,
+      "detail": null
+    },
+    {
+      "name": "verification_exception",
+      "ok": false,
+      "detail": "AssertionError('fresh_guest_pinned_release: None')"
+    }
+  ]
+}

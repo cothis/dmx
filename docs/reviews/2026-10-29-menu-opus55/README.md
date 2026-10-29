@@ -22,3 +22,5 @@ and [menu app guide](../../menu-app.md). Signing, final installer roundtrip and 
 download verification follow code approval; code approval alone is not publication evidence.
 
 The authorized one-time source upload has its own [review and immutable evidence](distribution-upload/README.md). It changes distribution transport only; application qualification stays local.
+
+[Public download, installation and live-update qualification](public-verification/README.md) records the final checks and the corrected harness error separately from the code review.
