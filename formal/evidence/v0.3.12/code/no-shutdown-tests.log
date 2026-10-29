@@ -1,0 +1,75 @@
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite FrameConnectionTests started.
+◇ Test closedConnectionRejectsNewFrames() started.
+✔ Test closedConnectionRejectsNewFrames() passed after 0.001 seconds.
+◇ Test closeAloneEndsLeasedReadWhilePeerRemainsOpen() started.
+✘ Test closeAloneEndsLeasedReadWhilePeerRemainsOpen() recorded an issue at FrameConnectionTests.swift:75:9: Expectation failed: ended
+↳ close alone must end I/O on its private duplicate; peer is still open
+↳ ended → <not evaluated>
+✘ Test closeAloneEndsLeasedReadWhilePeerRemainsOpen() failed after 2.003 seconds with 1 issue.
+◇ Test abortAloneEndsBlockedWriteWhilePeerDoesNotRead() started.
+✘ Test abortAloneEndsBlockedWriteWhilePeerDoesNotRead() recorded an issue at FrameConnectionTests.swift:101:9: Expectation failed: ended
+↳ abort alone must end the leased write before peer-side teardown
+↳ ended → <not evaluated>
+✘ Test abortAloneEndsBlockedWriteWhilePeerDoesNotRead() failed after 4.025 seconds with 1 issue.
+◇ Test failedRPCLeaseSendsNothingAndKeepsReplyAlignment() started.
+✔ Test failedRPCLeaseSendsNothingAndKeepsReplyAlignment() passed after 0.001 seconds.
+◇ Test wrongResponseIDRetiresConnection() started.
+✔ Test wrongResponseIDRetiresConnection() passed after 0.001 seconds.
+◇ Test applicationErrorDoesNotRetireAlignedConnection() started.
+✔ Test applicationErrorDoesNotRetireAlignedConnection() passed after 0.001 seconds.
+◇ Test retiredControlReconnectsForNextCallWithoutReplay() started.
+2026-10-29T01:51:38Z dmx-daemon: agent: no answer on the control connection or it was retired; opening another
+✔ Test retiredControlReconnectsForNextCallWithoutReplay() passed after 0.010 seconds.
+◇ Test explicitAgentCloseDoesNotReconnect() started.
+✔ Test explicitAgentCloseDoesNotReconnect() passed after 0.040 seconds.
+✘ Suite FrameConnectionTests failed after 6.083 seconds with 2 issues.
+✘ Test run with 8 tests in 1 suite failed after 6.084 seconds with 2 issues.
+Note: Some test targets reported failures:
+  - DMXCoreTests (Swift Testing)
+Building for debugging...
+[Pre-planning 1 / 66]
+[Planning deferred tasks]
+[27 / 50]
+[28 / 51] DMXCore
+[37 / 101]
+[40 / 101]
+[46 / 101]
+[48 / 101]
+[52 / 101]
+[55 / 101]
+[59 / 101]
+[63 / 101]
+[64 / 101]
+[65 / 101]
+[66 / 101]
+[77 / 101] DMXCore
+/Users/cothis/dev/dockermax/.build/fixes-0.3.12/no-shutdown/package/Sources/DMXCore/Daemon/PortForward.swift:579:24: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+577 |         func params<P: Decodable>(_: P.Type) throws -> P {
+578 |             do {
+579 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+    |                        `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+580 |             } catch {
+581 |                 throw DMXError("bad_request", "\(method): \(error)")
+
+/Users/cothis/dev/dockermax/.build/fixes-0.3.12/no-shutdown/package/Sources/DMXCore/Daemon/PortForward.swift:580:15: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+578 |             do {
+579 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+580 |             } catch {
+    |               `- warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+581 |                 throw DMXError("bad_request", "\(method): \(error)")
+582 |             }
+
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+[78 / 101] DMXCore
+[86 / 101] DMXCore
+[88 / 101] DMXCore
+[91 / 102] DMXCoreTests-product
+[92 / 107]
+[96 / 107] DMXCoreTests-product
+[101 / 107] DMXCoreTests-product
+[103 / 107] DMXCoreTests-product
+[105 / 107] DMXCoreTests-product
+Build complete! (19.07초)

@@ -1,0 +1,2 @@
+real fcntl EMFILE: first succeeds, second fails before transmission, third receives its own reply; no replay
+fault injected: second client frame dup returns EMFILE

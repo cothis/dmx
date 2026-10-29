@@ -606,13 +606,13 @@ See [the release](https://github.com/cothis/dmx/releases/tag/v0.3.11) and
 
 In order:
 
-1. Address the [post-release Opus 5.5 review](review-2026-10-29-opus55.md): R1 is a confirmed
-   P2 reply-alignment defect when a read-frame lease fails after sending a request. R2/R3
-   are confirmed model/test mutation gaps, and the parent also reproduced R4's test-only FD
-   isolation defect. The original wrong-socket fix is sound in the reviewed paths, but the
-   134-state result is insufficient regression evidence. This review has not changed the
-   product or published a new release. Choose a recovery design, reproduce/fix/recheck,
-   strengthen the model and isolate the destructive descriptor tests before the next patch.
+1. Finish publication of the v0.3.12 repair. R1–R5 and two secondary error paths are fixed;
+   actual Opus 5.5 Core re-review recommends release. Semantic FD/RPC models and independent
+   source mutants now guard the mechanisms; installed skills were improved and blindly
+   evaluated. Full initial matrix passed; secondary changes are rechecked with unit 76,
+   VM selftest, daemon, MCP and real syscall probes. A daemon memory-gate resampling defect
+   was investigated without discarding the original failure; final publication evidence
+   will be recorded in `measurements/2026-10-29-release-0.3.12.json`.
 2. Measure Apple's `container` (and a Container Machine) with the engine comparison's protocol
    when the Mac is quiet (maintainer, 2026-10-27: worth adding, not now). It runs on
    Virtualization.framework and its docs give a machine half the host's memory by default; HN's
@@ -633,6 +633,30 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### Formal-review repair for v0.3.12 (2026-10-29)
+
+[The causal analysis](formal-verification-miss-2026-10-29.md) separates a newly introduced
+post-send dup failure, precomputed observation flags, teardown-supplied wakeup and shared
+FD test hazards. RPC exchanges now hold one pre-send lease, validate IDs and retire on
+uncertain errors without replay. Server reply failure closes the connection; daemon errors
+preserve code/message/hint. Equal-archive tag receipts also refresh.
+
+The original FD properties stay frozen. Two fixed models check 134 FD states and 26 RPC
+states; thirteen required mutation/reachability failures include guard harm, atomicity and
+replay. Unit tests use safe binding substitution; destructive/gated FD reuse is child-only.
+Source binding and shutdown mutants now fail concrete assertions. `make formaltest` builds
+current Core and runs the integrated guard. These are finite safety checks, not unbounded
+or whole-program proof. [Skill deltas and blind evaluation](../formal/skill-improvements/README.md)
+and final Opus model identity/read-only verdicts are retained.
+
+A post-review daemon run passed 57/58; the failing critical memory check discarded its
+qualifying tuple and gated on an immediate new sample. Original failure, five isolated
+original-path passes, a synthetic replay proving a legal false rejection and the scoped
+Opus review are retained. Exact attribution of the original failure remains inferred
+because its qualifying tuple was not recorded. The repair keeps the same joint limits
+and deadline; no memory-controller behavior was altered.
+
 
 ### Independent Opus 5.5 review (2026-10-29, after v0.3.11)
 
@@ -916,6 +940,12 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 | 2026-10-27 | Pre-announcement review of 0.3.3 | Six code findings fixed, stale docs corrected. Unit 59/59; selftest 23/23; daemon 57/57; MCP 33/33; x86 47/47; Docker 69/69; sandbox 44/44; image matrix 24/24; pressure 12/12 rounds (12 GiB host allocation). Selftest host footprint 97 MiB before, 94–97 after; final 1 GiB reclaim 1123 → 103 MiB in 329 ms (before 1122 → 102 in 214 ms). Published 0.3.3 installer, guest fetch, strict signature/notarization check, selftest (97 MiB) and signed same-version update pass; local guest hashes match published. [Review](review-2026-10-27.md), [bounded results](measurements/2026-10-27-preannouncement-review.json). These fixes are not released. |
 
 ## Progress log
+
+- 2026-10-29: Repaired R1–R5 and two secondary Opus findings for v0.3.12; final Core review
+  recommends release. Added semantic FD/RPC models with independent mutations, child syscall
+  probes, safe binding/retirement tests, and installed formal skill improvements with blind
+  evaluation. Retained and diagnosed a daemon memory-test failure; same-sample assertion
+  preserves its original thresholds/deadline. Signing/publication evidence follows below.
 
 - 2026-10-29: Requested independent Opus 5.5 review of v0.3.11 (`claude-opus-5-5`, confirmed
   by CLI/API metadata). Parent reproduced one new P2 RPC-alignment bug and two validation

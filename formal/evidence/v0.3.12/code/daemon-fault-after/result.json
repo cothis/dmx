@@ -1,0 +1,7 @@
+{
+  "expected": "closed",
+  "observed": "closed",
+  "ok": true,
+  "binary_sha256": "1234e9eeae86938892abc3e34e065a75b25ad6e8f32e313edb3d137f6d2aba3f",
+  "fault": "accepted connection second/third dup fail EMFILE; actual candidate daemon; no VM"
+}

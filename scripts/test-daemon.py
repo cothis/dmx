@@ -195,14 +195,19 @@ def memory_checks(results):
     plug = m.get("plug") or {}
     check("memory_unplug_on_critical", unplugged and plug.get("unplugs", 0) > grown.get("unplugs", 0), str(m))
     # The balloon still squeezes the boot RAM that virtio-mem cannot remove.
+    # Retain the qualifying snapshot: a second status call can cross a borderline limit
+    # after wait_for succeeded, falsely rejecting memory returned within the deadline.
+    fp, m = 0, {}
     def squeezed():
+        nonlocal fp, m
         fp, m = memory()
         return (m.get("balloon_mb") or 0) >= 256 and fp < idle + 64
 
     # Reaching 256 MB is only partial balloon progress; free-page reporting may still be
     # finishing. Wait for both requirements within the same deadline, not an intermediate frame.
     inflated = wait_for(squeezed, 15)
-    fp, m = memory()
+    results["memory_critical_wait_succeeded"] = inflated
+    results["memory_critical_limit_mb"] = idle + 64
     results["memory_critical_footprint_mb"] = fp
     check("memory_balloon_on_critical", inflated and fp < idle + 64, f"footprint {fp} MB, {m}")
 

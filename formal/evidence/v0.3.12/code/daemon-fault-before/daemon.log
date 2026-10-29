@@ -1,0 +1,5 @@
+2026-10-29T02:05:05Z dmx-daemon: listening on /tmp/dmx-daemon-fault-lpxt_phg/dmx.sock (standalone, pid 60960)
+fault injected: daemon reply dup returns EMFILE
+fault injected: daemon reply dup returns EMFILE
+2026-10-29T02:05:06Z dmx-daemon: signal 15, shutting down
+2026-10-29T02:05:06Z dmx-daemon: exiting

@@ -1,0 +1,4 @@
+2026-10-29T02:13:13Z dmx-daemon: listening on /tmp/dmx-daemon-fault-1aom819j/dmx.sock (standalone, pid 68074)
+fault injected: daemon reply dup returns EMFILE
+2026-10-29T02:13:13Z dmx-daemon: signal 15, shutting down
+2026-10-29T02:13:13Z dmx-daemon: exiting

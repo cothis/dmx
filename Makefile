@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build install kernel qemu fex guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest javatest pressuretest benchmark test release clean
+.PHONY: build install kernel qemu fex guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest javatest pressuretest benchmark test formaltest release clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -80,6 +80,12 @@ benchmark: build
 # Unit tests that need no VM (the virtio-fs server's path containment).
 test:
 	swift test
+
+# Bounded safety models plus real Core FD/EMFILE probes (Java + cached TLA+ jar required).
+# Child-only forced FD reuse never shares the unit runner's descriptor namespace.
+formaltest: test
+	python3 formal/check.py
+	python3 formal/frame-connection-lifetime/repro/check-code.py
 
 # Assembles a GitHub Release in .build/dist/v$(VERSION) from the guest `make guest` built, and
 # pins that guest in Sources/DMXCore/GuestPin.swift. Uploads nothing (docs/release.md).

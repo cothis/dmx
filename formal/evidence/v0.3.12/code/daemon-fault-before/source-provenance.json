@@ -1,0 +1,9 @@
+{
+  "base_commit": "7b094ab",
+  "candidate_version": "0.3.12",
+  "candidate_source": "first RPC/receipt repair before secondary F1/F2 fixes; GuestPin still v0.3.11, guest files unchanged",
+  "agent_sha256": "bbf65531d7b0c7aa8661db49d6258b38f259a5ac229790e6847c23f3c768f694",
+  "source_recovery": "preserved first no-shutdown mutation package, restoring exactly its one removed shutdown line",
+  "binary_sha256": "ccb816e772dd1730ee69719ac693c2a49956cc54cc5b08184e044349ab1168af",
+  "limit": "Recorded build/probe provenance, not a binary-to-Swift refinement proof; baseline-binary.sha256 refers to the separate released v0.3.11 memory baseline."
+}

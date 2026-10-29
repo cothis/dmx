@@ -1,0 +1,5 @@
+{"run": 0, "limit": 150, "wait_succeeded": true, "last_accepted_sample": {"fp": 132, "balloon": 682, "at": 1943606.147537375}, "final_resample": 132, "critical_ok": true}
+{"run": 1, "limit": 156, "wait_succeeded": true, "last_accepted_sample": {"fp": 134, "balloon": 683, "at": 1943642.781617375}, "final_resample": 134, "critical_ok": true}
+{"run": 2, "limit": 157, "wait_succeeded": true, "last_accepted_sample": {"fp": 138, "balloon": 682, "at": 1943678.742003125}, "final_resample": 138, "critical_ok": true}
+{"run": 3, "limit": 165, "wait_succeeded": true, "last_accepted_sample": {"fp": 136, "balloon": 682, "at": 1943712.977538291}, "final_resample": 136, "critical_ok": true}
+{"run": 4, "limit": 164, "wait_succeeded": true, "last_accepted_sample": {"fp": 139, "balloon": 682, "at": 1943746.863787541}, "final_resample": 139, "critical_ok": true}

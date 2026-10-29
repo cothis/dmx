@@ -43,6 +43,12 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-10-29: Frozen formal properties can still be made tautological by ghost updates tied
+  to a fix selector. Observe actual bindings/events and mutate guards, ownership, atomicity,
+  error paths and replay independently. A progress test must assert before teardown supplies
+  its wakeup; destructive FD reuse needs a child, not only suite serialization. Check newly
+  added fallible work both before and after a transaction's first side effect.
+
 - 2026-10-27: Confirm a cause with a diagnostic before writing its fix. For the guest network stall I first wrote
   a change that moved mDNSResponder calls off the network queue, on a guess; a diagnostic build then logged the
   real cause (a receive-buffer deadlock), and the guess was reverted unshipped. Log the suspected state at the

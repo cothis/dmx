@@ -1,0 +1,38 @@
+{
+  "source_sha256_before": "21c87198c01783b18a6c689d863231849274489a490db7389d07cc1453a3725a",
+  "kind": "deterministic replay of the actual assertion block; legal consecutive snapshots, not captured values from the original failed run",
+  "idle_mb": 93,
+  "limit_exclusive_mb": 157,
+  "samples_mb": [
+    156,
+    157
+  ],
+  "rows": [
+    {
+      "variant": "original",
+      "checks": [
+        {
+          "name": "memory_balloon_on_critical",
+          "ok": false,
+          "detail": "footprint 157 MB, {'balloon_mb': 483}"
+        }
+      ],
+      "results": {
+        "memory_critical_footprint_mb": 157
+      }
+    },
+    {
+      "variant": "same-sample",
+      "checks": [
+        {
+          "name": "memory_balloon_on_critical",
+          "ok": true,
+          "detail": "footprint 156 MB, {'balloon_mb': 483}"
+        }
+      ],
+      "results": {
+        "memory_critical_footprint_mb": 156
+      }
+    }
+  ]
+}

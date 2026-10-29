@@ -1,0 +1,7 @@
+{
+  "expected": "stalled",
+  "observed": "stalled",
+  "ok": true,
+  "binary_sha256": "ccb816e772dd1730ee69719ac693c2a49956cc54cc5b08184e044349ab1168af",
+  "fault": "accepted connection second/third dup fail EMFILE; actual candidate daemon; no VM"
+}

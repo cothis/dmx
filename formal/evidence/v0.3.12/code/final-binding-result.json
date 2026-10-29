@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "mutation": "body(fd) instead of body(copy)",
+  "unit_tests_reject_binding_mutation": true,
+  "probe_exit_code": -5,
+  "expected_assertion": "cannot splice a frame from two sockets"
+}

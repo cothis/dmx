@@ -1,0 +1,186 @@
+{
+  "agent" : {
+    "agent" : "dmx-agent",
+    "kernel" : "6.18.58-dmx-4k",
+    "protocol" : 1,
+    "version" : "0.1.0"
+  },
+  "boot_ms" : 608,
+  "checks" : [
+    {
+      "detail" : "uname -a exited 0",
+      "name" : "exec",
+      "ok" : true
+    },
+    {
+      "detail" : "cat echoed \"ping\\n\"",
+      "name" : "exec_stdin",
+      "ok" : true
+    },
+    {
+      "detail" : "exit 3, stdout \"out\\n\", stderr \"err\\n\"",
+      "name" : "exec_streams",
+      "ok" : true
+    },
+    {
+      "detail" : "tty printed \"/dev/pts/0\"",
+      "name" : "exec_tty",
+      "ok" : true
+    },
+    {
+      "detail" : "rejected with an error",
+      "name" : "exec_missing",
+      "ok" : true
+    },
+    {
+      "detail" : "bound",
+      "name" : "driver.virtio_console",
+      "ok" : true
+    },
+    {
+      "detail" : "bound",
+      "name" : "driver.virtio_rng",
+      "ok" : true
+    },
+    {
+      "detail" : "bound",
+      "name" : "driver.virtio_balloon",
+      "ok" : true
+    },
+    {
+      "detail" : "bound",
+      "name" : "driver.vmw_vsock_virtio_transport",
+      "ok" : true
+    },
+    {
+      "detail" : "bound",
+      "name" : "driver.virtio_net",
+      "ok" : true
+    },
+    {
+      "detail" : "bound",
+      "name" : "driver.virtio_blk",
+      "ok" : true
+    },
+    {
+      "detail" : "bound",
+      "name" : "driver.virtio_mem",
+      "ok" : true
+    },
+    {
+      "detail" : "cpu 9 off and on, online \"0-9\"",
+      "name" : "cpu_hotplug",
+      "ok" : true
+    },
+    {
+      "detail" : "available 1.0G -> 1.0G",
+      "name" : "drop_caches",
+      "ok" : true
+    },
+    {
+      "detail" : "pid 14595, 94 MB (peak 94 MB)",
+      "name" : "host_footprint",
+      "ok" : true
+    },
+    {
+      "detail" : "1 GB touched and freed: 1122 MB -> 101 MB in 2093 ms, 25 reports",
+      "name" : "reclaim",
+      "ok" : true
+    },
+    {
+      "detail" : "ping 192.168.127.1: exit 0",
+      "name" : "net_icmp",
+      "ok" : true
+    },
+    {
+      "detail" : "4 MB over HTTP from the host's 127.0.0.1: \"94b720f11f0d50fffe18cc014d51fe2171723f45a9de213147826bb02e984f7b  -\\n\"",
+      "name" : "net_tcp",
+      "ok" : true
+    },
+    {
+      "detail" : "ping fd64:646d:7800::1: exit 0",
+      "name" : "net_icmp6",
+      "ok" : true
+    },
+    {
+      "detail" : "4 MB over HTTP from the host's ::1: \"94b720f11f0d50fffe18cc014d51fe2171723f45a9de213147826bb02e984f7b  -\\n\"",
+      "name" : "net_tcp6",
+      "ok" : true
+    },
+    {
+      "detail" : "/dev/vda /var/lib ext4 rw,relatime,discard,no_prefetch_block_bitmaps 0 0",
+      "name" : "disk_mount",
+      "ok" : true
+    },
+    {
+      "detail" : "128 MB written and deleted: host file 10 -> 138 -> 10 MB in 0 ms",
+      "name" : "disk_discard",
+      "ok" : true
+    },
+    {
+      "detail" : "static x86_64 ELF: exit 0, \"x86_64 ok\\n\"",
+      "name" : "x86_64",
+      "ok" : true
+    }
+  ],
+  "clock_offset_ms" : -1793237813351.908,
+  "cpus" : 10,
+  "disk" : {
+    "allocated_after_delete_mb" : 10,
+    "allocated_after_write_mb" : 138,
+    "allocated_before_mb" : 10,
+    "mount" : "/dev/vda /var/lib ext4 rw,relatime,discard,no_prefetch_block_bitmaps 0 0",
+    "returned_ms" : 0,
+    "write_ms" : 404
+  },
+  "guest_used_mb" : 33,
+  "host" : {
+    "footprint_mb" : 94,
+    "peak_footprint_mb" : 94,
+    "pid" : 14595
+  },
+  "max_memory" : "8.0G",
+  "memory_plug" : {
+    "boot_mb" : 1024,
+    "plugged_mb" : 128,
+    "plugs" : 1,
+    "requested_mb" : 128,
+    "unplugs" : 0
+  },
+  "ok" : true,
+  "problems" : [
+
+  ],
+  "reclaim" : {
+    "after_free_mb" : 1122,
+    "after_reclaim_mb" : 101,
+    "idle_mb" : 94,
+    "reported_mb" : 2689,
+    "reports" : 25,
+    "returned_ms" : 2093
+  },
+  "shutdown_ms" : 50,
+  "stats" : {
+    "cgroups" : [
+
+    ],
+    "load" : [
+      0,
+      0,
+      0
+    ],
+    "memory" : {
+      "available" : 1123975168,
+      "balloon" : 0,
+      "buffers" : 53248,
+      "cached" : 3207168,
+      "free" : 1134235648,
+      "shmem" : 3244032,
+      "swap_free" : 0,
+      "swap_total" : 0,
+      "total" : 1169821696
+    },
+    "uptime_s" : 0.61
+  },
+  "uname" : "Linux dmx 6.18.58-dmx-4k #1 SMP PREEMPT_DYNAMIC 2026-01-01 aarch64 Linux"
+}

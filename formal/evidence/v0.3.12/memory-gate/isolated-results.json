@@ -1,0 +1,637 @@
+[
+  {
+    "run": 0,
+    "diagnostic_idle": 86,
+    "memory_warning_trim_s": 2.0,
+    "memory_idle_trim_s": 9.8,
+    "memory_normal_unplug_s": 7.0,
+    "memory_normal_footprint_mb": 136,
+    "memory_grown_plug": {
+      "boot_mb": 1024,
+      "plugged_mb": 5376,
+      "plugs": 79,
+      "requested_mb": 5376,
+      "unplugs": 37
+    },
+    "memory_critical_unplug_s": 1.0,
+    "critical_samples": [
+      {
+        "fp": 600,
+        "balloon": 0,
+        "at": 1943605.4027905
+      },
+      {
+        "fp": 235,
+        "balloon": 418,
+        "at": 1943605.519792041
+      },
+      {
+        "fp": 239,
+        "balloon": 682,
+        "at": 1943605.634612666
+      },
+      {
+        "fp": 239,
+        "balloon": 682,
+        "at": 1943605.755558083
+      },
+      {
+        "fp": 239,
+        "balloon": 682,
+        "at": 1943605.885015333
+      },
+      {
+        "fp": 239,
+        "balloon": 682,
+        "at": 1943606.019147166
+      },
+      {
+        "fp": 132,
+        "balloon": 682,
+        "at": 1943606.147537375
+      }
+    ],
+    "diagnostic_wait_succeeded": true,
+    "memory_critical_footprint_mb": 132,
+    "checks": [
+      {
+        "name": "memory_cache_filled",
+        "ok": true,
+        "detail": "footprint 86 -> 604 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 517, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'normal', 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 2, 'requested_mb': 256, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 1065, 'sweeps': 0, 'trims': 0}"
+      },
+      {
+        "name": "memory_trim_on_warning",
+        "ok": true,
+        "detail": "footprint 105 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 16, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 501, 'ms': 2, 'reason': 'host pressure warning', 'seconds_ago': 1}, 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 2, 'requested_mb': 256, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 1698, 'sweeps': 0, 'trims': 1}"
+      },
+      {
+        "name": "memory_idle_trim",
+        "ok": true,
+        "detail": "footprint 122 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 21, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 513, 'ms': 4, 'reason': 'idle', 'seconds_ago': 2}, 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 2, 'requested_mb': 256, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 2484, 'sweeps': 1, 'trims': 2}"
+      },
+      {
+        "name": "memory_idle_sweep",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 21, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 513, 'ms': 4, 'reason': 'idle', 'seconds_ago': 2}, 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 2, 'requested_mb': 256, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 2484, 'sweeps': 1, 'trims': 2}"
+      },
+      {
+        "name": "disk_idle_trim",
+        "ok": true,
+        "detail": "data.img 266 -> 10 MB, exit 0"
+      },
+      {
+        "name": "memory_hotplug_growth",
+        "ok": true,
+        "detail": "footprint 2263 MB, {'boot_mb': 1024, 'plugged_mb': 5120, 'plugs': 40, 'requested_mb': 5120, 'unplugs': 0}, b''"
+      },
+      {
+        "name": "memory_normal_unplug",
+        "ok": true,
+        "detail": "footprint 86 -> 136 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 21, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'normal', 'last_trim': {'freed_mb': 513, 'ms': 4, 'reason': 'idle', 'seconds_ago': 9}, 'plug': {'boot_mb': 1024, 'plugged_mb': 384, 'plugs': 40, 'requested_mb': 384, 'unplugs': 37}, 'pressure_simulated': True, 'reported_mb': 7834, 'sweeps': 1, 'trims': 2}"
+      },
+      {
+        "name": "memory_unplug_on_critical",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 3, 'host_pressure': 'critical', 'last_trim': {'freed_mb': 21, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 0}, 'plug': {'boot_mb': 1024, 'plugged_mb': 0, 'plugs': 79, 'requested_mb': 0, 'unplugs': 79}, 'pressure_simulated': True, 'reported_mb': 7834, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_balloon_on_critical",
+        "ok": true,
+        "detail": "footprint 132 MB, {'balloon_mb': 682, 'balloon_target_mb': 682, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 3, 'host_pressure': 'critical', 'last_trim': {'freed_mb': 21, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 1}, 'plug': {'boot_mb': 1024, 'plugged_mb': 0, 'plugs': 79, 'requested_mb': 0, 'unplugs': 79}, 'pressure_simulated': True, 'reported_mb': 7944, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_growth_under_critical",
+        "ok": true,
+        "detail": "b'1610612736\\n' b'' {'balloon_mb': 107, 'balloon_target_mb': 107, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'critical', 'last_trim': {'freed_mb': 21, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 12}, 'plug': {'boot_mb': 1024, 'plugged_mb': 1024, 'plugs': 89, 'requested_mb': 1024, 'unplugs': 87}, 'pressure_simulated': True, 'reported_mb': 8517, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_warning_headroom_restored",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 21, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 13}, 'plug': {'boot_mb': 1024, 'plugged_mb': 128, 'plugs': 90, 'requested_mb': 128, 'unplugs': 98}, 'pressure_simulated': True, 'reported_mb': 8517, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_balloon_deflated",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'normal', 'last_trim': {'freed_mb': 21, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 13}, 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 91, 'requested_mb': 256, 'unplugs': 98}, 'pressure_simulated': True, 'reported_mb': 8517, 'sweeps': 1, 'trims': 3}"
+      }
+    ]
+  },
+  {
+    "run": 1,
+    "diagnostic_idle": 92,
+    "memory_warning_trim_s": 2.0,
+    "memory_idle_trim_s": 9.6,
+    "memory_normal_unplug_s": 7.2,
+    "memory_normal_footprint_mb": 135,
+    "memory_grown_plug": {
+      "boot_mb": 1024,
+      "plugged_mb": 5504,
+      "plugs": 80,
+      "requested_mb": 5504,
+      "unplugs": 37
+    },
+    "memory_critical_unplug_s": 0.5,
+    "critical_samples": [
+      {
+        "fp": 558,
+        "balloon": 0,
+        "at": 1943641.549554875
+      },
+      {
+        "fp": 467,
+        "balloon": 92,
+        "at": 1943641.667746916
+      },
+      {
+        "fp": 252,
+        "balloon": 683,
+        "at": 1943641.783382916
+      },
+      {
+        "fp": 252,
+        "balloon": 683,
+        "at": 1943641.903846291
+      },
+      {
+        "fp": 252,
+        "balloon": 683,
+        "at": 1943642.027450333
+      },
+      {
+        "fp": 252,
+        "balloon": 683,
+        "at": 1943642.149348625
+      },
+      {
+        "fp": 252,
+        "balloon": 683,
+        "at": 1943642.282082833
+      },
+      {
+        "fp": 252,
+        "balloon": 683,
+        "at": 1943642.416054666
+      },
+      {
+        "fp": 252,
+        "balloon": 683,
+        "at": 1943642.54485775
+      },
+      {
+        "fp": 252,
+        "balloon": 683,
+        "at": 1943642.66497175
+      },
+      {
+        "fp": 134,
+        "balloon": 683,
+        "at": 1943642.781617375
+      }
+    ],
+    "diagnostic_wait_succeeded": true,
+    "memory_critical_footprint_mb": 134,
+    "checks": [
+      {
+        "name": "memory_cache_filled",
+        "ok": true,
+        "detail": "footprint 92 -> 610 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 512, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'normal', 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 2, 'requested_mb': 256, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 1072, 'sweeps': 0, 'trims': 0}"
+      },
+      {
+        "name": "memory_trim_on_warning",
+        "ok": true,
+        "detail": "footprint 114 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 15, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 496, 'ms': 1, 'reason': 'host pressure warning', 'seconds_ago': 2}, 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 2, 'requested_mb': 256, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 1701, 'sweeps': 0, 'trims': 1}"
+      },
+      {
+        "name": "memory_idle_trim",
+        "ok": true,
+        "detail": "footprint 124 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 21, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 511, 'ms': 6, 'reason': 'idle', 'seconds_ago': 2}, 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 2, 'requested_mb': 256, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 2480, 'sweeps': 1, 'trims': 2}"
+      },
+      {
+        "name": "memory_idle_sweep",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 21, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 511, 'ms': 6, 'reason': 'idle', 'seconds_ago': 2}, 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 2, 'requested_mb': 256, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 2480, 'sweeps': 1, 'trims': 2}"
+      },
+      {
+        "name": "disk_idle_trim",
+        "ok": true,
+        "detail": "data.img 267 -> 11 MB, exit 0"
+      },
+      {
+        "name": "memory_hotplug_growth",
+        "ok": true,
+        "detail": "footprint 2265 MB, {'boot_mb': 1024, 'plugged_mb': 5120, 'plugs': 40, 'requested_mb': 5120, 'unplugs': 0}, b''"
+      },
+      {
+        "name": "memory_normal_unplug",
+        "ok": true,
+        "detail": "footprint 92 -> 135 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 21, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'normal', 'last_trim': {'freed_mb': 511, 'ms': 6, 'reason': 'idle', 'seconds_ago': 9}, 'plug': {'boot_mb': 1024, 'plugged_mb': 384, 'plugs': 40, 'requested_mb': 384, 'unplugs': 37}, 'pressure_simulated': True, 'reported_mb': 7960, 'sweeps': 1, 'trims': 2}"
+      },
+      {
+        "name": "memory_unplug_on_critical",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 3, 'host_pressure': 'critical', 'last_trim': {'freed_mb': 22, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 0}, 'plug': {'boot_mb': 1024, 'plugged_mb': 128, 'plugs': 80, 'requested_mb': 0, 'unplugs': 79}, 'pressure_simulated': True, 'reported_mb': 7960, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_balloon_on_critical",
+        "ok": true,
+        "detail": "footprint 134 MB, {'balloon_mb': 683, 'balloon_target_mb': 683, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 3, 'host_pressure': 'critical', 'last_trim': {'freed_mb': 22, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 1}, 'plug': {'boot_mb': 1024, 'plugged_mb': 0, 'plugs': 80, 'requested_mb': 0, 'unplugs': 80}, 'pressure_simulated': True, 'reported_mb': 8081, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_growth_under_critical",
+        "ok": true,
+        "detail": "b'1610612736\\n' b'' {'balloon_mb': 113, 'balloon_target_mb': 113, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'critical', 'last_trim': {'freed_mb': 22, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 12}, 'plug': {'boot_mb': 1024, 'plugged_mb': 1024, 'plugs': 90, 'requested_mb': 1024, 'unplugs': 82}, 'pressure_simulated': True, 'reported_mb': 8408, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_warning_headroom_restored",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 22, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 12}, 'plug': {'boot_mb': 1024, 'plugged_mb': 384, 'plugs': 90, 'requested_mb': 256, 'unplugs': 87}, 'pressure_simulated': True, 'reported_mb': 8408, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_balloon_deflated",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'normal', 'last_trim': {'freed_mb': 22, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 12}, 'plug': {'boot_mb': 1024, 'plugged_mb': 1280, 'plugs': 97, 'requested_mb': 1280, 'unplugs': 87}, 'pressure_simulated': True, 'reported_mb': 8408, 'sweeps': 1, 'trims': 3}"
+      }
+    ]
+  },
+  {
+    "run": 2,
+    "diagnostic_idle": 93,
+    "memory_warning_trim_s": 2.1,
+    "memory_idle_trim_s": 9.7,
+    "memory_normal_unplug_s": 7.1,
+    "memory_normal_footprint_mb": 140,
+    "memory_grown_plug": {
+      "boot_mb": 1024,
+      "plugged_mb": 5376,
+      "plugs": 81,
+      "requested_mb": 5376,
+      "unplugs": 39
+    },
+    "memory_critical_unplug_s": 0.7,
+    "critical_samples": [
+      {
+        "fp": 391,
+        "balloon": 0,
+        "at": 1943677.805091708
+      },
+      {
+        "fp": 242,
+        "balloon": 209,
+        "at": 1943677.92048925
+      },
+      {
+        "fp": 249,
+        "balloon": 606,
+        "at": 1943678.036304375
+      },
+      {
+        "fp": 249,
+        "balloon": 682,
+        "at": 1943678.149168375
+      },
+      {
+        "fp": 249,
+        "balloon": 682,
+        "at": 1943678.27159025
+      },
+      {
+        "fp": 249,
+        "balloon": 682,
+        "at": 1943678.393781125
+      },
+      {
+        "fp": 249,
+        "balloon": 682,
+        "at": 1943678.505428
+      },
+      {
+        "fp": 249,
+        "balloon": 682,
+        "at": 1943678.628431
+      },
+      {
+        "fp": 138,
+        "balloon": 682,
+        "at": 1943678.742003125
+      }
+    ],
+    "diagnostic_wait_succeeded": true,
+    "memory_critical_footprint_mb": 138,
+    "checks": [
+      {
+        "name": "memory_cache_filled",
+        "ok": true,
+        "detail": "footprint 93 -> 612 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 512, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'normal', 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 2, 'requested_mb': 256, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 1071, 'sweeps': 0, 'trims': 0}"
+      },
+      {
+        "name": "memory_trim_on_warning",
+        "ok": true,
+        "detail": "footprint 116 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 15, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 496, 'ms': 1, 'reason': 'host pressure warning', 'seconds_ago': 2}, 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 2, 'requested_mb': 256, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 1698, 'sweeps': 0, 'trims': 1}"
+      },
+      {
+        "name": "memory_idle_trim",
+        "ok": true,
+        "detail": "footprint 127 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 21, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 512, 'ms': 3, 'reason': 'idle', 'seconds_ago': 2}, 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 2, 'requested_mb': 256, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 2481, 'sweeps': 1, 'trims': 2}"
+      },
+      {
+        "name": "memory_idle_sweep",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 21, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 512, 'ms': 3, 'reason': 'idle', 'seconds_ago': 2}, 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 2, 'requested_mb': 256, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 2481, 'sweeps': 1, 'trims': 2}"
+      },
+      {
+        "name": "disk_idle_trim",
+        "ok": true,
+        "detail": "data.img 267 -> 11 MB, exit 0"
+      },
+      {
+        "name": "memory_hotplug_growth",
+        "ok": true,
+        "detail": "footprint 2272 MB, {'boot_mb': 1024, 'plugged_mb': 5376, 'plugs': 42, 'requested_mb': 5376, 'unplugs': 0}, b''"
+      },
+      {
+        "name": "memory_normal_unplug",
+        "ok": true,
+        "detail": "footprint 93 -> 140 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 21, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'normal', 'last_trim': {'freed_mb': 512, 'ms': 3, 'reason': 'idle', 'seconds_ago': 9}, 'plug': {'boot_mb': 1024, 'plugged_mb': 384, 'plugs': 42, 'requested_mb': 384, 'unplugs': 39}, 'pressure_simulated': True, 'reported_mb': 7974, 'sweeps': 1, 'trims': 2}"
+      },
+      {
+        "name": "memory_unplug_on_critical",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 3, 'host_pressure': 'critical', 'last_trim': {'freed_mb': 22, 'ms': 5, 'reason': 'host pressure critical', 'seconds_ago': 0}, 'plug': {'boot_mb': 1024, 'plugged_mb': 0, 'plugs': 81, 'requested_mb': 0, 'unplugs': 81}, 'pressure_simulated': True, 'reported_mb': 7974, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_balloon_on_critical",
+        "ok": true,
+        "detail": "footprint 138 MB, {'balloon_mb': 682, 'balloon_target_mb': 682, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 3, 'host_pressure': 'critical', 'last_trim': {'freed_mb': 22, 'ms': 5, 'reason': 'host pressure critical', 'seconds_ago': 1}, 'plug': {'boot_mb': 1024, 'plugged_mb': 0, 'plugs': 81, 'requested_mb': 0, 'unplugs': 81}, 'pressure_simulated': True, 'reported_mb': 8090, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_growth_under_critical",
+        "ok": true,
+        "detail": "b'1610612736\\n' b'' {'balloon_mb': 113, 'balloon_target_mb': 113, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'critical', 'last_trim': {'freed_mb': 22, 'ms': 5, 'reason': 'host pressure critical', 'seconds_ago': 12}, 'plug': {'boot_mb': 1024, 'plugged_mb': 1024, 'plugs': 91, 'requested_mb': 1024, 'unplugs': 83}, 'pressure_simulated': True, 'reported_mb': 8377, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_warning_headroom_restored",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 22, 'ms': 5, 'reason': 'host pressure critical', 'seconds_ago': 12}, 'plug': {'boot_mb': 1024, 'plugged_mb': 128, 'plugs': 92, 'requested_mb': 128, 'unplugs': 94}, 'pressure_simulated': True, 'reported_mb': 8377, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_balloon_deflated",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'normal', 'last_trim': {'freed_mb': 22, 'ms': 5, 'reason': 'host pressure critical', 'seconds_ago': 12}, 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 93, 'requested_mb': 256, 'unplugs': 94}, 'pressure_simulated': True, 'reported_mb': 8377, 'sweeps': 1, 'trims': 3}"
+      }
+    ]
+  },
+  {
+    "run": 3,
+    "diagnostic_idle": 101,
+    "memory_warning_trim_s": 1.0,
+    "memory_idle_trim_s": 8.8,
+    "memory_normal_unplug_s": 7.1,
+    "memory_normal_footprint_mb": 140,
+    "memory_grown_plug": {
+      "boot_mb": 1024,
+      "plugged_mb": 5376,
+      "plugs": 79,
+      "requested_mb": 5376,
+      "unplugs": 37
+    },
+    "memory_critical_unplug_s": 0.5,
+    "critical_samples": [
+      {
+        "fp": 451,
+        "balloon": 0,
+        "at": 1943711.722143583
+      },
+      {
+        "fp": 353,
+        "balloon": 100,
+        "at": 1943711.83360725
+      },
+      {
+        "fp": 244,
+        "balloon": 682,
+        "at": 1943711.951598333
+      },
+      {
+        "fp": 244,
+        "balloon": 682,
+        "at": 1943712.067000958
+      },
+      {
+        "fp": 244,
+        "balloon": 682,
+        "at": 1943712.197675583
+      },
+      {
+        "fp": 244,
+        "balloon": 682,
+        "at": 1943712.329512375
+      },
+      {
+        "fp": 244,
+        "balloon": 682,
+        "at": 1943712.453206666
+      },
+      {
+        "fp": 244,
+        "balloon": 682,
+        "at": 1943712.585690791
+      },
+      {
+        "fp": 244,
+        "balloon": 682,
+        "at": 1943712.714998916
+      },
+      {
+        "fp": 244,
+        "balloon": 682,
+        "at": 1943712.846398916
+      },
+      {
+        "fp": 136,
+        "balloon": 682,
+        "at": 1943712.977538291
+      }
+    ],
+    "diagnostic_wait_succeeded": true,
+    "memory_critical_footprint_mb": 136,
+    "checks": [
+      {
+        "name": "memory_cache_filled",
+        "ok": true,
+        "detail": "footprint 101 -> 618 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 512, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'normal', 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 2, 'requested_mb': 256, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 1193, 'sweeps': 0, 'trims': 0}"
+      },
+      {
+        "name": "memory_trim_on_warning",
+        "ok": true,
+        "detail": "footprint 120 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 15, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 496, 'ms': 1, 'reason': 'host pressure warning', 'seconds_ago': 1}, 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 2, 'requested_mb': 256, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 1697, 'sweeps': 0, 'trims': 1}"
+      },
+      {
+        "name": "memory_idle_trim",
+        "ok": true,
+        "detail": "footprint 133 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 21, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 511, 'ms': 6, 'reason': 'idle', 'seconds_ago': 2}, 'plug': {'boot_mb': 1024, 'plugged_mb': 512, 'plugs': 4, 'requested_mb': 512, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 2737, 'sweeps': 1, 'trims': 2}"
+      },
+      {
+        "name": "memory_idle_sweep",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 21, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 511, 'ms': 6, 'reason': 'idle', 'seconds_ago': 2}, 'plug': {'boot_mb': 1024, 'plugged_mb': 512, 'plugs': 4, 'requested_mb': 512, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 2737, 'sweeps': 1, 'trims': 2}"
+      },
+      {
+        "name": "disk_idle_trim",
+        "ok": true,
+        "detail": "data.img 267 -> 11 MB, exit 0"
+      },
+      {
+        "name": "memory_hotplug_growth",
+        "ok": true,
+        "detail": "footprint 2269 MB, {'boot_mb': 1024, 'plugged_mb': 5120, 'plugs': 40, 'requested_mb': 5120, 'unplugs': 0}, b''"
+      },
+      {
+        "name": "memory_normal_unplug",
+        "ok": true,
+        "detail": "footprint 101 -> 140 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 21, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'normal', 'last_trim': {'freed_mb': 511, 'ms': 6, 'reason': 'idle', 'seconds_ago': 9}, 'plug': {'boot_mb': 1024, 'plugged_mb': 384, 'plugs': 40, 'requested_mb': 384, 'unplugs': 37}, 'pressure_simulated': True, 'reported_mb': 7937, 'sweeps': 1, 'trims': 2}"
+      },
+      {
+        "name": "memory_unplug_on_critical",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 3, 'host_pressure': 'critical', 'last_trim': {'freed_mb': 22, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 0}, 'plug': {'boot_mb': 1024, 'plugged_mb': 0, 'plugs': 79, 'requested_mb': 0, 'unplugs': 79}, 'pressure_simulated': True, 'reported_mb': 7937, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_balloon_on_critical",
+        "ok": true,
+        "detail": "footprint 136 MB, {'balloon_mb': 682, 'balloon_target_mb': 682, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 3, 'host_pressure': 'critical', 'last_trim': {'freed_mb': 22, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 1}, 'plug': {'boot_mb': 1024, 'plugged_mb': 0, 'plugs': 79, 'requested_mb': 0, 'unplugs': 79}, 'pressure_simulated': True, 'reported_mb': 8047, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_growth_under_critical",
+        "ok": true,
+        "detail": "b'1610612736\\n' b'' {'balloon_mb': 112, 'balloon_target_mb': 112, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'critical', 'last_trim': {'freed_mb': 22, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 12}, 'plug': {'boot_mb': 1024, 'plugged_mb': 1024, 'plugs': 90, 'requested_mb': 1024, 'unplugs': 82}, 'pressure_simulated': True, 'reported_mb': 8588, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_warning_headroom_restored",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 22, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 12}, 'plug': {'boot_mb': 1024, 'plugged_mb': 1152, 'plugs': 91, 'requested_mb': 1152, 'unplugs': 82}, 'pressure_simulated': True, 'reported_mb': 8588, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_balloon_deflated",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'normal', 'last_trim': {'freed_mb': 22, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 12}, 'plug': {'boot_mb': 1024, 'plugged_mb': 1152, 'plugs': 91, 'requested_mb': 1152, 'unplugs': 82}, 'pressure_simulated': True, 'reported_mb': 8588, 'sweeps': 1, 'trims': 3}"
+      }
+    ]
+  },
+  {
+    "run": 4,
+    "diagnostic_idle": 100,
+    "memory_warning_trim_s": 1.0,
+    "memory_idle_trim_s": 8.7,
+    "memory_normal_unplug_s": 7.1,
+    "memory_normal_footprint_mb": 138,
+    "memory_grown_plug": {
+      "boot_mb": 1024,
+      "plugged_mb": 5760,
+      "plugs": 84,
+      "requested_mb": 5760,
+      "unplugs": 39
+    },
+    "memory_critical_unplug_s": 1.0,
+    "critical_samples": [
+      {
+        "fp": 495,
+        "balloon": 0,
+        "at": 1943746.14859125
+      },
+      {
+        "fp": 495,
+        "balloon": 0,
+        "at": 1943746.266938958
+      },
+      {
+        "fp": 247,
+        "balloon": 253,
+        "at": 1943746.387385791
+      },
+      {
+        "fp": 254,
+        "balloon": 682,
+        "at": 1943746.503414291
+      },
+      {
+        "fp": 254,
+        "balloon": 682,
+        "at": 1943746.615935041
+      },
+      {
+        "fp": 254,
+        "balloon": 682,
+        "at": 1943746.733873541
+      },
+      {
+        "fp": 139,
+        "balloon": 682,
+        "at": 1943746.863787541
+      }
+    ],
+    "diagnostic_wait_succeeded": true,
+    "memory_critical_footprint_mb": 139,
+    "checks": [
+      {
+        "name": "memory_cache_filled",
+        "ok": true,
+        "detail": "footprint 100 -> 616 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 512, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'normal', 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 2, 'requested_mb': 256, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 1200, 'sweeps': 0, 'trims': 0}"
+      },
+      {
+        "name": "memory_trim_on_warning",
+        "ok": true,
+        "detail": "footprint 120 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 15, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 496, 'ms': 1, 'reason': 'host pressure warning', 'seconds_ago': 1}, 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 2, 'requested_mb': 256, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 1698, 'sweeps': 0, 'trims': 1}"
+      },
+      {
+        "name": "memory_idle_trim",
+        "ok": true,
+        "detail": "footprint 130 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 21, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 512, 'ms': 3, 'reason': 'idle', 'seconds_ago': 2}, 'plug': {'boot_mb': 1024, 'plugged_mb': 384, 'plugs': 3, 'requested_mb': 384, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 2610, 'sweeps': 1, 'trims': 2}"
+      },
+      {
+        "name": "memory_idle_sweep",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 21, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 512, 'ms': 3, 'reason': 'idle', 'seconds_ago': 2}, 'plug': {'boot_mb': 1024, 'plugged_mb': 384, 'plugs': 3, 'requested_mb': 384, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 2610, 'sweeps': 1, 'trims': 2}"
+      },
+      {
+        "name": "disk_idle_trim",
+        "ok": true,
+        "detail": "data.img 267 -> 11 MB, exit 0"
+      },
+      {
+        "name": "memory_hotplug_growth",
+        "ok": true,
+        "detail": "footprint 2273 MB, {'boot_mb': 1024, 'plugged_mb': 5376, 'plugs': 42, 'requested_mb': 5376, 'unplugs': 0}, b''"
+      },
+      {
+        "name": "memory_normal_unplug",
+        "ok": true,
+        "detail": "footprint 100 -> 138 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 21, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'normal', 'last_trim': {'freed_mb': 512, 'ms': 3, 'reason': 'idle', 'seconds_ago': 9}, 'plug': {'boot_mb': 1024, 'plugged_mb': 384, 'plugs': 42, 'requested_mb': 384, 'unplugs': 39}, 'pressure_simulated': True, 'reported_mb': 8073, 'sweeps': 1, 'trims': 2}"
+      },
+      {
+        "name": "memory_unplug_on_critical",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 3, 'host_pressure': 'critical', 'last_trim': {'freed_mb': 21, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 0}, 'plug': {'boot_mb': 1024, 'plugged_mb': 128, 'plugs': 84, 'requested_mb': 0, 'unplugs': 83}, 'pressure_simulated': True, 'reported_mb': 8073, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_balloon_on_critical",
+        "ok": true,
+        "detail": "footprint 139 MB, {'balloon_mb': 682, 'balloon_target_mb': 682, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 3, 'host_pressure': 'critical', 'last_trim': {'freed_mb': 21, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 1}, 'plug': {'boot_mb': 1024, 'plugged_mb': 0, 'plugs': 84, 'requested_mb': 0, 'unplugs': 84}, 'pressure_simulated': True, 'reported_mb': 8190, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_growth_under_critical",
+        "ok": true,
+        "detail": "b'1610612736\\n' b'' {'balloon_mb': 113, 'balloon_target_mb': 113, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'critical', 'last_trim': {'freed_mb': 21, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 12}, 'plug': {'boot_mb': 1024, 'plugged_mb': 1024, 'plugs': 95, 'requested_mb': 1024, 'unplugs': 87}, 'pressure_simulated': True, 'reported_mb': 8522, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_warning_headroom_restored",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 21, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 12}, 'plug': {'boot_mb': 1024, 'plugged_mb': 512, 'plugs': 95, 'requested_mb': 256, 'unplugs': 91}, 'pressure_simulated': True, 'reported_mb': 8522, 'sweeps': 1, 'trims': 3}"
+      },
+      {
+        "name": "memory_balloon_deflated",
+        "ok": true,
+        "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'normal', 'last_trim': {'freed_mb': 21, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 12}, 'plug': {'boot_mb': 1024, 'plugged_mb': 1536, 'plugs': 104, 'requested_mb': 1536, 'unplugs': 92}, 'pressure_simulated': True, 'reported_mb': 8522, 'sweeps': 1, 'trims': 3}"
+      }
+    ]
+  }
+]

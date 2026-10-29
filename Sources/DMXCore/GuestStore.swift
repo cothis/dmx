@@ -156,7 +156,7 @@ public struct GuestStore: Sendable {
         if !force, !state().needsFetch {
             // Same boot files under a new release: keep them and record which release they are
             // now, so `dmx guest` and `dmx doctor` name the release this dmx pins.
-            if let receipt = receipt(), receipt.sha256 != pin.sha256, receipt.files == pin.files {
+            if let receipt = receipt(), receipt != pin, receipt.files == pin.files {
                 try? writeReceipt(pin)
                 log("guest \(pin.tag) has the files of \(receipt.tag) already; kept them")
             }

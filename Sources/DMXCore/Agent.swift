@@ -122,16 +122,20 @@ public final class FrameConnection: @unchecked Sendable {
 
     let peer: Peer
     private let closeConnection: @Sendable () -> Void
+    private let duplicateFD: @Sendable (Int32) -> Int32
     let fd: Int32
     private let queue = DispatchQueue(label: "dmx.frame.connection")
     private let writeLock = NSLock()
     private var nextID: UInt64 = 1
 
     /// A connection on any stream socket; `close` releases it.
-    init(fd: Int32, peer: Peer = .agent, close: @escaping @Sendable () -> Void) {
+    init(fd: Int32, peer: Peer = .agent,
+         duplicateFD: @escaping @Sendable (Int32) -> Int32 = { fcntl($0, F_DUPFD_CLOEXEC, 0) },
+         close: @escaping @Sendable () -> Void) {
         self.peer = peer
         closeConnection = close
         self.fd = fd
+        self.duplicateFD = duplicateFD
         let flags = fcntl(fd, F_GETFL)
         _ = fcntl(fd, F_SETFL, flags & ~O_NONBLOCK)
         var on: Int32 = 1
@@ -140,6 +144,8 @@ public final class FrameConnection: @unchecked Sendable {
 
     private let closeLock = NSLock()
     private var closed = false
+
+    var isClosed: Bool { closeLock.lock(); defer { closeLock.unlock() }; return closed }
 
     deinit { close() }
 
@@ -161,10 +167,12 @@ public final class FrameConnection: @unchecked Sendable {
     /// the OS reuses its number. Checking `closed` alone would race the following syscall.
     private func withOpenFD<T>(_ body: (Int32) throws -> T) throws -> T {
         closeLock.lock()
-        let copy = closed ? -1 : fcntl(fd, F_DUPFD_CLOEXEC, 0)
+        let copy = closed ? -1 : duplicateFD(fd)
         let failure = closed ? "connection closed" : String(cString: strerror(errno))
         closeLock.unlock()
-        guard copy >= 0 else { throw DMXError("\(peer)_disconnected", "\(peer): \(failure)") }
+        guard copy >= 0 else {
+            throw DMXError("\(peer)_disconnected", "\(peer): \(failure)", hint: "run `dmx status`, then retry")
+        }
         defer { Darwin.close(copy) }
         return try body(copy)
     }
@@ -176,10 +184,30 @@ public final class FrameConnection: @unchecked Sendable {
     /// The raw reply to a request, not yet decoded.
     func reply<P: Encodable & Sendable>(_ method: String, _ params: P) async throws -> Data {
         try await onQueue { () throws -> Data in
-            let id = self.nextID
-            self.nextID += 1
-            try self.writeJSON(Request(id: id, method: method, params: params))
-            return try self.readReply(method: method)
+            // Acquire before sending anything, and keep one socket through the entire exchange.
+            // A second per-frame dup could fail after the request was sent, leaving its reply
+            // queued for the next call. A pre-send acquisition failure leaves this socket usable.
+            try self.withOpenFD { fd in
+                let id = self.nextID
+                self.nextID += 1
+                let payload: Data, envelope: Envelope
+                do {
+                    try self.writeFrame(.json, try Self.encoder.encode(Request(id: id, method: method, params: params)), fd: fd)
+                    (payload, envelope) = try self.readReply(method: method, id: id, fd: fd)
+                } catch {
+                    // Partial I/O or an invalid response can destroy request/reply alignment.
+                    // Retire it, without replaying a request the peer may already have applied.
+                    self.close()
+                    throw error
+                }
+                if envelope.ok != true {
+                    let failure = envelope.error ?? AgentFailure(code: "unknown", message: "no error given", hint: nil)
+                    let code = self.peer == .agent ? "agent_\(failure.code)" : failure.code
+                    let message = self.peer == .agent ? "\(method): \(failure.message)" : failure.message
+                    throw DMXError(code, message, hint: failure.hint)
+                }
+                return payload
+            }
         }
     }
 
@@ -193,12 +221,7 @@ public final class FrameConnection: @unchecked Sendable {
 
     /// Starts a process in the guest. This connection belongs to the session from now on.
     public func exec(_ request: ExecRequest) async throws -> ExecSession {
-        let reply = try await onQueue { () throws -> Data in
-            let id = self.nextID
-            self.nextID += 1
-            try self.writeJSON(Request(id: id, method: "exec", params: request))
-            return try self.readReply(method: "exec")
-        }
+        let reply = try await self.reply("exec", request)
         struct Started: Decodable { let pid: Int }
         guard let started = try? Self.decoder.decode(Reply<Started>.self, from: reply).result else {
             throw DMXError("\(peer)_protocol", "exec: unexpected reply")
@@ -233,18 +256,30 @@ public final class FrameConnection: @unchecked Sendable {
     }
 
     /// Sends one JSON frame. For the serving side of a connection.
-    func send(_ value: some Encodable) throws { try writeJSON(value) }
+    func send(_ value: some Encodable) throws {
+        do { try writeJSON(value) }
+        catch {
+            // A server cannot wait for the next request after failing to answer this one.
+            // Partial writes also forbid appending another error frame to the stream.
+            close()
+            throw error
+        }
+    }
 
     // MARK: Framing
 
     func writeFrame(_ kind: FrameKind, _ payload: Data) throws {
+        try withOpenFD { try writeFrame(kind, payload, fd: $0) }
+    }
+
+    private func writeFrame(_ kind: FrameKind, _ payload: Data, fd: Int32) throws {
         var header = Data(count: 5)
         let length = UInt32(payload.count + 1).bigEndian
         withUnsafeBytes(of: length) { header.replaceSubrange(0..<4, with: $0) }
         header[4] = kind.rawValue
         writeLock.lock()
         defer { writeLock.unlock() }
-        try withOpenFD { try writeAll(header + payload, fd: $0) }
+        try writeAll(header + payload, fd: fd)
     }
 
     private func writeJSON(_ value: some Encodable) throws {
@@ -256,6 +291,7 @@ public final class FrameConnection: @unchecked Sendable {
             var offset = 0
             while offset < buf.count {
                 let n = Darwin.write(fd, buf.baseAddress! + offset, buf.count - offset)
+                if n == 0 { throw DMXError("\(peer)_disconnected", "write to \(peer) made no progress", hint: "run `dmx status`, then retry") }
                 if n < 0 {
                     if errno == EINTR { continue }
                     throw DMXError("\(peer)_disconnected", "write to \(peer): \(String(cString: strerror(errno)))")
@@ -302,9 +338,9 @@ public final class FrameConnection: @unchecked Sendable {
         return (kind, body.dropFirst())
     }
 
-    /// Reads the next JSON frame and turns an error reply into a DMXError.
-    private func readReply(method: String) throws -> Data {
-        guard let (kind, payload) = try readFrame() else {
+    /// Validates the wire response before application errors are surfaced to the caller.
+    private func readReply(method: String, id: UInt64, fd: Int32) throws -> (Data, Envelope) {
+        guard let (kind, payload) = try readFrame(fd: fd) else {
             throw DMXError("\(peer)_disconnected", "\(method): \(peer) closed the connection")
         }
         guard kind == .json else { throw DMXError("\(peer)_protocol", "\(method): expected a JSON frame") }
@@ -314,14 +350,11 @@ public final class FrameConnection: @unchecked Sendable {
         } catch {
             throw DMXError("\(peer)_protocol", "\(method): unreadable reply: \(error)")
         }
-        if envelope.ok != true {
-            let failure = envelope.error ?? AgentFailure(code: "unknown", message: "no error given", hint: nil)
-            switch peer {
-            case .agent: throw DMXError("agent_\(failure.code)", "\(method): \(failure.message)", hint: failure.hint)
-            case .daemon: throw DMXError(failure.code, failure.message, hint: failure.hint)
-            }
+        guard envelope.id == id else {
+            throw DMXError("\(peer)_protocol", "\(method): reply id \(envelope.id.map(String.init) ?? "missing") does not match request \(id)",
+                           hint: "run `dmx status`, then retry")
         }
-        return Data(payload)
+        return (Data(payload), envelope)
     }
 
     private func onQueue<T: Sendable>(_ body: @escaping @Sendable () throws -> T) async throws -> T {
@@ -352,6 +385,7 @@ public final class FrameConnection: @unchecked Sendable {
 public final class AgentClient: @unchecked Sendable {
     private let lock = NSLock()
     private var connection: FrameConnection
+    private var closed = false
     /// Opens a new connection to the agent (exec and connect take theirs over).
     let open: @MainActor @Sendable () async throws -> FrameConnection
     static let callTimeout: Duration = .seconds(60)
@@ -367,26 +401,37 @@ public final class AgentClient: @unchecked Sendable {
         return connection
     }
 
-    public func close() { control.close() }
+    public func close() {
+        lock.lock()
+        closed = true
+        let current = connection
+        lock.unlock()
+        current.close()
+    }
 
     public func call<P: Encodable & Sendable, R: Decodable>(_ method: String, _ params: P) async throws -> R {
         let current = control
-        guard let data = try await firstOf(within: Self.callTimeout, { try await current.reply(method, params) }) else {
-            replace(current)
-            throw DMXError("agent_timeout", "the guest agent did not answer \(method) within \(Int(Self.callTimeout.components.seconds)) s",
-                           hint: "the guest may be in trouble: see ~/.dmx/logs/console.log; `dmx stop` powers it off")
+        do {
+            guard let data = try await firstOf(within: Self.callTimeout, { try await current.reply(method, params) }) else {
+                replace(current)
+                throw DMXError("agent_timeout", "the guest agent did not answer \(method) within \(Int(Self.callTimeout.components.seconds)) s",
+                               hint: "the guest may be in trouble: see ~/.dmx/logs/console.log; `dmx stop` powers it off")
+            }
+            return try current.decodeReply(method, data)
+        } catch {
+            if current.isClosed { replace(current) }
+            throw error
         }
-        return try current.decodeReply(method, data)
     }
 
     /// Drops a connection that stopped answering (which also ends the call stuck on it) and opens
     /// another for the calls after it.
     private func replace(_ stuck: FrameConnection) {
         stuck.abort()
-        guard isCurrent(stuck), !reconnecting(true) else { return }  // another call saw it first
-        log("agent: no answer on the control connection; opening another")
+        guard beginReconnect(stuck) else { return }
+        log("agent: no answer on the control connection or it was retired; opening another")
         Task { @MainActor in
-            defer { _ = reconnecting(false) }
+            defer { endReconnect() }
             guard let fresh = try? await open() else { return log("agent: cannot reconnect") }
             if !swap(stuck, for: fresh) { fresh.close() }
         }
@@ -394,25 +439,24 @@ public final class AgentClient: @unchecked Sendable {
 
     private var isReconnecting = false
 
-    /// Sets whether a reconnect runs; returns what it was.
-    private func reconnecting(_ value: Bool) -> Bool {
+    private func beginReconnect(_ stuck: FrameConnection) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        let was = isReconnecting
-        isReconnecting = value
-        return was
+        guard !closed, connection === stuck, !isReconnecting else { return false }
+        isReconnecting = true
+        return true
     }
 
-    private func isCurrent(_ connection: FrameConnection) -> Bool {
+    private func endReconnect() {
         lock.lock()
         defer { lock.unlock() }
-        return self.connection === connection
+        isReconnecting = false
     }
 
     private func swap(_ stuck: FrameConnection, for fresh: FrameConnection) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        guard connection === stuck else { return false }
+        guard !closed, connection === stuck else { return false }
         connection = fresh
         return true
     }
@@ -579,6 +623,7 @@ private struct AgentFailure: Decodable {
 }
 
 private struct Envelope: Decodable {
+    let id: UInt64?
     let ok: Bool?
     let error: AgentFailure?
     let event: String?

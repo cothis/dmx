@@ -1,0 +1,27 @@
+{
+  "model": "claude-opus-5-5",
+  "models_observed": [
+    "claude-opus-5-5"
+  ],
+  "turns": 14,
+  "tools": {
+    "Glob": 1,
+    "Read": 12
+  },
+  "permission_denials": [],
+  "read_only": true,
+  "expected_answer_supplied": false,
+  "raw_stream_sha256": "60ae60c1e0fed2cf3ff92ec2b220ade48b9432adefe217234bdfc95d2b4052f9",
+  "candidate_commit": "7b094ab",
+  "input_files": {
+    "candidate/Sources/DMXCore/Agent.swift": "38f9d2daae95a770526652bc0b2c61ef4f5f98523b24a51506657a265623f0d6",
+    "candidate/Tests/DMXCoreTests/FrameConnectionTests.swift": "71aa22d504adec4d689491cc2a98cf5046ea0d0ba608c1478757d9c13bd6747a",
+    "candidate/formal/frame-connection-lifetime/tla/MC.cfg": "214db2a73669b6e792cccd178612f6ef8a8541dd5fe183a980e0ea5accc8ebc5",
+    "candidate/formal/frame-connection-lifetime/tla/MC_bug.cfg": "8f7a3af99323367c34887c4497039a9c7d2cfc1107f41e2f12027a9d80b68926",
+    "candidate/formal/frame-connection-lifetime/tla/Properties.tla": "fdd9f25b97cc13fa66ea4ab44b27d4d21606bfe5a50a0bd786251865a1665554",
+    "candidate/formal/frame-connection-lifetime/tla/Spec.tla": "c7409161976344cfa31367dded529853eb8b060523fb957ebfd403a60694802e",
+    "candidate/formal/frame-connection-lifetime/evidence/mutation/tlc.log": "d29a93369993fb701504799ae4504afbb35de155bf4eebd3173cd66a54c6791a",
+    "candidate/formal/frame-connection-lifetime/evidence/model-after/tlc.log": "6b06522ed2a2c781cbf91eac6ae01d697f96d4d6a89eacc2891f323d7206f619"
+  },
+  "limit": "Reading evaluation only. Predictions independently reproduced by parent; absent evidence in fixture is not evidence it never existed in repository. Skill instruction body matches final version; final description frontmatter quoting was subsequently corrected and validated."
+}

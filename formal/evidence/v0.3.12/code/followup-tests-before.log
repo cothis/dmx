@@ -1,0 +1,74 @@
+Building for debugging...
+[6 / 31] ArgumentParserToolInfo
+[9 / 32] ArgumentParser
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:579:24: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+577 |         func params<P: Decodable>(_: P.Type) throws -> P {
+578 |             do {
+579 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+    |                        `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+580 |             } catch {
+581 |                 throw DMXError("bad_request", "\(method): \(error)")
+
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:580:15: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+578 |             do {
+579 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+580 |             } catch {
+    |               `- warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+581 |                 throw DMXError("bad_request", "\(method): \(error)")
+582 |             }
+
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+[13 / 27] DMXCore
+[16 / 21] DMXCoreTests-product
+[18 / 23] DMXCoreTests-product
+[22 / 25] DMXCoreTests-product
+[24 / 28] DMXCoreTests-product
+Build complete! (3.34초)
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite FrameConnectionTests started.
+◇ Test closedConnectionRejectsNewFrames() started.
+✔ Test closedConnectionRejectsNewFrames() passed after 0.001 seconds.
+◇ Test closeAloneEndsLeasedReadWhilePeerRemainsOpen() started.
+✔ Test closeAloneEndsLeasedReadWhilePeerRemainsOpen() passed after 0.001 seconds.
+◇ Test abortAloneEndsBlockedWriteWhilePeerDoesNotRead() started.
+✔ Test abortAloneEndsBlockedWriteWhilePeerDoesNotRead() passed after 0.002 seconds.
+◇ Test failedRPCLeaseSendsNothingAndKeepsReplyAlignment() started.
+✔ Test failedRPCLeaseSendsNothingAndKeepsReplyAlignment() passed after 0.001 seconds.
+◇ Test wrongResponseIDRetiresConnection() started.
+✔ Test wrongResponseIDRetiresConnection() passed after 0.001 seconds.
+◇ Test applicationErrorDoesNotRetireAlignedConnection() started.
+✔ Test applicationErrorDoesNotRetireAlignedConnection() passed after 0.001 seconds.
+◇ Test daemonApplicationErrorPreservesMessageCodeAndHint() started.
+✘ Test daemonApplicationErrorPreservesMessageCodeAndHint() recorded an issue at FrameConnectionTests.swift:179:13: Expectation failed: error.message == "exec: original message"
+↳ error.message == "exec: original message" → false
+↳   error.message → "exec: exec: original message"
+✘ Test daemonApplicationErrorPreservesMessageCodeAndHint() failed after 0.001 seconds with 1 issue.
+◇ Test servingLeaseFailureClosesConnection() started.
+✘ Test servingLeaseFailureClosesConnection() recorded an issue at FrameConnectionTests.swift:189:9: Expectation failed: connection.isClosed
+↳ a failed server reply cannot leave its client waiting
+↳ connection.isClosed → false
+↳   connection → DMXCore.FrameConnection
+↳     peer → .agent
+↳     fd → 3
+↳     queue → <OS_dispatch_queue_serial: dmx.frame.connection>
+↳     writeLock → <NSLock: 0x93cd18000>{name = nil}
+↳     nextID → 1
+↳     closeLock → <NSLock: 0x93cd18120>{name = nil}
+↳     closed → false
+↳   isClosed → false
+✘ Test servingLeaseFailureClosesConnection() failed after 0.001 seconds with 1 issue.
+◇ Test malformedRPCRepliesRetireBeforeTheNextCall() started.
+✔ Test malformedRPCRepliesRetireBeforeTheNextCall() passed after 0.001 seconds.
+◇ Test acquiredBindingControlsBothReadAndWrite() started.
+✔ Test acquiredBindingControlsBothReadAndWrite() passed after 0.001 seconds.
+◇ Test retiredControlReconnectsForNextCallWithoutReplay() started.
+2026-10-29T02:05:54Z dmx-daemon: agent: no answer on the control connection or it was retired; opening another
+✔ Test retiredControlReconnectsForNextCallWithoutReplay() passed after 0.001 seconds.
+◇ Test explicitAgentCloseDoesNotReconnect() started.
+✔ Test explicitAgentCloseDoesNotReconnect() passed after 0.032 seconds.
+✘ Suite FrameConnectionTests failed after 0.040 seconds with 2 issues.
+✘ Test run with 12 tests in 1 suite failed after 0.040 seconds with 2 issues.
+Note: Some test targets reported failures:
+  - DMXCoreTests (Swift Testing)

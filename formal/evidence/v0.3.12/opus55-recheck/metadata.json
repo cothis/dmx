@@ -1,0 +1,16 @@
+{
+  "model": "claude-opus-5-5",
+  "models_observed": [
+    "claude-opus-5-5"
+  ],
+  "turns": 89,
+  "tools": {
+    "Read": 55,
+    "Grep": 28,
+    "Glob": 5
+  },
+  "read_only": true,
+  "base_commit": "7b094ab",
+  "scope": "first repaired candidate; F1/F2 then reproduced and fixed, see final re-review",
+  "stream_sha256": "f3e8a953a70f7ee093941a9a07229b8f2fde00fca1e4360b911eb32a6b027a63"
+}

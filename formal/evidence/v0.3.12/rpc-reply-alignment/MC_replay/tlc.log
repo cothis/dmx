@@ -1,0 +1,214 @@
+TLC2 Version 2026.10.28.014557 (rev: 56d37a9)
+Running breadth-first search Model-Checking with fp 53 and seed -3956579321896942076 with 1 worker on 10 cores with 3641MB heap and 64MB offheap memory [pid: 70096] (Mac OS X 26.6.1 aarch64, Homebrew 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /Users/cothis/dev/dockermax/formal/rpc-reply-alignment/tla/Spec.tla
+Parsing file /private/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/tlc-6105935141758790232/Naturals.tla (jar:file:/Users/cothis/.cache/proof-skills/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /private/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/tlc-6105935141758790232/Sequences.tla (jar:file:/Users/cothis/.cache/proof-skills/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /Users/cothis/dev/dockermax/formal/rpc-reply-alignment/tla/Properties.tla
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module Properties
+Semantic processing of module Spec
+Linting of module Properties
+Linting of module Spec
+Starting... (2026-10-29 11:15:10)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-10-29 11:15:10.
+Error: Invariant NoReplay is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ live = TRUE
+/\ replies = <<>>
+/\ poisoned = FALSE
+/\ call = 1
+/\ badReuse = FALSE
+/\ sent = <<0, 0>>
+/\ phase = "acquire"
+/\ uncertain = FALSE
+/\ failedDup = FALSE
+/\ delivered = <<0, 0>>
+
+State 2: <Acquire line 10, col 12 to line 12, col 96 of module Spec>
+/\ live = TRUE
+/\ replies = <<>>
+/\ poisoned = FALSE
+/\ call = 1
+/\ badReuse = FALSE
+/\ sent = <<0, 0>>
+/\ phase = "send"
+/\ uncertain = FALSE
+/\ failedDup = FALSE
+/\ delivered = <<0, 0>>
+
+State 3: <Send line 18, col 9 to line 22, col 88 of module Spec>
+/\ live = TRUE
+/\ replies = <<1>>
+/\ poisoned = FALSE
+/\ call = 1
+/\ badReuse = FALSE
+/\ sent = <<1, 0>>
+/\ phase = "receive"
+/\ uncertain = FALSE
+/\ failedDup = FALSE
+/\ delivered = <<0, 0>>
+
+State 4: <PoisonReply line 33, col 16 to line 35, col 98 of module Spec>
+/\ live = TRUE
+/\ replies = <<3>>
+/\ poisoned = TRUE
+/\ call = 1
+/\ badReuse = FALSE
+/\ sent = <<1, 0>>
+/\ phase = "receive"
+/\ uncertain = FALSE
+/\ failedDup = FALSE
+/\ delivered = <<0, 0>>
+
+State 5: <Receive line 37, col 12 to line 43, col 69 of module Spec>
+/\ live = FALSE
+/\ replies = <<>>
+/\ poisoned = TRUE
+/\ call = 1
+/\ badReuse = FALSE
+/\ sent = <<1, 0>>
+/\ phase = "finish"
+/\ uncertain = TRUE
+/\ failedDup = FALSE
+/\ delivered = <<0, 0>>
+
+State 6: <NextCall line 45, col 13 to line 47, col 101 of module Spec>
+/\ live = FALSE
+/\ replies = <<>>
+/\ poisoned = TRUE
+/\ call = 2
+/\ badReuse = FALSE
+/\ sent = <<1, 0>>
+/\ phase = "acquire"
+/\ uncertain = TRUE
+/\ failedDup = FALSE
+/\ delivered = <<0, 0>>
+
+State 7: <Reconnect line 49, col 14 to line 54, col 83 of module Spec>
+/\ live = TRUE
+/\ replies = <<1>>
+/\ poisoned = TRUE
+/\ call = 2
+/\ badReuse = FALSE
+/\ sent = <<2, 0>>
+/\ phase = "acquire"
+/\ uncertain = FALSE
+/\ failedDup = FALSE
+/\ delivered = <<0, 0>>
+
+The coverage statistics at 2026-10-29 11:15:10 (see https://explain.tlapl.us/module-coverage-statistics for how to interpret the following statistics).
+<live line 4, col 33 to line 4, col 36 of module Spec>: 2
+<replies line 4, col 24 to line 4, col 30 of module Spec>: 4
+<poisoned line 4, col 61 to line 4, col 68 of module Spec>: 2
+<call line 4, col 11 to line 4, col 14 of module Spec>: 2
+<badReuse line 3, col 28 to line 3, col 35 of module Properties>: 1
+<sent line 3, col 22 to line 3, col 25 of module Properties>: 3
+<phase line 4, col 17 to line 4, col 21 of module Spec>: 4
+<uncertain line 4, col 39 to line 4, col 47 of module Spec>: 2
+<failedDup line 4, col 50 to line 4, col 58 of module Spec>: 2
+<delivered line 3, col 11 to line 3, col 19 of module Properties>: 3
+<Init line 6, col 1 to line 6, col 4 of module Spec>: 3:3
+  line 6, col 12 to line 6, col 73 of module Spec: 3
+  line 7, col 12 to line 7, col 69 of module Spec: 3
+  line 8, col 24 to line 8, col 41 of module Spec: 3:6
+  |line 8, col 31 to line 8, col 34 of module Spec: 3
+  line 8, col 53 to line 8, col 70 of module Spec: 3:6
+  |line 8, col 60 to line 8, col 63 of module Spec: 3
+  line 8, col 75 to line 8, col 90 of module Spec: 3
+<Acquire line 10, col 1 to line 10, col 7 of module Spec>: 3:5
+  line 10, col 15 to line 10, col 31 of module Spec: 29
+  |line 10, col 15 to line 10, col 19 of module Spec: 24
+  line 10, col 36 to line 10, col 39 of module Spec: 5
+  line 11, col 15 to line 11, col 68 of module Spec: 5
+  line 12, col 15 to line 12, col 96 of module Spec: 5
+<FailBeforeSend line 14, col 1 to line 14, col 14 of module Spec>: 2:2
+  line 14, col 22 to line 14, col 38 of module Spec: 24
+  |line 14, col 22 to line 14, col 26 of module Spec: 22
+  line 14, col 43 to line 14, col 46 of module Spec: 2
+  line 14, col 51 to line 14, col 60 of module Spec: 5
+  |line 14, col 52 to line 14, col 60 of module Spec: 3
+  line 15, col 22 to line 15, col 59 of module Spec: 2
+  line 16, col 22 to line 16, col 102 of module Spec: 2
+<Send line 18, col 1 to line 18, col 4 of module Spec>: 2:4
+  line 18, col 12 to line 18, col 25 of module Spec: 26
+  |line 18, col 12 to line 18, col 16 of module Spec: 22
+  line 19, col 12 to line 19, col 48 of module Spec: 4
+  line 20, col 12 to line 20, col 43 of module Spec: 4
+  line 21, col 12 to line 21, col 67 of module Spec: 4
+  line 22, col 12 to line 22, col 88 of module Spec: 4
+<ReadAcquire line 24, col 1 to line 24, col 11 of module Spec>: 0:0
+  line 24, col 19 to line 24, col 39 of module Spec: 20
+  line 24, col 44 to line 24, col 61 of module Spec: 0
+  line 25, col 19 to line 25, col 110 of module Spec: 0
+<FailAfterSend line 27, col 1 to line 27, col 13 of module Spec>: 0:0
+  line 27, col 21 to line 27, col 55 of module Spec: 20
+  line 28, col 21 to line 28, col 37 of module Spec: 0
+  line 28, col 42 to line 28, col 58 of module Spec: 0
+  line 28, col 63 to line 28, col 79 of module Spec: 0
+  line 29, col 21 to line 29, col 58 of module Spec: 0
+  line 30, col 21 to line 30, col 84 of module Spec: 0
+<PoisonReply line 33, col 1 to line 33, col 11 of module Spec>: 2:4
+  line 33, col 19 to line 33, col 29 of module Spec: 4
+  line 33, col 34 to line 33, col 50 of module Spec: 24
+  |line 33, col 34 to line 33, col 38 of module Spec: 20
+  line 33, col 55 to line 33, col 70 of module Spec: 4
+  |line 33, col 55 to line 33, col 66 of module Spec: 7
+  line 33, col 75 to line 33, col 83 of module Spec: 11
+  |line 33, col 76 to line 33, col 83 of module Spec: 7
+  line 34, col 19 to line 34, col 71 of module Spec: 4
+  line 35, col 19 to line 35, col 98 of module Spec: 4
+<Receive line 37, col 1 to line 37, col 7 of module Spec>: 3:5
+  line 37, col 15 to line 37, col 31 of module Spec: 23
+  |line 37, col 15 to line 37, col 19 of module Spec: 18
+  line 37, col 36 to line 37, col 51 of module Spec: 5
+  line 39, col 18 to line 39, col 119 of module Spec: 5
+  |line 39, col 31 to line 39, col 119 of module Spec: 5
+  ||line 39, col 34 to line 39, col 61 of module Spec: 5
+  ||line 39, col 68 to line 39, col 76 of module Spec: 3
+  ||line 39, col 83 to line 39, col 119 of module Spec: 2
+  line 40, col 18 to line 40, col 62 of module Spec: 5
+  line 41, col 18 to line 41, col 87 of module Spec: 5
+  |line 41, col 26 to line 41, col 87 of module Spec: 5
+  ||line 41, col 29 to line 41, col 66 of module Spec: 5
+  ||line 41, col 73 to line 41, col 77 of module Spec: 3
+  ||line 41, col 84 to line 41, col 87 of module Spec: 2
+  line 42, col 15 to line 42, col 59 of module Spec: 5
+  line 43, col 15 to line 43, col 69 of module Spec: 5
+<NextCall line 45, col 1 to line 45, col 8 of module Spec>: 3:5
+  line 45, col 16 to line 45, col 31 of module Spec: 21
+  |line 45, col 16 to line 45, col 20 of module Spec: 16
+  line 45, col 36 to line 45, col 43 of module Spec: 10
+  |line 45, col 36 to line 45, col 39 of module Spec: 5
+  line 46, col 16 to line 46, col 46 of module Spec: 5
+  line 47, col 16 to line 47, col 101 of module Spec: 5
+<Reconnect line 49, col 1 to line 49, col 9 of module Spec>: 1:3
+  line 49, col 17 to line 49, col 33 of module Spec: 16
+  |line 49, col 17 to line 49, col 21 of module Spec: 14
+  line 49, col 38 to line 49, col 42 of module Spec: 8
+  |line 49, col 39 to line 49, col 42 of module Spec: 6
+  line 50, col 17 to line 50, col 28 of module Spec: 2
+  |line 50, col 25 to line 50, col 28 of module Spec: 3
+  line 50, col 33 to line 50, col 50 of module Spec: 2
+  |line 50, col 46 to line 50, col 50 of module Spec: 3
+  line 52, col 20 to line 52, col 63 of module Spec: 2
+  |line 52, col 31 to line 52, col 63 of module Spec: 3
+  line 53, col 20 to line 53, col 81 of module Spec: 2
+  |line 53, col 28 to line 53, col 81 of module Spec: 3
+  line 54, col 17 to line 54, col 83 of module Spec: 2
+<Terminated line 57, col 1 to line 57, col 10 of module Spec>: 0:0
+  line 55, col 9 to line 55, col 24 of module Spec: 11
+  line 55, col 29 to line 55, col 36 of module Spec: 3
+  line 57, col 23 to line 57, col 36 of module Spec: 0
+<TypeOK line 60, col 1 to line 60, col 6 of module Spec>
+  line 60, col 11 to line 63, col 92 of module Spec: 17
+<NoReplay line 5, col 1 to line 5, col 8 of module Properties>
+  line 5, col 13 to line 5, col 40 of module Properties: 17
+  |line 5, col 29 to line 5, col 40 of module Properties: 33
+  |line 5, col 22 to line 5, col 25 of module Properties: 17
+End of statistics.
+17 states generated, 17 distinct states found, 4 states left on queue.
+The depth of the complete state graph search is 7.
+Finished in 00s at (2026-10-29 11:15:10)

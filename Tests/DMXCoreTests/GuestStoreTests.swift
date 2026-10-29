@@ -79,6 +79,20 @@ import Testing
         #expect(store.verify().isEmpty)
     }
 
+    @Test func sameArchiveWithNewTagRefreshesReceiptWithoutDownload() async throws {
+        defer { try? FileManager.default.removeItem(at: home) }
+        let (paths, old) = try install(tag: "v1")
+        try writeReceipt(old, paths)
+        let pin = GuestRelease(tag: "v2", archive: old.archive, bytes: old.bytes,
+                               sha256: old.sha256, files: old.files)
+        let before = try Data(contentsOf: paths.manifest)
+        let store = GuestStore(paths: paths, pin: pin, environment: ["DMX_RELEASE_URL": "http://127.0.0.1:1"])
+        try await store.ensure { _ in }
+        #expect(store.state().tag == "v2")
+        #expect(try JSONDecoder().decode(GuestRelease.self, from: Data(contentsOf: paths.guest.appendingPathComponent("release.json"))) == pin)
+        #expect(try Data(contentsOf: paths.manifest) == before)
+    }
+
     @Test func rebuiltGuestIsLocalAndLeftAlone() throws {
         defer { try? FileManager.default.removeItem(at: home) }
         let (paths, v1) = try install(tag: "v1")

@@ -1,0 +1,23 @@
+from pathlib import Path
+import hashlib,json
+root=Path.cwd();p=root/'scripts/test-daemon.py';source=p.read_text()
+start=source.index('    def squeezed():');end=source.index('\n    # The reduced headroom',start)
+old=source[start:end]
+new=old.replace('    def squeezed():\n        fp, m = memory()', '    fp, m = 0, {}\n    def squeezed():\n        nonlocal fp, m\n        fp, m = memory()').replace('    fp, m = memory()\n    results["memory_critical_footprint_mb"]','    results["memory_critical_footprint_mb"]')
+rows=[]
+for name,code in [('original',old),('same-sample',new)]:
+ samples=iter([(156,{'balloon_mb':483}),(157,{'balloon_mb':483})]);checks=[]
+ def memory():return next(samples)
+ def wait_for(predicate,seconds):return predicate()
+ def check(name,ok,detail):checks.append({'name':name,'ok':ok,'detail':detail})
+ # Execute the actual selected block inside a function so its closure scopes stay intact.
+ import textwrap
+ ns={'memory':memory,'wait_for':wait_for,'check':check,'idle':93,'results':{}}
+ exec('def replay():\n'+code+'\nreplay()\n',ns)
+ rows.append({'variant':name,'checks':checks,'results':ns['results']})
+assert rows[0]['checks'][0]['ok'] is False and rows[1]['checks'][0]['ok'] is True
+out=root/'formal/evidence/v0.3.12/memory-gate';out.mkdir(exist_ok=True)
+(out/'assertion-replay.json').write_text(json.dumps({'source_sha256_before':hashlib.sha256(source.encode()).hexdigest(),'kind':'deterministic replay of the actual assertion block; legal consecutive snapshots, not captured values from the original failed run','idle_mb':93,'limit_exclusive_mb':157,'samples_mb':[156,157],'rows':rows},indent=2)+'\n')
+(out/'original-assertion.py.txt').write_text(old);(out/'fixed-assertion.py.txt').write_text(new)
+p.write_text(source[:start]+new+source[end:])
+print(json.dumps(rows,indent=2))

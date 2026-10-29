@@ -1,0 +1,221 @@
+TLC2 Version 2026.10.28.014557 (rev: 56d37a9)
+Running breadth-first search Model-Checking with fp 75 and seed -2369972568405151545 with 1 worker on 10 cores with 3641MB heap and 64MB offheap memory [pid: 70058] (Mac OS X 26.6.1 aarch64, Homebrew 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /Users/cothis/dev/dockermax/formal/frame-connection-lifetime/tla/Spec.tla
+Parsing file /private/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/tlc-4448094290707721757/Naturals.tla (jar:file:/Users/cothis/.cache/proof-skills/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /private/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/tlc-4448094290707721757/FiniteSets.tla (jar:file:/Users/cothis/.cache/proof-skills/tla2tools.jar!/tla2sany/StandardModules/FiniteSets.tla)
+Parsing file /Users/cothis/dev/dockermax/formal/frame-connection-lifetime/tla/Properties.tla
+Parsing file /private/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/tlc-4448094290707721757/Sequences.tla (jar:file:/Users/cothis/.cache/proof-skills/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module Properties
+Semantic processing of module Spec
+Linting of module Properties
+Linting of module Spec
+Starting... (2026-10-29 11:15:08)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-10-29 11:15:08.
+Error: Invariant NoForeignIO is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ slot = "original"
+/\ lateAcquire = FALSE
+/\ handle = (a :> "none" @@ b :> "none")
+/\ closed = FALSE
+/\ phase = (a :> "idle" @@ b :> "idle")
+/\ calls = (a :> 0 @@ b :> 0)
+/\ copySlot = (a :> "free" @@ b :> "free")
+/\ foreignIO = FALSE
+
+State 2: <Submit(a) line 15, col 14 to line 17, col 91 of module Spec>
+/\ slot = "original"
+/\ lateAcquire = FALSE
+/\ handle = (a :> "none" @@ b :> "none")
+/\ closed = FALSE
+/\ phase = (a :> "pending" @@ b :> "idle")
+/\ calls = (a :> 0 @@ b :> 0)
+/\ copySlot = (a :> "free" @@ b :> "free")
+/\ foreignIO = FALSE
+
+State 3: <Acquire(a) line 23, col 5 to line 30, col 51 of module Spec>
+/\ slot = "original"
+/\ lateAcquire = FALSE
+/\ handle = (a :> "copy" @@ b :> "none")
+/\ closed = FALSE
+/\ phase = (a :> "active" @@ b :> "idle")
+/\ calls = (a :> 0 @@ b :> 0)
+/\ copySlot = (a :> "original" @@ b :> "free")
+/\ foreignIO = FALSE
+
+State 4: <DropCopy(a) line 51, col 16 to line 54, col 90 of module Spec>
+/\ slot = "original"
+/\ lateAcquire = FALSE
+/\ handle = (a :> "copy" @@ b :> "none")
+/\ closed = FALSE
+/\ phase = (a :> "active" @@ b :> "idle")
+/\ calls = (a :> 0 @@ b :> 0)
+/\ copySlot = (a :> "free" @@ b :> "free")
+/\ foreignIO = FALSE
+
+State 5: <ReuseCopy(a) line 56, col 17 to line 58, col 91 of module Spec>
+/\ slot = "original"
+/\ lateAcquire = FALSE
+/\ handle = (a :> "copy" @@ b :> "none")
+/\ closed = FALSE
+/\ phase = (a :> "active" @@ b :> "idle")
+/\ calls = (a :> 0 @@ b :> 0)
+/\ copySlot = (a :> "foreign" @@ b :> "free")
+/\ foreignIO = FALSE
+
+State 6: <Transfer(a) line 63, col 5 to line 67, col 71 of module Spec>
+/\ slot = "original"
+/\ lateAcquire = FALSE
+/\ handle = (a :> "copy" @@ b :> "none")
+/\ closed = FALSE
+/\ phase = (a :> "active" @@ b :> "idle")
+/\ calls = (a :> 1 @@ b :> 0)
+/\ copySlot = (a :> "foreign" @@ b :> "free")
+/\ foreignIO = TRUE
+
+The coverage statistics at 2026-10-29 11:15:08 (see https://explain.tlapl.us/module-coverage-statistics for how to interpret the following statistics).
+<slot line 4, col 25 to line 4, col 28 of module Spec>: 3
+<lateAcquire line 3, col 22 to line 3, col 32 of module Properties>: 1
+<handle line 4, col 39 to line 4, col 44 of module Spec>: 4
+<closed line 4, col 31 to line 4, col 36 of module Spec>: 2
+<phase line 4, col 11 to line 4, col 15 of module Spec>: 13
+<calls line 4, col 18 to line 4, col 22 of module Spec>: 5
+<copySlot line 4, col 47 to line 4, col 54 of module Spec>: 6
+<foreignIO line 3, col 11 to line 3, col 19 of module Properties>: 1
+<Init line 7, col 1 to line 7, col 4 of module Spec>: 3:3
+  line 7, col 20 to line 7, col 41 of module Spec: 3:6
+  |line 7, col 27 to line 7, col 29 of module Spec: 3
+  line 8, col 20 to line 8, col 36 of module Spec: 3:6
+  |line 8, col 27 to line 8, col 29 of module Spec: 3
+  line 9, col 21 to line 9, col 42 of module Spec: 3:6
+  |line 9, col 28 to line 9, col 30 of module Spec: 3
+  line 10, col 23 to line 10, col 44 of module Spec: 3:6
+  |line 10, col 30 to line 10, col 32 of module Spec: 3
+  line 11, col 12 to line 11, col 46 of module Spec: 3
+  line 12, col 12 to line 12, col 51 of module Spec: 3
+<Submit line 15, col 1 to line 15, col 9 of module Spec>: 6:24
+  line 15, col 17 to line 15, col 33 of module Spec: 81
+  |line 15, col 17 to line 15, col 24 of module Spec: 57
+  line 16, col 17 to line 16, col 56 of module Spec: 24
+  line 17, col 17 to line 17, col 91 of module Spec: 24
+<Acquire line 22, col 1 to line 22, col 10 of module Spec>: 8:14
+  line 23, col 8 to line 23, col 20 of module Spec: 14
+  line 24, col 8 to line 24, col 27 of module Spec: 69
+  |line 24, col 8 to line 24, col 15 of module Spec: 55
+  line 26, col 11 to line 26, col 78 of module Spec: 14
+  |line 26, col 20 to line 26, col 78 of module Spec: 14
+  ||line 26, col 21 to line 26, col 25 of module Spec: 14
+  ||line 26, col 34 to line 26, col 77 of module Spec: 14
+  ||line 26, col 41 to line 26, col 77 of module Spec: 14
+  |||line 26, col 44 to line 26, col 51 of module Spec: 14
+  ||||line 25, col 24 to line 25, col 64 of module Spec: 14
+  |||||line 25, col 24 to line 25, col 47 of module Spec: 14
+  |||||line 25, col 52 to line 25, col 64 of module Spec: 8
+  line 27, col 11 to line 27, col 107 of module Spec: 14
+  |line 27, col 21 to line 27, col 107 of module Spec: 14
+  ||line 27, col 22 to line 27, col 27 of module Spec: 14
+  ||line 27, col 36 to line 27, col 106 of module Spec: 14
+  ||line 27, col 43 to line 27, col 106 of module Spec: 14
+  |||line 27, col 46 to line 27, col 54 of module Spec: 14
+  ||||line 27, col 47 to line 27, col 54 of module Spec: 14
+  |||||line 25, col 24 to line 25, col 64 of module Spec: 14
+  ||||||line 25, col 24 to line 25, col 47 of module Spec: 14
+  ||||||line 25, col 52 to line 25, col 64 of module Spec: 8
+  |||line 27, col 73 to line 27, col 106 of module Spec: 8
+  line 28, col 11 to line 28, col 92 of module Spec: 14
+  |line 28, col 23 to line 28, col 92 of module Spec: 14
+  ||line 28, col 24 to line 28, col 31 of module Spec: 14
+  ||line 28, col 40 to line 28, col 91 of module Spec: 14
+  ||line 28, col 47 to line 28, col 91 of module Spec: 14
+  |||line 28, col 50 to line 28, col 69 of module Spec: 14
+  ||||line 28, col 50 to line 28, col 57 of module Spec: 14
+  |||||line 25, col 24 to line 25, col 64 of module Spec: 14
+  ||||||line 25, col 24 to line 25, col 47 of module Spec: 14
+  ||||||line 25, col 52 to line 25, col 64 of module Spec: 8
+  ||||line 28, col 62 to line 28, col 69 of module Spec: 8
+  |||line 28, col 76 to line 28, col 79 of module Spec: 8
+  line 29, col 11 to line 29, col 62 of module Spec: 14
+  |line 29, col 27 to line 29, col 61 of module Spec: 14
+  ||line 29, col 27 to line 29, col 37 of module Spec: 14
+  ||line 29, col 43 to line 29, col 60 of module Spec: 14
+  |||line 29, col 43 to line 29, col 50 of module Spec: 14
+  ||||line 25, col 24 to line 25, col 64 of module Spec: 14
+  |||||line 25, col 24 to line 25, col 47 of module Spec: 14
+  |||||line 25, col 52 to line 25, col 64 of module Spec: 8
+  |||line 29, col 55 to line 29, col 60 of module Spec: 8
+  line 30, col 8 to line 30, col 51 of module Spec: 14
+<CheckOnly line 34, col 1 to line 34, col 12 of module Spec>: 0:0
+  line 34, col 20 to line 34, col 57 of module Spec: 53
+  line 35, col 20 to line 35, col 101 of module Spec: 0
+  line 36, col 20 to line 36, col 94 of module Spec: 0
+<DuplicateAfterCheck line 38, col 1 to line 38, col 22 of module Spec>: 0:0
+  line 39, col 8 to line 39, col 21 of module Spec: 53
+  line 42, col 11 to line 42, col 78 of module Spec: 0
+  line 43, col 11 to line 43, col 107 of module Spec: 0
+  line 44, col 11 to line 44, col 92 of module Spec: 0
+  line 45, col 11 to line 45, col 62 of module Spec: 0
+  line 46, col 8 to line 46, col 51 of module Spec: 0
+<DropCopy line 51, col 1 to line 51, col 11 of module Spec>: 3:10
+  line 51, col 19 to line 51, col 30 of module Spec: 10
+  line 51, col 35 to line 51, col 53 of module Spec: 63
+  |line 51, col 35 to line 51, col 42 of module Spec: 53
+  line 51, col 58 to line 51, col 75 of module Spec: 27
+  |line 51, col 58 to line 51, col 66 of module Spec: 17
+  line 52, col 19 to line 52, col 42 of module Spec: 27
+  |line 52, col 19 to line 52, col 29 of module Spec: 17
+  line 53, col 19 to line 53, col 61 of module Spec: 10
+  line 54, col 19 to line 54, col 90 of module Spec: 10
+<ReuseCopy line 56, col 1 to line 56, col 12 of module Spec>: 2:4
+  line 56, col 20 to line 56, col 38 of module Spec: 55
+  |line 56, col 20 to line 56, col 27 of module Spec: 51
+  line 56, col 43 to line 56, col 60 of module Spec: 19
+  |line 56, col 43 to line 56, col 51 of module Spec: 15
+  line 56, col 65 to line 56, col 84 of module Spec: 19
+  |line 56, col 65 to line 56, col 75 of module Spec: 15
+  line 57, col 20 to line 57, col 65 of module Spec: 4
+  line 58, col 20 to line 58, col 91 of module Spec: 4
+<Transfer line 62, col 1 to line 62, col 11 of module Spec>: 8:13
+  line 63, col 8 to line 63, col 26 of module Spec: 61
+  |line 63, col 8 to line 63, col 15 of module Spec: 49
+  line 63, col 31 to line 63, col 42 of module Spec: 12
+  |line 63, col 31 to line 63, col 38 of module Spec: 13
+  line 65, col 11 to line 65, col 58 of module Spec: 12
+  |line 65, col 25 to line 65, col 57 of module Spec: 13
+  line 66, col 8 to line 66, col 43 of module Spec: 12
+  |line 66, col 17 to line 66, col 43 of module Spec: 13
+  line 67, col 8 to line 67, col 71 of module Spec: 12
+<Finish line 69, col 1 to line 69, col 9 of module Spec>: 0:0
+  line 69, col 17 to line 69, col 35 of module Spec: 46
+  line 69, col 40 to line 69, col 51 of module Spec: 10
+  line 70, col 17 to line 70, col 53 of module Spec: 0
+  line 71, col 17 to line 71, col 59 of module Spec: 0
+  line 72, col 17 to line 72, col 81 of module Spec: 0
+<Close line 74, col 1 to line 74, col 5 of module Spec>: 12:12
+  line 74, col 13 to line 74, col 19 of module Spec: 35
+  |line 74, col 14 to line 74, col 19 of module Spec: 23
+  line 74, col 24 to line 74, col 37 of module Spec: 12
+  line 74, col 42 to line 74, col 55 of module Spec: 12
+  line 75, col 13 to line 75, col 80 of module Spec: 12
+<Reuse line 77, col 1 to line 77, col 5 of module Spec>: 8:8
+  line 77, col 13 to line 77, col 25 of module Spec: 31
+  |line 77, col 13 to line 77, col 16 of module Spec: 23
+  line 77, col 30 to line 77, col 46 of module Spec: 8
+  line 78, col 13 to line 78, col 88 of module Spec: 8
+<Terminated line 81, col 1 to line 81, col 10 of module Spec>: 0:0
+  line 79, col 9 to line 79, col 34 of module Spec: 11
+  line 79, col 39 to line 79, col 70 of module Spec: 3
+  line 81, col 23 to line 81, col 36 of module Spec: 0
+<TypeOK line 85, col 1 to line 85, col 6 of module Spec>
+  line 85, col 11 to line 90, col 83 of module Spec: 48
+<NoForeignIO line 5, col 1 to line 5, col 11 of module Properties>
+  line 5, col 16 to line 5, col 25 of module Properties: 48
+<NoLateAcquire line 6, col 1 to line 6, col 13 of module Properties>
+  line 6, col 18 to line 6, col 29 of module Properties: 47
+End of statistics.
+76 states generated, 48 distinct states found, 23 states left on queue.
+The depth of the complete state graph search is 6.
+Finished in 00s at (2026-10-29 11:15:08)

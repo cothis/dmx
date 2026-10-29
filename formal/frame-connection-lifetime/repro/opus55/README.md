@@ -9,7 +9,12 @@ The recorded environment uses Xcode's Swift build layout. `make test` produces t
 DMXCore object/module below; it is not the signed published executable. After a product
 fix these historical probes may stop failing. See the validated review for interpretation.
 
-From the repository root:
+The commands below are historical and require an exported snapshot of the reviewed
+`7b094ab` source (for example, `git archive` to a temporary directory), then a build there.
+The current model intentionally has different selectors and the repaired Core has different
+failure placement. Use `make formaltest` in the current checkout for present guards.
+
+From the reviewed snapshot root:
 
 ```sh
 make test

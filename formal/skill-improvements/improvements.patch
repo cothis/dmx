@@ -1,0 +1,119 @@
+--- a/formal-verify/SKILL.md
++++ b/formal-verify/SKILL.md
+@@ -1,6 +1,6 @@
+ ---
+ name: formal-verify
+-description: End-to-end formal-methods bug hunting for real codebases in any language — scope a risky concern, model it in TLA+ and/or Lean 4, check it, turn every counterexample into a failing test, fix the code, re-verify, and publish the results as an Artifact report. Use this skill whenever the user wants to find race conditions, lost updates, deadlocks, stale caches, double-applied retries, broken idempotency, message reordering or loss bugs, state-machine violations, dataflow/pipeline loss or duplication, or graph/DAG/scheduler bugs; whenever they say "formally verify", "model check", "prove", "TLA+", "Lean", "invariant", "spec this out", "is this thread-safe", "can this race", or ask for a concurrency/async/distributed review of a module or PR — even if they never name a formal-methods tool. Also the entry point for keeping specs in CI and detecting spec/code drift. Routes to tlaplus-model, lean-model, and proof-simplify for the tool-specific work.
++description: "End-to-end formal-methods bug hunting for real codebases: scope a risky concern, model it with TLA+ or Lean 4, check it, reproduce counterexamples in code, fix, re-verify, and report. Use for formal verification, model checking, invariants, concurrency or async reviews; races, lost updates, deadlocks, stale caches, retries, idempotency, message ordering, state machines, pipelines, graphs and schedulers. Also supports spec/code drift checks. Routes tool-specific work to tlaplus-model, lean-model and proof-simplify."
+ ---
+ 
+ # formal-verify
+@@ -60,7 +60,9 @@
+    turns a counterexample into a code-level explanation, and what W6 drift checks read.
+ 5. **Model and check** via `tlaplus-model` or `lean-model`. Always run the sanity checks
+    those skills describe (must-fail invariants, action coverage, mutation of a guard).
+-   A spec that cannot fail proves nothing.
++   Read `references/model-sensitivity.md` when validating a fix, especially one adding
++   resource acquisition or fallible work. Observations must follow actual modeled events;
++   a fix toggle must not precompute the property outcome.
+ 6. **Reproduce every counterexample in real code** before calling it a bug
+    (`references/reproduce-and-fix.md`). Write a deterministic reproduction that forces the
+    trace's interleaving (barriers, injected delays, fake clocks, controllable executors).
+@@ -71,7 +73,9 @@
+    not the verdict. Record unreproduced traces as *suspected*, never as bugs.
+ 7. **Fix, then re-verify.** Fix the code, mirror the fix in the model, re-run the model
+    and the new test. Mutation-check the fix: revert it in the model and confirm the
+-   property fails again. This proves the property actually guards the bug.
++   property fails again. Also remove or reorder each independent defense with the same
++   properties and observations. Check newly introduced failures across the full transaction,
++   including after a side effect; one all-off toggle is insufficient regression evidence.
+ 8. **Record and report.** Keep a log of every check you cite in `formal/<concern>/evidence/`:
+    TLC or Lean output, coverage, `correspondence_check.py`, mutation runs, and test runs
+    before and after the fix. Report other problems you noticed along the way (for example, an
+--- a/formal-verify/references/model-sensitivity.md
++++ b/formal-verify/references/model-sensitivity.md
+@@ -0,0 +1,50 @@
++# Model and reproduction sensitivity
++
++Use this when a passing model/test is offered as evidence for a code fix. A green run,
++a must-fail reachability invariant, and an all-off bug toggle answer different questions.
++They do not establish that each independent defense is protected.
++
++## Observe semantics, then select implementations
++
++Derive property observations from accepted operations and concrete modeled state/events.
++For a resource handle, distinguish the reusable name from the object it currently names,
++the acquired binding, and ownership through the last use. For messages, retain the request
++identity through queueing, delivery and recovery.
++
++Audit the backward dependency of each observation. An assignment such as
++`foreignIO' = foreignIO \/ (~FixEnabled /\ reused)` makes the green result true by
++construction even if the guard or lifetime is wrong. A selector may change an acquisition
++or release action; the syscall's target observation should still use the same binding rule.
++Freezing `Properties.tla` alone does not freeze its meaning if ghost updates are rewritten.
++
++## Independent mutations
++
++Remove a guard, bypass acquisition, shorten ownership, or reorder a commit/release step
++individually, as relevant to the mechanism. Keep the properties and observation rules fixed.
++Record the specific violated property and trace. If a mutation passes, explain whether
++another defense makes it safe or the model cannot observe it; do not claim sensitivity.
++Use code mutations as well when a concrete regression assertion is relied upon.
++
++A correspondence line-range checker checks locations, not semantic refinement. Review the
++binding, error and recovery behavior separately; report that mapping as manual unless proved.
++
++## New fallible work across the transaction
++
++For each fallible operation introduced by a fix (dup, allocation, lock acquisition, I/O),
++consider failure before and after the first externally visible effect. Model what remains
++queued, committed or owned and what the next operation observes. A safe pre-send failure
++does not establish safety for failure after sending. Check correlation, retirement/reconnect,
++and absence of automatic replay when the original side effect may already have happened.
++
++Keep the claim scoped: bounded safety checking is not a liveness proof or whole-program proof.
++
++## Do not let the harness prove the assertion
++
++Assert wakeup/progress before teardown closes a peer, releases a barrier, cancels a task or
++otherwise supplies the event the production code should cause. Only rescue a failed run
++after recording the assertion. Remove the production wakeup and confirm that assertion fails.
++
++Tests that deliberately close and reuse process-global names (for example, `dup2` over a
++retired FD) belong in a dedicated child process with explicit ownership. A per-suite lock
++does not serialize other suites or runtime threads sharing that namespace. Preserve the
++isolation in the ordinary test runner, not just a one-off invocation with parallelism off.
+--- a/tlaplus-model/SKILL.md
++++ b/tlaplus-model/SKILL.md
+@@ -1,6 +1,6 @@
+ ---
+ name: tlaplus-model
+-description: "TLA+/TLC model-checking skill. Use it whenever TLA+, PlusCal, Quint, Apalache, TLC, a .tla/.cfg file, or model-checker output appears. That includes a pasted TLC error, \"Invariant X is violated\", or a State 1/State 2… counterexample trace the user wants explained or triaged (real bug, model artifact, or too-strong property), even if it looks answerable by reading alone. Also use it to write, run, scale, or fix specs; debug slow or exploding TLC runs; check invariants, liveness, and fairness; replay production logs against a spec; or \"model\"/\"exhaustively check\" concurrent code, protocols, queues, caches, schedulers, leases, retries, and state machines for races, lost updates, double-spends, deadlocks, and ordering bugs, even for a design with no code yet. Not for runtime race detectors, Jepsen, Alloy, Lean/Coq proofs, or UI state-machine libraries. Pair with formal-verify for the full bug-hunt loop."
++description: Model and check real code or protocols with TLA+/TLC, PlusCal, Quint or Apalache. Use for .tla/.cfg files, checker output and counterexample traces; bounded exploration of concurrent code, queues, caches, leases, retries, state machines and DAG schedulers; safety, liveness, fairness, state explosion and trace validation. Classify traces as real bugs, model artifacts or overly strong properties. Pair with formal-verify for reproduction and fixes. Not for race detectors, Jepsen, Alloy, Lean/Coq proofs or UI state-machine libraries.
+ ---
+ 
+ # tlaplus-model
+@@ -72,6 +72,10 @@
+    - (b) the **bug toggle**: turn the fix off and confirm the target property fails;
+    - (c) `-coverage 1` shows no action that is never enabled.
+ 
++   Keep observations independent of implementation selectors, and mutate independent
++   guards, ownership lifetimes and error recovery separately. Read
++   `~/.agents/skills/formal-verify/references/model-sensitivity.md` for fix validation;
++   an all-off toggle can hide a missing guard even with frozen properties.
+    A spec that has never failed is not evidence.
+ 6. **Add fairness honestly.** Liveness needs `WF_vars(A)` or `SF_vars(A)` on the actions the
+    real system guarantees will eventually run (a scheduler runs ready work, a consumer keeps
+--- a/formal-verify/references/reproduce-and-fix.md
++++ b/formal-verify/references/reproduce-and-fix.md
+@@ -54,7 +54,9 @@
+ 2. Mirror the fix in the model. Re-run all properties, not only the one that failed. Fixes often
+    break liveness (a lock added for safety can deadlock).
+ 3. **Mutation-check:** revert the fix in the model only (for example, behind a `BugFixEnabled`
+-   constant) and confirm the property fails again. This proves the property guards the bug.
++   constant) and confirm the property fails again. Then validate independent defenses and
++   new fallible steps with the same observation rules (`model-sensitivity.md`).
++   Assert progress before teardown supplies it; isolate destructive resource reuse in a child.
+ 4. The failing test now passes. Keep it.
+ 5. One finding per commit/PR when possible. The PR description gives the trace story,
+    the property, the test, and the model evidence.

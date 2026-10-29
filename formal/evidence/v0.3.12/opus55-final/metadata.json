@@ -1,0 +1,41 @@
+{
+  "model": "claude-opus-5-5",
+  "models_observed": [
+    "claude-opus-5-5"
+  ],
+  "turns": 42,
+  "tools": {
+    "Read": 23,
+    "Grep": 11,
+    "Glob": 7
+  },
+  "read_only": true,
+  "verdict": "release recommended; no new concrete runtime defect or false verification claim",
+  "raw_stream_sha256": "daa02b5623d7318cfe8bacd9a0a63dc4432403119eb791236dcacd9d09a99739",
+  "source_inputs": {
+    "formal/frame-connection-lifetime/tla/MC.cfg": "8c54581367083d9f6748a12f7d7613b3d4781ca6aa90404e99298a942bec3757",
+    "formal/frame-connection-lifetime/tla/MC_guard.cfg": "8005ca368cc972cdfa18b0e32afdd1eb65b65d638a4798ed6e4f02c21133f40e",
+    "formal/frame-connection-lifetime/tla/MC_early.cfg": "a37040e17417c7cf22760dec9674c4d3abcf6918bedf88dcd5050ba72ddf714a",
+    "formal/frame-connection-lifetime/tla/MC_atomic.cfg": "664d170fe70f5b52b92ec79f26334ec190d8286873a33952e4c21847baf15323",
+    "formal/frame-connection-lifetime/tla/MC_bug.cfg": "0a7fd11c8bb3aa3c6450e506b3d95894f741e0942563c001cd81ec3485323332",
+    "formal/frame-connection-lifetime/tla/MC_guard_harm.cfg": "e2e7771014b9dc51a506b4af027307a06e5996f822f3155cfb669cbba5184800",
+    "formal/frame-connection-lifetime/tla/MC_sanity.cfg": "7949aa1bc532e5badbc594e89448ed7b59a9bee742c2dc48fa15f0b47c4965fe",
+    "formal/frame-connection-lifetime/tla/Properties.tla": "fdd9f25b97cc13fa66ea4ab44b27d4d21606bfe5a50a0bd786251865a1665554",
+    "formal/frame-connection-lifetime/tla/Spec.tla": "b345c1c2e8f9db0db19bd6d223e66f22bb102889f0dacdf9cdfc71143971998e",
+    "formal/frame-connection-lifetime/tla/MC_reuse.cfg": "e5ae3624a237955dd3b47d34d8f57061dd8400a4d910fc0881d1528cf6e20e08",
+    "formal/rpc-reply-alignment/tla/MC.cfg": "99d55b9706411b3e4d1c79c12c7ceb75716dc0c691b71c18754c725368047b40",
+    "formal/rpc-reply-alignment/tla/MC_replay.cfg": "d4fab7ba84f1e25a88d4ddc72bd5c7eb35999dc8613c1005b96ebc6505d2a63f",
+    "formal/rpc-reply-alignment/tla/MC_sanity.cfg": "064423439b476a06b9bc7043c30f9de4c76239ea0a3f413e913939429a75ce3f",
+    "formal/rpc-reply-alignment/tla/MC_id.cfg": "398ad2c94addbfd466a12b8da20a87eb8f45dc0c6a1c251cb104b73ff1e4d065",
+    "formal/rpc-reply-alignment/tla/Properties.tla": "ec2d025d1ceac413b526e09bc990e49eca861dda8b633a3891713c13028bf8ed",
+    "formal/rpc-reply-alignment/tla/Spec.tla": "054a3d08b54995dc23cec92d3efc0cdc623f7b50cfbf69332161bbc4b701936f",
+    "formal/rpc-reply-alignment/tla/MC_retire.cfg": "13b70755f03c8151a6815dbb07d0b189ea7d25bdee29c9df481a0a76d26246d3",
+    "formal/rpc-reply-alignment/tla/MC_failure.cfg": "939be74c4bf02559af63dd28f296a3ddd87ebe19ac6f6fcec3db595b64e54175",
+    "formal/rpc-reply-alignment/tla/MC_old.cfg": "4553da4cb0ba4f63074e31207301973a6d5eb1a45d8d26eb4180743f6760f09d",
+    "Sources/DMXCore/Agent.swift": "304891f4bcb110c03421b1816dc983c55f66f321a6af5b25c20fc78139d2b77e",
+    "Tests/DMXCoreTests/FrameConnectionTests.swift": "8ec7ea5cf32339db9ac6cec973e39c6c64abe0056aab3db2973fd46c1261f3b7",
+    "Sources/DMXCore/GuestStore.swift": "5b7960566cc0e8c2f6530a5bf199fdfd7b1414782c9869779d7ca64072104e73",
+    "Tests/DMXCoreTests/GuestStoreTests.swift": "aacc61122defb4094d1ec24400a0142ea056d4b9d5626408f67995b200ea2b6f"
+  },
+  "limit": "Reviewer read source/logs, did not execute tests. Subsequent daemon-test snapshot assertion repair reviewed separately."
+}

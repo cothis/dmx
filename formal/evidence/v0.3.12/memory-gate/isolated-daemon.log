@@ -1,0 +1,197 @@
+2026-10-29T02:20:17Z dmx-daemon: listening on /tmp/dmx-memory-diag-wcjwwn_t/dmx.sock (standalone, pid 85080)
+2026-10-29T02:20:18Z dmx-daemon: VM up in 371 ms (10 cpus, 8.0G max)
+2026-10-29T02:20:18Z dmx-daemon: memory: pressure simulated as normal
+2026-10-29T02:20:21Z dmx-daemon: memory: pressure simulated as warning
+2026-10-29T02:20:21Z dmx-daemon: memory: host pressure warning (simulated)
+2026-10-29T02:20:21Z dmx-daemon: memory: guest reclaimed 501 MB in 2 ms (host pressure warning, asked 501 MB of cache)
+2026-10-29T02:20:31Z dmx-daemon: memory: guest reclaimed 513 MB in 4 ms (idle, asked 512 MB of cache)
+2026-10-29T02:20:31Z dmx-daemon: memory: free page reporting from 16 KB blocks (idle)
+2026-10-29T02:20:31Z dmx-daemon: memory: idle sweep in 8 ms, empty slabs freed 0 MB
+2026-10-29T02:20:31Z dmx-daemon: disk: idle trim in 27 ms, data.img gave back 256 MB
+2026-10-29T02:20:33Z dmx-daemon: memory: pressure simulated as normal
+2026-10-29T02:20:33Z dmx-daemon: memory: host pressure normal (simulated)
+2026-10-29T02:20:33Z dmx-daemon: memory: free page reporting from 512 KB blocks (in use)
+2026-10-29T02:20:41Z dmx-daemon: memory: pressure simulated as critical
+2026-10-29T02:20:41Z dmx-daemon: memory: host pressure critical (simulated)
+2026-10-29T02:20:41Z dmx-daemon: memory: zram swap on, 2048 MB (guest uses 133 MB, pressure critical)
+2026-10-29T02:20:41Z dmx-daemon: memory: guest reclaimed 21 MB in 6 ms (host pressure critical, asked 88 MB)
+2026-10-29T02:20:41Z dmx-daemon: memory: virtio-mem target 1024 MB under host pressure
+2026-10-29T02:20:42Z dmx-daemon: memory: balloon target 682 MB (virtio-mem pressure policy)
+2026-10-29T02:20:43Z dmx-daemon: memory: balloon target 567 MB (virtio-mem pressure policy)
+2026-10-29T02:20:43Z dmx-daemon: memory: balloon target 436 MB (virtio-mem pressure policy)
+2026-10-29T02:20:43Z dmx-daemon: memory: balloon target 364 MB (virtio-mem pressure policy)
+2026-10-29T02:20:43Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:20:44Z dmx-daemon: memory: balloon target 394 MB (virtio-mem pressure policy)
+2026-10-29T02:20:44Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:20:45Z dmx-daemon: memory: balloon target 354 MB (virtio-mem pressure policy)
+2026-10-29T02:20:45Z dmx-daemon: memory: virtio-mem target 2048 MB under host pressure
+2026-10-29T02:20:45Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:20:45Z dmx-daemon: memory: balloon target 107 MB (virtio-mem pressure policy)
+2026-10-29T02:20:54Z dmx-daemon: memory: virtio-mem target 1024 MB under host pressure
+2026-10-29T02:20:54Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:20:54Z dmx-daemon: memory: pressure simulated as warning
+2026-10-29T02:20:54Z dmx-daemon: memory: host pressure warning (simulated)
+2026-10-29T02:20:54Z dmx-daemon: memory: pressure simulated as normal
+2026-10-29T02:20:54Z dmx-daemon: memory: host pressure normal (simulated)
+2026-10-29T02:20:54Z dmx-daemon: memory: pressure follows the host again
+2026-10-29T02:20:54Z dmx-daemon: stopping the VM: stop requested
+2026-10-29T02:20:54Z dmx-daemon: VM stopped in 40 ms
+2026-10-29T02:20:54Z dmx-daemon: VM up in 116 ms (10 cpus, 8.0G max)
+2026-10-29T02:20:54Z dmx-daemon: memory: pressure simulated as normal
+2026-10-29T02:20:57Z dmx-daemon: memory: pressure simulated as warning
+2026-10-29T02:20:57Z dmx-daemon: memory: host pressure warning (simulated)
+2026-10-29T02:20:57Z dmx-daemon: memory: guest reclaimed 496 MB in 1 ms (host pressure warning, asked 496 MB of cache)
+2026-10-29T02:21:07Z dmx-daemon: memory: guest reclaimed 511 MB in 6 ms (idle, asked 512 MB of cache)
+2026-10-29T02:21:07Z dmx-daemon: memory: free page reporting from 16 KB blocks (idle)
+2026-10-29T02:21:07Z dmx-daemon: memory: idle sweep in 9 ms, empty slabs freed 0 MB
+2026-10-29T02:21:07Z dmx-daemon: disk: idle trim in 27 ms, data.img gave back 256 MB
+2026-10-29T02:21:10Z dmx-daemon: memory: pressure simulated as normal
+2026-10-29T02:21:10Z dmx-daemon: memory: host pressure normal (simulated)
+2026-10-29T02:21:10Z dmx-daemon: memory: free page reporting from 512 KB blocks (in use)
+2026-10-29T02:21:18Z dmx-daemon: memory: pressure simulated as critical
+2026-10-29T02:21:18Z dmx-daemon: memory: host pressure critical (simulated)
+2026-10-29T02:21:18Z dmx-daemon: memory: zram swap on, 2048 MB (guest uses 137 MB, pressure critical)
+2026-10-29T02:21:18Z dmx-daemon: memory: guest reclaimed 22 MB in 6 ms (host pressure critical, asked 90 MB)
+2026-10-29T02:21:18Z dmx-daemon: memory: virtio-mem target 1024 MB under host pressure
+2026-10-29T02:21:18Z dmx-daemon: memory: balloon target 683 MB (virtio-mem pressure policy)
+2026-10-29T02:21:19Z dmx-daemon: memory: balloon target 565 MB (virtio-mem pressure policy)
+2026-10-29T02:21:20Z dmx-daemon: memory: balloon target 492 MB (virtio-mem pressure policy)
+2026-10-29T02:21:20Z dmx-daemon: memory: balloon target 419 MB (virtio-mem pressure policy)
+2026-10-29T02:21:20Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:21:20Z dmx-daemon: memory: balloon target 368 MB (virtio-mem pressure policy)
+2026-10-29T02:21:20Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:21:21Z dmx-daemon: memory: balloon target 394 MB (virtio-mem pressure policy)
+2026-10-29T02:21:21Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:21:21Z dmx-daemon: memory: virtio-mem target 2176 MB under host pressure
+2026-10-29T02:21:22Z dmx-daemon: memory: virtio-mem target 2048 MB under host pressure
+2026-10-29T02:21:22Z dmx-daemon: memory: balloon target 113 MB (virtio-mem pressure policy)
+2026-10-29T02:21:30Z dmx-daemon: memory: pressure simulated as warning
+2026-10-29T02:21:30Z dmx-daemon: memory: host pressure warning (simulated)
+2026-10-29T02:21:30Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:21:30Z dmx-daemon: memory: virtio-mem target 1280 MB under host pressure
+2026-10-29T02:21:30Z dmx-daemon: memory: pressure simulated as normal
+2026-10-29T02:21:30Z dmx-daemon: memory: host pressure normal (simulated)
+2026-10-29T02:21:30Z dmx-daemon: memory: pressure follows the host again
+2026-10-29T02:21:30Z dmx-daemon: stopping the VM: stop requested
+2026-10-29T02:21:30Z dmx-daemon: VM stopped in 39 ms
+2026-10-29T02:21:30Z dmx-daemon: VM up in 127 ms (10 cpus, 8.0G max)
+2026-10-29T02:21:30Z dmx-daemon: memory: pressure simulated as normal
+2026-10-29T02:21:33Z dmx-daemon: memory: pressure simulated as warning
+2026-10-29T02:21:33Z dmx-daemon: memory: host pressure warning (simulated)
+2026-10-29T02:21:33Z dmx-daemon: memory: guest reclaimed 496 MB in 1 ms (host pressure warning, asked 496 MB of cache)
+2026-10-29T02:21:43Z dmx-daemon: memory: guest reclaimed 512 MB in 3 ms (idle, asked 512 MB of cache)
+2026-10-29T02:21:43Z dmx-daemon: memory: free page reporting from 16 KB blocks (idle)
+2026-10-29T02:21:43Z dmx-daemon: memory: idle sweep in 6 ms, empty slabs freed 0 MB
+2026-10-29T02:21:44Z dmx-daemon: disk: idle trim in 26 ms, data.img gave back 256 MB
+2026-10-29T02:21:46Z dmx-daemon: memory: pressure simulated as normal
+2026-10-29T02:21:46Z dmx-daemon: memory: host pressure normal (simulated)
+2026-10-29T02:21:46Z dmx-daemon: memory: free page reporting from 512 KB blocks (in use)
+2026-10-29T02:21:54Z dmx-daemon: memory: pressure simulated as critical
+2026-10-29T02:21:54Z dmx-daemon: memory: host pressure critical (simulated)
+2026-10-29T02:21:54Z dmx-daemon: memory: zram swap on, 2048 MB (guest uses 134 MB, pressure critical)
+2026-10-29T02:21:54Z dmx-daemon: memory: guest reclaimed 22 MB in 5 ms (host pressure critical, asked 89 MB)
+2026-10-29T02:21:54Z dmx-daemon: memory: virtio-mem target 1024 MB under host pressure
+2026-10-29T02:21:54Z dmx-daemon: memory: balloon target 682 MB (virtio-mem pressure policy)
+2026-10-29T02:21:55Z dmx-daemon: memory: balloon target 598 MB (virtio-mem pressure policy)
+2026-10-29T02:21:56Z dmx-daemon: memory: balloon target 528 MB (virtio-mem pressure policy)
+2026-10-29T02:21:56Z dmx-daemon: memory: balloon target 455 MB (virtio-mem pressure policy)
+2026-10-29T02:21:56Z dmx-daemon: memory: balloon target 381 MB (virtio-mem pressure policy)
+2026-10-29T02:21:56Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:21:56Z dmx-daemon: memory: balloon target 378 MB (virtio-mem pressure policy)
+2026-10-29T02:21:56Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:21:57Z dmx-daemon: memory: balloon target 381 MB (virtio-mem pressure policy)
+2026-10-29T02:21:57Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:21:57Z dmx-daemon: memory: balloon target 397 MB (virtio-mem pressure policy)
+2026-10-29T02:21:57Z dmx-daemon: memory: balloon target 331 MB (virtio-mem pressure policy)
+2026-10-29T02:21:57Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:21:58Z dmx-daemon: memory: virtio-mem target 2176 MB under host pressure
+2026-10-29T02:21:58Z dmx-daemon: memory: virtio-mem target 2048 MB under host pressure
+2026-10-29T02:21:58Z dmx-daemon: memory: balloon target 113 MB (virtio-mem pressure policy)
+2026-10-29T02:22:06Z dmx-daemon: memory: virtio-mem target 1024 MB under host pressure
+2026-10-29T02:22:06Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:22:06Z dmx-daemon: memory: pressure simulated as warning
+2026-10-29T02:22:06Z dmx-daemon: memory: host pressure warning (simulated)
+2026-10-29T02:22:06Z dmx-daemon: memory: pressure simulated as normal
+2026-10-29T02:22:06Z dmx-daemon: memory: host pressure normal (simulated)
+2026-10-29T02:22:06Z dmx-daemon: memory: pressure follows the host again
+2026-10-29T02:22:06Z dmx-daemon: stopping the VM: stop requested
+2026-10-29T02:22:06Z dmx-daemon: VM stopped in 48 ms
+2026-10-29T02:22:06Z dmx-daemon: VM up in 125 ms (10 cpus, 8.0G max)
+2026-10-29T02:22:06Z dmx-daemon: memory: pressure simulated as normal
+2026-10-29T02:22:09Z dmx-daemon: memory: pressure simulated as warning
+2026-10-29T02:22:09Z dmx-daemon: memory: host pressure warning (simulated)
+2026-10-29T02:22:09Z dmx-daemon: memory: guest reclaimed 496 MB in 1 ms (host pressure warning, asked 496 MB of cache)
+2026-10-29T02:22:18Z dmx-daemon: memory: guest reclaimed 511 MB in 6 ms (idle, asked 512 MB of cache)
+2026-10-29T02:22:18Z dmx-daemon: memory: free page reporting from 16 KB blocks (idle)
+2026-10-29T02:22:18Z dmx-daemon: memory: idle sweep in 9 ms, empty slabs freed 0 MB
+2026-10-29T02:22:18Z dmx-daemon: disk: idle trim in 22 ms, data.img gave back 256 MB
+2026-10-29T02:22:20Z dmx-daemon: memory: pressure simulated as normal
+2026-10-29T02:22:20Z dmx-daemon: memory: host pressure normal (simulated)
+2026-10-29T02:22:20Z dmx-daemon: memory: free page reporting from 512 KB blocks (in use)
+2026-10-29T02:22:28Z dmx-daemon: memory: pressure simulated as critical
+2026-10-29T02:22:28Z dmx-daemon: memory: host pressure critical (simulated)
+2026-10-29T02:22:28Z dmx-daemon: memory: zram swap on, 2048 MB (guest uses 135 MB, pressure critical)
+2026-10-29T02:22:28Z dmx-daemon: memory: guest reclaimed 22 MB in 6 ms (host pressure critical, asked 89 MB)
+2026-10-29T02:22:28Z dmx-daemon: memory: virtio-mem target 1024 MB under host pressure
+2026-10-29T02:22:28Z dmx-daemon: memory: balloon target 682 MB (virtio-mem pressure policy)
+2026-10-29T02:22:30Z dmx-daemon: memory: balloon target 594 MB (virtio-mem pressure policy)
+2026-10-29T02:22:30Z dmx-daemon: memory: balloon target 520 MB (virtio-mem pressure policy)
+2026-10-29T02:22:30Z dmx-daemon: memory: balloon target 447 MB (virtio-mem pressure policy)
+2026-10-29T02:22:30Z dmx-daemon: memory: balloon target 373 MB (virtio-mem pressure policy)
+2026-10-29T02:22:30Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:22:30Z dmx-daemon: memory: balloon target 372 MB (virtio-mem pressure policy)
+2026-10-29T02:22:31Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:22:31Z dmx-daemon: memory: balloon target 375 MB (virtio-mem pressure policy)
+2026-10-29T02:22:31Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:22:31Z dmx-daemon: memory: balloon target 378 MB (virtio-mem pressure policy)
+2026-10-29T02:22:32Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:22:32Z dmx-daemon: memory: virtio-mem target 2048 MB under host pressure
+2026-10-29T02:22:32Z dmx-daemon: memory: balloon target 112 MB (virtio-mem pressure policy)
+2026-10-29T02:22:40Z dmx-daemon: memory: virtio-mem target 1024 MB under host pressure
+2026-10-29T02:22:40Z dmx-daemon: memory: pressure simulated as warning
+2026-10-29T02:22:40Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:22:40Z dmx-daemon: memory: host pressure warning (simulated)
+2026-10-29T02:22:40Z dmx-daemon: memory: pressure simulated as normal
+2026-10-29T02:22:40Z dmx-daemon: memory: host pressure normal (simulated)
+2026-10-29T02:22:40Z dmx-daemon: memory: pressure follows the host again
+2026-10-29T02:22:40Z dmx-daemon: stopping the VM: stop requested
+2026-10-29T02:22:40Z dmx-daemon: VM stopped in 40 ms
+2026-10-29T02:22:40Z dmx-daemon: VM up in 128 ms (10 cpus, 8.0G max)
+2026-10-29T02:22:40Z dmx-daemon: memory: pressure simulated as normal
+2026-10-29T02:22:44Z dmx-daemon: memory: pressure simulated as warning
+2026-10-29T02:22:44Z dmx-daemon: memory: host pressure warning (simulated)
+2026-10-29T02:22:44Z dmx-daemon: memory: guest reclaimed 496 MB in 1 ms (host pressure warning, asked 496 MB of cache)
+2026-10-29T02:22:52Z dmx-daemon: memory: guest reclaimed 512 MB in 3 ms (idle, asked 512 MB of cache)
+2026-10-29T02:22:52Z dmx-daemon: memory: free page reporting from 16 KB blocks (idle)
+2026-10-29T02:22:52Z dmx-daemon: memory: idle sweep in 8 ms, empty slabs freed 0 MB
+2026-10-29T02:22:52Z dmx-daemon: disk: idle trim in 29 ms, data.img gave back 256 MB
+2026-10-29T02:22:54Z dmx-daemon: memory: pressure simulated as normal
+2026-10-29T02:22:54Z dmx-daemon: memory: host pressure normal (simulated)
+2026-10-29T02:22:54Z dmx-daemon: memory: free page reporting from 512 KB blocks (in use)
+2026-10-29T02:23:02Z dmx-daemon: memory: pressure simulated as critical
+2026-10-29T02:23:02Z dmx-daemon: memory: host pressure critical (simulated)
+2026-10-29T02:23:02Z dmx-daemon: memory: zram swap on, 2048 MB (guest uses 142 MB, pressure critical)
+2026-10-29T02:23:02Z dmx-daemon: memory: guest reclaimed 21 MB in 6 ms (host pressure critical, asked 92 MB)
+2026-10-29T02:23:02Z dmx-daemon: memory: virtio-mem target 1024 MB under host pressure
+2026-10-29T02:23:03Z dmx-daemon: memory: balloon target 682 MB (virtio-mem pressure policy)
+2026-10-29T02:23:04Z dmx-daemon: memory: balloon target 566 MB (virtio-mem pressure policy)
+2026-10-29T02:23:04Z dmx-daemon: memory: balloon target 491 MB (virtio-mem pressure policy)
+2026-10-29T02:23:04Z dmx-daemon: memory: balloon target 419 MB (virtio-mem pressure policy)
+2026-10-29T02:23:04Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:23:05Z dmx-daemon: memory: balloon target 392 MB (virtio-mem pressure policy)
+2026-10-29T02:23:05Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:23:06Z dmx-daemon: memory: virtio-mem target 2176 MB under host pressure
+2026-10-29T02:23:06Z dmx-daemon: memory: virtio-mem target 2048 MB under host pressure
+2026-10-29T02:23:06Z dmx-daemon: memory: balloon target 113 MB (virtio-mem pressure policy)
+2026-10-29T02:23:14Z dmx-daemon: memory: pressure simulated as warning
+2026-10-29T02:23:14Z dmx-daemon: memory: host pressure warning (simulated)
+2026-10-29T02:23:14Z dmx-daemon: memory: balloon target 0 MB (virtio-mem pressure policy)
+2026-10-29T02:23:14Z dmx-daemon: memory: virtio-mem target 1280 MB under host pressure
+2026-10-29T02:23:14Z dmx-daemon: memory: pressure simulated as normal
+2026-10-29T02:23:14Z dmx-daemon: memory: virtio-mem target 1152 MB under host pressure
+2026-10-29T02:23:14Z dmx-daemon: memory: host pressure normal (simulated)
+2026-10-29T02:23:14Z dmx-daemon: memory: pressure follows the host again
+2026-10-29T02:23:14Z dmx-daemon: stopping the VM: stop requested
+2026-10-29T02:23:14Z dmx-daemon: VM stopped in 44 ms
+2026-10-29T02:23:15Z dmx-daemon: signal 15, shutting down
+2026-10-29T02:23:15Z dmx-daemon: exiting

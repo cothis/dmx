@@ -1,0 +1,15 @@
+{
+  "model": "claude-opus-5-5",
+  "models_observed": [
+    "claude-opus-5-5"
+  ],
+  "turns": 12,
+  "tools": {
+    "Grep": 3,
+    "Read": 7,
+    "Glob": 1
+  },
+  "read_only": true,
+  "stream_sha256": "526bfa35d54d9612b14aee693a449c7f44eb4903aac8010220cf1348ad809910",
+  "verdict": "same acceptance/deadline; conditional on full corrected daemon/MCP passing; exact original failure mechanism inferred, not proved"
+}

@@ -1,0 +1,9 @@
+{
+  "ok": true,
+  "mutation": "remove only close shutdown",
+  "exit_code": 1,
+  "expected_assertions": [
+    "close alone must end I/O",
+    "abort alone must end the leased write"
+  ]
+}

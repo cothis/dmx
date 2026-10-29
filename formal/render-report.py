@@ -76,6 +76,17 @@ review_note = (f'<aside class="verdict"><strong>Independent review follow-up</st
                f'<p>{e(review["summary"])}</p><p><a href="{e(review["report"])}">Validated review and reproductions</a>'
                f' · <a href="{e(review["evidence"])}">Model identity and run metadata</a></p></aside>'
                if review else "")
+resolution = data.get("resolution")
+resolution_html = ""
+if resolution:
+    resolution_html = ('<section><h2>Current repair and verification · ' + e(resolution["version"]) + '</h2>'
+        + '<p>' + e(resolution["status"]) + '</p>'
+        + '<p><a href="' + e(resolution["analysis"]) + '">Why the first verification missed these bugs</a> · '
+        + evidence(resolution["model_results"]) + '</p>'
+        + resolution.get('diagram_html', '')
+        + '<table><thead><tr><th>Check</th><th>Result</th></tr></thead><tbody>'
+        + ''.join('<tr><td>' + e(c["name"]) + '</td><td>' + e(c["result"]) + '</td></tr>' for c in resolution["checks"])
+        + '</tbody></table>' + bullets(resolution["limits"]) + '</section>')
 html = f'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>FrameConnection verification · dmx</title><style>
@@ -92,8 +103,9 @@ pre{{background:#edf0e9;padding:20px;overflow-x:auto;font-size:.82rem;line-heigh
 <p class="verdict">{e(data['summary'])}</p>
 <p class="meta">Baseline {e(data['repo_commit'])} · {e(data['generated_at'])} · {e(publication_label)}</p></header>
 {review_note}
+{resolution_html}
 {''.join(parts)}
-<section><h2>What was verified</h2><p>{e(data['properties'][0]['bounds'])}.</p>
+<section><h2>Original investigation (historical evidence)</h2><p>{e(data['properties'][0]['bounds'])}.</p>
 <p>{trust['states_generated']} states generated; {trust['distinct_states']} distinct states; complete graph depth {trust['depth']}.</p>
 <div class="scroll"><table><thead><tr><th>Property</th><th>Kind</th><th>Result / evidence</th></tr></thead><tbody>{property_rows}</tbody></table></div>
 <h3>Code and real-VM validation</h3><div class="scroll"><table><thead><tr><th>Check</th><th>Result</th><th>Evidence</th></tr></thead><tbody>{validation_rows}</tbody></table></div>

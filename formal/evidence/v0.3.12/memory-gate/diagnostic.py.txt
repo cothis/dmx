@@ -1,0 +1,33 @@
+from pathlib import Path
+import json,os,signal,shutil,tempfile,time,sys
+root=Path.cwd();out=root/'.build/fixes-0.3.12/critical-memory-diagnostic';out.mkdir(exist_ok=True)
+source=(root/'scripts/test-daemon.py').read_text().split('# A short path: Unix socket paths')[0]
+source=source.replace('    idle, _ = memory()','    idle, _ = memory()\n    results["diagnostic_idle"] = idle')
+source=source.replace('    def squeezed():\n        fp, m = memory()\n        return', '    results["critical_samples"] = []\n    def squeezed():\n        fp, m = memory()\n        results["critical_samples"].append({"fp":fp,"balloon":m.get("balloon_mb"),"at":time.monotonic()})\n        return')
+source=source.replace('    inflated = wait_for(squeezed, 15)','    inflated = wait_for(squeezed, 15)\n    results["diagnostic_wait_succeeded"] = inflated')
+ns={'__name__':'diagnostic'}
+sys.argv=['diagnostic',str(root/'.build/release/dmx')]
+exec(compile(source,'scripts/test-daemon.py [measurement-only instrumentation]','exec'),ns)
+base=Path(tempfile.mkdtemp(prefix='dmx-memory-diag-',dir='/tmp'))
+ns['HOME']=base;ns['ENV']={**os.environ,'DMX_HOME':str(base)}
+(base/'guest').symlink_to(root/'.build/guest-0.3.12')
+all_results=[]
+try:
+ for run in range(5):
+  ns['checks'].clear();ns['dmx']('start');result={'run':run}
+  ns['memory_checks'](result)
+  result['checks']=ns['checks'].copy();all_results.append(result)
+  (out/'results.json').write_text(json.dumps(all_results,indent=2)+'\n')
+  samples=result['critical_samples'];last=samples[-1]
+  final=result['memory_critical_footprint_mb'];limit=result['diagnostic_idle']+64
+  print(json.dumps({'run':run,'limit':limit,'wait_succeeded':result['diagnostic_wait_succeeded'],'last_accepted_sample':last,'final_resample':final,'critical_ok':next(c['ok'] for c in ns['checks'] if c['name']=='memory_balloon_on_critical')}),flush=True)
+  ns['dmx']('stop')
+  if result['diagnostic_wait_succeeded'] and final>=limit:
+   print('Observed live accepted sample followed by failing immediate resample.',flush=True);break
+finally:
+ for pid in ns['daemon_pids']():os.kill(pid,signal.SIGTERM)
+ ns['wait_for'](lambda:not ns['daemon_pids'](),15)
+ for name in ['daemon.log','console.log']:
+  p=base/'logs'/name
+  if p.exists():shutil.copy2(p,out/name)
+ shutil.rmtree(base)

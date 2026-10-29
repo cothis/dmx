@@ -1,48 +1,37 @@
 # FrameConnection descriptor lifetime
 
-Baseline: `2ed2c21` (2026-10-29). Workflow: W1 bug hunt.
+Original finding baseline: `2ed2c21`. Review-gap baseline: `7b094ab` (v0.3.11).
+Current model was rebuilt after the independent Opus 5.5 review, 2026-10-29.
 
-## Triage
+One connection, two finite operations with two syscalls each, one close and original-number
+reuse. The descriptor table (`slot`), acquired handle (`handle`) and private copy binding
+(`copySlot`) are distinct. A duplicate captures the current open-file description under
+`closeLock`. Transfer observes its actual binding. Observations do not read fix selectors.
 
-1. Connection close versus queued/in-flight framing I/O: shared descriptor numbers can
-   be reused by unrelated connections; affects agent, daemon and exec streams. Selected.
-2. VM stop/start versus asynchronous memory-controller callbacks: old callbacks can
-   outlive their attachment. Not modeled or classified as a finding in this investigation.
-3. Virtio block request/flush ordering across concurrent workers: disk durability has
-   high impact, but needs the guest's submission rules in scope. Deferred, not a finding.
+The original protocol properties in `tla/Properties.tla` remain byte-for-byte frozen:
 
-## In scope
+- `NoForeignIO`: an operation never accesses an unrelated socket.
+- `NoLateAcquire`: a closed connection never accepts a new operation on a live descriptor.
 
-One FrameConnection, two concurrent frame operations, close/abort, and one unrelated
-socket reusing the original descriptor number. Each operation performs two system calls
-(representing header/body or a short transfer). Close can happen before or between them.
+Independent mutations remove the closed guard, bypass the private duplicate, and release
+the duplicate before the final use, and move duplication outside the close lock. A separate
+guard-harm check requires NoForeignIO even without the earlier NoLateAcquire alarm. All must fail the frozen properties with unchanged
+observation logic. Completion and descriptor reuse must also be reachable. Fixed-enabled
+actions have positive coverage; early release and copy reuse are intentionally disabled in
+the fixed variant. No fairness, symmetry or state constraints are used.
 
-Protocol properties are frozen in `tla/Properties.tla` before checking:
+Syscalls return in one step; error/EOF may end real operations earlier. This is bounded
+safety checking, **not** blocked-I/O liveness or a Swift refinement proof. Shutdown wakeup
+is tested separately in real sockets, before peer teardown, including a source mutation
+removing only shutdown. Destructive `dup2` probes execute only in dedicated children.
 
-- NoForeignIO: framing I/O must never access another connection's socket. Source:
-  `Sources/DMXCore/Agent.swift:113-115` (one connection speaking one peer's protocol),
-  `:155-161` (explicit protection against reused descriptor numbers).
-- NoLateAcquire: after the connection closes, a new frame operation must not acquire
-  a live descriptor. Source: `:130` (close releases the connection), `:146-161`
-  (abort ends the connection; closed is irreversible).
+The FD identity model abstracts duplication failure as rejection. That abstraction cannot
+justify request/reply safety after transmission; the separate
+[RPC model](../rpc-reply-alignment/SCOPE.md) explicitly includes duplication failures and
+queued reply identity across calls. The earlier blanket assumption of safe rejection was
+insufficient for the RPC transaction and was withdrawn.
 
-Code-level checks: finite variable domains (`TypeOK`), reachable completion/reuse
-(must-fail sanity invariants), nonzero action coverage, and the unfixed mutation.
-
-## Abstractions and limits
-
-Payloads, framing syntax, time, descriptor numbers, and kernel scheduling are abstracted.
-A syscall returns data/error/EOF in one step; blocked-I/O liveness is **not proved**.
-The fixed model treats descriptor duplication and the closed check as one locked action.
-A private duplicate remains bound to its original open file description until released.
-The model permits both finite transfer steps even if a real EOF/error would return earlier;
-this overapproximates possible I/O for the safety check rather than proving error handling.
-No fairness, symmetry reduction or state constraints are used.
-
-Out of scope: raw `FrameConnection.fd` users (splice/relay and Docker HTTP), guest vsock
-credit flow, VM destruction, process crashes, and malicious code externally closing an
-owned descriptor. This is a focused code-path finding, not a demonstrated guest escape.
-
-The real reproduction forces legal OS descriptor reuse with `dup2`; it does not assert
-how frequently production scheduling hits the ordering. Before/after VM selftests measure
-the process's `ri_phys_footprint`; no whole-program correctness claim is made.
+Out of scope: raw `FrameConnection.fd` consumers (splice/relay, Docker HTTP), vsock credit
+flow, VM destruction, external closes of an owned private descriptor, process crashes,
+OS implementation correctness, unbounded inputs, production failure frequency. Current
+proofs assume lock mutual exclusion and Darwin's dup/open-file-description semantics.

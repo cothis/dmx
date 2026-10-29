@@ -1,0 +1,22 @@
+[
+  {
+    "path": "formal-verify/SKILL.md",
+    "before_sha256": "04fdb98445aa51c76bf2a51c71651049f561a6cff0962c7d508221c4a09b36a6",
+    "after_sha256": "b940721456cd1ca0f0e1675b8cd71c14fca30d972e159b27b672d448f2c95d46"
+  },
+  {
+    "path": "formal-verify/references/model-sensitivity.md",
+    "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "after_sha256": "ef7271be2cfad51b3e74a500375c29f238c8a0b471581079d7485649bc4363d5"
+  },
+  {
+    "path": "tlaplus-model/SKILL.md",
+    "before_sha256": "56d62e42c24b060a4ff5b8e2ef723f904213e399f2ab53f6e8d86f361fa4c0c7",
+    "after_sha256": "a3e59f250a8f9800837d27167670774907ce4808b933d5ae66098efef8020510"
+  },
+  {
+    "path": "formal-verify/references/reproduce-and-fix.md",
+    "before_sha256": "84f08ee0a4143e7c58c87d2c250b099f00dc152f464f039b08cfdf6727063b99",
+    "after_sha256": "5f6fad2ad5e0c4ffebda5d62e49ed0b5a061447237d991987fa454c0240068a7"
+  }
+]
