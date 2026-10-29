@@ -20,3 +20,5 @@ callbacks have different proof scopes. Direct container/Quit GUI clicks remain a
 acceptance item. See [release measurements](../../measurements/2026-10-29-release-0.4.0.json)
 and [menu app guide](../../menu-app.md). Signing, final installer roundtrip and public
 download verification follow code approval; code approval alone is not publication evidence.
+
+The authorized one-time source upload has its own [review and immutable evidence](distribution-upload/README.md). It changes distribution transport only; application qualification stays local.

@@ -1,0 +1,9 @@
+{
+  "requested_model": "claude-opus-5-5",
+  "initialized_model": "claude-opus-5-5",
+  "assistant_models": [
+    "claude-opus-5-5"
+  ],
+  "is_error": false,
+  "workflow_sha256": "4cd761e16af8569d0951135dda284e13905711711463dd530f8a111095be2825"
+}

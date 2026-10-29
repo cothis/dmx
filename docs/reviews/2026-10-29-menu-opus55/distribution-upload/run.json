@@ -1,0 +1,59 @@
+{
+  "conclusion": "success",
+  "headSha": "b13b0216ebdfd98548659bf62be2d53f5eb22786",
+  "jobs": [
+    {
+      "completedAt": "2026-10-29T14:07:03Z",
+      "conclusion": "success",
+      "databaseId": 123497525386,
+      "name": "upload",
+      "startedAt": "2026-10-29T14:06:30Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-29T14:06:31Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-29T14:06:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-29T14:06:36Z",
+          "conclusion": "success",
+          "name": "Fetch the pinned previous public source archive",
+          "number": 2,
+          "startedAt": "2026-10-29T14:06:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-29T14:06:37Z",
+          "conclusion": "success",
+          "name": "Reconstruct the exact locally qualified archive",
+          "number": 3,
+          "startedAt": "2026-10-29T14:06:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-29T14:07:02Z",
+          "conclusion": "success",
+          "name": "Upload only the missing asset to the existing release",
+          "number": 4,
+          "startedAt": "2026-10-29T14:06:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-29T14:07:02Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 5,
+          "startedAt": "2026-10-29T14:07:02Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/cothis/dmx/actions/runs/40888198984/job/123497525386"
+    }
+  ],
+  "status": "completed",
+  "url": "https://github.com/cothis/dmx/actions/runs/40888198984"
+}

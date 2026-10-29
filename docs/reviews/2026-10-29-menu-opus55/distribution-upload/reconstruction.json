@@ -1,0 +1,8 @@
+{
+  "ok": true,
+  "previous_sha256": "4df14eda667bddb071c44c6813b5b7aeba36594a042e1763de8178b963752008",
+  "reconstructed_sha256": "ff958e5f94157f84c34c64fda74ab5fbdcc3726627740c0dfd29bf898b882579",
+  "qualified_sha256": "ff958e5f94157f84c34c64fda74ab5fbdcc3726627740c0dfd29bf898b882579",
+  "bytes": 496209920,
+  "changes": "Archive root prefix and the three version references in README.md; all source payloads unchanged."
+}
