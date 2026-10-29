@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build install kernel qemu fex guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest javatest pressuretest benchmark test formaltest release clean
+.PHONY: build app install-app menutest install kernel qemu fex guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest javatest pressuretest benchmark test formaltest release clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -9,11 +9,20 @@ build:
 	swift build -c release
 	codesign --force --sign - --entitlements dmx.entitlements $(BIN)
 
+# A local ad-hoc-signed app; public Developer ID signing/notarization is a release step.
+app: build
+	python3 -I scripts/build-app.py
+
+# Update the CLI too, so an existing socket-activated daemon supports app lifecycle receipts.
+install-app: install
+	python3 -I scripts/build-app.py --install
+
 # Copies dmx to $(PREFIX)/bin (default ~/.local/bin, no sudo). If the launchd agent is installed,
 # points it at the new copy. The guest stays in ~/.dmx/guest (`make guest`).
 install: build
 	install -d $(PREFIX)/bin
-	install -m 755 $(BIN) $(PREFIX)/bin/dmx
+	install -m 755 $(BIN) $(PREFIX)/bin/.dmx.new
+	mv -f $(PREFIX)/bin/.dmx.new $(PREFIX)/bin/dmx
 	@if [ -f $(HOME)/Library/LaunchAgents/io.github.cothis.dmx.plist ]; then $(PREFIX)/bin/dmx install; fi
 
 # Builds the trimmed 4K page guest kernel inside a dmx VM (several minutes). `make guest` needs it.
@@ -39,6 +48,11 @@ selftest: build
 # The daemon, its socket and exec paths, idle stop, in a throwaway DMX_HOME (about 45 s).
 daemontest: build
 	python3 -I scripts/test-daemon.py $(BIN)
+
+# Passive receipts, unexpected shutdown and idle release after a real Docker listing.
+menutest: build
+	python3 -I scripts/test-menu.py $(BIN)
+	DMX_MENU_VM=1 DMX_MENU_EXECUTABLE="$(abspath $(BIN))" swift test --filter MenuEngineVMTests
 
 # `dmx mcp` driven over pipes like an MCP client: tools, output limits, timeouts (about 6 s).
 mcptest: build

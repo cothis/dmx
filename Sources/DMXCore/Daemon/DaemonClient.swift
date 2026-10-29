@@ -16,7 +16,7 @@ public final class DaemonClient: Sendable {
 
     /// Connects to the daemon. With `start`, a missing daemon is started in the background
     /// (launchd starts it by itself after `dmx install`); without, nil means none is running.
-    public static func connect(paths: Paths, start: Bool) async throws -> DaemonClient? {
+    public static func connect(paths: Paths, start: Bool, executable: String? = nil) async throws -> DaemonClient? {
         let deadline = ContinuousClock.now + .seconds(15)
         var spawned = false
         var lastError: DMXError?
@@ -33,7 +33,7 @@ public final class DaemonClient: Sendable {
             } catch let error as DMXError where error.code == "daemon_unreachable" {
                 guard start else { return nil }
                 if !spawned {
-                    try spawnDaemon(paths)
+                    try spawnDaemon(paths, executable: executable)
                     spawned = true
                 }
                 lastError = error
@@ -68,6 +68,7 @@ public final class DaemonClient: Sendable {
     public func stop() async throws -> DaemonStatus { try await control.call("stop", NoParams()) }
     /// Powers the VM off and ends the daemon now.
     public func quit() async throws { let _: NoParams = try await control.call("quit", NoParams()) }
+    public func releaseMenuSession() async throws -> Bool { try await control.call("menu_release", NoParams()) }
 
     /// Starts a process in the guest, booting the VM first if needed.
     public func exec(_ request: ExecRequest) async throws -> ExecSession {
@@ -93,9 +94,9 @@ public final class DaemonClient: Sendable {
 
 /// Starts `dmx daemon` detached from this process, logging to `~/.dmx/logs/daemon.log`.
 /// Two clients may both start one; the second finds the lock taken and exits.
-private func spawnDaemon(_ paths: Paths) throws {
+private func spawnDaemon(_ paths: Paths, executable: String?) throws {
     try FileManager.default.createDirectory(at: paths.logs, withIntermediateDirectories: true)
-    let executable = try currentExecutable()
+    let executable = try executable ?? currentExecutable()
     var actions: posix_spawn_file_actions_t?
     posix_spawn_file_actions_init(&actions)
     defer { posix_spawn_file_actions_destroy(&actions) }
@@ -111,7 +112,12 @@ private func spawnDaemon(_ paths: Paths) throws {
     var cArgs = argv.map { strdup($0) } + [nil]
     defer { for p in cArgs { free(p) } }
     var pid: pid_t = 0
-    let result = posix_spawn(&pid, executable, &actions, &attributes, &cArgs, environ)
+    // App/test clients can supply Paths explicitly; the helper must use that same home.
+    var environment = ProcessInfo.processInfo.environment
+    environment["DMX_HOME"] = paths.home.path
+    var cEnv = environment.map { strdup("\($0.key)=\($0.value)") } + [nil]
+    defer { for p in cEnv { free(p) } }
+    let result = posix_spawn(&pid, executable, &actions, &attributes, &cArgs, &cEnv)
     guard result == 0 else {
         throw DMXError("daemon_error", "cannot start \(executable) daemon: \(String(cString: strerror(result)))")
     }

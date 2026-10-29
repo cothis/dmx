@@ -7,16 +7,36 @@ final class DockerStream: @unchecked Sendable {
     private let onClose: @Sendable () -> Void
     private let lock = NSLock()
     private var closed = false
+    private var timedOut = false
+    private var deadline: DispatchSourceTimer?
 
-    init(fd: Int32, onClose: @escaping @Sendable () -> Void) {
+    init(fd: Int32, timeoutSeconds: Int? = nil, onClose: @escaping @Sendable () -> Void) {
         self.fd = fd
         self.onClose = onClose
+        if let timeoutSeconds {
+            let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+            timer.setEventHandler { [weak self] in
+                guard let self else { return }
+                self.lock.withLock {
+                    guard !self.closed else { return }
+                    self.timedOut = true
+                    // shutdown wakes readSocket's poll as well as a blocked write. Closing
+                    // here would let an in-flight syscall touch a reused descriptor.
+                    _ = Darwin.shutdown(self.fd, SHUT_RDWR)
+                }
+            }
+            timer.schedule(deadline: .now() + .seconds(timeoutSeconds))
+            timer.resume()
+            deadline = timer
+        }
     }
 
     func close() {
         lock.withLock {
             guard !closed else { return }
             closed = true
+            deadline?.cancel()
+            deadline = nil
             onClose()
         }
     }
@@ -36,6 +56,7 @@ final class DockerStream: @unchecked Sendable {
             var offset = 0
             while offset < buf.count {
                 let n = Darwin.write(fd, buf.baseAddress! + offset, buf.count - offset)
+                try checkDeadline()
                 if n < 0 && errno == EINTR { continue }
                 guard n > 0 else { throw DMXError("docker_failed", "write to dockerd: \(String(cString: strerror(errno)))") }
                 offset += n
@@ -48,12 +69,20 @@ final class DockerStream: @unchecked Sendable {
         var buffer = Data(count: max)
         while true {
             let n = buffer.withUnsafeMutableBytes { readSocket(fd, $0.baseAddress!, max) }
+            try checkDeadline()
             if n < 0 && errno == EINTR { continue }
             if n < 0 {
                 if errno == ECONNRESET || errno == ENOTCONN { return Data() }
                 throw DMXError("docker_failed", "read from dockerd: \(String(cString: strerror(errno)))")
             }
             return buffer.prefix(n)
+        }
+    }
+
+    private func checkDeadline() throws {
+        if lock.withLock({ timedOut }) {
+            throw DMXError("docker_timeout", "dockerd did not complete the menu request before its deadline",
+                           hint: "run `docker ps -a`; retry from the menu, or run `dmx stop`")
         }
     }
 }
@@ -73,20 +102,21 @@ struct DockerAPI: Sendable {
 
     /// Through the daemon's `~/.dmx/docker.sock`, starting the daemon (and so the VM and dockerd)
     /// if nothing answers.
-    static func host(_ paths: Paths) -> DockerAPI {
+    static func host(_ paths: Paths, executable: String? = nil, startDaemon: Bool = true, timeoutSeconds: Int? = nil) -> DockerAPI {
         DockerAPI {
             do {
-                return try connectUnix(paths.dockerSocket)
+                return try connectUnix(paths.dockerSocket, timeoutSeconds: timeoutSeconds)
             } catch let error as DMXError where error.code == "daemon_unreachable" {
+                guard startDaemon else { throw error }
                 // No daemon: starting one binds docker.sock (or launchd holds it already).
-                guard let client = try await DaemonClient.connect(paths: paths, start: true) else { throw error }
+                guard let client = try await DaemonClient.connect(paths: paths, start: true, executable: executable) else { throw error }
                 client.close()
-                return try connectUnix(paths.dockerSocket)
+                return try connectUnix(paths.dockerSocket, timeoutSeconds: timeoutSeconds)
             }
         }
     }
 
-    private static func connectUnix(_ url: URL) throws -> DockerStream {
+    private static func connectUnix(_ url: URL, timeoutSeconds: Int? = nil) throws -> DockerStream {
         var address = try unixAddress(url)
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw DMXError("docker_failed", "socket: \(String(cString: strerror(errno)))") }
@@ -102,7 +132,7 @@ struct DockerAPI: Sendable {
             throw DMXError("daemon_unreachable", "connect \(url.path): \(String(cString: strerror(code)))",
                            hint: "run `dmx status`; after an upgrade, `dmx install` again so launchd holds docker.sock")
         }
-        return DockerStream(fd: fd) { _ = Darwin.close(fd) }
+        return DockerStream(fd: fd, timeoutSeconds: timeoutSeconds) { _ = Darwin.close(fd) }
     }
 
     /// Sends a request and returns the stream positioned after the reply's header, with the

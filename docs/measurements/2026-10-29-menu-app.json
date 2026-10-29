@@ -1,0 +1,129 @@
+{
+  "date": "2026-10-29",
+  "recorded_at": "2026-10-29T09:26:48.009326+00:00",
+  "scope": "Unreleased source app, installed locally. Public v0.3.12 remains CLI-only.",
+  "base_commit": "9fb8f81471683a878737051129c29611664e569e",
+  "tests": {
+    "vm_selftest": {
+      "ok": true,
+      "checks": 23
+    },
+    "daemon": {
+      "ok": true,
+      "checks": 58
+    },
+    "mcp": {
+      "ok": true,
+      "checks": 33
+    },
+    "sandbox": {
+      "ok": true,
+      "checks": 44
+    },
+    "menu_lifecycle": {
+      "ok": true,
+      "checks": 12
+    },
+    "unit": {
+      "ok": true,
+      "reported": 82,
+      "skipped_opt_in_vm": 1,
+      "executed": 81
+    },
+    "typed_menu_vm": {
+      "ok": true,
+      "test": "MenuEngineVMTests.containerActionsAndShutdown",
+      "covers": [
+        "start",
+        "typed container listing",
+        "container start",
+        "container stop",
+        "engine quit and child reap"
+      ]
+    },
+    "silent_connected_peer": {
+      "ok": true,
+      "deadline_seconds": 1,
+      "asserted_return_before_seconds": 2,
+      "asserted_peer_still_open_before_teardown": true
+    }
+  },
+  "menu_cost_after_use": {
+    "scope": "menu process only, engine excluded",
+    "interval_s": 45.002357832854614,
+    "before": {
+      "pid": 85837,
+      "footprint_mb": 14.95,
+      "cpu_s": 0.2866202083333333
+    },
+    "after": {
+      "pid": 85837,
+      "footprint_mb": 14.92,
+      "cpu_s": 0.2875664166666667
+    },
+    "cpu_percent_one_core": 0.0021025750180641146,
+    "host_pressure_before": 2,
+    "host_pressure_after": 2,
+    "cpu_reader_check": {
+      "getrusage_s": 0.050006999999999996,
+      "reader_s": 0.050026708333333336
+    },
+    "instruction": "No UI interaction during sample; memory is ri_phys_footprint in MiB."
+  },
+  "engine_selftest_memory_mib": {
+    "before": 97,
+    "after": 93,
+    "note": "Single samples, not evidence of an engine-memory improvement."
+  },
+  "normal_shutdown": {
+    "menu_exited_after_external_stop": true,
+    "menu_exit_observed_within_s": 0.0,
+    "daemon_exited_after_linger": true,
+    "observed_for_s": 10.179,
+    "note": "External CLI stop exercises the normal-stopped receipt. A direct GUI Quit click is separate and unverified."
+  },
+  "package": {
+    "local_ad_hoc_signature_verified": true,
+    "cli_links_appkit": false,
+    "LSUIElement": true,
+    "version_string": "0.3.12",
+    "minimum_macos": "15.0",
+    "helper_sha256": "2f032dcabf855be7a1cc3a378c25d9985b686efd681afad75a454ffe4c57b050",
+    "menu_sha256": "181614d0bed0185eda44925181c906c3c42eb8e5d18b82ab442c08b9a4f9a731"
+  },
+  "native_ui": {
+    "installed_app_launch_from_finder": true,
+    "reopen_triggered_container_listing": true,
+    "container_count_after_menu_use": 0,
+    "error_dialog_captured": true,
+    "error_OK_callback": "error_dismissed",
+    "existing_error_content_refresh": {
+      "synthetic": true,
+      "expected": "Updated error fixture for UI recovery",
+      "observed": true,
+      "note": "QA-only lifecycle receipt was atomically replaced; actual native AX verifies existing error window content refreshed."
+    }
+  },
+  "review": {
+    "three_reconnect_observer_error_fixes": "resolved",
+    "silent_peer_deadline": "ship scoped to that fix",
+    "startup_receipt_reconciliation": "ship scoped to code review",
+    "whole_menu_visual_approval": false
+  },
+  "limits": [
+    "One 45-second per-process CPU/memory sample with zero containers after menu use; host-pressure readings are recorded, not controlled.",
+    "Full menu/submenu screenshots, GUI container controls and GUI Quit were not directly verified by the windowless-app automation.",
+    "Observer-error Retry and early-stop-during-first-download GUI sequences were code-reviewed, not directly replayed through GUI.",
+    "No public app archive, Developer ID signing/notarization or whole-app update distribution was performed."
+  ],
+  "commands": [
+    "make build guest selftest",
+    "make test",
+    "make menutest",
+    "make daemontest",
+    "make mcptest",
+    "make sandboxtest",
+    "make install-app",
+    "python3 -I scripts/measure-menu.py <dmx-menu-pid> --seconds 45"
+  ]
+}

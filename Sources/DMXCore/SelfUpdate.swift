@@ -248,6 +248,10 @@ public struct SelfUpdate: Sendable {
     /// the user cannot write.
     func checkDestination(force: Bool) throws {
         let path = executable.path
+        if path.contains(".app/Contents/MacOS/") {
+            throw DMXError("update_app_bundle", "a CLI-only update would invalidate dmx.app's signature",
+                           hint: "replace the whole dmx.app; for a source installation run `make install-app`")
+        }
         if !force, path.contains("/.build/") {
             throw DMXError("update_source_build", "\(path) is a build from source, not an installed release",
                            hint: "update the installed copy instead, or pass --force to replace this one")

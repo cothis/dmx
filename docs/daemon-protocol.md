@@ -46,11 +46,12 @@ command to run.
 
 | Method | Params | Result |
 |---|---|---|
-| `hello` | none | `version`, `protocol` (1), `pid` |
+| `hello` | none | `version`, `protocol` (1), `pid`, optional `activity_notifications` capability |
 | `status` | none | see below |
 | `start` | none | status, once the guest agent answers |
 | `stop` | none | status, once the VM is off |
 | `quit` | none | `{}`, then the daemon powers the VM off and exits (used by `dmx install`) |
+| `menu_release` | none | boolean: if the VM is still stopped with no VM users/running containers, release the standalone Docker keepalive; otherwise false. Does not stop or restart an active VM. |
 | `exec` | the agent's `exec` params | `pid`, then the connection carries the process's streams |
 | `simulate_pressure` | `level`: `normal`, `warning`, `critical`, or null for the host's real level again | status. For tests: the memory controller acts as if macOS reported that level. Does not count as using the VM. |
 | `port_add` | `host_port`, `guest_port`, `host_address` (default `127.0.0.1`), `protocol` (`tcp`, the default, or `udp`) | the forward, see below |

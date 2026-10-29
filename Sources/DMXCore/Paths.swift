@@ -24,6 +24,9 @@ public struct Paths: Sendable {
     public var config: URL { home.appendingPathComponent("config.json") }
     public var logs: URL { home.appendingPathComponent("logs", isDirectory: true) }
     public var daemonLog: URL { logs.appendingPathComponent("daemon.log") }
+    /// Atomic lifecycle receipts; a menu app watches this directory without opening a socket.
+    public var activityDirectory: URL { home.appendingPathComponent("run", isDirectory: true) }
+    public var activity: URL { activityDirectory.appendingPathComponent("engine.json") }
     /// The guest console of the VM the daemon runs, rewritten on every boot.
     public var consoleLog: URL { logs.appendingPathComponent("console.log") }
     /// The guest's data disk (/var/lib), a sparse raw image.

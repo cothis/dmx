@@ -16,6 +16,11 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Maintainer preferences
 
+- 2026-10-29: Approved a manually launched native dmx.app (app launcher/Applications) with a
+  menu bar status item, memory and container start/stop controls, errors and engine shutdown.
+  The menu app must exit with normal/idle engine shutdown instead of remaining resident;
+  CLI use stays independent. Avoid background status polling and a menu login item. The
+  earlier 10–30 MB estimate is not a benchmark: measure the actual app before claiming its cost.
 - Chat with the maintainer in Korean, every message (status updates and plans too, not only the final report).
   Code, commits and docs stay English as the repo does (HANDOFF is Korean). The maintainer had to say "한글로 말해라"
   twice on 2026-10-24, and again on 2026-10-27 after a status message written in English mid-release.

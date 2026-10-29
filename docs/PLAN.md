@@ -15,7 +15,8 @@ A container engine for macOS (Apple Silicon) with three properties:
 3. **AI native.** Agents drive it as easily as people: `--json` on every command, structured
    errors with a hint, no interactive prompts, MCP tools and disposable sandboxes.
 
-Non-goals for now: a GUI (a menu bar item may come much later), Intel Macs, Windows/Linux hosts.
+UI scope: a manually launched native menu app (approved 2026-10-29), without a dashboard or
+login item. Other non-goals for now: Intel Macs and Windows/Linux hosts.
 
 ## Architecture
 
@@ -30,6 +31,7 @@ dmx (CLI) ──▶ dmx daemon (launchd agent, socket activated)
 Linux guest:  /init ─▶ dmx-agent (Rust) ─▶ dockerd/containerd first, own runtime later
 
 dmx mcp (stdio) ── talks to the daemon over its control socket; started by AI clients
+dmx.app (AppKit) ── short-lived control calls; passive run/engine.json + process-exit observation
 ```
 
 - One Swift binary, `dmx`, has three entry points: the CLI, `dmx daemon`, and `dmx mcp`.
@@ -69,7 +71,7 @@ dmx mcp (stdio) ── talks to the daemon over its control socket; started by A
 | Guest memory beyond 1 GB is hotplugged with virtio-mem (2026-10-24) | The memmap (struct page) costs ~16 MB/GB with 4K pages (about 4.7 MB/GB with the earlier 16K kernel) even for unused RAM known to Linux. Plugging on demand makes the ceiling free until used. Under host pressure, unplug spare RAM first; the balloon squeezes boot RAM and blocks that cannot be removed. |
 | 4K Linux pages for x86 compatibility (2026-10-25) | The image matrix exposed Python shared-library mapping and Java partial msync failures on the previous 16K kernel. A 4K control resolved them for the same image digests and QEMU. At 2 CPUs/4G, idle rose from 64–66 to 77–78 MB; virtio-mem limits the memmap cost to present RAM. Default kernel is now 6.18.58-dmx-4k. A bounded whole-free-list reporting pass replaces the upstream 1/16 budget, which took 8–10 s to return 1 GB on 4K; reporting remains idle when no pages are freed. Redis amd64 still has a separate QEMU address-layout issue (compatibility.md). |
 | `dmx install` links `~/.docker/run/docker.sock` to dmx's socket, not `/var/run/docker.sock` (2026-10-27) | A user hit a tool that ignores docker contexts and tries only Docker Desktop's paths (`/var/run/docker.sock`, `~/.docker/run/docker.sock`, `~/.docker/desktop/docker.sock`). The second is in the user's home, so a symlink needs no sudo; one Docker Desktop serves stays. `/var/run` needs root (Docker Desktop's privileged helper, OrbStack's admin prompt) and dmx does not prompt, so README points those tools at `DOCKER_HOST`. |
-| CLI only, no GUI | The work that matters is invisible (memory, sockets). Agents use CLIs. |
+| CLI remains independent; add a manually launched menu app (2026-10-29) | Supersedes the initial CLI-only choice. The maintainer approved launching dmx.app from the app launcher, engine/container/memory controls and errors; normal quit and idle engine stop also close the menu process. No login item or periodic status polling; pay for the UI only while using it. |
 | Kernel hardening over a few MB (2026-10-24) | Maintainer's choice: `rodata=noalias` would save 4 MB at 8G (page tables of a page-by-page linear map) but leaves the linear alias of kernel text writable, so the default stays `rodata=full`. |
 | Memory savings are always on | Balloon, idle stop and cache trimming are defaults, not options. The user's standing preference: improvements are not toggles. |
 | Docker compatibility first via dockerd in the guest | Gets `docker run` working early; own runtime replaces pieces later. |
@@ -530,9 +532,37 @@ Done when: on a Mac whose only way out is an HTTP proxy (no authentication) with
 
 - macOS-native mode without a VM: sandbox profiles + APFS clones to isolate macOS programs (cannot run Linux images; weaker isolation).
 
+### Phase 12: Manually launched native menu app (2026-10-29)
+
+- [x] A source-built `dmx.app` in ~/Applications: manually launch from the app launcher,
+      Applications or Spotlight; no menu login item. CLI remains independently usable.
+- [x] Native NSStatusItem/NSMenu: engine state and engine/menu footprint, container list and
+      Start/Stop submenus, Refresh, logs, recoverable errors and normal Quit.
+- [x] Passive atomic lifecycle receipt + process-exit observation; no control lease or repeating
+      status polling. Normal/idle stop closes the UI; failures keep recovery visible.
+- [x] Explicit Quit drains menu actions, stops the guest and exits/reaps the helper. Standalone
+      Docker keepalive release refuses to stop a VM another client has already restarted.
+- [x] Retry recreates a failed observer and dismisses/updates old errors. Menu requests do not
+      spawn a fallback UI process; a one-shot HTTP deadline wakes stalled socket waits safely.
+- [x] Local packaging, ad-hoc signature verification and real VM/API regression coverage.
+- [ ] Capture the full running menu/submenus and verify container buttons and Quit through GUI
+      input. Current native automation can capture the error dialog and its OK callback, but
+      cannot select a windowless menu app. API/VM proof is separate from these UI interactions.
+- [ ] Public app archive, Developer ID signing/notarization and whole-app update distribution,
+      when the maintainer authorizes the first app release. v0.3.12 remains a CLI-only release.
+
+Local implementation and proof: [menu-app.md](menu-app.md). The remaining GUI proof and public
+distribution are not silently marked complete by the passing Core/VM tests.
+
 ## Next up
 
 For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md).
+
+**Latest source work: the manually launched native menu app**, approved 2026-10-29. It is
+installed locally as ~/Applications/dmx.app and documented in [menu-app.md](menu-app.md).
+The engine/CLI stay independent of the UI. Main menu/submenu capture and direct GUI control
+proof remain unavailable through the current windowless-app automation; see Phase 12 before
+claiming complete visual acceptance. Public distribution still needs a maintainer decision.
 
 **v0.3.4 is published** (signed and notarized, 2026-10-27; all 14 assets checked after download,
 fresh installation and update from 0.3.3 verified with running-VM/data preservation). It ships
@@ -618,17 +648,20 @@ daemon cleanup. See [the release](https://github.com/cothis/dmx/releases/tag/v0.
 
 In order:
 
-1. Measure Apple's `container` (and a Container Machine) with the engine comparison's protocol
+1. Finish Phase 12's direct GUI acceptance with a menu-capable native tool or maintainer input.
+   Then obtain the maintainer's decision on the first public app release; source build/local
+   install does not imply a Developer ID-signed/notarized app has been published.
+2. Measure Apple's `container` (and a Container Machine) with the engine comparison's protocol
    when the Mac is quiet (maintainer, 2026-10-27: worth adding, not now). It runs on
    Virtualization.framework and its docs give a machine half the host's memory by default; HN's
    Container Machines thread (1269 points) argued about exactly this. Install Apple's signed
    package, record idle, 2 GiB held/returned, `docker run` equivalent, then uninstall and undo
    what it changed (see docs/memory.md). The announcement drafts say it was not measured yet.
-2. Community announcement (Show HN, Reddit, GeekNews) is now the maintainer’s next decision.
+3. Community announcement (Show HN, Reddit, GeekNews) is now the maintainer’s next decision.
    The requested review, documentation and release work through v0.3.12 are complete; no community post was
    sent by this release work.
-3. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
-4. Open, not blocking: `qemu-x86_64` cannot run 32-bit programs, so `linux/386` needs
+4. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
+5. Open, not blocking: `qemu-x86_64` cannot run 32-bit programs, so `linux/386` needs
    `x86_emulator fex` (the default); adding qemu-i386 would be a separate build. Warm `docker run`
    (~100 ms on a quiet Mac) stays behind Colima by choice (data disk barrier flushes, see
    Decisions). FEX's emulated `uname -m` says `x86_64` even for a 32-bit process.
@@ -638,6 +671,33 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### Native menu app (2026-10-29, source/local installation)
+
+The maintainer approved dmx.app with engine/container controls and normal/idle UI exit.
+The local ad-hoc-signed app is installed in ~/Applications; the CLI binary does not link
+AppKit. Public v0.3.12 remains CLI-only.
+
+Final Core checks: unit 81 executed (the runner reports 82, including one opt-in VM skip),
+VM selftest 23, daemon 58, MCP 33, sandbox 44, menu lifecycle 12, plus the separately enabled
+typed MenuEngine real-VM container/start/stop/shutdown test. A silent connected peer returns
+docker_timeout on a one-second deadline while the server is still open; assertions precede
+teardown. Independent code review resolved reconnect/observer/error-window findings, then
+approved the deadline and startup-receipt fixes at those scopes.
+
+After opening the menu with no containers, the menu process measured
+14.95 → 14.92 MiB and 0.002103% of one core over 45.002 s.
+This is one sample (host-pressure level 2 throughout), not a general overhead guarantee.
+Engine selftest was 97 → 93 MiB in single before/after samples; no memory
+improvement is inferred. External stop closed the actual menu process, and the daemon exited
+after its usual linger.
+
+The actual error dialog, OK callback and a synthetic QA receipt updating the existing error
+window were checked. Full menu/submenu screenshots and direct GUI container/Quit clicks remain
+unverified because the native tool cannot select a windowless menu app. API/VM evidence is
+not presented as GUI-click proof. See [raw measurements and scope](measurements/2026-10-29-menu-app.json)
+and [reproduction](menu-app.md).
+
 
 ### Formal-review repair for v0.3.12 (2026-10-29)
 
@@ -945,6 +1005,12 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 | 2026-10-27 | Pre-announcement review of 0.3.3 | Six code findings fixed, stale docs corrected. Unit 59/59; selftest 23/23; daemon 57/57; MCP 33/33; x86 47/47; Docker 69/69; sandbox 44/44; image matrix 24/24; pressure 12/12 rounds (12 GiB host allocation). Selftest host footprint 97 MiB before, 94–97 after; final 1 GiB reclaim 1123 → 103 MiB in 329 ms (before 1122 → 102 in 214 ms). Published 0.3.3 installer, guest fetch, strict signature/notarization check, selftest (97 MiB) and signed same-version update pass; local guest hashes match published. [Review](review-2026-10-27.md), [bounded results](measurements/2026-10-27-preannouncement-review.json). These fixes are not released. |
 
 ## Progress log
+
+- 2026-10-29: Added and locally installed the manually launched native menu app; passive
+  receipts/process observation, container controls, bounded HTTP waits, Retry recovery and
+  graceful shutdown/reaping. Core/VM regressions passed; app measured 14.92 MiB and
+  0.002103% of one core in one 45-second sample. Main-menu GUI proof and public app
+  distribution remain open; v0.3.12 is still the public CLI release.
 
 - 2026-10-29: Published signed/notarized v0.3.12 from `e01befa`; second pin stable,
   14 uploaded/public-download hashes match. Fresh selftest 23/23, live 0.3.11 update with

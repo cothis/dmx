@@ -72,6 +72,27 @@ dmx doctor                       # check this Mac and the installation
 dmx update                       # install the newest release over this one
 ```
 
+### Native menu app (source build)
+
+The source checkout also builds `dmx.app`, a manually launched macOS menu app:
+
+```sh
+make guest
+make install-app                 # CLI + ~/Applications/dmx.app; no menu login item
+```
+
+Open **dmx** from the app launcher, Applications or Spotlight. It starts the engine and shows
+a menu bar icon with engine/menu memory, containers and individual Start/Stop controls, Refresh,
+logs and Quit dmx. Quit powers off the VM and closes the menu app; normal idle VM shutdown also
+closes it. Failures stay visible with Retry and a recovery hint. Detailed memory and container
+data are refreshed when opening the menu, rather than polled in the background.
+
+The CLI works independently and does not launch the menu app. The app's control connections
+close after each operation, so it does not hold off idle shutdown. Source-built apps are
+ad-hoc signed for local use; the v0.3.12 public release remains CLI-only. Replace the whole app
+to update it (`make install-app` for source builds); the bundled CLI refuses a partial self-update
+that would invalidate the app signature. See [the menu app guide](docs/menu-app.md).
+
 ### Updating
 
 `dmx update` downloads the newest release, checks it against the sha256 published beside it and

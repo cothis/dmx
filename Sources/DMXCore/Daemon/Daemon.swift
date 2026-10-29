@@ -98,9 +98,11 @@ public final class Daemon {
             if users == 0 && !docker.busy { idleSince = .now }
             sandboxReaper.update(agent: docker.containers == nil ? nil : agent)
             scheduleIdleCheck()
+            publishActivity()
         }
         log("listening on \(paths.controlSocket.path) (\(launchd ? "launchd" : "standalone"), pid \(getpid()))")
         scheduleIdleCheck()
+        publishActivity()
         await withCheckedContinuation { finished = $0 }
         log("exiting")
     }
@@ -143,7 +145,7 @@ public final class Daemon {
             do {
                 switch request.method {
                 case "hello":
-                    try connection.send(DaemonReply(id: request.id, result: DaemonHello(version: version, protocol: daemonProtocol, pid: getpid())))
+                    try connection.send(DaemonReply(id: request.id, result: DaemonHello(version: version, protocol: daemonProtocol, pid: getpid(), activityNotifications: true)))
                 case "status":
                     try connection.send(DaemonReply(id: request.id, result: await status()))
                 case "start":
@@ -159,6 +161,13 @@ public final class Daemon {
                 case "quit":
                     try connection.send(DaemonReply(id: request.id, result: NoParams()))
                     Task { await shutdown() }
+                case "menu_release":
+                    // A menu app leaves after idle stop. A standalone Docker socket must not
+                    // keep that session resident forever. Never retire a VM another client
+                    // has restarted since the stopped receipt was published.
+                    let released = state == .stopped && users == 0 && !docker.busy
+                    if released { docker.used = false; scheduleIdleCheck() }
+                    try connection.send(DaemonReply(id: request.id, result: released))
                 case "exec":
                     let params: ExecRequest
                     do {
@@ -234,6 +243,13 @@ public final class Daemon {
 
     // MARK: VM lifecycle
 
+    private func publishActivity(reason: String? = nil, failure: DMXError? = nil) {
+        do {
+            try EngineActivity.publish(paths: paths, version: version, state: state.rawValue,
+                                       containers: docker.containers, reason: reason, failure: failure)
+        } catch { log("lifecycle receipt: \(error.localizedDescription)") }
+    }
+
     /// The agent of the running VM, booting it first if needed.
     private func running() async throws -> AgentClient {
         while true {
@@ -253,6 +269,7 @@ public final class Daemon {
 
     private func boot() {
         state = .starting
+        publishActivity()
         idleCheck?.cancel()
         let started = ContinuousClock.now
         booting = Task {
@@ -292,6 +309,7 @@ public final class Daemon {
                 memory.attach(machine: machine, agent: agent)
                 scheduleIdleCheck()
                 docker.vmBooted()
+                publishActivity()
                 return agent
             } catch {
                 log("boot failed: \((error as? DMXError)?.message ?? "\(error)")")
@@ -305,6 +323,7 @@ public final class Daemon {
                 state = .stopped
                 quietSince = .now
                 scheduleIdleCheck()
+                publishActivity(reason: "boot_failed", failure: error as? DMXError ?? DMXError("boot_failed", "\(error)", hint: "run `dmx doctor`"))
                 throw error
             }
         }
@@ -325,6 +344,10 @@ public final class Daemon {
             state = .stopped
             quietSince = .now
             scheduleIdleCheck()
+            let failure: DMXError
+            if case .failed(let error) = exit { failure = error }
+            else { failure = DMXError("guest_stopped", "the guest powered off unexpectedly", hint: "run `dmx doctor`, then start dmx again") }
+            publishActivity(reason: "guest_stopped", failure: failure)
         }
     }
 
@@ -340,6 +363,7 @@ public final class Daemon {
             case .running:
                 log("stopping the VM: \(reason)")
                 state = .stopping
+                publishActivity(reason: reason)
                 let task = Task { await powerOff() }
                 stopping = task
                 await task.value
@@ -371,6 +395,7 @@ public final class Daemon {
         quietSince = .now
         log("VM stopped in \(milliseconds(ContinuousClock.now - started)) ms")
         scheduleIdleCheck()
+        publishActivity(reason: "stopped")
     }
 
     // MARK: Idle

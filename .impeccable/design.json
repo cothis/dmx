@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-29T08:59:18Z",
+  "title": "Design System: dmx",
+  "extensions": {
+    "colorMeta": {
+      "app-icon-mint": {
+        "role": "primary",
+        "displayName": "App Icon Mint"
+      },
+      "app-icon-slate": {
+        "role": "neutral",
+        "displayName": "App Icon Slate"
+      }
+    },
+    "nativePlatform": {
+      "platform": "macOS",
+      "framework": "AppKit",
+      "source": "Sources/DMXApp/main.swift",
+      "defaults": [
+        "NSMenu and NSMenuItem typography, appearance, spacing, selection and keyboard navigation",
+        "NSStatusItem.squareLength",
+        "NSAlert warning appearance and native OK button",
+        "Native menu, submenu and alert materials and shadows"
+      ],
+      "statusSymbols": {
+        "running": "shippingbox.fill",
+        "otherPhases": "shippingbox",
+        "error": "exclamationmark.triangle"
+      },
+      "containerSymbols": {
+        "running": "play.circle.fill",
+        "stopped": "stop.circle"
+      },
+      "componentPreviewPolicy": "AppKit controls have no HTML/CSS counterparts in this project; components is intentionally empty rather than rendering invented browser controls.",
+      "paletteScalePolicy": "The icon uses two fixed source colors; no tonal ramp is implemented or synthesized."
+    },
+    "nativeArtwork": {
+      "source": "scripts/draw-app-icon.swift",
+      "coordinateSpace": {
+        "width": 1024,
+        "height": 1024,
+        "origin": "bottom-left",
+        "unit": "artwork coordinate",
+        "scaleFormula": "pixels / 1024"
+      },
+      "ground": {
+        "colorToken": "app-icon-slate",
+        "rect": { "x": 64, "y": 64, "width": 896, "height": 896 },
+        "cornerRadius": { "x": 196, "y": 196 }
+      },
+      "containerBlocks": {
+        "colorToken": "app-icon-mint",
+        "cornerRadius": { "x": 28, "y": 28 },
+        "rects": [
+          { "x": 228, "y": 278, "width": 260, "height": 210 },
+          { "x": 536, "y": 278, "width": 260, "height": 210 },
+          { "x": 382, "y": 536, "width": 260, "height": 210 }
+        ]
+      },
+      "outputPointSizes": [16, 32, 128, 256, 512],
+      "outputScales": [1, 2]
+    },
+    "verification": {
+      "inspectedSources": ["Sources/DMXApp/main.swift", "scripts/draw-app-icon.swift"],
+      "inspectedScreenshot": ".impeccable/review/error.png",
+      "scope": "Captured native error alert; menu/submenu descriptions are source-derived.",
+      "unverified": ["Full menu and submenu screenshots", "GUI container action"],
+      "detector": "Not run: the HTML/CSS detector does not evaluate native AppKit code."
+    }
+  },
+  "components": [],
+  "narrative": {
+    "northStar": "Native engine controls",
+    "overview": "dmx is a compact macOS utility. Its interface uses AppKit menus, SF Symbols and a native alert, letting macOS own appearance, typography, keyboard navigation and control spacing. The manually launched app lives in the menu bar while its engine is in use.\n\nThe custom identity is confined to the app icon: three mint container blocks on a slate ground. These artwork colors do not theme the menu or its controls.",
+    "keyCharacteristics": [
+      "Native platform appearance and accessible text status.",
+      "Compact information followed by direct container actions.",
+      "A simple container-block silhouette for the app icon."
+    ],
+    "rules": [
+      {
+        "name": "The Artwork Boundary Rule",
+        "body": "Keep the mint/slate palette in the app icon. Native menu and alert appearance follows macOS, including the user's appearance and accessibility settings.",
+        "section": "colors"
+      }
+    ],
+    "dos": [
+      "Do use native AppKit controls and semantic appearance for menus, submenus and alerts.",
+      "Do pair status symbols with text, tooltips and accessibility labels.",
+      "Do preserve the app icon's source colors and three-block geometry.",
+      "Do keep information, recovery and container actions grouped by native menu separators."
+    ],
+    "donts": [
+      "Don't apply the icon palette as custom menu or alert colors.",
+      "Don't invent fixed font, spacing, radius or shadow tokens for native defaults.",
+      "Don't replace native menu navigation with a custom dashboard or persistent content window.",
+      "Don't use color alone to communicate engine or container state."
+    ]
+  }
+}

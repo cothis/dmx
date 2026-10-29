@@ -6,12 +6,14 @@ let package = Package(
     platforms: [.macOS(.v15)],
     products: [
         .executable(name: "dmx", targets: ["dmx"]),
+        .executable(name: "dmx-menu", targets: ["DMXApp"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.5.0"),
     ],
     targets: [
         .target(name: "DMXCore"),
+        .executableTarget(name: "DMXApp", dependencies: ["DMXCore"]),
         .executableTarget(
             name: "dmx",
             dependencies: [
