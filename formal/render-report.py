@@ -71,6 +71,11 @@ trust_paths = ["model-after/tlc.log", "mutation/tlc.log", "sanity-completion/tlc
                "skill-correspondence.log", "toolchain.log", "baseline-hashes.txt"]
 trust_links = " · ".join(evidence("formal/frame-connection-lifetime/evidence/" + p) for p in trust_paths)
 embedded = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")
+review = data.get("review")
+review_note = (f'<aside class="verdict"><strong>Independent review follow-up</strong>'
+               f'<p>{e(review["summary"])}</p><p><a href="{e(review["report"])}">Validated review and reproductions</a>'
+               f' · <a href="{e(review["evidence"])}">Model identity and run metadata</a></p></aside>'
+               if review else "")
 html = f'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>FrameConnection verification · dmx</title><style>
@@ -86,6 +91,7 @@ pre{{background:#edf0e9;padding:20px;overflow-x:auto;font-size:.82rem;line-heigh
 <h1>FrameConnection<br>descriptor lifetime</h1>
 <p class="verdict">{e(data['summary'])}</p>
 <p class="meta">Baseline {e(data['repo_commit'])} · {e(data['generated_at'])} · {e(publication_label)}</p></header>
+{review_note}
 {''.join(parts)}
 <section><h2>What was verified</h2><p>{e(data['properties'][0]['bounds'])}.</p>
 <p>{trust['states_generated']} states generated; {trust['distinct_states']} distinct states; complete graph depth {trust['depth']}.</p>

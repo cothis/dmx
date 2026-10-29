@@ -1,0 +1,4 @@
+exit_code=1
+first failed: agent_disconnected: agent: Too many open files
+second request expected owner=second; observed owner=first
+fault injected: second client frame dup returns EMFILE

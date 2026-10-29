@@ -4,6 +4,13 @@
 wrong-socket I/O bug in `2ed2c21`; the fix, three real-socket regressions, bounded TLA+ model
 and saved before/after evidence accompany this report. This is not whole-program verification.
 
+**Post-release Opus 5.5 review:** the original model misses removal of the closed guard,
+and the three socket tests still pass without close's shutdown. A separate RPC-alignment
+defect under a frame-lease `EMFILE` was also reproduced. Interpret the historical green
+checks with these limits. See [the validated review](../docs/review-2026-10-29-opus55.md),
+[evidence](frame-connection-lifetime/evidence/opus55/metadata.json), and
+[review reproduction commands](frame-connection-lifetime/repro/opus55/README.md).
+
 Run from the repository root:
 
 ```sh

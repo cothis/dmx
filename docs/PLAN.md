@@ -606,17 +606,24 @@ See [the release](https://github.com/cothis/dmx/releases/tag/v0.3.11) and
 
 In order:
 
-1. Measure Apple's `container` (and a Container Machine) with the engine comparison's protocol
+1. Address the [post-release Opus 5.5 review](review-2026-10-29-opus55.md): R1 is a confirmed
+   P2 reply-alignment defect when a read-frame lease fails after sending a request. R2/R3
+   are confirmed model/test mutation gaps, and the parent also reproduced R4's test-only FD
+   isolation defect. The original wrong-socket fix is sound in the reviewed paths, but the
+   134-state result is insufficient regression evidence. This review has not changed the
+   product or published a new release. Choose a recovery design, reproduce/fix/recheck,
+   strengthen the model and isolate the destructive descriptor tests before the next patch.
+2. Measure Apple's `container` (and a Container Machine) with the engine comparison's protocol
    when the Mac is quiet (maintainer, 2026-10-27: worth adding, not now). It runs on
    Virtualization.framework and its docs give a machine half the host's memory by default; HN's
    Container Machines thread (1269 points) argued about exactly this. Install Apple's signed
    package, record idle, 2 GiB held/returned, `docker run` equivalent, then uninstall and undo
    what it changed (see docs/memory.md). The announcement drafts say it was not measured yet.
-2. Community announcement (Show HN, Reddit, GeekNews) is now the maintainer’s next decision.
+3. Community announcement (Show HN, Reddit, GeekNews) is now the maintainer’s next decision.
    The requested review, documentation and release work through v0.3.11 are complete; no community post was
    sent by this release work.
-3. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
-4. Open, not blocking: `qemu-x86_64` cannot run 32-bit programs, so `linux/386` needs
+4. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
+5. Open, not blocking: `qemu-x86_64` cannot run 32-bit programs, so `linux/386` needs
    `x86_emulator fex` (the default); adding qemu-i386 would be a separate build. Warm `docker run`
    (~100 ms on a quiet Mac) stays behind Colima by choice (data disk barrier flushes, see
    Decisions). FEX's emulated `uname -m` says `x86_64` even for a 32-bit process.
@@ -626,6 +633,26 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### Independent Opus 5.5 review (2026-10-29, after v0.3.11)
+
+Claude Code explicitly selected `claude-opus-5-5`; both initialization and assistant
+messages reported it. It completed 38 read-only turns (22 Read, 14 Grep, 1 Glob), with no
+fallback. The parent independently validated its three findings: (R1) a child-process-only
+second-lease EMFILE injection made actual `AgentClient.call("second")` return the first
+request's result; control returned the second result; (R2) removing the model's closed guard
+still passed, 254 generated / 108 distinct states, depth 13; (R3) an isolated Core build
+without close's shutdown still passed all three original socket tests. The parent also
+forced R4's close/open/dup2 schedule, replacing an unrelated test file FD with a socket.
+These are code-level/fault-injection observations, not production frequency measurements
+or injections into the signed binary. No P0/P1 was identified in this review scope.
+
+The original model's green 134-state result remains a historical observation but does not
+adequately protect against guard regression. Frozen Properties.tla and original logs are
+unchanged; the report now makes the caveat prominent. Product fixes remain next work.
+See [the validated review](review-2026-10-29-opus55.md) for corrected code locations,
+original reviewer output, reproduction sources, saved logs, and the lower-priority
+same-archive/different-tag observation (not applicable to the official 0.3.10 -> 0.3.11 pair).
 
 ### v0.3.11 qualification (2026-10-29)
 
@@ -890,6 +917,11 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-10-29: Requested independent Opus 5.5 review of v0.3.11 (`claude-opus-5-5`, confirmed
+  by CLI/API metadata). Parent reproduced one new P2 RPC-alignment bug and two validation
+  gaps, plus an additional test-only FD isolation issue. No P0/P1 found in review scope.
+  Recorded evidence and corrected the formal report's strength claims; product fixes and
+  a subsequent release remain follow-up work. See `review-2026-10-29-opus55.md`.
 - 2026-10-29: Published signed/notarized v0.3.11 from `13c1257`. Second packaging kept the
   guest pin; all 14 uploaded and downloaded assets match. Local rehearsal (97 MiB), a fresh
   GitHub installation (95 MiB), update from a running 0.3.10 with a container and named volume,

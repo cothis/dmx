@@ -1,0 +1,3 @@
+exit_code=1
+FrameConnectionTests helper schedule: close -> unrelated open -> dup2
+expected unrelated fd to remain a regular file; observed socket: true

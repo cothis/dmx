@@ -1,0 +1,49 @@
+Building for debugging...
+[Planning deferred tasks]
+[27 / 50]
+[28 / 51] DMXCore
+[40 / 101]
+[47 / 101]
+[48 / 101]
+[53 / 101]
+[59 / 101]
+[63 / 101]
+[65 / 101]
+[66 / 101]
+[78 / 101] DMXCore
+/Users/cothis/dev/dockermax/.build/reviews/2026-10-29-opus55/no-shutdown-package/Sources/DMXCore/Daemon/PortForward.swift:579:24: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+577 |         func params<P: Decodable>(_: P.Type) throws -> P {
+578 |             do {
+579 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+    |                        `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+580 |             } catch {
+581 |                 throw DMXError("bad_request", "\(method): \(error)")
+
+/Users/cothis/dev/dockermax/.build/reviews/2026-10-29-opus55/no-shutdown-package/Sources/DMXCore/Daemon/PortForward.swift:580:15: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+578 |             do {
+579 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+580 |             } catch {
+    |               `- warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+581 |                 throw DMXError("bad_request", "\(method): \(error)")
+582 |             }
+
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+[86 / 101] DMXCore
+[91 / 102] DMXCoreTests-product
+[92 / 107]
+[96 / 107] DMXCoreTests-product
+[101 / 107] DMXCoreTests-product
+[103 / 107] DMXCoreTests-product
+Build complete! (7.50초)
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite FrameConnectionTests started.
+◇ Test closedWriterCannotSendToReusedDescriptor() started.
+✔ Test closedWriterCannotSendToReusedDescriptor() passed after 0.001 seconds.
+◇ Test closedReaderCannotConsumeFromReusedDescriptor() started.
+✔ Test closedReaderCannotConsumeFromReusedDescriptor() passed after 0.001 seconds.
+◇ Test frameKeepsItsSocketAcrossCloseBetweenHeaderAndBody() started.
+✔ Test frameKeepsItsSocketAcrossCloseBetweenHeaderAndBody() passed after 0.001 seconds.
+✔ Suite FrameConnectionTests passed after 0.002 seconds.
+✔ Test run with 3 tests in 1 suite passed after 0.002 seconds.

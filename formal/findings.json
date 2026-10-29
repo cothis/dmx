@@ -3,7 +3,7 @@
   "workflow": "W1",
   "generated_at": "2026-10-28T18:05:49.578698+00:00",
   "repo_commit": "2ed2c21",
-  "summary": "1 confirmed bug, fixed; 0 suspected findings and 0 refuted findings. Two protocol invariants hold in 134 reachable model states for 2 operations with 2 syscalls each; this is not a whole-program proof.",
+  "summary": "One wrong-socket bug was reproduced and fixed. A later independent Opus 5.5 review confirmed an additional P2 RPC defect and model/test gaps. The original 134-state result has a close-guard mutation blind spot and is not a whole-program proof.",
   "scope": {
     "modeled": [
       "One FrameConnection, two frame operations, close/abort and descriptor-number reuse.",
@@ -206,13 +206,15 @@
         "NeverReuses intentionally fails (13 generated, 10 distinct states, depth 3).",
         "All six protocol/environment actions have positive coverage; terminal stuttering is evaluated four times.",
         "SANY passes; correspondence pointers resolve.",
-        "Frozen Properties.tla sha256 is unchanged from before the bug check."
+        "Frozen Properties.tla sha256 is unchanged from before the bug check.",
+        "Independent review: removing the Acquire closed guard while LeaseFD=TRUE still passes (254 generated / 108 distinct states, depth 13). The original fix-toggle check did not sufficiently validate regression sensitivity. See docs/review-2026-10-29-opus55.md."
       ]
     },
     "notes": [
       "TLC uses finite-state enumeration with fingerprints; no Lean/unbounded proof or axioms audit is claimed.",
       "An initial model draft had an incompletely specified disjunction; parentheses were corrected before producing the cited counterexample. Frozen protocol properties were not changed.",
-      "Full evidence logs are retained. Absolute paths/pids in local test logs identify the test environment, not a deployment."
+      "Full evidence logs are retained. Absolute paths/pids in local test logs identify the test environment, not a deployment.",
+      "The follow-up review and parent reproductions are saved under evidence/opus55. The original model/Properties.tla and historical logs are unchanged; the passing original invariants must be interpreted with the newly documented mutation blind spot."
     ]
   },
   "validation": [
@@ -280,5 +282,12 @@
     "url": "https://github.com/cothis/dmx/releases/tag/v0.3.11",
     "commit": "13c12579765b21b4d894127a767e4fe99c68a49e",
     "date": "2026-10-29"
+  },
+  "review": {
+    "date": "2026-10-29",
+    "model": "claude-opus-5-5",
+    "report": "../../docs/review-2026-10-29-opus55.md",
+    "summary": "Follow-up is required: a second frame-lease EMFILE can leave RPC responses misaligned; the original model misses removal of the close guard; all three socket tests still pass without close shutdown. The parent also confirmed a test-only descriptor-table isolation defect. No product fix or new release is part of this review.",
+    "evidence": "../frame-connection-lifetime/evidence/opus55/metadata.json"
   }
 }
