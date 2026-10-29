@@ -1,33 +1,39 @@
-# v0.4.1 소스 검증·Opus 승인 완료, 서명·배포 대기 — 2026-10-30
+# v0.4.1 로그 보완·Opus 검수·공개 배포 완료 — 2026-10-30
 
-산출물 정리 → 보완 → 실제 Opus 5.5 검수 → 결함 해결 후 배포는 승인됐어요.
-중단 뒤 명시적으로 재개했고, 지금은 소스와 게스트 핀 검증을 마쳤어요. 현재 공개본은
-아직 v0.4.0이에요. 다음은 source commit 후 두 번째 Developer ID 패키징과 공증,
-pin_changed=false 확인, 태그/main push, 공개 14개 자산 바이트 검증과 새 설치·이전 앱
-업데이트 보존·게시 바이너리 storage 검증·로컬 앱 설치예요. 공개 배포를 재승인받을 필요는
-없어요. 커뮤니티 글과 새 GitHub Actions 예외는 포함되지 않았어요.
+[공개 v0.4.1](https://github.com/cothis/dmx/releases/tag/v0.4.1)은 `241aaae` 태그 소스예요.
+CLI/app Apple 공증, 스테이플/Gatekeeper, 두 번째 pin_changed=false와 공개14개 파일
+원본 일치를 확인했어요. 실제 Opus5.5의 F1/F2/R1/R2 지적을 수정하고 최종 승인을 받았고
+그 조건이었던 실제 VM 검사도 모두 통과했어요. 요청한 정리→보완→검수→배포는 완료예요.
 
-중복 개발 산출물 4.394 GiB(st_blocks 합계)를 지웠고 사용자 데이터·빌드 입력은 보존했어요.
-호스트 daemon/console, 게스트 dockerd 로그는 각 1 MiB×3이며, 새 컨테이너 기본 로그는
-json-file10m×2예요. 기존 컨테이너/사용자 옵션은 보존해요. 로그를 만들 수 없어도 엔진은
-동작하고 status에 host 경고가 나와요. 권한 수정 후 같은 daemon의 다음 부팅에서도 복구해요.
+최종 소스/핀 단위97, storage64(게스트 Rust4 포함), selftest23, daemon58, MCP33,
+menu25+typedVM1, app14+typed install1을 통과했어요. 선행 전체 호환성은
+x8653/Docker69/sandbox44/images24/Java100이에요. 게시본 검증19/19는 새 설치23,
+storage64, arm64/amd64/386, 기존0.4.0 앱 업데이트의 실행 중 VM·컨테이너·named volume
+보존과 재시작 뒤 디스크 inode/볼륨 내용 보존을 포함해요. 기존 무제한 로그 설정은 유지되고
+새 컨테이너에는10m×2가 적용됨을 실제로 확인했어요. 기존 컨테이너를 강제로 재생성하지 않아요.
 
-실제 Opus5.5가 F1/F2와 후속 R1/R2를 지적했고 수정 뒤 승인했어요. 최종 VM 조건도 모두
-통과했어요: 단위97, storage64(게스트 Rust4 포함), selftest23, daemon58, MCP33,
-menu25+typedVM1, app14+typed install1. 선행 전체 호환성은 x8653/Docker69/sandbox44/
-images24/Java100이에요. 첫 LF-only 콘솔 단정, launchd 없는 Docker 자동 시작 가정,
-테스트 홈 도구 링크 누락은 각각 원인을 기록하고 수정했어요. 검수·실패·최종 증거는
-[리뷰](reviews/2026-10-30-storage-opus55/README.md)와
-[측정](measurements/2026-10-30-storage.json)에 있어요. raw/서명 보조 파일은 ignored
-`.build/storage-review`에 있어요. 기존 v0.4.0 전송 보조 스크립트도 보존했어요.
+이 맥의 ~/Applications/dmx.app과 CLI 링크, 게스트도0.4.1 공개본이에요. 서명과 모든
+게스트 부팅 파일의 핀을 검증했어요. 사용자 data.img의 inode·64GiB 논리 크기·451.55MiB
+실제 할당은 그대로이고 사용자 VM을 켜지 않았어요. 초기 중복 산출물4.394GiB와 검증 후
+중복 파일을 정리해 `.build`는5.437→1.618GiB예요. APFS st_blocks 합계가 물리적 여유
+공간 증가량과 같다는 뜻은 아니에요. 원본 최종 배포 파일은 ignored
+`.build/storage-review/qualified-v0.4.1`에 독립 검증 기준으로 보존했어요.
 
-단발 비교: 엔진75.735→75.798MiB, Docker 포함187.345→192.454MiB, CPU한 코어<0.04%.
-Docker guest used는63MiB로 같고 cache75→81MiB예요. 고정5MiB 비용이나 CPU 개선을
-입증한 수치로 쓰지 마세요. 호스트 pressuretest는 실행하지 않았어요. 게스트 agent 자체가
-재시작하거나 자식이 오래된 pipe를 보유하면 진단 로그가 VM 재시작 전까지 끊길 수 있지만
-컨테이너 로그는 별도예요. 직접 GUI 클릭 수용 검증은 기존 Phase12 미완료 항목이에요.
+호스트 daemon/console·게스트 dockerd 진단 로그는 각1MiB×3이며, 로그 설정 오류는
+엔진 시작을 막지 않고 status 경고/다음 부팅 복구로 처리해요. guest agent가 자체 재시작하거나
+자식이 오래된 pipe를 갖고 있으면 진단 로그가 VM 재시작 전까지 끊길 수 있어요. 컨테이너
+로그는 별도예요. 기존 컨테이너·사용자 명시 옵션·이미지·볼륨·빌드 캐시의 전역 할당량을
+자동 변경한 것은 아니에요. 단발 유휴 비교는 엔진75.735→75.798MiB, Docker 포함
+187.345→192.454MiB이고 guest cache75→81MiB여서 고정5MiB 비용으로 단정하지 않아요.
+CPU는 한 코어0.04% 미만이었고 호스트 pressuretest는 실행하지 않았어요.
 
-기존 main에서 작업했고 무관한 미추적 사진은 보존했어요. 아래는 이전 완료 기록이에요.
+[검수·실패 원인·배포 증거](reviews/2026-10-30-storage-opus55/README.md)와
+[측정](measurements/2026-10-30-storage.json)을 보세요. 코드와 증거는 main에 커밋·push했어요.
+무관한 미추적 사진은 보존해요. GitHub hosted workflow는 이번에 사용하지 않았어요.
+다음은 기존 Phase12 직접 GUI 클릭 수용 검증이나 maintainer가 정할 Apple container
+비교·커뮤니티 발표예요. 이번 작업에서 발표 글은 보내지 않았어요.
+
+아래는 이전 완료 기록이에요.
 
 ---
 

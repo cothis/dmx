@@ -2,7 +2,10 @@
 
 Actual `claude-opus-5-5` performed three read-only reviews. Initial review requested F1/F2
 repairs; second requested R1/R2; the third approved and required the final real-VM checks.
-Those source/pin checks passed. Signing/notarization/publication remain pending in this commit.
+Those source/pin checks passed. [v0.4.1 is published](https://github.com/cothis/dmx/releases/tag/v0.4.1)
+from `241aaaecad481276bf7e4342888e8c070450fd7e`, signed/notarized and locally installed.
+Both Apple submissions were accepted, the app is stapled, all14 public bytes match the
+independent qualified files, and public end-to-end checks pass19/19.
 
 - [Original findings](initial-opus55.md), [second review](second-opus55.md), [approval](third-opus55.md).
 - [Model and immutable snapshot identity](review-identity.json), [reviewed source match](reviewed-source.json).
@@ -52,3 +55,39 @@ independent qualified local bytes, fresh installation and actual published stora
 arm64/amd64/386, and an update from the previous public app with VM/container/volume and old
 logging-policy preservation. Keep `.build/storage-review/qualified-v0.4.1` from final signing;
 never construct that reference from the public download being checked. Run from the repo root.
+
+## Distribution and installed result
+
+[Publication](publication.json), [final signing/package verification](signed-package-verification.json),
+[independent asset hashes](qualified-assets.json), [public checks](public-verification.json),
+[public storage64](public-storage.json), and [local installation](local-install-verification.json)
+preserve the completed proof. The published app update from0.4.0 keeps the live VM, running
+container and named volume; after engine restart, the data disk inode and volume contents persist.
+The old unlimited container options remain unchanged and a newly created container gets10m×2.
+Fresh public selftest23 and arm64/amd64/386 pass. The final signed app's local install/update
+fixture also passes14/14 plus the typed rollback test.
+
+The canonical local app/CLI and guest are0.4.1, Developer ID/Gatekeeper checks pass, and every
+boot file matches the pin. `data.img` inode,64GiB logical size and451.5547MiB allocation are unchanged;
+no user VM was started. Guest prefetch updated the old0.3.12 release receipt/boot assets without
+running it. [Post-verification cleanup](post-verification-cleanup.json) removed downloaded/current
+dist duplicates, the old baseline guest/home and accidental root Cargo output. `.build` is now
+1.618GiB versus5.437GiB at the resumed preflight; retained qualified reference files are original
+pre-upload bytes. APFS block sums are not isolated physical-space savings.
+
+The package verifier initially rejected ordinary tar directory records in its manual extraction
+probe. It now admits only regular files and directories under the allowlisted app layout and
+still refuses links, special files and unsafe paths. The actual signed archive roundtrip passes.
+[Its retained driver](verify-signed-package.py) uses the preserved qualified reference directory.
+No product/archive format fix was needed. No hosted workflow was used for this release.
+
+To repeat the public run using the retained independent reference and tagged runtime sources:
+
+```sh
+gh release download v0.4.1 --repo cothis/dmx --dir .build/storage-review/public-v0.4.1
+python3 -I docs/reviews/2026-10-30-storage-opus55/public-verification/verify.py
+```
+
+The public download directory was removed after successful checks; the independent original
+reference remains. Re-download before repeating this driver. Tests create isolated engines,
+and clean their temporary installations/data; the canonical user engine is not started.

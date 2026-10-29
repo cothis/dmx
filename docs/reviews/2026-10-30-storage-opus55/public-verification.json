@@ -1,0 +1,204 @@
+{
+  "ok": true,
+  "checks": [
+    {
+      "name": "all14_public_assets_match_independent_qualified_bytes",
+      "ok": true,
+      "detail": [
+        {
+          "name": "NOTES.md",
+          "bytes": 4816,
+          "sha256": "69156ef49443ccc7b1de5e340549d5ed5042789c0031f6ac3e81bfec6cf2ba76"
+        },
+        {
+          "name": "SHA256SUMS",
+          "bytes": 889,
+          "sha256": "541320fbc018bede234b5e313d47592d3d3b74a4d3c399ee0e35073d8f6340b5"
+        },
+        {
+          "name": "dmx-0.4.1-darwin-arm64.tar.gz",
+          "bytes": 5429687,
+          "sha256": "2320fbba65c7c52fc045feefd84af2212bfd9ee71ae9a0893ca93de521e033b2"
+        },
+        {
+          "name": "dmx-0.4.1-darwin-arm64.tar.gz.sha256",
+          "bytes": 96,
+          "sha256": "ea9c814c8a572086ba3e74310a0a6686633918537f238b7ee52dc1a79bc64cf1"
+        },
+        {
+          "name": "dmx-guest-0.4.1.tar.gz",
+          "bytes": 62896188,
+          "sha256": "43b167dc3f66f153b6712bda0a4b3047f57ab84f8d8f771482356ecb8fa34ecb"
+        },
+        {
+          "name": "dmx-guest-0.4.1.tar.gz.sha256",
+          "bytes": 89,
+          "sha256": "e0d60ad8c97647f0aeb7d7fa36aba34e028d08bdc2d59eacbafafaab9a6eac28"
+        },
+        {
+          "name": "dmx-sources-0.4.1.tar",
+          "bytes": 496209920,
+          "sha256": "11bcfa78a6259cd45ec382da608708176044e4d3f79365e45ad1cfc16896423a"
+        },
+        {
+          "name": "dmx-sources-0.4.1.tar.sha256",
+          "bytes": 88,
+          "sha256": "4cad19554abeb50f92c8e99b23f74e8db2895065ed90ad30b6c156d95506756c"
+        },
+        {
+          "name": "fex-2610-dmx11.build.py",
+          "bytes": 46966,
+          "sha256": "6f6b8f71fa15e46104d4421ed456af3843008a1b96044151bc426d93846d2832"
+        },
+        {
+          "name": "install.sh",
+          "bytes": 4295,
+          "sha256": "611630570357c0178d14550c8478df21aa6b2eddba126d3205900f041daef0d9"
+        },
+        {
+          "name": "kernel-6.18.58-dmx-4k.build.py",
+          "bytes": 20141,
+          "sha256": "8c130d00d9a267ac91e68e8b47d326cd0755d1cd36ea9446bcc3bdc51b6fe107"
+        },
+        {
+          "name": "kernel-6.18.58-dmx-4k.config",
+          "bytes": 94622,
+          "sha256": "4a1315db472ec88e6857dac27afb49db310abb69ac5cde98af16d5211ffbf60e"
+        },
+        {
+          "name": "qemu-x86_64-11.0.3-dmx1.build.py",
+          "bytes": 17224,
+          "sha256": "029608626a77b62fed86f67579150905bf3589e4cc3735b132475ec2e7e23202"
+        },
+        {
+          "name": "third-party.json",
+          "bytes": 24571,
+          "sha256": "491bfd106845feb3e3eebb1d7d33bae1ce383524191d0e5f03bd600d575465d1"
+        }
+      ]
+    },
+    {
+      "name": "fresh_unified_install_without_engine",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "published_selftest23",
+      "ok": true,
+      "detail": {
+        "footprint_mb": 101,
+        "peak_footprint_mb": 101,
+        "pid": 26921
+      }
+    },
+    {
+      "name": "published_guest_pin",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "published_storage_regressions",
+      "ok": true,
+      "detail": 64
+    },
+    {
+      "name": "published_linux/arm64",
+      "ok": true,
+      "detail": "aarch64\n 127  69  76  70   2"
+    },
+    {
+      "name": "published_linux/amd64",
+      "ok": true,
+      "detail": "x86_64\n 127  69  76  70   2"
+    },
+    {
+      "name": "published_linux/386",
+      "ok": true,
+      "detail": "x86_64\n 127  69  76  70   1"
+    },
+    {
+      "name": "fresh_daemon_exits",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "previous_public_version",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "previous_container_unbounded_fixture",
+      "ok": true,
+      "detail": {
+        "Type": "json-file",
+        "Config": {}
+      }
+    },
+    {
+      "name": "previous_app_update_keeps_vm",
+      "ok": true,
+      "detail": {
+        "available": true,
+        "bytes": 5429687,
+        "current": "0.4.0",
+        "daemon": {
+          "handover": "stop_to_switch",
+          "pid": 27220,
+          "version": "0.4.0",
+          "vm_running": true
+        },
+        "ok": true,
+        "path": "/tmp/dmx-public-log-7lqmqt7r/previous/Applications/dmx.app",
+        "sha256": "2320fbba65c7c52fc045feefd84af2212bfd9ee71ae9a0893ca93de521e033b2",
+        "signature": "V4YA23448U",
+        "target": "0.4.1",
+        "updated": true,
+        "url": "https://github.com/cothis/dmx/releases/download/v0.4.1/dmx-0.4.1-darwin-arm64.tar.gz"
+      }
+    },
+    {
+      "name": "update_keeps_live_container_and_volume",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "previous_daemon_exits",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "new_engine_uses_patched_version_and_same_data_disk",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "reboot_keeps_volume",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "existing_container_logging_unchanged",
+      "ok": true,
+      "detail": {
+        "Type": "json-file",
+        "Config": {}
+      }
+    },
+    {
+      "name": "new_container_defaults_after_update",
+      "ok": true,
+      "detail": {
+        "Type": "json-file",
+        "Config": {
+          "max-file": "2",
+          "max-size": "10m"
+        }
+      }
+    },
+    {
+      "name": "previous_daemon_exits",
+      "ok": true,
+      "detail": null
+    }
+  ]
+}

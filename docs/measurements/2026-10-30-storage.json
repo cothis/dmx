@@ -1,11 +1,35 @@
 {
   "date": "2026-10-30",
   "version": "0.4.1",
-  "stage": "source qualified; signing/notarization/publication pending",
+  "stage": "published and locally installed; public verification complete",
   "cleanup": {
     "deleted_paths_allocated_bytes": 4718551040,
     "GiB": 4.394493103027344,
-    "note": "Sum of st_blocks; physical APFS free-space delta not isolated. User VM data and pinned build inputs preserved."
+    "note": "Sum of st_blocks; physical APFS free-space delta not isolated. User VM data and pinned build inputs preserved.",
+    "post_verification": {
+      "removed": [
+        {
+          "path": ".build/dist/v0.4.1",
+          "allocated_bytes": 564785152
+        },
+        {
+          "path": ".build/storage-review/public-v0.4.1",
+          "allocated_bytes": 573345792
+        },
+        {
+          "path": ".build/guest-0.4.0",
+          "allocated_bytes": 73494528
+        },
+        {
+          "path": ".build/storage-review/baseline-home",
+          "allocated_bytes": 0
+        }
+      ],
+      "sum_allocated_bytes": 1211625472,
+      "preserved_reference": ".build/storage-review/qualified-v0.4.1 (original independently qualified final bytes)",
+      "note": "Sum of st_blocks; APFS clones can share physical extents. User state and pinned build inputs untouched."
+    },
+    "final_build_tree_KiB": 1696412
   },
   "log_policy": {
     "diagnostic_stream_limit_bytes": 1048576,
@@ -263,5 +287,52 @@
     "Guest-agent restart can lose dockerd diagnostic output until VM restart; container logs are independent.",
     "No global quota on images, volumes, build cache or explicit logging choices.",
     "Phase12 direct GUI click acceptance remains separate."
-  ]
+  ],
+  "publication": {
+    "id": 428149105,
+    "tag_name": "v0.4.1",
+    "draft": false,
+    "html_url": "https://github.com/cothis/dmx/releases/tag/v0.4.1",
+    "target_commitish": "241aaaecad481276bf7e4342888e8c070450fd7e",
+    "published_at": "2026-10-29T17:02:18Z",
+    "asset_count": 14,
+    "all_digests_match_qualified_bytes": true,
+    "tag_commit_verified": "241aaaecad481276bf7e4342888e8c070450fd7e",
+    "latest_id": 428149105
+  },
+  "signing": {
+    "pin_changed": false,
+    "cli_notary": "fd17644b-1eec-4178-95ae-9258b17a73bd",
+    "app_notary": "8ef8ff4e-c09a-4aa3-9020-a05b87775c57",
+    "compiled_sections_match_qualified_source": true,
+    "archive_roundtrip_signature_and_staple": true
+  },
+  "signed_app_install_checks": 14,
+  "public_verification": {
+    "ok": true,
+    "checks": 19,
+    "published_storage_checks": 64,
+    "record": "../reviews/2026-10-30-storage-opus55/public-verification.json",
+    "previous_version": "0.4.0",
+    "preserved": [
+      "running VM",
+      "running container",
+      "named volume",
+      "data disk inode after restart",
+      "existing unbounded creation-time log options"
+    ],
+    "new_container_limits_confirmed": true
+  },
+  "local_install": {
+    "ok": true,
+    "version": "0.4.1",
+    "canonical_app_and_cli_link": true,
+    "developer_id_notarization_staple_gatekeeper": true,
+    "guest_tag": "v0.4.1",
+    "all_guest_boot_file_hashes_match_pin": true,
+    "data_disk_metadata_unchanged": true,
+    "data_disk_allocated_MiB": 451.5546875,
+    "no_dmx_engine_process": true,
+    "no_user_vm_started": true
+  }
 }

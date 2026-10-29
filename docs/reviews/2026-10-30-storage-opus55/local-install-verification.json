@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "version": "0.4.1",
+  "canonical_app_and_cli_link": true,
+  "developer_id_notarization_staple_gatekeeper": true,
+  "guest_tag": "v0.4.1",
+  "all_guest_boot_file_hashes_match_pin": true,
+  "data_disk_metadata_unchanged": true,
+  "data_disk_allocated_MiB": 451.5546875,
+  "no_dmx_engine_process": true,
+  "no_user_vm_started": true
+}

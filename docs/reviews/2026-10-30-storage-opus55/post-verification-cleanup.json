@@ -1,0 +1,23 @@
+{
+  "removed": [
+    {
+      "path": ".build/dist/v0.4.1",
+      "allocated_bytes": 564785152
+    },
+    {
+      "path": ".build/storage-review/public-v0.4.1",
+      "allocated_bytes": 573345792
+    },
+    {
+      "path": ".build/guest-0.4.0",
+      "allocated_bytes": 73494528
+    },
+    {
+      "path": ".build/storage-review/baseline-home",
+      "allocated_bytes": 0
+    }
+  ],
+  "sum_allocated_bytes": 1211625472,
+  "preserved_reference": ".build/storage-review/qualified-v0.4.1 (original independently qualified final bytes)",
+  "note": "Sum of st_blocks; APFS clones can share physical extents. User state and pinned build inputs untouched."
+}

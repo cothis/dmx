@@ -560,26 +560,32 @@ Done when: on a Mac whose only way out is an HTTP proxy (no authentication) with
 Local implementation and proof: [menu-app.md](menu-app.md). Direct GUI acceptance remains
 separate from Core/VM tests and the completed public distribution checks.
 
-### Storage/log hardening (2026-10-30, release work in progress)
+### Storage/log hardening (2026-10-30, v0.4.1 published)
 
 - [x] Delete regenerable duplicate development/release artifacts; preserve user data and pinned inputs.
 - [x] Bound host daemon/console and guest dockerd diagnostics to 1 MiB x3 per stream.
 - [x] Set new-container default json-file rotation to 10m x2; preserve explicit logging choices.
 - [x] Finish actual-VM overflow, old-log migration, memory comparison and release qualification.
-- [ ] Resolve actual Opus 5.5 review findings, sign/notarize and publish v0.4.1; verify public bytes
-      and fresh/update paths, then install the signed app locally.
+- [x] Resolve actual Opus 5.5 review findings, sign/notarize and publish v0.4.1; verify public bytes
+      and fresh/update paths, then install the signed app and matching guest locally.
 
 ## Next up
 
-**Active maintainer request (2026-10-30):** source and local qualification for v0.4.1 are
-complete. Actual Opus 5.5 approved after F1/F2/R1/R2 repairs; final VM conditions passed.
-Next: second packaging with Developer ID signing/notarization and `pin_changed: false`, then tag,
-publish and verify all public bytes, fresh installation, previous-app live update/data retention,
-the published storage fixes and local installation. Release is already authorized. Preserve the
-installed user engine/data and unrelated untracked photo. Community announcements and another
-hosted upload job are separate decisions. Direct Phase12 GUI acceptance remains separate.
+**v0.4.1 is published and installed** (2026-10-30), from `241aaae`. The authorized artifact
+cleanup, log hardening, actual Opus5.5 review/repairs and release are complete. CLI/app Apple
+notarization, staple/Gatekeeper and second-package pin stability pass. All14 public bytes match
+the independently qualified reference. Public checks19/19 include fresh selftest23, storage64,
+arm64/amd64/386, previous0.4.0 app live update and VM/container/volume preservation. Restart
+preserves the data disk and old unlimited log policy; a new container gets10m×2. The local app,
+CLI and guest are0.4.1; user data.img is unchanged and no user VM was started. `.build` is now
+1.618GiB versus5.437GiB at resumed preflight; original qualified reference files are retained.
+No hosted workflow or community announcement was used.
 
-For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md).
+See [release](https://github.com/cothis/dmx/releases/tag/v0.4.1),
+[review/proof](reviews/2026-10-30-storage-opus55/README.md), and
+[measurements](measurements/2026-10-30-storage.json). No unfinished storage/release work remains.
+Next up is the existing Phase12 direct GUI acceptance, or maintainer-selected Apple container
+comparison/community announcement; these remain separate from this completed release.
 
 **v0.4.0 is published**, the first unified native app/CLI distribution, from tagged commit
 `9297d39`. Actual Opus 5.5 final code review approved after all reported defects were resolved.
@@ -1131,7 +1137,9 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 - 2026-10-30: Resumed authorized artifact cleanup and log growth hardening. Removed 4.394 GiB
   of regenerable outputs, added bounded diagnostic streams/default container rotation and
   regression tests. Resolved actual Opus5.5 F1/F2/R1/R2 findings; source/pin qualification and
-  final approval complete. Signing/notarization and public release verification remain.
+  final approval complete. Published signed/notarized v0.4.1; all14 public bytes and public19
+  checks pass. Installed the app/CLI/guest locally with unchanged user data and no VM boot.
+  Removed post-verification duplicates; .build is1.618GiB. No hosted workflow was used.
 
 - 2026-10-29: Published signed/notarized/stapled v0.4.0 from `9297d39` after actual Opus 5.5 approval. All 14 public assets, fresh unified install, selftest23, arm64/amd64/386 containers, public whole-app update and previous-CLI migration pass; live VM/container/volume preservation and daemon cleanup verified. Installed the published app/CLI locally without starting the engine. Direct status-menu GUI acceptance remains open.
 

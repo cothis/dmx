@@ -1,0 +1,15 @@
+{
+  "bytes" : 62896188,
+  "fetched" : true,
+  "guest" : {
+    "kernel" : "6.18.58-dmx-4k",
+    "needs_fetch" : false,
+    "path" : "<home>/.dmx/guest",
+    "pinned_tag" : "v0.4.1",
+    "source" : "release",
+    "tag" : "v0.4.1"
+  },
+  "ms" : 5684,
+  "ok" : true,
+  "url" : "https://github.com/cothis/dmx/releases/download/v0.4.1/dmx-guest-0.4.1.tar.gz"
+}

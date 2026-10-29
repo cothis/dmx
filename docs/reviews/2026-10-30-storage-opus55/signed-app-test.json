@@ -1,0 +1,92 @@
+{
+  "ok": true,
+  "checks": [
+    {
+      "name": "single_install_app_and_cli",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "bundled_helper_reports_cli_version",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "repeat_install_valid_signature",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "damaged_bundle_preserves_install",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "cannot_link_cli_inside_signed_app",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "reject_traversal",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "reject_duplicate",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "reject_symlink",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "seed_guest_data",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "whole_app_update_keeps_running_vm",
+      "ok": true,
+      "detail": {
+        "available": true,
+        "bytes": 5427550,
+        "current": "0.4.1",
+        "daemon": {
+          "handover": "stop_to_switch",
+          "pid": 25690,
+          "version": "0.4.1",
+          "vm_running": true
+        },
+        "ok": true,
+        "path": "/tmp/dmx-app-test-m1i6ekgf/Applications/dmx.app",
+        "sha256": "f67ac12751813adde4c4d195b33ffbd7d5846fb15aff9e65d01040b40adbfc6f",
+        "signature": "V4YA23448U",
+        "target": "0.4.1",
+        "updated": true,
+        "url": "http://127.0.0.1:54027/v0.4.1/dmx-0.4.1-darwin-arm64.tar.gz"
+      }
+    },
+    {
+      "name": "whole_app_update_keeps_guest_data",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "whole_app_update_keeps_running_container",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "whole_app_update_keeps_named_volume",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "whole_app_update_keeps_cli_link_and_signature",
+      "ok": true,
+      "detail": null
+    }
+  ]
+}
