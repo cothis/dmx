@@ -8,10 +8,11 @@
 # unpacked onto the data disk whenever that sha256 changes, so Docker costs guest RAM only for
 # what runs.
 set -eu
+# The agent drains this pipe into a bounded rotating log, including startup errors.
+exec 1>&2
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 lib=/var/lib/dmx
 root=$lib/docker
-log=$lib/log/dockerd.log
 
 fail() {
 	echo "dmx-docker: $*" >&2
@@ -60,10 +61,11 @@ mkdir -p /run/dmx "$lib/log" /etc/ssl /var/folders
 {
 	"hosts": ["unix:///var/run/docker.sock"],
 	"host-gateway-ips": ["192.168.127.254", "fd64:646d:7800::254"],
-	"shutdown-timeout": 5
+	"shutdown-timeout": 5,
+	"log-driver": "json-file",
+	"log-opts": {"max-size": "10m", "max-file": "2"}
 }
 EOF
-[ -f "$log" ] && mv -f "$log" "$log.1"
 
 # dockerd runs in its own mount namespace, where /usr is the unpacked tree over the guest's own
 # (binaries and libraries at the paths they were built for), /etc/ssl has the CA bundle, and
@@ -107,4 +109,4 @@ exec unshare -m --propagation slave sh -c "
 	cd /run/dmx/root
 	mount --move . /
 	exec chroot . /usr/bin/dockerd --config-file /run/dmx/daemon.json
-" </dev/null >>"$log" 2>&1
+" </dev/null

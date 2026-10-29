@@ -62,7 +62,11 @@ public final class Machine: @unchecked Sendable {
     private var redistributorBase: UInt64 = 0
     private var redistributorStride: UInt64 = 0
 
-    public init(spec: MachineSpec, paths: Paths, console: FileHandle) throws {
+    public convenience init(spec: MachineSpec, paths: Paths, console: FileHandle) throws {
+        try self.init(spec: spec, paths: paths, output: .file(console))
+    }
+
+    init(spec: MachineSpec, paths: Paths, output: ConsoleOutput) throws {
         for file in [paths.kernel, paths.initramfs] where !FileManager.default.fileExists(atPath: file.path) {
             throw DMXError("guest_missing", "guest file not found: \(file.path)", hint: "run `make guest` to build the guest kernel and initramfs")
         }
@@ -110,11 +114,11 @@ public final class Machine: @unchecked Sendable {
         try check(hv_gic_config_set_redistributor_base(gic, redistributorBase), "hv_gic_config_set_redistributor_base")
         try check(hv_gic_create(gic), "hv_gic_create")
 
-        uart = PL011(output: console) { level in
+        uart = PL011(output: output) { level in
             hv_gic_set_spi(32 + HVLayout.uartSPI, level)
         }
         bus.append((HVLayout.uart, HVLayout.uartSize, uart))
-        self.console = VirtioConsole(output: console)
+        self.console = VirtioConsole(output: output)
         let ram = GuestRAM(base: ram, guestBase: HVLayout.ramBase, size: ramSize, hostMappings: hostMappings)
         addVirtio(self.console, ram: ram)
         addVirtio(VirtioRNG(), ram: ram)

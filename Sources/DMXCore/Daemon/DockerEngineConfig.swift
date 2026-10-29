@@ -38,6 +38,18 @@ enum DockerEngineConfig {
         let ignored = settings.keys.filter(owned.contains).sorted()
         for key in owned { settings[key] = nil }
         settings.merge(required) { _, dmx in dmx }
+        // File logging is bounded by default. Explicit user choices still win, including
+        // other drivers (which may not accept these options) and explicit size/count options.
+        if settings["log-driver"] == nil { settings["log-driver"] = "json-file" }
+        if settings["log-driver"] as? String == "json-file" {
+            if let supplied = settings["log-opts"], !(supplied is [String: String]) {
+                throw invalid(userFile, "log-opts must be an object of string values")
+            }
+            var options = settings["log-opts"] as? [String: String] ?? [:]
+            if options["max-size"] == nil { options["max-size"] = "10m" }
+            if options["max-file"] == nil { options["max-file"] = "2" }
+            settings["log-opts"] = options
+        }
         if settings["proxies"] == nil, let proxy { settings["proxies"] = proxy.daemonJSON }
         let data = try JSONSerialization.data(withJSONObject: settings, options: [.prettyPrinted, .sortedKeys])
         return (String(decoding: data, as: UTF8.self), ignored)

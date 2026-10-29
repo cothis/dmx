@@ -260,7 +260,7 @@ final class VCPU: @unchecked Sendable {
     }
 
     private func debug(_ message: String) {
-        FileHandle.standardError.write(Data("dmx-vmm: vcpu \(index): \(message)\n".utf8))
+        Diagnostics.write(Data("dmx-vmm: vcpu \(index): \(message)\n".utf8))
     }
 
     // MARK: Registers

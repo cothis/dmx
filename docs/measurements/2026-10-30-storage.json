@@ -1,0 +1,267 @@
+{
+  "date": "2026-10-30",
+  "version": "0.4.1",
+  "stage": "source qualified; signing/notarization/publication pending",
+  "cleanup": {
+    "deleted_paths_allocated_bytes": 4718551040,
+    "GiB": 4.394493103027344,
+    "note": "Sum of st_blocks; physical APFS free-space delta not isolated. User VM data and pinned build inputs preserved."
+  },
+  "log_policy": {
+    "diagnostic_stream_limit_bytes": 1048576,
+    "files_per_stream": 3,
+    "streams": [
+      "host daemon",
+      "host console",
+      "guest dockerd"
+    ],
+    "usable_stream_content_budget_bytes": 9437184,
+    "new_container_defaults": {
+      "log-driver": "json-file",
+      "log-opts": {
+        "max-size": "10m",
+        "max-file": "2"
+      }
+    },
+    "existing_containers": "Creation-time settings preserved; recreate to change policy."
+  },
+  "review": {
+    "model": "claude-opus-5-5",
+    "rounds": 3,
+    "verdict": "Approve after F1/F2/R1/R2 repairs; actual final VM conditions now passed",
+    "final_snapshot_tree": "4080352024bce70c2f035cd57d3c7dd094356c7f"
+  },
+  "qualification": {
+    "x86": {
+      "ok": true,
+      "count": 53,
+      "source_stage": "full matrix after collector cancellation fix, before final fallback/lock-wait additions; normal-path payloads unchanged"
+    },
+    "docker": {
+      "ok": true,
+      "count": 69,
+      "source_stage": "full matrix after collector cancellation fix, before final fallback/lock-wait additions; normal-path payloads unchanged"
+    },
+    "sandbox": {
+      "ok": true,
+      "count": 44,
+      "source_stage": "full matrix after collector cancellation fix, before final fallback/lock-wait additions; normal-path payloads unchanged"
+    },
+    "images": {
+      "ok": true,
+      "count": 24,
+      "source_stage": "full matrix after collector cancellation fix, before final fallback/lock-wait additions; normal-path payloads unchanged"
+    },
+    "java": {
+      "ok": true,
+      "count": 100,
+      "source_stage": "full matrix after collector cancellation fix, before final fallback/lock-wait additions; normal-path payloads unchanged"
+    },
+    "storage": {
+      "ok": true,
+      "checks": 64,
+      "source_stage": "final pin and reviewed runtime sources"
+    },
+    "selftest": {
+      "ok": true,
+      "checks": 23,
+      "source_stage": "final pin and reviewed runtime sources"
+    },
+    "daemon": {
+      "ok": true,
+      "checks": 58,
+      "source_stage": "final pin and reviewed runtime sources"
+    },
+    "mcp": {
+      "ok": true,
+      "checks": 33,
+      "source_stage": "final pin and reviewed runtime sources"
+    },
+    "menu": {
+      "ok": true,
+      "checks": 25,
+      "source_stage": "final pin and reviewed runtime sources",
+      "opt_in_swift_tests": [
+        {
+          "tests": 1,
+          "suites": 1
+        }
+      ]
+    },
+    "app": {
+      "ok": true,
+      "checks": 14,
+      "source_stage": "final pin and reviewed runtime sources",
+      "opt_in_swift_tests": [
+        {
+          "tests": 1,
+          "suites": 1
+        }
+      ]
+    },
+    "unit": {
+      "ok": true,
+      "tests": 97,
+      "suites": 15
+    },
+    "formal": {
+      "ok": true,
+      "runs": 15,
+      "bounded_models": [
+        {
+          "concern": "frame-connection-lifetime",
+          "states": 134
+        },
+        {
+          "concern": "rpc-reply-alignment",
+          "states": 26
+        }
+      ],
+      "scope": "Existing frozen FD/RPC models unchanged; current Core code probes passed before logging fallback additions. No new formal proof of logging."
+    }
+  },
+  "memory": {
+    "before": {
+      "version": "0.4.0",
+      "without_docker": {
+        "idle_footprint_MiB": 75.73517608642578,
+        "sample_seconds": 15.010132041000361,
+        "one_core_cpu_percent": 0.03720206447716129
+      },
+      "with_docker": {
+        "idle_footprint_MiB": 187.34468841552734,
+        "sample_seconds": 15.01012695899999,
+        "one_core_cpu_percent": 0.02509948790100705
+      },
+      "status_after": {
+        "clients": 0,
+        "console_log": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-log-memory-9dzx7ouz/logs/console.log",
+        "containers": 0,
+        "cpus": 2,
+        "disk": {
+          "allocated_mb": 172,
+          "path": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-log-memory-9dzx7ouz/data.img",
+          "size_mb": 65536
+        },
+        "docker_socket": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-log-memory-9dzx7ouz/docker.sock",
+        "execs": 0,
+        "guest_used_mb": 63,
+        "host_footprint_mb": 187,
+        "host_peak_footprint_mb": 382,
+        "idle_stop_in_s": 249,
+        "idle_timeout_s": 300,
+        "launchd": false,
+        "max_memory": "2.0G",
+        "memory": {
+          "balloon_mb": 0,
+          "balloon_target_mb": 0,
+          "guest_cache_mb": 75,
+          "guest_page_size": 4096,
+          "guest_swap_mb": 0,
+          "host_pressure": "normal",
+          "last_trim": {
+            "freed_mb": 125,
+            "ms": 25,
+            "reason": "idle",
+            "seconds_ago": 16
+          },
+          "plug": {
+            "boot_mb": 1024,
+            "plugged_mb": 256,
+            "plugs": 2,
+            "requested_mb": 256,
+            "unplugs": 0
+          },
+          "pressure_simulated": false,
+          "reported_mb": 1359,
+          "sweeps": 1,
+          "trims": 1
+        },
+        "pid": 23684,
+        "socket": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-log-memory-9dzx7ouz/dmx.sock",
+        "state": "running",
+        "uptime_s": 72.4,
+        "version": "0.4.0"
+      }
+    },
+    "after": {
+      "version": "0.4.1",
+      "without_docker": {
+        "idle_footprint_MiB": 75.79765319824219,
+        "sample_seconds": 15.008524708000095,
+        "one_core_cpu_percent": 0.035897672188447353
+      },
+      "with_docker": {
+        "idle_footprint_MiB": 192.45408630371094,
+        "sample_seconds": 15.010124749999704,
+        "one_core_cpu_percent": 0.01888986299064607
+      },
+      "status_after": {
+        "clients": 0,
+        "console_log": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-log-memory-os260qe2/logs/console.log",
+        "containers": 0,
+        "cpus": 2,
+        "disk": {
+          "allocated_mb": 172,
+          "path": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-log-memory-os260qe2/data.img",
+          "size_mb": 65536
+        },
+        "docker_socket": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-log-memory-os260qe2/docker.sock",
+        "execs": 0,
+        "guest_used_mb": 63,
+        "host_footprint_mb": 192,
+        "host_peak_footprint_mb": 396,
+        "idle_stop_in_s": 249,
+        "idle_timeout_s": 300,
+        "launchd": false,
+        "max_memory": "2.0G",
+        "memory": {
+          "balloon_mb": 0,
+          "balloon_target_mb": 0,
+          "guest_cache_mb": 81,
+          "guest_page_size": 4096,
+          "guest_swap_mb": 0,
+          "host_pressure": "normal",
+          "last_trim": {
+            "freed_mb": 125,
+            "ms": 24,
+            "reason": "idle",
+            "seconds_ago": 16
+          },
+          "plug": {
+            "boot_mb": 1024,
+            "plugged_mb": 256,
+            "plugs": 2,
+            "requested_mb": 256,
+            "unplugs": 0
+          },
+          "pressure_simulated": false,
+          "reported_mb": 1340,
+          "sweeps": 1,
+          "trims": 1
+        },
+        "pid": 23887,
+        "socket": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-log-memory-os260qe2/dmx.sock",
+        "state": "running",
+        "uptime_s": 72.5,
+        "version": "0.4.1"
+      }
+    }
+  },
+  "memory_interpretation": "Single paired fresh-VM samples, 2 CPUs/2 GiB, ri_phys_footprint, 15-second one-core CPU samples. Docker guest used63MiB in both; cache75->81MiB accompanies host187.34->192.45MiB. This does not establish a fixed5.11MiB logging overhead or a CPU improvement. No host pressure stress.",
+  "selftest": {
+    "before_idle_mb": 98,
+    "after_idle_mb": 97,
+    "after_reclaim_mb": 104,
+    "returned_ms": 314
+  },
+  "guest": {
+    "archive_sha256": "43b167dc3f66f153b6712bda0a4b3047f57ab84f8d8f771482356ecb8fa34ecb",
+    "bytes": 62896188
+  },
+  "limitations": [
+    "Guest-agent restart can lose dockerd diagnostic output until VM restart; container logs are independent.",
+    "No global quota on images, volumes, build cache or explicit logging choices.",
+    "Phase12 direct GUI click acceptance remains separate."
+  ]
+}

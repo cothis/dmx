@@ -1,3 +1,36 @@
+# v0.4.1 소스 검증·Opus 승인 완료, 서명·배포 대기 — 2026-10-30
+
+산출물 정리 → 보완 → 실제 Opus 5.5 검수 → 결함 해결 후 배포는 승인됐어요.
+중단 뒤 명시적으로 재개했고, 지금은 소스와 게스트 핀 검증을 마쳤어요. 현재 공개본은
+아직 v0.4.0이에요. 다음은 source commit 후 두 번째 Developer ID 패키징과 공증,
+pin_changed=false 확인, 태그/main push, 공개 14개 자산 바이트 검증과 새 설치·이전 앱
+업데이트 보존·게시 바이너리 storage 검증·로컬 앱 설치예요. 공개 배포를 재승인받을 필요는
+없어요. 커뮤니티 글과 새 GitHub Actions 예외는 포함되지 않았어요.
+
+중복 개발 산출물 4.394 GiB(st_blocks 합계)를 지웠고 사용자 데이터·빌드 입력은 보존했어요.
+호스트 daemon/console, 게스트 dockerd 로그는 각 1 MiB×3이며, 새 컨테이너 기본 로그는
+json-file10m×2예요. 기존 컨테이너/사용자 옵션은 보존해요. 로그를 만들 수 없어도 엔진은
+동작하고 status에 host 경고가 나와요. 권한 수정 후 같은 daemon의 다음 부팅에서도 복구해요.
+
+실제 Opus5.5가 F1/F2와 후속 R1/R2를 지적했고 수정 뒤 승인했어요. 최종 VM 조건도 모두
+통과했어요: 단위97, storage64(게스트 Rust4 포함), selftest23, daemon58, MCP33,
+menu25+typedVM1, app14+typed install1. 선행 전체 호환성은 x8653/Docker69/sandbox44/
+images24/Java100이에요. 첫 LF-only 콘솔 단정, launchd 없는 Docker 자동 시작 가정,
+테스트 홈 도구 링크 누락은 각각 원인을 기록하고 수정했어요. 검수·실패·최종 증거는
+[리뷰](reviews/2026-10-30-storage-opus55/README.md)와
+[측정](measurements/2026-10-30-storage.json)에 있어요. raw/서명 보조 파일은 ignored
+`.build/storage-review`에 있어요. 기존 v0.4.0 전송 보조 스크립트도 보존했어요.
+
+단발 비교: 엔진75.735→75.798MiB, Docker 포함187.345→192.454MiB, CPU한 코어<0.04%.
+Docker guest used는63MiB로 같고 cache75→81MiB예요. 고정5MiB 비용이나 CPU 개선을
+입증한 수치로 쓰지 마세요. 호스트 pressuretest는 실행하지 않았어요. 게스트 agent 자체가
+재시작하거나 자식이 오래된 pipe를 보유하면 진단 로그가 VM 재시작 전까지 끊길 수 있지만
+컨테이너 로그는 별도예요. 직접 GUI 클릭 수용 검증은 기존 Phase12 미완료 항목이에요.
+
+기존 main에서 작업했고 무관한 미추적 사진은 보존했어요. 아래는 이전 완료 기록이에요.
+
+---
+
 # v0.4.0 앱·CLI 통합 공개 배포 완료 (2026-10-29)
 
 실제 `claude-opus-5-5` 검수의 초기·후속 지적을 모두 수정하고 최종 **approve**를 받은 뒤,

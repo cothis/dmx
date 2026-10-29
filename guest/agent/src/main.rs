@@ -5,6 +5,7 @@ mod exec;
 mod forward;
 mod frame;
 mod host_services;
+mod rotating_log;
 mod sys;
 mod vsock;
 

@@ -583,7 +583,7 @@ try:
     started = time.monotonic()
     r = dmx("exec", "--", "sh", "-c", "cat /var/lib/marker; tail -3 /var/lib/dmx/log/fsck.log")
     results["fsck_repair_boot_s"] = round(time.monotonic() - started, 2)
-    console = (HOME / "logs" / "console.log").read_text(errors="replace")
+    console = (HOME / "logs" / "console.log").read_text(errors="replace").rsplit("--- dmx VM boot ", 1)[-1]
     check("fsck_repaired", r.stdout.startswith(b"kept\n") and b"FILE SYSTEM WAS MODIFIED" in r.stdout and "running e2fsck -fy" in console,
           f"{r.stdout[-300:]!r}")
 

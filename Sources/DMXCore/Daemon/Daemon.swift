@@ -14,6 +14,7 @@ public final class Daemon {
     static let linger: Duration = .seconds(10)
 
     private let paths: Paths
+    private let diagnosticLogs: DaemonLogs
     private let version: String
     private let listener: Int32
     private let launchd: Bool
@@ -54,8 +55,10 @@ public final class Daemon {
     public init(paths: Paths, version: String) throws {
         self.paths = paths
         self.version = version
-        try FileManager.default.createDirectory(at: paths.logs, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: paths.home, withIntermediateDirectories: true)
         try Self.takeLock(paths)
+        Diagnostics.detachLegacyLog(paths.daemonLog)
+        diagnosticLogs = DaemonLogs(paths: paths)
         if let fd = try launchdSocket() {
             listener = fd
             launchd = true
@@ -251,7 +254,7 @@ public final class Daemon {
             guestUsedMb: used, hostFootprintMb: host?.footprintMb, hostPeakFootprintMb: host?.peakFootprintMb,
             clients: others, execs: execs, containers: docker.containers, idleTimeoutS: idleTimeout, idleStopInS: idleStopIn,
             socket: paths.controlSocket.path, consoleLog: paths.consoleLog.path,
-            memory: memory.status(guest: guest), disk: DataDisk.usage(paths.dataDisk), dockerSocket: paths.dockerSocket.path)
+            memory: memory.status(guest: guest), disk: DataDisk.usage(paths.dataDisk), dockerSocket: paths.dockerSocket.path, logWarnings: diagnosticLogs.warnings.isEmpty ? nil : diagnosticLogs.warnings)
     }
 
     // MARK: VM lifecycle
@@ -305,9 +308,9 @@ public final class Daemon {
                 if FileManager.default.fileExists(atPath: paths.dockerImage.path) {
                     spec.extraDisks = [DataDisk(url: paths.dockerImage, size: 0, readOnly: true, id: "dmx-docker")]
                 }
-                FileManager.default.createFile(atPath: paths.consoleLog.path, contents: nil)
-                let console = try FileHandle(forWritingTo: paths.consoleLog)
-                let machine = try Machine(spec: spec, paths: paths, console: console)
+                diagnosticLogs.retryDisabled()
+                diagnosticLogs.console?.append(Data("\n--- dmx VM boot \(ISO8601DateFormatter().string(from: Date())) ---\n".utf8))
+                let machine = try Machine(spec: spec, paths: paths, output: .log(diagnosticLogs.console))
                 self.machine = machine
                 try machine.start()
                 // Generous: on a loaded Mac a first boot that formats the data disk can take 30 s,
@@ -487,7 +490,7 @@ public final class Daemon {
 
 func log(_ message: String) {
     let stamp = ISO8601DateFormatter().string(from: Date())
-    FileHandle.standardError.write(Data("\(stamp) dmx-daemon: \(message)\n".utf8))
+    Diagnostics.write(Data("\(stamp) dmx-daemon: \(message)\n".utf8))
 }
 
 func seconds(_ d: Duration) -> Double {

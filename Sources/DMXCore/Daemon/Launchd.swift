@@ -142,8 +142,8 @@ public enum LaunchAgent {
                 // The first Docker client starts the daemon too (DockerBridge takes it by this name).
                 "Docker": ["SockPathName": paths.dockerSocket.path, "SockPathMode": 0o600],
             ],
-            "StandardOutPath": paths.daemonLog.path,
-            "StandardErrorPath": paths.daemonLog.path,
+            "StandardOutPath": "/dev/null",
+            "StandardErrorPath": "/dev/null",
             // Containers are interactive work: no background CPU and I/O throttling.
             "ProcessType": "Interactive",
             // The daemon exits whenever it is idle; let the next connection start it at once.

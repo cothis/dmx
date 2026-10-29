@@ -1,0 +1,190 @@
+{
+  "ok": true,
+  "checks": [
+    {
+      "name": "startup_download_reached_server",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "startup_download_cancelled_before_server_close",
+      "ok": true,
+      "detail": "{\n  \"clients\" : 1,\n  \"console_log\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-cancel-uyukajpm/logs/console.log\",\n  \"docker_socket\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-cancel-uyukajpm/docker.sock\",\n  \"execs\" : 0,\n  \"host_footprint_mb\" : 5,\n  \"host_peak_footprint_mb\" : 5,\n  \"idle_timeout_s\" : 300,\n  \"launchd\" : false,\n  \"memory\" : {\n    \"host_pressure\" : \"normal\",\n    \"pressure_simulated\" : false,\n    \"sweeps\" : 0,\n    \"trims\" : 0\n  },\n  \"pid\" : 22880,\n  \"socket\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-cancel-uyukajpm/dmx.sock\",\n  \"state\" : \"stopped\",\n  \"version\" : \"0.4.1\"\n}\n"
+    },
+    {
+      "name": "cancelled_start_is_normal_shutdown",
+      "ok": true,
+      "detail": "{\n  \"error\" : {\n    \"code\" : \"start_cancelled\",\n    \"hint\" : \"run `dmx start` when needed\",\n    \"message\" : \"VM startup was cancelled before it booted\"\n  },\n  \"ok\" : false\n}\n"
+    },
+    {
+      "name": "start",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "hello_capability",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "running_receipt",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "release_cannot_stop_active_vm",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "menu_tunnel",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "menu_docker_listing",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "idle_while_observed",
+      "ok": true,
+      "detail": {
+        "pid": 22889,
+        "state": "stopped",
+        "reason": "stopped",
+        "sequence": 7,
+        "version": "0.4.1"
+      }
+    },
+    {
+      "name": "normal_stop_has_no_failure",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "menu_cannot_boot_idle_vm",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "menu_release",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "daemon_exits_after_menu_release",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "reading_receipt_does_not_restart_engine",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "cli_works_without_app",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "independent_docker_cli",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "cli_idle_stop",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "menu_detach_from_cli_idle",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "cli_keepalive_survives_menu",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "docker_cli_restarts_vm_without_app",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "passive_overlap_ack",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "active_exec_ends_under_passive_lease",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "active_completion_sets_idle_epoch_under_passive_lease",
+      "ok": true,
+      "detail": {
+        "containers": 0,
+        "cpus": 2,
+        "clients": 0,
+        "launchd": false,
+        "state": "running",
+        "guest_used_mb": 63,
+        "idle_timeout_s": 3,
+        "uptime_s": 4.6,
+        "execs": 0,
+        "disk": {
+          "size_mb": 65536,
+          "allocated_mb": 173,
+          "path": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-menu-dit7yc1j/data.img"
+        },
+        "max_memory": "2.0G",
+        "idle_stop_in_s": 2,
+        "host_footprint_mb": 250,
+        "host_peak_footprint_mb": 303,
+        "socket": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-menu-dit7yc1j/dmx.sock",
+        "pid": 22911,
+        "memory": {
+          "guest_page_size": 4096,
+          "reported_mb": 1034,
+          "trims": 0,
+          "balloon_mb": 0,
+          "guest_swap_mb": 0,
+          "pressure_simulated": false,
+          "guest_cache_mb": 139,
+          "plug": {
+            "plugged_mb": 256,
+            "boot_mb": 1024,
+            "requested_mb": 256,
+            "plugs": 2,
+            "unplugs": 0
+          },
+          "sweeps": 0,
+          "host_pressure": "normal",
+          "balloon_target_mb": 0
+        },
+        "docker_socket": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-menu-dit7yc1j/docker.sock",
+        "version": "0.4.1",
+        "console_log": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-menu-dit7yc1j/logs/console.log"
+      }
+    },
+    {
+      "name": "guest_poweroff_reported_as_failure",
+      "ok": true,
+      "detail": {
+        "pid": 22911,
+        "reason": "guest_stopped",
+        "failure": {
+          "hint": "run `dmx doctor`, then start dmx again",
+          "message": "the guest powered off unexpectedly",
+          "code": "guest_stopped"
+        },
+        "version": "0.4.1",
+        "state": "stopped",
+        "sequence": 12
+      }
+    }
+  ]
+}

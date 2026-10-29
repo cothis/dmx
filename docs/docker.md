@@ -174,13 +174,44 @@ docker CLI ──▶ ~/.dmx/docker.sock ──▶ dmx daemon ──vsock──�
 - **Configuration** (`/run/dmx/daemon.json`): `host-gateway-ips` 192.168.127.254 and
   fd64:646d:7800::254 (the Mac, so `--add-host x:host-gateway` works as on Docker Desktop),
   `shutdown-timeout` 5 s (the host powers the guest off within 10 s; the agent
-  sends dockerd SIGTERM and waits up to 7 s so containers stop cleanly). Everything else is
-  Docker's default: overlayfs, the containerd image store, json-file logs, the userland proxy,
+  sends dockerd SIGTERM and waits up to 7 s so containers stop cleanly). New containers default
+  to json-file logging with `max-size: "10m"` and `max-file: "2"`. Explicit settings in the user's
+  `daemon.json` and per-container logging options win; other logging drivers receive no json-file
+  options. Existing containers retain their creation-time logging settings, including unlimited
+  logs: recreate them with the desired options to apply a new policy. See Docker's
+  [logging configuration](https://docs.docker.com/engine/logging/configure/).
+  Everything else is Docker's default: overlayfs, the containerd image store, the userland proxy,
   cgroup v2 with cgroupfs. dockerd and its containerd run in the `/dmx-docker` cgroup and
   containers in `/docker/<id>`: from the root cgroup, which has no `memory.swap.max`, dockerd
   reported no swap limit support, warned on every `--memory` and left swap unlimited. Images, containers and volumes live on the data disk
   (`/var/lib/docker`, `/var/lib/containerd`). dockerd's log is `/var/lib/dmx/log/dockerd.log`
-  (`dmx exec -- tail /var/lib/dmx/log/dockerd.log`), the previous one `dockerd.log.1`.
+  (`dmx exec -- tail /var/lib/dmx/log/dockerd.log`). Its current file and `.1`/`.2` backups are
+  each limited to 1 MiB; backups represent size rotations, not individual starts. The agent drains dockerd's output using an 8 KiB buffer and retains only
+  an 8 KiB startup error tail; it never queues output proportional to log volume.
+
+Host diagnostic logs (`$DMX_HOME/logs/daemon.log` and `console.log`) also retain a current file
+and two backups, each at most 1 MiB: at most 6 MiB for both streams. The guest dockerd stream
+adds at most 3 MiB on the data disk, plus filesystem metadata. Old oversized diagnostic files
+are reduced to their newest 1 MiB when their owner starts. Older launchd log descriptors are
+released before rotation so deleted old files cannot retain space. Log disk errors drop output
+without building a memory backlog. If a sink cannot be initialized (full disk, permissions or an
+unsafe link/special file), the engine still starts and drops that stream. Host startup warnings
+appear in `dmx status` / `log_warnings` in JSON; guest setup failures appear on the console.
+Repair the directory and run `dmx stop` followed by `dmx start` to recreate disabled sinks.
+The next boot retries disabled sinks and clears resolved warnings even if the daemon stays alive.
+Existing files that cannot safely be opened are left alone; their pre-existing sizes are outside
+the usable-stream budget. Console boot markers distinguish history from the current boot.
+If the guest agent itself crashes and restarts while dockerd survives, the inherited output
+pipe cannot be reattached: Docker continues to run, but its diagnostic output resumes only after
+`dmx stop` / `dmx start`. Surviving descendants of a crashed dockerd can likewise retain an
+old diagnostic pipe. This does not affect container logs, which dockerd owns.
+
+These limits cover diagnostic output and default new-container logs. Container writable layers,
+images, volumes, build cache and explicitly configured logging have their own sizes; dmx does
+not delete user data to enforce a global disk quota. The sparse data disk returns free guest
+blocks through discard and the default idle trim. Build/release files under `.build` are
+regenerable development artifacts and are safe to remove when no build/review/release uses them;
+`~/.dmx/data.img` is user data, not a build artifact.
 
 ## The socket
 

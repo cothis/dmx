@@ -1,0 +1,286 @@
+diff --git a/Sources/DMXCore/Daemon/Daemon.swift b/Sources/DMXCore/Daemon/Daemon.swift
+index b4eb696..8166b01 100644
+--- a/Sources/DMXCore/Daemon/Daemon.swift
++++ b/Sources/DMXCore/Daemon/Daemon.swift
+@@ -14,8 +14,7 @@ public final class Daemon {
+     static let linger: Duration = .seconds(10)
+ 
+     private let paths: Paths
+-    private let consoleLog: RotatingLog?
+-    private let logWarnings: [String]
++    private let diagnosticLogs: DaemonLogs
+     private let version: String
+     private let listener: Int32
+     private let launchd: Bool
+@@ -59,21 +58,7 @@ public final class Daemon {
+         try FileManager.default.createDirectory(at: paths.home, withIntermediateDirectories: true)
+         try Self.takeLock(paths)
+         Diagnostics.detachLegacyLog(paths.daemonLog)
+-        var warnings: [String] = []
+-        func diagnostic(_ url: URL) -> RotatingLog? {
+-            do {
+-                try FileManager.default.createDirectory(at: paths.logs, withIntermediateDirectories: true)
+-                return try RotatingLog(url: url)
+-            } catch {
+-                let error = error as? DMXError ?? DMXError("log_unwritable", error.localizedDescription,
+-                    hint: "check the log directory's permissions and free space, then run `dmx start`")
+-                warnings.append("\(error.code): \(error.message); \(error.hint ?? "")")
+-                return nil
+-            }
+-        }
+-        Diagnostics.install(diagnostic(paths.daemonLog))
+-        consoleLog = diagnostic(paths.consoleLog)
+-        logWarnings = warnings
++        diagnosticLogs = DaemonLogs(paths: paths)
+         if let fd = try launchdSocket() {
+             listener = fd
+             launchd = true
+@@ -269,7 +254,7 @@ public final class Daemon {
+             guestUsedMb: used, hostFootprintMb: host?.footprintMb, hostPeakFootprintMb: host?.peakFootprintMb,
+             clients: others, execs: execs, containers: docker.containers, idleTimeoutS: idleTimeout, idleStopInS: idleStopIn,
+             socket: paths.controlSocket.path, consoleLog: paths.consoleLog.path,
+-            memory: memory.status(guest: guest), disk: DataDisk.usage(paths.dataDisk), dockerSocket: paths.dockerSocket.path, logWarnings: logWarnings.isEmpty ? nil : logWarnings)
++            memory: memory.status(guest: guest), disk: DataDisk.usage(paths.dataDisk), dockerSocket: paths.dockerSocket.path, logWarnings: diagnosticLogs.warnings.isEmpty ? nil : diagnosticLogs.warnings)
+     }
+ 
+     // MARK: VM lifecycle
+@@ -323,8 +308,9 @@ public final class Daemon {
+                 if FileManager.default.fileExists(atPath: paths.dockerImage.path) {
+                     spec.extraDisks = [DataDisk(url: paths.dockerImage, size: 0, readOnly: true, id: "dmx-docker")]
+                 }
+-                consoleLog?.append(Data("\n--- dmx VM boot \(ISO8601DateFormatter().string(from: Date())) ---\n".utf8))
+-                let machine = try Machine(spec: spec, paths: paths, output: .log(consoleLog))
++                diagnosticLogs.retryDisabled()
++                diagnosticLogs.console?.append(Data("\n--- dmx VM boot \(ISO8601DateFormatter().string(from: Date())) ---\n".utf8))
++                let machine = try Machine(spec: spec, paths: paths, output: .log(diagnosticLogs.console))
+                 self.machine = machine
+                 try machine.start()
+                 // Generous: on a loaded Mac a first boot that formats the data disk can take 30 s,
+diff --git a/Sources/DMXCore/RotatingLog.swift b/Sources/DMXCore/RotatingLog.swift
+index de35893..9deb162 100644
+--- a/Sources/DMXCore/RotatingLog.swift
++++ b/Sources/DMXCore/RotatingLog.swift
+@@ -95,7 +95,7 @@ final class RotatingLog: @unchecked Sendable {
+         guard fstat(fd, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_nlink == 1 else {
+             Darwin.close(fd)
+             throw DMXError("log_invalid", "diagnostic log must be a regular file with one link: \(path)",
+-                           hint: "move this log aside, then run `dmx start`")
++                           hint: "move this log aside, then run `dmx stop` followed by `dmx start`")
+         }
+         return fd
+     }
+@@ -112,7 +112,7 @@ final class RotatingLog: @unchecked Sendable {
+ 
+     private static func error(_ path: String) -> DMXError {
+         DMXError("log_unwritable", "cannot write diagnostic log \(path): \(String(cString: strerror(errno)))",
+-                 hint: "check the log directory's permissions and free space, then run `dmx start`")
++                 hint: "repair the log directory and free space, then run `dmx stop` followed by `dmx start`")
+     }
+ }
+ 
+@@ -168,3 +168,39 @@ enum Diagnostics {
+         }
+     }
+ }
++
++/// Disabled sinks are retried once per VM boot, even when clients keep the daemon alive.
++@MainActor
++final class DaemonLogs {
++    private let paths: Paths
++    private(set) var daemon: RotatingLog?
++    private(set) var console: RotatingLog?
++    private var failures: [String: String] = [:]
++
++    var warnings: [String] { [paths.daemonLog, paths.consoleLog].compactMap { failures[$0.path] } }
++
++    init(paths: Paths) {
++        self.paths = paths
++        retryDisabled()
++    }
++
++    func retryDisabled() {
++        if daemon == nil { daemon = make(paths.daemonLog) }
++        if console == nil { console = make(paths.consoleLog) }
++        Diagnostics.install(daemon)
++    }
++
++    private func make(_ url: URL) -> RotatingLog? {
++        do {
++            try FileManager.default.createDirectory(at: paths.logs, withIntermediateDirectories: true)
++            let log = try RotatingLog(url: url)
++            failures[url.path] = nil
++            return log
++        } catch {
++            let error = error as? DMXError ?? DMXError("log_unwritable", error.localizedDescription,
++                hint: "repair the log directory and free space, then run `dmx stop` followed by `dmx start`")
++            failures[url.path] = "\(error.code): \(error.message); \(error.hint ?? "")"
++            return nil
++        }
++    }
++}
+diff --git a/docs/HANDOFF.md b/docs/HANDOFF.md
+index fceddef..14723e0 100644
+--- a/docs/HANDOFF.md
++++ b/docs/HANDOFF.md
+@@ -1,3 +1,37 @@
++# Storage/log hardening in progress — 2026-10-30
++
++maintainer가 산출물 정리 → 로그 증가 보완 → 실제 Opus 5.5 검수 → 결함 해결 후 배포를
++승인했고, 사전점검 중 일시중지한 뒤 명시적으로 재개했어요. 아직 새 공개 릴리스는 없고
++현재 게시본은 v0.4.0이에요. 기존 main에서 작업 중이며 무관한 미추적 사진은 보존해요.
++
++중복 `.build` 산출물 4.394 GiB를 정리했어요. 설치 앱/CLI와 `~/.dmx` 데이터·빌드 입력은
++보존했어요. 호스트 daemon/console, 게스트 dockerd 진단 로그는 각 1 MiB×3으로 제한하며,
++새 컨테이너 기본값은 json-file 10m×2예요. 기존 컨테이너·사용자 지정 옵션은 보존해요.
++기존 무제한 컨테이너 로그를 자동으로 바꾸거나 사용자 데이터를 지우는 작업은 아니에요.
++
++첫 Opus 검수는 실제 claude-opus-5-5였고 F1 수집기 파이프/잠금 수명, F2 로그 설정 실패가
++엔진 시작을 막는 결함 때문에 request changes였어요. F1은 별도로 재현하고 child-owned
++취소 소켓/무기한 poll 깨우기로 수정했어요. 수정 뒤 실제 VM storage 41개와 게스트 Rust
++2개 검사를 통과했어요. F2는 sink 초기화를 best effort로 바꾸고 host log_warnings를
++status에 표시했어요. 쓰기 불가·symlink/FIFO에서도 부팅·Docker가 계속 동작하고 외부
++대상은 보존하는 검사를 추가했지만 이 최신 범위는 아직 검증 중이에요.
++
++첫 전체 검증은 `.build/storage-review/qualification.stdout`에 진행 상태가 있어요.
++수정 전/중간 단계의 검사이므로 최종 소스 전부가 통과했다고 쓰면 안 돼요. 최신 소스의
++게스트 재빌드와 최종 변경 경로 검사를 반드시 하고, second-source 스냅샷의 Opus 재검수
++결과도 확인하세요. 검수 session은 7d3a8885-5067-40b9-b8a5-74c4e1acdd1a이고 raw stream은
++비공개 `.build/storage-review/`에 있어요. 첫 콘솔 LF 단정 오류와 재시작 harness 오류는
++실패 기록과 별도 stty/byte 증거를 남겼어요. macOS 호스트 pressuretest는 실행하지 않았어요.
++
++계획은 v0.4.1 패치예요. guest/pin/README 일치, 두 번째 패키징 pin_changed=false,
++서명·공증·스테이플, 공개 14개 파일 바이트 검증과 새 설치/업데이트 데이터 보존을 끝내고
++로컬 앱까지 설치해야 완료예요. 커뮤니티 글·새 GitHub Actions 예외는 승인되지 않았어요.
++Phase12 직접 GUI 클릭 수용 검증은 이 범위와 별도로 미완료예요.
++
++아래는 이전 완료 기록이에요.
++
++---
++
+ # v0.4.0 앱·CLI 통합 공개 배포 완료 (2026-10-29)
+ 
+ 실제 `claude-opus-5-5` 검수의 초기·후속 지적을 모두 수정하고 최종 **approve**를 받은 뒤,
+diff --git a/docs/docker.md b/docs/docker.md
+index 8d15646..22842f1 100644
+--- a/docs/docker.md
++++ b/docs/docker.md
+@@ -198,11 +198,13 @@ without building a memory backlog. If a sink cannot be initialized (full disk, p
+ unsafe link/special file), the engine still starts and drops that stream. Host startup warnings
+ appear in `dmx status` / `log_warnings` in JSON; guest setup failures appear on the console.
+ Repair the directory and run `dmx stop` followed by `dmx start` to recreate disabled sinks.
++The next boot retries disabled sinks and clears resolved warnings even if the daemon stays alive.
+ Existing files that cannot safely be opened are left alone; their pre-existing sizes are outside
+ the usable-stream budget. Console boot markers distinguish history from the current boot.
+ If the guest agent itself crashes and restarts while dockerd survives, the inherited output
+ pipe cannot be reattached: Docker continues to run, but its diagnostic output resumes only after
+-`dmx stop` / `dmx start`. This does not affect container logs, which dockerd owns.
++`dmx stop` / `dmx start`. Surviving descendants of a crashed dockerd can likewise retain an
++old diagnostic pipe. This does not affect container logs, which dockerd owns.
+ 
+ These limits cover diagnostic output and default new-container logs. Container writable layers,
+ images, volumes, build cache and explicitly configured logging have their own sizes; dmx does
+diff --git a/guest/agent/src/rotating_log.rs b/guest/agent/src/rotating_log.rs
+index 137b537..ae5b6c4 100644
+--- a/guest/agent/src/rotating_log.rs
++++ b/guest/agent/src/rotating_log.rs
+@@ -4,6 +4,7 @@ use std::io::{self, Read, Seek, SeekFrom, Write};
+ use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+ use std::os::fd::AsRawFd;
+ use std::path::{Path, PathBuf};
++use std::time::{Duration, Instant};
+ 
+ pub const LIMIT: usize = 1 << 20;
+ 
+@@ -20,8 +21,14 @@ impl RotatingLog {
+         assert!(limit > 0);
+         std::fs::create_dir_all(path.parent().unwrap())?;
+         let lock = open(&suffix(path, ".lock"), true)?.unwrap();
+-        if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
+-            return Err(io::Error::last_os_error());
++        // A crashed child's reaper may still be draining its finite queued output.
++        // Give that owner time to release the file; never wait indefinitely on a live owner.
++        let deadline = Instant::now() + Duration::from_secs(1);
++        loop {
++            if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } == 0 { break; }
++            let error = io::Error::last_os_error();
++            if error.kind() != io::ErrorKind::WouldBlock || Instant::now() >= deadline { return Err(error); }
++            std::thread::sleep(Duration::from_millis(5));
+         }
+         for end in [".2", ".1", ""] {
+             if let Some(mut file) = open(&suffix(path, end), end.is_empty())? {
+@@ -153,4 +160,26 @@ mod tests {
+         std::fs::remove_dir_all(dir).unwrap();
+     }
+ 
++    #[test]
++    fn contended_lock_waits_for_previous_owner_with_a_deadline() {
++        let dir = std::env::temp_dir().join(format!("dmx-lock-test-{}", std::process::id()));
++        std::fs::create_dir_all(&dir).unwrap();
++        let path = dir.join("dockerd.log");
++        let held = RotatingLog::new(&path, 64).unwrap();
++        let started = Instant::now();
++        assert!(RotatingLog::new(&path, 64).is_err());
++        assert!(started.elapsed() >= Duration::from_secs(1));
++        assert!(started.elapsed() < Duration::from_secs(3));
++        let release = std::thread::spawn(move || {
++            std::thread::sleep(Duration::from_millis(80));
++            drop(held);
++        });
++        let mut replacement = RotatingLog::new(&path, 64).unwrap();
++        replacement.append(b"NEW-OWNER");
++        assert_eq!(std::fs::read(&path).unwrap(), b"NEW-OWNER");
++        release.join().unwrap();
++        drop(replacement);
++        std::fs::remove_dir_all(dir).unwrap();
++    }
++
+ }
+diff --git a/scripts/test-storage.py b/scripts/test-storage.py
+index b223422..a80642b 100644
+--- a/scripts/test-storage.py
++++ b/scripts/test-storage.py
+@@ -7,6 +7,8 @@ from pathlib import Path
+ import subprocess
+ import sys
+ import tempfile
++import socket
++import shutil
+ import time
+ 
+ DMX = Path(sys.argv[1] if len(sys.argv) > 1 else '.build/release/dmx').resolve()
+@@ -105,8 +107,10 @@ with tempfile.TemporaryDirectory(prefix='dmx-storage-') as scratch:
+         guest('for p in $(cat /run/dmx/log-probe-pids); do kill "$p" 2>/dev/null || true; done')
+         # Real dockerd/containerd inheritance, beyond the controlled failed-script fixture.
+         previous_dockerd = guest('cat /var/run/docker.pid').strip()
++        metrics['containerd_before_crash'] = guest('for p in $(pidof containerd); do echo pid=$p; readlink /proc/$p/fd/2; done').decode()
+         guest('kill -9 "$(cat /var/run/docker.pid)"')
+         check('dockerd_restart_after_crash', wait(lambda: subprocess.run([DOCKER, 'info'], capture_output=True, env=env, timeout=20).returncode == 0 and command('exec', '--', 'cat', '/var/run/docker.pid').stdout.strip() not in [b'', previous_dockerd], 25))
++        metrics['containerd_after_crash'] = guest('for p in $(pidof containerd); do echo pid=$p; readlink /proc/$p/fd/2; done').decode()
+         before = guest('wc -c /var/lib/dmx/log/dockerd.log /var/lib/dmx/log/dockerd.log.1 /var/lib/dmx/log/dockerd.log.2').decode()
+         check('old_guest_logs_bounded', all(int(line.split()[0]) <= LIMIT for line in before.splitlines()[:-1]), before)
+         guest("p=$(cat /var/run/docker.pid); dd if=/dev/zero bs=8192 count=1024 2>/dev/null > /proc/$p/fd/2; printf 'DOCKERD-TAIL\\n' > /proc/$p/fd/2")
+@@ -158,10 +162,22 @@ with tempfile.TemporaryDirectory(prefix='dmx-storage-') as scratch:
+         guest("rm -f /var/lib/dmx/log/dockerd.log; printf PRESERVE > /var/lib/dmx/log/keep; ln -s /var/lib/dmx/log/keep /var/lib/dmx/log/dockerd.log")
+         docker('info', '--format', '{{.LoggingDriver}}')
+         check('unsafe_guest_log_still_starts_docker', guest('cat /var/lib/dmx/log/keep') == b'PRESERVE')
++        # Keep a passive client open: stop/start must retry sinks in the SAME daemon.
++        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as holder:
++            holder.connect(str(home / 'dmx.sock'))
++            check('passive_client_accepted', json.loads(command('status', '--json').stdout).get('clients', 0) >= 1)
++            old_pid = warning_status['pid']
++            (home / 'logs').chmod(0o700)
++            command('stop', '--json')
++            recovered = command('start', '--json')
++            check('same_daemon_log_recovery', recovered.returncode == 0 and json.loads(recovered.stdout)['pid'] == old_pid
++                  and not json.loads(recovered.stdout).get('log_warnings'), recovered.stdout.decode())
++            check('recovered_console_is_live', b'--- dmx VM boot ' in (home / 'logs/console.log').read_bytes())
++            docker('info', '--format', '{{.LoggingDriver}}')
++            check('guest_disabled_sink_warning', wait(lambda: b'diagnostic logging disabled' in (home / 'logs/console.log').read_bytes()))
+         command('stop', '--json')
+         check('unavailable_logger_daemon_exits', wait(lambda: not (home / 'dmx.sock').exists()))
+-        (home / 'logs').chmod(0o700)
+-        (home / 'logs').rmdir()
++        shutil.rmtree(home / 'logs')
+         saved_logs.rename(home / 'logs')
+         target = home / 'keep-host'
+         contents = b'preserve host target' * 100000

@@ -16,6 +16,11 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Maintainer preferences
 
+- 2026-10-30: Authorized deleting regenerable development/release artifacts, hardening log
+  growth, actual Opus 5.5 review and release after resolving defects. Preserve user VM data
+  and pinned build inputs. Paused during preflight, then explicitly resumed. This authorization
+  does not include community announcements or a new GitHub Actions exception.
+
 - 2026-10-29: Allowed one manually dispatched GitHub Actions job to reconstruct the byte-identical,
   pinned GPL source archive from the previous public release and upload it to the existing draft.
   App builds and tests stay local; remove the active workflow after upload. This is a one-time

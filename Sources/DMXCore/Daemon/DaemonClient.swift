@@ -145,7 +145,7 @@ private func spawnDaemon(_ paths: Paths, executable: String?) throws {
     posix_spawn_file_actions_init(&actions)
     defer { posix_spawn_file_actions_destroy(&actions) }
     posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0)
-    posix_spawn_file_actions_addopen(&actions, 1, paths.daemonLog.path, O_WRONLY | O_CREAT | O_APPEND, 0o600)
+    posix_spawn_file_actions_addopen(&actions, 1, "/dev/null", O_WRONLY, 0)
     posix_spawn_file_actions_adddup2(&actions, 1, 2)
     var attributes: posix_spawnattr_t?
     posix_spawnattr_init(&attributes)

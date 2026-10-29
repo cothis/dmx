@@ -1,0 +1,2 @@
+# Archived git patches retain exact context prefixes (including single-space blank lines).
+*.diff -whitespace

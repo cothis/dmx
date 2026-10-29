@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build app install-app apptest menutest install kernel qemu fex guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest javatest pressuretest benchmark test formaltest release clean
+.PHONY: build app install-app apptest menutest install kernel qemu fex guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest javatest storagetest pressuretest benchmark test formaltest release clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -84,6 +84,10 @@ imagetest: build
 # HotSpot repeatedly compiles and patches x86 code; one image run misses intermittent failures.
 javatest: build
 	python3 -I scripts/test-images.py $(BIN) --image java --platform linux/amd64 --repeat 100
+
+# Diagnostic overflow/migration, Docker log defaults, failed-start retry, guest Rust unit tests.
+storagetest: build
+	python3 -I scripts/test-storage.py $(BIN)
 
 # Guest memory and disk integrity while the Mac swaps (an incompressible hog of 3/4 of RAM,
 # boots that run e2fsck -fy). Not a release check: the Mac slows down for a few minutes.

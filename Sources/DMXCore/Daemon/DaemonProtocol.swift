@@ -52,6 +52,9 @@ public struct DaemonStatus: Codable, Sendable {
     /// The Docker API socket (`DOCKER_HOST=unix://...`, or the `dmx` docker context).
     public var dockerSocket: String? = nil
 
+    /// Startup diagnostic sinks that are disabled; VM operations continue normally.
+    public var logWarnings: [String]? = nil
+
     public static func notRunning(_ paths: Paths, config: Config) -> DaemonStatus {
         DaemonStatus(state: "not_running", pid: nil, version: nil, launchd: nil, uptimeS: nil, cpus: nil,
                      maxMemory: nil, guestUsedMb: nil, hostFootprintMb: nil, hostPeakFootprintMb: nil,

@@ -1,0 +1,75 @@
+{
+  "ok": false,
+  "steps": [
+    {
+      "step": "build",
+      "exit_code": 0,
+      "seconds": 3.624
+    },
+    {
+      "step": "unit",
+      "exit_code": 0,
+      "seconds": 7.563
+    },
+    {
+      "step": "formal-models",
+      "exit_code": 0,
+      "seconds": 3.328
+    },
+    {
+      "step": "formal-code",
+      "exit_code": 0,
+      "seconds": 5.366
+    },
+    {
+      "step": "storage",
+      "exit_code": 0,
+      "seconds": 30.28
+    },
+    {
+      "step": "selftest",
+      "exit_code": 0,
+      "seconds": 4.997
+    },
+    {
+      "step": "daemon",
+      "exit_code": 0,
+      "seconds": 175.219
+    },
+    {
+      "step": "mcp",
+      "exit_code": 0,
+      "seconds": 5.404
+    },
+    {
+      "step": "x86",
+      "exit_code": 0,
+      "seconds": 50.958
+    },
+    {
+      "step": "docker",
+      "exit_code": 0,
+      "seconds": 232.189
+    },
+    {
+      "step": "sandbox",
+      "exit_code": 0,
+      "seconds": 31.964
+    },
+    {
+      "step": "images",
+      "exit_code": 0,
+      "seconds": 202.65
+    },
+    {
+      "step": "java",
+      "exit_code": 0,
+      "seconds": 244.601
+    },
+    {
+      "step": "menu",
+      "exit_code": 2,
+      "seconds": 98.118
+    }
+  ]
+}

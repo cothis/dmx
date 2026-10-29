@@ -1,0 +1,237 @@
+{
+  "ok": true,
+  "first_create_ms": 5194,
+  "exec_ms": 37,
+  "create_ms": 223,
+  "checkpoint_ms": 175,
+  "checkpoint_4mb_added_mb": 3.8,
+  "rollback_ms": 302,
+  "fork_checkpoint_ms": 210,
+  "fork_now_ms": 353,
+  "guest_mb_per_sandbox": 7.4,
+  "host_footprint_mb_with_sandboxes": 432,
+  "rm_ms": 60,
+  "ttl_removed_after_s": 9.3,
+  "checks": [
+    {
+      "name": "tools_list",
+      "ok": true,
+      "detail": "['dmx_exec', 'dmx_status', 'dmx_start', 'dmx_stop', 'dmx_config_get', 'dmx_config_set', 'dmx_sandbox_create', 'dmx_sandbox_exec', 'dmx_sandbox_list', 'dmx_sandbox_rm', 'dmx_sandbox_checkpoint', 'dmx_sandbox_rollback', 'dmx_sandbox_fork', 'dmx_logs']"
+    },
+    {
+      "name": "create_none",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': '{\"allowed\":[],\"checkpoints\":[],\"container\":\"dmx-sandbox-none\",\"created_at\":\"2026-10-29T16:22:11Z\",\"expires_at\":\"2026-10-29T16:52:11Z\",\"expires_in_s\":1800,\"id\":\"793ed4797a02\",\"image\":\"alpine@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a\",\"name\":\"none"
+    },
+    {
+      "name": "sandbox_holds_off_idle_stop",
+      "ok": true,
+      "detail": "{'clients': 0, 'console_log': '/tmp/dmx-sb-dlnw9e48/logs/console.log', 'containers': 1, 'cpus': 10, 'disk': {'allocated_mb': 189, 'path': '/tmp/dmx-sb-dlnw9e48/data.img', 'size_mb': 65536}, 'docker_socket': '/tmp/dmx-sb-dlnw9e48/docker.sock', 'execs': 0, 'guest_used_mb': 116, 'host_footprint_mb': 362, 'host_peak_footprint_mb': 402, 'idle_timeout_s': 300, 'launchd': False, 'max_memory': '8.0G', 'me"
+    },
+    {
+      "name": "mount_readable",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': '{\"duration_ms\":22,\"exit_code\":0,\"signal\":null,\"stderr\":\"\",\"stderr_bytes\":0,\"stderr_omitted_bytes\":0,\"stdout\":\"from the mac\\\\n\",\"stdout_bytes\":13,\"stdout_omitted_bytes\":0,\"timed_out\":false}', 'type': 'text'}], 'isError': False, 'resultType': 'complete', 'structuredContent': {"
+    },
+    {
+      "name": "mount_read_only",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': '{\"duration_ms\":20,\"exit_code\":1,\"signal\":null,\"stderr\":\"sh: can\\'t create /ro/new: Read-only file system\\\\n\",\"stderr_bytes\":48,\"stderr_omitted_bytes\":0,\"stdout\":\"\",\"stdout_bytes\":0,\"stdout_omitted_bytes\":0,\"timed_out\":false}', 'type': 'text'}], 'isError': False, 'resultType'"
+    },
+    {
+      "name": "egress_none_blocked",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': '{\"duration_ms\":5057,\"exit_code\":1,\"signal\":null,\"stderr\":\"wget: bad address \\'example.com\\'\\\\n\",\"stderr_bytes\":32,\"stderr_omitted_bytes\":0,\"stdout\":\"\",\"stdout_bytes\":0,\"stdout_omitted_bytes\":0,\"timed_out\":false}', 'type': 'text'}], 'isError': False, 'resultType': 'complete',"
+    },
+    {
+      "name": "no_net_admin",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': '{\"duration_ms\":33,\"exit_code\":2,\"signal\":null,\"stderr\":\"ip: ioctl 0x8914 failed: Operation not permitted\\\\n\",\"stderr_bytes\":49,\"stderr_omitted_bytes\":0,\"stdout\":\"\",\"stdout_bytes\":0,\"stdout_omitted_bytes\":0,\"timed_out\":false}', 'type': 'text'}], 'isError': False, 'resultType'"
+    },
+    {
+      "name": "exec_stdin_env_cwd",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': '{\"duration_ms\":36,\"exit_code\":3,\"signal\":null,\"stderr\":\"err\\\\n\",\"stderr_bytes\":4,\"stderr_omitted_bytes\":0,\"stdout\":\"in=hi bar /tmp\\\\n\",\"stdout_bytes\":15,\"stdout_omitted_bytes\":0,\"timed_out\":false}', 'type': 'text'}], 'isError': False, 'resultType': 'complete', 'structuredCon"
+    },
+    {
+      "name": "exec_output_capped",
+      "ok": true,
+      "detail": "587895"
+    },
+    {
+      "name": "exec_timeout_kills",
+      "ok": true,
+      "detail": "timed_out True, processes gone True"
+    },
+    {
+      "name": "egress_all",
+      "ok": true,
+      "detail": "({'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': '{\"duration_ms\":339,\"exit_code\":0,\"signal\":null,\"stderr\":\"\",\"stderr_bytes\":0,\"stderr_omitted_bytes\":0,\"stdout\":\"\",\"stdout_bytes\":0,\"stdout_omitted_bytes\":0,\"timed_out\":false}', 'type': 'text'}], 'isError': False, 'resultType': 'complete', 'structuredContent': {'duration_ms':"
+    },
+    {
+      "name": "mount_writable_string_form",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': '{\"duration_ms\":19,\"exit_code\":0,\"signal\":null,\"stderr\":\"\",\"stderr_bytes\":0,\"stderr_omitted_bytes\":0,\"stdout\":\"\",\"stdout_bytes\":0,\"stdout_omitted_bytes\":0,\"timed_out\":false}', 'type': 'text'}], 'isError': False, 'resultType': 'complete', 'structuredContent': {'duration_ms': 1"
+    },
+    {
+      "name": "create_allowlist",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': '{\"allowed\":[\"172.66.147.243\",\"104.20.23.154\"],\"checkpoints\":[],\"container\":\"dmx-sandbox-allow\",\"created_at\":\"2026-10-29T16:22:19Z\",\"expires_at\":\"2026-10-29T16:32:19Z\",\"expires_in_s\":600,\"id\":\"1a0d53a3ce48\",\"image\":\"alpine@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b"
+    },
+    {
+      "name": "allowlist_allows",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': '{\"duration_ms\":297,\"exit_code\":0,\"signal\":null,\"stderr\":\"\",\"stderr_bytes\":0,\"stderr_omitted_bytes\":0,\"stdout\":\"\",\"stdout_bytes\":0,\"stdout_omitted_bytes\":0,\"timed_out\":false}', 'type': 'text'}], 'isError': False, 'resultType': 'complete', 'structuredContent': {'duration_ms': "
+    },
+    {
+      "name": "allowlist_blocks_other",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': '{\"duration_ms\":31,\"exit_code\":1,\"signal\":null,\"stderr\":\"wget: can\\'t connect to remote host (1.1.1.1): Connection refused\\\\n\",\"stderr_bytes\":65,\"stderr_omitted_bytes\":0,\"stdout\":\"\",\"stdout_bytes\":0,\"stdout_omitted_bytes\":0,\"timed_out\":false}', 'type': 'text'}], 'isError': Fa"
+    },
+    {
+      "name": "allowlist_blocks_mac",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': '{\"duration_ms\":44,\"exit_code\":1,\"signal\":null,\"stderr\":\"wget: can\\'t connect to remote host (192.168.127.254): Connection refused\\\\n\",\"stderr_bytes\":73,\"stderr_omitted_bytes\":0,\"stdout\":\"\",\"stdout_bytes\":0,\"stdout_omitted_bytes\":0,\"timed_out\":false}', 'type': 'text'}], 'isEr"
+    },
+    {
+      "name": "allowlist_dns",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': '{\"duration_ms\":44,\"exit_code\":0,\"signal\":null,\"stderr\":\"\",\"stderr_bytes\":0,\"stderr_omitted_bytes\":0,\"stdout\":\"Server:\\\\t\\\\t127.0.0.11\\\\nAddress:\\\\t127.0.0.11:53\\\\n\\\\nNon-authoritative answer:\\\\nName:\\\\texample.org\\\\nAddress: 104.20.26.136\\\\nName:\\\\texample.org\\\\nAddress: 172"
+    },
+    {
+      "name": "allowlist_command_starts_fenced",
+      "ok": true,
+      "detail": "('blocked\\n', '{\"allowed\":[\"172.66.147.243\",\"104.20.23.154\"],\"checkpoints\":[],\"container\":\"dmx-sandbox-allow-cmd\",\"created_at\":\"2026-10-29T16:22:20Z\",\"expires_at\":\"2026-10-29T16:27:20Z\",\"expires_in_s\":300,\"id\":\"511dcec21c25\",\"image\":\"alpine@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a\",\"name\":\"allow-cmd\",\"policy\":{\"allow\":[\"example.com\"],\"command\":[\"sh\",\"-c\",\"wget -T 5 -"
+    },
+    {
+      "name": "checkpoint",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': '{\"added_mb\":0,\"created_at\":\"2026-10-29T16:22:20Z\",\"image\":\"dmx-sandbox/none:c1\",\"ms\":175,\"name\":\"c1\",\"size_mb\":12.9}', 'type': 'text'}], 'isError': False, 'resultType': 'complete', 'structuredContent': {'added_mb': 0, 'created_at': '2026-10-29T16:22:20Z', 'image': 'dmx-sandb"
+    },
+    {
+      "name": "checkpoint_named",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': '{\"added_mb\":3.8,\"created_at\":\"2026-10-29T16:22:21Z\",\"image\":\"dmx-sandbox/none:big\",\"ms\":247,\"name\":\"big\",\"size_mb\":20.5}', 'type': 'text'}], 'isError': False, 'resultType': 'complete', 'structuredContent': {'added_mb': 3.8, 'created_at': '2026-10-29T16:22:21Z', 'image': 'dmx"
+    },
+    {
+      "name": "checkpoint_exists",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': 'error (checkpoint_exists): none has a checkpoint named big\\nhint: pick another name, or leave it out for the next c<N>', 'type': 'text'}], 'isError': True, 'resultType': 'complete'}"
+    },
+    {
+      "name": "rollback",
+      "ok": true,
+      "detail": "('v1\\nstate\\n', {'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': '{\"allowed\":[],\"checkpoints\":[{\"added_mb\":0,\"created_at\":\"2026-10-29T16:22:20Z\",\"image\":\"dmx-sandbox/none:c1\",\"name\":\"c1\",\"size_mb\":12.9},{\"added_mb\":3.8,\"created_at\":\"2026-10-29T16:22:21Z\",\"image\":\"dmx-sandbox/none:big\",\"name\":\"big\",\"size_mb\":20.5}],\"containe"
+    },
+    {
+      "name": "rollback_keeps_policy",
+      "ok": true,
+      "detail": "from the mac\n"
+    },
+    {
+      "name": "fork_from_checkpoint",
+      "ok": true,
+      "detail": "('v2\\n', {'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': '{\"allowed\":[],\"checkpoints\":[{\"added_mb\":3.8,\"created_at\":\"2026-10-29T16:22:21Z\",\"image\":\"dmx-sandbox/fork-big:forked\",\"name\":\"forked\",\"size_mb\":20.5}],\"container\":\"dmx-sandbox-fork-big\",\"created_at\":\"2026-10-29T16:22:21Z\",\"expires_at\":\"2026-10-29T16:52:21Z\",\"expire"
+    },
+    {
+      "name": "fork_independent",
+      "ok": true,
+      "detail": "('v3\\n', 'changed-in-fork\\n')"
+    },
+    {
+      "name": "logs_capped",
+      "ok": true,
+      "detail": "{'container': 'dmx-sandbox-logs', 'sandbox': 'logs', 'stderr': 'ERROR: disk on fire\\n', 'stderr_bytes': 20, 'stderr_omitted_bytes': 0, 'stdout': 'line 1\\nline 2\\nline 3\\nline 4\\nline 5\\nline 6\\nline 7\\nline 8\\nline 9\\nline 10\\nline 11\\nline 12\\nline 13\\nline \\n[... dmx: 48693 bytes omitted ...]\\nline 4991\\nline 4992\\nline 4993\\nline 4994\\nline 4995\\nline 4996\\nline 4997\\nline 4998\\nline 4999\\nline"
+    },
+    {
+      "name": "logs_summary",
+      "ok": true,
+      "detail": "{'error_lines': 1, 'errors': [{'line': 1, 'stream': 'stderr', 'text': 'ERROR: disk on fire'}], 'stderr_lines': 1, 'stdout_lines': 5000}"
+    },
+    {
+      "name": "logs_tail",
+      "ok": true,
+      "detail": "{'container': 'dmx-sandbox-logs', 'sandbox': 'logs', 'stderr': '', 'stderr_bytes': 0, 'stderr_omitted_bytes': 0, 'stdout': 'line 4999\\nline 5000\\n', 'stdout_bytes': 20, 'stdout_omitted_bytes': 0, 'summary': {'error_lines': 0, 'errors': [], 'stderr_lines': 0, 'stdout_lines': 2}}"
+    },
+    {
+      "name": "logs_since",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': '{\"container\":\"dmx-sandbox-logs\",\"sandbox\":\"logs\",\"stderr\":\"\",\"stderr_bytes\":0,\"stderr_omitted_bytes\":0,\"stdout\":\"\",\"stdout_bytes\":0,\"stdout_omitted_bytes\":0,\"summary\":{\"error_lines\":0,\"errors\":[],\"stderr_lines\":0,\"stdout_lines\":0}}', 'type': 'text'}], 'isError': False, 'resu"
+    },
+    {
+      "name": "logs_not_found",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': 'error (container_not_found): no sandbox or container named no-such-thing\\nhint: run `dmx sandbox ls`, or `docker ps -a` for containers', 'type': 'text'}], 'isError': True, 'resultType': 'complete'}"
+    },
+    {
+      "name": "not_found",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': 'error (sandbox_not_found): no sandbox named nope\\nhint: run `dmx sandbox ls`; it may have reached its TTL', 'type': 'text'}], 'isError': True, 'resultType': 'complete'}"
+    },
+    {
+      "name": "bad_policy",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': 'error (bad_sandbox_policy): memory must be a size of at least 6M, e.g. 512M or 2G, not \"lots\"\\nhint: see `dmx sandbox create --help` or docs/sandbox.md', 'type': 'text'}], 'isError': True, 'resultType': 'complete'}"
+    },
+    {
+      "name": "empty_cidr",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': 'error (bad_sandbox_policy): bad host or CIDR \"/\"\\nhint: see `dmx sandbox create --help` or docs/sandbox.md', 'type': 'text'}], 'isError': True, 'resultType': 'complete'}"
+    },
+    {
+      "name": "empty_host",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': 'error (bad_sandbox_policy): bad host or CIDR \"\"\\nhint: see `dmx sandbox create --help` or docs/sandbox.md', 'type': 'text'}], 'isError': True, 'resultType': 'complete'}"
+    },
+    {
+      "name": "size_overflow",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': 'error (bad_sandbox_policy): memory must be a size of at least 6M, e.g. 512M or 2G, not \"9223372036854775808\"\\nhint: see `dmx sandbox create --help` or docs/sandbox.md', 'type': 'text'}], 'isError': True, 'resultType': 'complete'}"
+    },
+    {
+      "name": "mount_not_shared",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': \"error (mount_not_shared): /System/Library is outside dmx's shares (/Users, /Volumes, /private)\\nhint: use a directory under them, or add a share: `dmx config set shares ...` then `dmx stop`\", 'type': 'text'}], 'isError': True, 'resultType': 'complete'}"
+    },
+    {
+      "name": "exists",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': 'error (sandbox_exists): a sandbox named none exists\\nhint: pick another name, or `dmx sandbox rm none`', 'type': 'text'}], 'isError': True, 'resultType': 'complete'}"
+    },
+    {
+      "name": "bad_name",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': 'error (bad_name): sandbox names are 1 to 40 lowercase letters, digits, \\'-\\', \\'_\\' or \\'.\\', starting with a letter or digit, not \"Bad Name\"\\nhint: e.g. build-1', 'type': 'text'}], 'isError': True, 'resultType': 'complete'}"
+    },
+    {
+      "name": "rm",
+      "ok": true,
+      "detail": "({'checkpoints': ['big', 'c1'], 'container': True, 'name': 'none', 'reason': 'removed'}, ['dmx-sandbox/fork-now:forked', 'dmx-sandbox/fork-big:forked', 'alpine@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a'])"
+    },
+    {
+      "name": "fork_survives_rm",
+      "ok": true,
+      "detail": "v2\n"
+    },
+    {
+      "name": "rm_again",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.1'}}, 'content': [{'text': 'error (sandbox_not_found): no sandbox named none\\nhint: run `dmx sandbox ls`; it may have reached its TTL', 'type': 'text'}], 'isError': True, 'resultType': 'complete'}"
+    },
+    {
+      "name": "list",
+      "ok": true,
+      "detail": "['all', 'allow', 'fork-big', 'logs', 'fork-now']"
+    },
+    {
+      "name": "ttl_expiry_without_client",
+      "ok": true,
+      "detail": "9.3"
+    },
+    {
+      "name": "idle_stop_after_rm",
+      "ok": true,
+      "detail": "{'clients': 0, 'console_log': '/tmp/dmx-sb-dlnw9e48/logs/console.log', 'containers': 0, 'cpus': 10, 'disk': {'allocated_mb': 208, 'path': '/tmp/dmx-sb-dlnw9e48/data.img', 'size_mb': 65536}, 'docker_socket': '/tmp/dmx-sb-dlnw9e48/docker.sock', 'execs': 0, 'guest_used_mb': 133, 'host_footprint_mb': 435, 'host_peak_footprint_mb': 440, 'idle_stop_in_s': 299, 'idle_timeout_s': 300, 'launchd': False, 'm"
+    }
+  ]
+}

@@ -313,6 +313,7 @@ func describe(_ s: DaemonStatus) -> String {
     if let clients = s.clients, let execs = s.execs, s.state != "not_running" {
         lines.append("  clients: \(clients), execs: \(execs)")
     }
+    for warning in s.logWarnings ?? [] { lines.append("  log warning: \(warning)") }
     lines.append("  idle timeout: \(formatDuration(s.idleTimeoutS))" + (s.idleStopInS.map { ", stops in \(formatElapsed($0)) if nothing uses it" } ?? ""))
     return lines.joined(separator: "\n")
 }

@@ -96,7 +96,7 @@ try:
             image.seek(1024 + 12)  # s_free_blocks_count_lo: the superblock checksum no longer matches
             image.write((12345 + i).to_bytes(4, "little"))
         r = dmx("exec", "--", "cat", "/var/lib/marker", timeout=60)
-        console = (HOME / "logs" / "console.log").read_text(errors="replace")
+        console = (HOME / "logs" / "console.log").read_text(errors="replace").rsplit("--- dmx VM boot ", 1)[-1]
         oops = [l for l in console.splitlines() if "Unable to handle" in l or "Internal error" in l or "Kernel panic" in l]
         if r is None or r.stdout != b"kept\n" or oops:
             failures.append(f"round {i}: " + ("no answer" if r is None else repr(r.stdout + r.stderr)[:120]) + (f", {oops[0][:100]}" if oops else ""))

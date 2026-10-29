@@ -1,0 +1,57 @@
+{
+  "removed": [
+    {
+      "path": ".build/dist",
+      "allocated_bytes_before": 2248437760
+    },
+    {
+      "path": ".build/release-checks-0.3.11",
+      "allocated_bytes_before": 570368000
+    },
+    {
+      "path": ".build/release-checks-0.3.12",
+      "allocated_bytes_before": 570195968
+    },
+    {
+      "path": ".build/fixes-0.3.12",
+      "allocated_bytes_before": 503951360
+    },
+    {
+      "path": ".build/menu-release-review/public-v0.4.0",
+      "allocated_bytes_before": 564756480
+    },
+    {
+      "path": ".build/menu-release-review/signed-installer",
+      "allocated_bytes_before": 11665408
+    },
+    {
+      "path": ".build/menu-release-review/final-signed-installer",
+      "allocated_bytes_before": 11665408
+    },
+    {
+      "path": ".build/menu-release-review/installer-rehearsal",
+      "allocated_bytes_before": 17027072
+    },
+    {
+      "path": ".build/guest-0.3.10",
+      "allocated_bytes_before": 73494528
+    },
+    {
+      "path": ".build/guest-0.3.11",
+      "allocated_bytes_before": 73494528
+    },
+    {
+      "path": ".build/guest-0.3.12",
+      "allocated_bytes_before": 73494528
+    }
+  ],
+  "freed_bytes": 4718551040,
+  "preserved": [
+    "installed app and CLI",
+    "~/.dmx including data.img and pinned build cache",
+    ".build/guest-0.4.0",
+    "committed evidence",
+    "unrelated photo"
+  ],
+  "measurement_note": "Sum of deleted paths st_blocks*512; APFS shared extents and unrelated disk activity prevent attributing an equal physical free-space delta."
+}

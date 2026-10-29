@@ -1,0 +1,12 @@
+{
+  "bin": {
+    "existed_before": false,
+    "was_symlink": false,
+    "linked_to": "<home>/.dmx/cache/docker-tools/bin"
+  },
+  "cli-plugins": {
+    "existed_before": false,
+    "was_symlink": false,
+    "linked_to": "<home>/.dmx/cache/docker-tools/cli-plugins"
+  }
+}

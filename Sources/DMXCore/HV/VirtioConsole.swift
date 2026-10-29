@@ -5,13 +5,13 @@ final class VirtioConsole: VirtioDevice, @unchecked Sendable {
     let deviceID: UInt32 = 3
     let features: UInt64 = 0
     let queueSizes: [UInt16] = [64, 64]  // receiveq (to the guest), transmitq (from it)
-    private let output: FileHandle
+    private let output: ConsoleOutput
     /// Guards `pending` and `transport`; taken before `transport.lock`.
     private let inputLock = NSLock()
     private var pending = Data()  // typed on the host, not yet in a guest buffer
     private weak var transport: VirtioMMIO?
 
-    init(output: FileHandle) { self.output = output }
+    init(output: ConsoleOutput) { self.output = output }
 
     func activate(_ transport: VirtioMMIO, features: UInt64) {
         inputLock.lock()

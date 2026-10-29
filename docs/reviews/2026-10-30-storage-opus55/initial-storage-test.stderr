@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "<repo>/scripts/test-storage.py", line 73, in <module>
+    check('console_flood_tail', wait(lambda: (home / 'logs/console.log').read_bytes().endswith(b'CONSOLE-TAIL\n')))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/scripts/test-storage.py", line 24, in check
+    raise AssertionError(name + ': ' + str(detail))
+AssertionError: console_flood_tail:

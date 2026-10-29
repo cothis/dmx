@@ -1,0 +1,45 @@
+{
+  "ok": true,
+  "steps": [
+    {
+      "step": "unit",
+      "exit_code": 0,
+      "seconds": 5.352
+    },
+    {
+      "step": "storage",
+      "exit_code": 0,
+      "seconds": 75.662
+    },
+    {
+      "step": "selftest",
+      "exit_code": 0,
+      "seconds": 5.092
+    },
+    {
+      "step": "daemon",
+      "exit_code": 0,
+      "seconds": 180.029
+    },
+    {
+      "step": "mcp",
+      "exit_code": 0,
+      "seconds": 5.365
+    },
+    {
+      "step": "menu",
+      "exit_code": 0,
+      "seconds": 68.076
+    },
+    {
+      "step": "app",
+      "exit_code": 0,
+      "seconds": 54.585
+    },
+    {
+      "step": "memory",
+      "exit_code": 0,
+      "seconds": 147.96
+    }
+  ]
+}

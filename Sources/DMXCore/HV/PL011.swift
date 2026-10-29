@@ -11,7 +11,7 @@ protocol MMIODevice: AnyObject {
 /// TX is raised by every write and RX while input waits, both cleared through ICR.
 final class PL011: MMIODevice, @unchecked Sendable {
     private let lock = NSLock()
-    private let output: FileHandle
+    private let output: ConsoleOutput
     private let irq: (Bool) -> Void
     private var input: [UInt8] = []
     private var level: UInt32 = 0      // raw interrupt status (RIS)
@@ -22,7 +22,7 @@ final class PL011: MMIODevice, @unchecked Sendable {
     /// PeriphID0-3 and PCellID0-3, which the AMBA bus reads to match the driver.
     private static let ids: [UInt32] = [0x11, 0x10, 0x14, 0x00, 0x0d, 0xf0, 0x05, 0xb1]
 
-    init(output: FileHandle, irq: @escaping (Bool) -> Void) {
+    init(output: ConsoleOutput, irq: @escaping (Bool) -> Void) {
         self.output = output
         self.irq = irq
     }

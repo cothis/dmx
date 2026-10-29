@@ -1,0 +1,374 @@
+{
+  "ok": true,
+  "host_load": 2.28466796875,
+  "tools_install_ms": 72,
+  "tools_downloaded_mb": 0,
+  "client_version": "29.9.2",
+  "footprint_idle_without_docker_mb": 85,
+  "guest_used_idle_without_docker_mb": 33,
+  "first_docker_version_ms": 1513,
+  "server_version": "29.9.2",
+  "footprint_dockerd_idle_mb": 293,
+  "guest_used_dockerd_idle_mb": 79,
+  "hello_world_with_pull_ms": 3576,
+  "hello_world_warm_ms": 180,
+  "pull_alpine_ms": 3897,
+  "build_ms": 817,
+  "build_buildkit_no_cache_ms": 426,
+  "build_legacy_no_cache_ms": 516,
+  "build_multistage_ms": 2889,
+  "compose_build_ms": 510,
+  "footprint_one_container_mb": 289,
+  "guest_used_one_container_mb": 142,
+  "compose_up_ms": 251,
+  "restart_policy_back_ms": 1022,
+  "hello_world_cold_ms": 798,
+  "hello_world_warm2_ms": 172,
+  "checks": [
+    {
+      "name": "tools_install",
+      "ok": true,
+      "detail": "b'rch64\",\\n      \"version\" : \"5.6.1\"\\n    },\\n    {\\n      \"downloaded_bytes\" : 0,\\n      \"name\" : \"buildx\",\\n      \"path\" : \"<repo>/.build/storage-review/candidate-home/cache/docker-tools/cli-plugins/docker-buildx\",\\n      \"state\" : \"present\",\\n      \"url\" : \"https://github.com/docker/buildx/releases/download/v0.38.1/buildx-v0.38.1.darwin-arm64\",\\n      \"version\" : \"0.38.1\"\\n"
+    },
+    {
+      "name": "tools_on_path",
+      "ok": true,
+      "detail": "/tmp/dmx-dt-tsgcthh_/home/.local/bin/docker"
+    },
+    {
+      "name": "tools_plugins_config",
+      "ok": true,
+      "detail": "{'cliPluginsExtraDirs': ['<repo>/.build/storage-review/candidate-home/cache/docker-tools/cli-plugins']}"
+    },
+    {
+      "name": "client_is_dmx",
+      "ok": true,
+      "detail": "b'29.9.2\\n' b'failed to connect to the docker API at unix:///tmp/dmx-dt-tsgcthh_/docker.sock; check if the path is correct and if the daemon is running: dial unix /tmp/dmx-dt-tsgcthh_/docker.sock: connect: no such file or directory\\n'"
+    },
+    {
+      "name": "compose_version",
+      "ok": true,
+      "detail": "b'5.6.1\\n' b''"
+    },
+    {
+      "name": "buildx_version",
+      "ok": true,
+      "detail": "b'github.com/docker/buildx v0.38.1 0dbe87f36ed472fe36b6796c3f70b4210a731fc5\\n' b''"
+    },
+    {
+      "name": "start",
+      "ok": true,
+      "detail": "b''"
+    },
+    {
+      "name": "dockerd_lazy",
+      "ok": true,
+      "detail": "b'none\\n'"
+    },
+    {
+      "name": "docker_version",
+      "ok": true,
+      "detail": "b'29.9.2\\n' b''"
+    },
+    {
+      "name": "engine_settings",
+      "ok": true,
+      "detail": "b'[\"dmx-test=engine-settings\"] {\"docker.io\":{\"Name\":\"docker.io\",\"Mirrors\":[],\"Secure\":true,\"Official\":true},\"registry.dmx-test.invalid:5000\":{\"Name\":\"registry.dmx-test.invalid:5000\",\"Mirrors\":[],\"Secure\":false,\"Official\":false}}\\n' b''"
+    },
+    {
+      "name": "hello_world",
+      "ok": true,
+      "detail": "b\"Unable to find image 'hello-world:latest' locally\\nlatest: Pulling from library/hello-world\\n58dee6a49ef1: Pulling fs layer\\n58dee6a49ef1: Download complete\\n58dee6a49ef1: Pull complete\\nc3bdf82c34d1: Download complete\\nDigest: sha256:c567b231f65614688711a75f31518a064258a51d442117a3e771a3a8fdba78ef\\nStatus: Downloaded newer image for hello-world:latest\\n\""
+    },
+    {
+      "name": "hello_world_warm",
+      "ok": true,
+      "detail": "b''"
+    },
+    {
+      "name": "pull",
+      "ok": true,
+      "detail": "b''"
+    },
+    {
+      "name": "memory_swap_limit",
+      "ok": true,
+      "detail": "b'67108864\\n67108864\\n' b''"
+    },
+    {
+      "name": "run_it",
+      "ok": true,
+      "detail": "code 3: '/ # \\x1b[6necho hi-$((40+2))\\r\\nhi-42\\r\\n/ # \\x1b[6nexit 3\\r\\n'"
+    },
+    {
+      "name": "plugins_from_dmx",
+      "ok": true,
+      "detail": "{'buildx': '<repo>/.build/storage-review/candidate-home/cache/docker-tools/cli-plugins/docker-buildx', 'compose': '<repo>/.build/storage-review/candidate-home/cache/docker-tools/cli-plugins/docker-compose'}"
+    },
+    {
+      "name": "buildx_ls",
+      "ok": true,
+      "detail": "b'NAME/NODE     DRIVER/ENDPOINT   STATUS    BUILDKIT   PLATFORMS\\ndefault*      docker                                 \\n \\\\_ default    \\\\_ default       running   v0.34.0    linux/amd64 (+2), linux/arm64, linux/386\\n' b''"
+    },
+    {
+      "name": "build",
+      "ok": true,
+      "detail": "b'a033d865e08753117643a83c7f5 0.0s done\\n#8 exporting attestation manifest sha256:9dfd3988d21a135267fda0fb435c3f63bcc586083c8779191d5ec7cda0742071 0.0s done\\n#8 exporting manifest list sha256:7396b01f0c17a5fc76bc8620cb672b39bed1e02eb607bf83f142818a39184c98 0.0s done\\n#8 naming to docker.io/library/dmx-test-build:latest done\\n#8 unpacking to docker.io/library/dmx-test-build:latest 0.0s done\\n#8 DON"
+    },
+    {
+      "name": "build_is_buildkit",
+      "ok": true,
+      "detail": "b'#0 building with \"default\" instance using docker driver\\n\\n#1 [internal] load build definition from Dockerfile\\n#1 transferring dockerfile: 148B done\\n#1 DONE 0.0s\\n\\n#2 [internal] load metadata for docker.io/library/alpine:latest\\n#2 DONE 0.0s\\n\\n#3 [internal] load .dockerignore\\n#3 transferring context: 2B '"
+    },
+    {
+      "name": "build_run",
+      "ok": true,
+      "detail": "b'built-in-dmx\\nhello from the mac\\n'"
+    },
+    {
+      "name": "build_cache_mount",
+      "ok": true,
+      "detail": "b'1' b'2' b'0966cd76390c6ca665a66ac5bc836a7ed73e6e2097b 0.0s done\\n#9 exporting manifest list sha256:8d0d7e1a415df730ff8dbccba72c42de3f79b45709ce0c88e25db3c993db7a89 0.0s done\\n#9 naming to docker.io/library/dmx-test-multi:latest done\\n#9 unpacking to docker.io/library/dmx-test-multi:latest 0.1s done\\n#9 DONE 0.2s\\n' b'b847dceb5b26d05c1765cf5fa114a48538975940c36 0.0s done\\n#9 exporting manifest li"
+    },
+    {
+      "name": "compose_build",
+      "ok": true,
+      "detail": "b'built-in-dmx\\nhello from compose\\n' b' Image dmx-test-compose-build Building \\n Image dmx-test-compose-build Built \\n'"
+    },
+    {
+      "name": "bind_tmp",
+      "ok": true,
+      "detail": "b'mac\\n' b''"
+    },
+    {
+      "name": "bind_private",
+      "ok": true,
+      "detail": "b'container\\n' b''"
+    },
+    {
+      "name": "bind_users_ro",
+      "ok": true,
+      "detail": "b'# Working on dmx\\n' b''"
+    },
+    {
+      "name": "run_detached",
+      "ok": true,
+      "detail": "b\"Unable to find image 'busybox:latest' locally\\nlatest: Pulling from library/busybox\\nDigest: sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4\\nStatus: Downloaded newer image for busybox:latest\\n\""
+    },
+    {
+      "name": "published_port",
+      "ok": true,
+      "detail": "b'published\\n' [('0.0.0.0', 20081), ('127.0.0.1', 20082)]"
+    },
+    {
+      "name": "published_loopback",
+      "ok": true,
+      "detail": "[('0.0.0.0', 20081), ('127.0.0.1', 20082)]"
+    },
+    {
+      "name": "published_ipv6",
+      "ok": true,
+      "detail": "[b'published\\n', b'published\\n']"
+    },
+    {
+      "name": "published_not_saved",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "status_containers",
+      "ok": true,
+      "detail": "1"
+    },
+    {
+      "name": "unpublished",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "bind_socket_xattr_owner",
+      "ok": true,
+      "detail": "b\"hi [b'v', ['user.k']] 1000 1000\\n\" b'8: Pull complete\\n3a4e989982e1: Download complete\\nbd5290e2b4a3: Download complete\\n751c374ac992: Download complete\\n5357b35191ba: Pull complete\\n751c374ac992: Pull complete\\nDigest: sha256:0aa144e9ec2ae8fd80dfd94070ef3e432a0df17b6e5e0091dc05323974ce9913\\nStatus: Downloaded newer image for python:3-alpine\\n' '1000:1000' 'v'"
+    },
+    {
+      "name": "bind_owner_persists",
+      "ok": true,
+      "detail": "b'1000:1000\\n' b''"
+    },
+    {
+      "name": "ssh_agent",
+      "ok": true,
+      "detail": "b'12 1 True\\n' b''"
+    },
+    {
+      "name": "udp_run",
+      "ok": true,
+      "detail": "b''"
+    },
+    {
+      "name": "udp_published",
+      "ok": true,
+      "detail": "b'ping over udp' [{'connections': 1, 'guest_port': 21053, 'host_address': '127.0.0.1', 'host_port': 21053, 'listening': True, 'protocol': 'udp', 'source': 'docker', 'total_connections': 1}]"
+    },
+    {
+      "name": "udp_large_datagram",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "udp_second_peer",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "udp_ipv6_loopback",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "udp_unpublished",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "port_taken_run",
+      "ok": true,
+      "detail": "b\"docker: Error response from daemon: Ports are not available: exposing port TCP 0.0.0.0:21081 -> 0.0.0.0:0: listen tcp 0.0.0.0:21081: bind: address already in use (dmx: publish another host port, or find the owner with `lsof -nP -iTCP:21081 -sTCP:LISTEN`)\\n\\nRun 'docker run --help' for more information\\n\""
+    },
+    {
+      "name": "port_taken_not_running",
+      "ok": true,
+      "detail": "b'created'"
+    },
+    {
+      "name": "port_taken_run_rm",
+      "ok": true,
+      "detail": "b\"docker: Error response from daemon: Ports are not available: exposing port TCP 127.0.0.1:21081 -> 0.0.0.0:0: listen tcp 127.0.0.1:21081: bind: address already in use (dmx: publish another host port, or find the owner with `lsof -nP -iTCP:21081 -sTCP:LISTEN`)\\n\\nRun 'docker run --help' for more information\\n\""
+    },
+    {
+      "name": "port_taken_compose",
+      "ok": true,
+      "detail": "b't Created \\n Network dmxtaken_default Created \\n Container dmxtaken-web-1 Creating \\n Container dmxtaken-web-1 Created \\n Container dmxtaken-web-1 Starting \\nError response from daemon: Ports are not available: exposing port TCP 0.0.0.0:21081 -> 0.0.0.0:0: listen tcp 0.0.0.0:21081: bind: address already in use (dmx: publish another host port, or find the owner with `lsof -nP -iTCP:21081 -sTCP:LI"
+    },
+    {
+      "name": "port_free_again",
+      "ok": true,
+      "detail": "b'' b'at-once\\n'"
+    },
+    {
+      "name": "amd64_image",
+      "ok": true,
+      "detail": "b'x86_64\\n' b'rom library/alpine\\n7b229517ed22: Pulling fs layer\\n7b229517ed22: Download complete\\n3da1513d2124: Download complete\\n7b229517ed22: Pull complete\\n3ec36f3670df: Download complete\\nDigest: sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a\\nStatus: Image is up to date for alpine:latest\\n'"
+    },
+    {
+      "name": "host_docker_internal",
+      "ok": true,
+      "detail": "b'hello from the mac\\n' b''"
+    },
+    {
+      "name": "host_docker_internal_network",
+      "ok": true,
+      "detail": "b'hello from the mac\\n1\\n' b''"
+    },
+    {
+      "name": "ipv6_network_to_host",
+      "ok": true,
+      "detail": "b'hello from the mac\\n' b''"
+    },
+    {
+      "name": "host_gateway",
+      "ok": true,
+      "detail": "b'hello from the mac\\n' b''"
+    },
+    {
+      "name": "compose_up",
+      "ok": true,
+      "detail": "b'est_data Created \\n Volume dmxtest_data Created \\n Network dmxtest_default Created \\n Network dmxtest_default Created \\n Container dmxtest-web-1 Creating \\n Container dmxtest-probe-1 Creating \\n Container dmxtest-web-1 Created \\n Container dmxtest-probe-1 Created \\n Container dmxtest-web-1 Starting \\n Container dmxtest-probe-1 Starting \\n Container dmxtest-web-1 Started \\n Container dmxtest-prob"
+    },
+    {
+      "name": "compose_port_and_bind",
+      "ok": true,
+      "detail": "b'compose on dmx\\n'"
+    },
+    {
+      "name": "compose_bind_live",
+      "ok": true,
+      "detail": "b'changed on the mac\\n'"
+    },
+    {
+      "name": "compose_network_dns",
+      "ok": true,
+      "detail": "b'changed on the mac\\n' b''"
+    },
+    {
+      "name": "compose_volume",
+      "ok": true,
+      "detail": "b'Thu Oct 29 16:20:33 UTC 2026\\n' b'started\\n'"
+    },
+    {
+      "name": "compose_down",
+      "ok": true,
+      "detail": "b'er dmxtest-web-1 Removing \\n Container dmxtest-probe-1 Stopped \\n Container dmxtest-probe-1 Removing \\n Container dmxtest-web-1 Removed \\n Container dmxtest-probe-1 Removed \\n Volume dmxtest_data Removing \\n Network dmxtest_default Removing \\n Volume dmxtest_data Removed \\n Network dmxtest_default Removed \\n'"
+    },
+    {
+      "name": "restart_policy_run",
+      "ok": true,
+      "detail": "b''"
+    },
+    {
+      "name": "restart_policy_at_boot",
+      "ok": true,
+      "detail": "b'kept\\n' 1"
+    },
+    {
+      "name": "no_dockerd_after_docker_stop",
+      "ok": true,
+      "detail": "b'none\\n'"
+    },
+    {
+      "name": "container_holds_vm",
+      "ok": true,
+      "detail": "running 1"
+    },
+    {
+      "name": "idle_stop_after_containers",
+      "ok": true,
+      "detail": "stopped"
+    },
+    {
+      "name": "standalone_daemon_stays",
+      "ok": true,
+      "detail": "[14787]"
+    },
+    {
+      "name": "engine_settings_invalid",
+      "ok": true,
+      "detail": "b'Error response from daemon: dmx: /tmp/dmx-dt-tsgcthh_/docker-config/daemon.json: it is not valid JSON (fix the JSON or move the file away, then run the docker command again)\\n'"
+    },
+    {
+      "name": "engine_settings_proxy",
+      "ok": true,
+      "detail": "['registry-1.docker.io:443', 'auth.docker.io:443'] b''"
+    },
+    {
+      "name": "private_ca_untrusted",
+      "ok": true,
+      "detail": "b'Error response from daemon: failed to resolve reference \"host.docker.internal:52105/dmx-test/none:latest\": failed to do request: Head \"https://host.docker.internal:52105/v2/dmx-test/none/manifests/latest\": tls: failed to verify certificate: x509: certificate signed by unknown authority\\n'"
+    },
+    {
+      "name": "private_ca_trusted",
+      "ok": true,
+      "detail": "b'Error response from daemon: failed to resolve reference \"host.docker.internal:52105/dmx-test/none:latest\": host.docker.internal:52105/dmx-test/none:latest: not found\\n'"
+    },
+    {
+      "name": "hello_world_cold",
+      "ok": true,
+      "detail": "b''"
+    },
+    {
+      "name": "standalone_daemon_after_stop",
+      "ok": true,
+      "detail": "[]"
+    }
+  ]
+}

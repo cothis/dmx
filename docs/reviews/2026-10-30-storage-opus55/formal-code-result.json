@@ -1,0 +1,11 @@
+{
+  "ok": true,
+  "checks": [
+    "isolated read",
+    "isolated write",
+    "isolated midframe",
+    "gated midframe",
+    "same archive receipt",
+    "real fcntl EMFILE"
+  ]
+}

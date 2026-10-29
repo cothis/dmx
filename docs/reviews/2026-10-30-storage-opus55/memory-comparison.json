@@ -1,0 +1,128 @@
+{
+  "before": {
+    "version": "0.4.0",
+    "without_docker": {
+      "idle_footprint_MiB": 75.73517608642578,
+      "sample_seconds": 15.010132041000361,
+      "one_core_cpu_percent": 0.03720206447716129
+    },
+    "with_docker": {
+      "idle_footprint_MiB": 187.34468841552734,
+      "sample_seconds": 15.01012695899999,
+      "one_core_cpu_percent": 0.02509948790100705
+    },
+    "status_after": {
+      "clients": 0,
+      "console_log": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-log-memory-9dzx7ouz/logs/console.log",
+      "containers": 0,
+      "cpus": 2,
+      "disk": {
+        "allocated_mb": 172,
+        "path": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-log-memory-9dzx7ouz/data.img",
+        "size_mb": 65536
+      },
+      "docker_socket": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-log-memory-9dzx7ouz/docker.sock",
+      "execs": 0,
+      "guest_used_mb": 63,
+      "host_footprint_mb": 187,
+      "host_peak_footprint_mb": 382,
+      "idle_stop_in_s": 249,
+      "idle_timeout_s": 300,
+      "launchd": false,
+      "max_memory": "2.0G",
+      "memory": {
+        "balloon_mb": 0,
+        "balloon_target_mb": 0,
+        "guest_cache_mb": 75,
+        "guest_page_size": 4096,
+        "guest_swap_mb": 0,
+        "host_pressure": "normal",
+        "last_trim": {
+          "freed_mb": 125,
+          "ms": 25,
+          "reason": "idle",
+          "seconds_ago": 16
+        },
+        "plug": {
+          "boot_mb": 1024,
+          "plugged_mb": 256,
+          "plugs": 2,
+          "requested_mb": 256,
+          "unplugs": 0
+        },
+        "pressure_simulated": false,
+        "reported_mb": 1359,
+        "sweeps": 1,
+        "trims": 1
+      },
+      "pid": 23684,
+      "socket": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-log-memory-9dzx7ouz/dmx.sock",
+      "state": "running",
+      "uptime_s": 72.4,
+      "version": "0.4.0"
+    }
+  },
+  "after": {
+    "version": "0.4.1",
+    "without_docker": {
+      "idle_footprint_MiB": 75.79765319824219,
+      "sample_seconds": 15.008524708000095,
+      "one_core_cpu_percent": 0.035897672188447353
+    },
+    "with_docker": {
+      "idle_footprint_MiB": 192.45408630371094,
+      "sample_seconds": 15.010124749999704,
+      "one_core_cpu_percent": 0.01888986299064607
+    },
+    "status_after": {
+      "clients": 0,
+      "console_log": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-log-memory-os260qe2/logs/console.log",
+      "containers": 0,
+      "cpus": 2,
+      "disk": {
+        "allocated_mb": 172,
+        "path": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-log-memory-os260qe2/data.img",
+        "size_mb": 65536
+      },
+      "docker_socket": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-log-memory-os260qe2/docker.sock",
+      "execs": 0,
+      "guest_used_mb": 63,
+      "host_footprint_mb": 192,
+      "host_peak_footprint_mb": 396,
+      "idle_stop_in_s": 249,
+      "idle_timeout_s": 300,
+      "launchd": false,
+      "max_memory": "2.0G",
+      "memory": {
+        "balloon_mb": 0,
+        "balloon_target_mb": 0,
+        "guest_cache_mb": 81,
+        "guest_page_size": 4096,
+        "guest_swap_mb": 0,
+        "host_pressure": "normal",
+        "last_trim": {
+          "freed_mb": 125,
+          "ms": 24,
+          "reason": "idle",
+          "seconds_ago": 16
+        },
+        "plug": {
+          "boot_mb": 1024,
+          "plugged_mb": 256,
+          "plugs": 2,
+          "requested_mb": 256,
+          "unplugs": 0
+        },
+        "pressure_simulated": false,
+        "reported_mb": 1340,
+        "sweeps": 1,
+        "trims": 1
+      },
+      "pid": 23887,
+      "socket": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-log-memory-os260qe2/dmx.sock",
+      "state": "running",
+      "uptime_s": 72.5,
+      "version": "0.4.1"
+    }
+  }
+}

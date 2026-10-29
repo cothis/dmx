@@ -84,6 +84,33 @@ import Testing
         }
     }
 
+    @Test func engineLoggingDefaultsRespectExplicitChoices() throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory() + "dmx-log-config-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent("daemon.json")
+        func build(_ input: String) throws -> [String: Any] {
+            try Data(input.utf8).write(to: file)
+            let json = try DockerEngineConfig.build(userFile: file).json
+            return try #require(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        }
+        let bare = try build("{}")
+        #expect(bare["log-driver"] as? String == "json-file")
+        #expect(bare["log-opts"] as? [String: String] == ["max-size": "10m", "max-file": "2"])
+        let custom = try build(#"{"log-driver":"json-file","log-opts":{"max-size":"25m","labels":"task"}}"#)
+        #expect(custom["log-opts"] as? [String: String] == ["max-size": "25m", "max-file": "2", "labels": "task"])
+        for driver in ["local", "none", "syslog"] {
+            let other = try build("{\"log-driver\":\"\(driver)\"}")
+            #expect(other["log-driver"] as? String == driver)
+            #expect(other["log-opts"] == nil)
+        }
+        let other = try build(#"{"log-driver":"syslog","log-opts":{"syslog-address":"udp://localhost:514"}}"#)
+        #expect(other["log-opts"] as? [String: String] == ["syslog-address": "udp://localhost:514"])
+        for bad in [#"{"log-opts":{"max-size":10}}"#, #"{"log-opts":[]}"#, #"{"log-opts":null}"#] {
+            #expect(throws: DMXError.self) { try build(bad) }
+        }
+    }
+
     @Test func contextInstallAndUninstall() throws {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory() + "dmx-docker-config-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }

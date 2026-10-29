@@ -10,8 +10,11 @@ use std::io::{self, Read, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::net::UnixStream;
 use std::os::unix::process::CommandExt;
-use std::process::{Command, Stdio};
-use std::sync::Mutex;
+use std::process::{ChildStderr, Command, Stdio};
+use std::os::fd::AsRawFd;
+use std::sync::{Arc, Mutex};
+use std::collections::VecDeque;
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 const SCRIPT: &str = "/sbin/dmx-docker";
@@ -74,6 +77,13 @@ pub fn start(only_restartable: bool, params: StartParams) -> io::Result<Started>
         Some(pem) => std::fs::write(HOST_CA, pem)?,
         None => drop(std::fs::remove_file(HOST_CA)),
     }
+    let log = match crate::rotating_log::RotatingLog::new(Path::new(LOG), crate::rotating_log::LIMIT) {
+        Ok(log) => Some(log),
+        Err(error) => {
+            eprintln!("dmx-agent: diagnostic logging disabled for {LOG}: {error}");
+            None
+        }
+    };
     let mut cmd = Command::new(SCRIPT);
     cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped());
     // Its own session, so nothing aimed at an exec's process group reaches it.
@@ -85,32 +95,112 @@ pub fn start(only_restartable: bool, params: StartParams) -> io::Result<Started>
         });
     }
     let mut child = cmd.spawn().map_err(|e| io::Error::new(e.kind(), format!("{SCRIPT}: {e}")))?;
-    // The script's own complaints; dockerd's output goes to its log, which closes this pipe.
-    let mut stderr = child.stderr.take();
-    let complaints = std::thread::spawn(move || {
-        let mut text = String::new();
-        if let Some(s) = stderr.as_mut() {
-            let _ = s.read_to_string(&mut text);
+    let collector = match OutputCollector::start(child.stderr.take().unwrap(), log) {
+        Ok(collector) => collector,
+        Err(error) => {
+            unsafe { libc::kill(-(child.id() as i32), libc::SIGKILL); }
+            let _ = child.wait();
+            return Err(error);
         }
-        text
-    });
+    };
     loop {
         if answers() {
             std::thread::spawn(move || {
                 let status = child.wait();
+                collector.finish();
                 eprintln!("dmx-agent: dockerd exited: {status:?}");
             });
             return Ok(Started { started: true, ms: begun.elapsed().as_millis() as u64, running: true, restartable });
         }
         if let Some(status) = child.try_wait()? {
-            let text = complaints.join().unwrap_or_default();
+            let text = collector.finish();
             return Err(io::Error::other(format!("dockerd did not start ({status}): {} (see {LOG})", text.trim())));
         }
         if begun.elapsed() > START_TIMEOUT {
+            // A retry must not leave another dockerd and collector alive in the background.
+            unsafe { libc::kill(-(child.id() as i32), libc::SIGKILL); }
+            let _ = child.wait();
+            collector.finish();
             return Err(io::Error::other(format!("dockerd did not answer within {} s (see {LOG})", START_TIMEOUT.as_secs())));
         }
         std::thread::sleep(Duration::from_millis(20));
     }
+}
+
+/// The child owns its collector lifetime. A cancellation socket wakes an indefinite poll
+/// when the child exits, even if a descendant inherited stderr. No idle timer or polling loop.
+struct OutputCollector {
+    cancel: UnixStream,
+    reader: std::thread::JoinHandle<()>,
+    tail: Arc<Mutex<VecDeque<u8>>>,
+}
+
+impl OutputCollector {
+    fn start(mut stderr: ChildStderr, mut log: Option<crate::rotating_log::RotatingLog>) -> io::Result<Self> {
+        let (cancel, stop) = UnixStream::pair()?;
+        let fd = stderr.as_raw_fd();
+        let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
+        if flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
+            return Err(io::Error::last_os_error());
+        }
+        let tail = Arc::new(Mutex::new(VecDeque::with_capacity(8192)));
+        let saved = tail.clone();
+        let reader = std::thread::spawn(move || {
+            let mut buffer = [0u8; 8192];
+            let mut consume = |bytes: &[u8]| {
+                if let Some(log) = log.as_mut() { log.append(bytes); }
+                let mut tail = saved.lock().unwrap_or_else(|e| e.into_inner());
+                let excess = (tail.len() + bytes.len()).saturating_sub(8192);
+                tail.drain(..excess);
+                tail.extend(bytes);
+            };
+            let mut fds = [
+                libc::pollfd { fd, events: libc::POLLIN, revents: 0 },
+                libc::pollfd { fd: stop.as_raw_fd(), events: libc::POLLIN, revents: 0 },
+            ];
+            loop {
+                if unsafe { libc::poll(fds.as_mut_ptr(), 2, -1) } < 0 {
+                    if io::Error::last_os_error().kind() == io::ErrorKind::Interrupted { continue; }
+                    break;
+                }
+                if fds[1].revents != 0 {
+                    // Drain only bytes already queued at cancellation. A live descendant
+                    // cannot extend this finite budget or keep the log lock alive.
+                    let mut available: libc::c_int = 0;
+                    unsafe { libc::ioctl(fd, libc::FIONREAD, &mut available); }
+                    let mut left = (available.max(0) as usize).min(crate::rotating_log::LIMIT);
+                    while left > 0 {
+                        let want = left.min(buffer.len());
+                        match stderr.read(&mut buffer[..want]) {
+                            Ok(0) => break,
+                            Ok(n) => { consume(&buffer[..n]); left -= n; }
+                            Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
+                            Err(_) => break,
+                        }
+                    }
+                    break;
+                }
+                match stderr.read(&mut buffer) {
+                    Ok(0) => break,
+                    Ok(n) => consume(&buffer[..n]),
+                    Err(e) if matches!(e.kind(), io::ErrorKind::Interrupted | io::ErrorKind::WouldBlock) => continue,
+                    Err(_) => break,
+                }
+            }
+        });
+        Ok(Self { cancel, reader, tail })
+    }
+
+    fn finish(self) -> String {
+        drop(self.cancel);
+        let _ = self.reader.join();
+        complaint_tail(&self.tail)
+    }
+}
+
+fn complaint_tail(tail: &Mutex<VecDeque<u8>>) -> String {
+    let bytes: Vec<u8> = tail.lock().unwrap_or_else(|e| e.into_inner()).iter().copied().collect();
+    String::from_utf8_lossy(&bytes).into_owned()
 }
 
 fn answers() -> bool {
@@ -161,5 +251,28 @@ fn alive(pid: libc::pid_t) -> bool {
     match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
         Ok(stat) => stat.rsplit_once(") ").is_some_and(|(_, rest)| !rest.starts_with('Z')),
         Err(_) => false,
+    }
+}
+
+#[cfg(test)]
+mod output_tests {
+    use super::*;
+
+    #[test]
+    fn inherited_stderr_cannot_hold_the_log_lock_after_child_exit() {
+        let dir = std::env::temp_dir().join(format!("dmx-collector-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("dockerd.log");
+        let log = crate::rotating_log::RotatingLog::new(&path, 64).unwrap();
+        let mut child = Command::new("sh").args(["-c", "sleep 3 & echo COLLECTOR-TAIL >&2; exit 23"])
+            .stdout(Stdio::null()).stderr(Stdio::piped()).spawn().unwrap();
+        let collector = OutputCollector::start(child.stderr.take().unwrap(), Some(log)).unwrap();
+        assert_eq!(child.wait().unwrap().code(), Some(23));
+        let started = Instant::now();
+        let tail = collector.finish();
+        assert!(started.elapsed() < Duration::from_secs(1));
+        assert!(tail.contains("COLLECTOR-TAIL"));
+        assert!(crate::rotating_log::RotatingLog::new(&path, 64).is_ok());
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

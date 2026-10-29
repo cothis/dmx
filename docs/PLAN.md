@@ -560,7 +560,24 @@ Done when: on a Mac whose only way out is an HTTP proxy (no authentication) with
 Local implementation and proof: [menu-app.md](menu-app.md). Direct GUI acceptance remains
 separate from Core/VM tests and the completed public distribution checks.
 
+### Storage/log hardening (2026-10-30, release work in progress)
+
+- [x] Delete regenerable duplicate development/release artifacts; preserve user data and pinned inputs.
+- [x] Bound host daemon/console and guest dockerd diagnostics to 1 MiB x3 per stream.
+- [x] Set new-container default json-file rotation to 10m x2; preserve explicit logging choices.
+- [x] Finish actual-VM overflow, old-log migration, memory comparison and release qualification.
+- [ ] Resolve actual Opus 5.5 review findings, sign/notarize and publish v0.4.1; verify public bytes
+      and fresh/update paths, then install the signed app locally.
+
 ## Next up
+
+**Active maintainer request (2026-10-30):** source and local qualification for v0.4.1 are
+complete. Actual Opus 5.5 approved after F1/F2/R1/R2 repairs; final VM conditions passed.
+Next: second packaging with Developer ID signing/notarization and `pin_changed: false`, then tag,
+publish and verify all public bytes, fresh installation, previous-app live update/data retention,
+the published storage fixes and local installation. Release is already authorized. Preserve the
+installed user engine/data and unrelated untracked photo. Community announcements and another
+hosted upload job are separate decisions. Direct Phase12 GUI acceptance remains separate.
 
 For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md).
 
@@ -691,6 +708,42 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### Storage preflight (2026-10-30)
+
+Regenerable local output was 5.437 GiB. Removed 4,718,551,040 allocated bytes (4.394 GiB)
+from duplicate old distributions, test installations and old guest copies. Kept compiled build
+cache, v0.4.0 guest baseline, raw review/transport helpers, all committed evidence, installed
+app/CLI and `~/.dmx` (including user data and pinned source build cache). Before cleanup,
+`~/.dmx` used about 1.837 GiB: cache 1.195 GiB, sparse 64 GiB data disk 451.55 MiB allocated,
+daemon log about 60 KiB. These observations do not establish the cause of earlier macOS swap.
+At resumed preflight, macOS swap was 0 MiB. No host pressure stress was run.
+
+Source-qualified v0.4.1 and actual Opus5.5 final approval are recorded in
+[the review](reviews/2026-10-30-storage-opus55/README.md) and
+[measurements](measurements/2026-10-30-storage.json). The initial review found inherited-pipe
+collector lock retention and fatal/silent diagnostic setup. Fixed child-owned cancellation,
+bounded contention wait, best-effort sinks with status warnings, and same-daemon boot retries.
+Latest source/pin passes unit97, storage64 (including four real-Linux Rust tests), selftest23,
+daemon58, MCP33, menu25+typedVM1 and app14+typed install1. Earlier full compatibility passes
+x8653, Docker69, sandbox44, images24, Java100; normal Docker/emulator payloads are unchanged.
+The first menu fixture lacked its source bin/cli-plugins links; corrected the isolated home
+and retained the failure/diagnosis before the final pass.
+
+Paired fresh 2CPU/2GiB samples: VM-only 75.735→75.798 MiB; Docker-idle 187.345→192.454 MiB,
+15-second one-core CPU samples all <0.04%. Guest used memory stayed63MiB; cache75→81MiB
+accompanies the Docker footprint difference. Single paired samples do not establish a fixed
+5.11MiB logging cost or a CPU improvement. Selftest idle98→97MiB, final reclaim104MiB in314ms.
+No host pressure stress was run. Disabled/unsafe sinks preserve engine availability; agent
+restart/surviving-child diagnostic pipe limitations are documented separately from container logs.
+
+Baseline source v0.4.0 selftest: 23 checks passed, host idle 98 MiB, after-reclaim 103 MiB.
+Initial flood test failed its LF-only console marker assertion. Independent real-VM diagnosis
+observed `opost onlcr` and the exact tail `CONSOLE-TAIL\r\n`; current/backup log sizes were
+422/1,048,576/1,048,576 bytes. Corrected the harness to accept the actual terminal newline;
+this is a test defect, not evidence of dropped console output. Retain the failed result and
+byte/stty diagnosis with final verification evidence.
+
 
 ### Native app review and unified installation (2026-10-29, v0.4.0 published)
 
@@ -1074,6 +1127,11 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 | 2026-10-27 | Pre-announcement review of 0.3.3 | Six code findings fixed, stale docs corrected. Unit 59/59; selftest 23/23; daemon 57/57; MCP 33/33; x86 47/47; Docker 69/69; sandbox 44/44; image matrix 24/24; pressure 12/12 rounds (12 GiB host allocation). Selftest host footprint 97 MiB before, 94–97 after; final 1 GiB reclaim 1123 → 103 MiB in 329 ms (before 1122 → 102 in 214 ms). Published 0.3.3 installer, guest fetch, strict signature/notarization check, selftest (97 MiB) and signed same-version update pass; local guest hashes match published. [Review](review-2026-10-27.md), [bounded results](measurements/2026-10-27-preannouncement-review.json). These fixes are not released. |
 
 ## Progress log
+
+- 2026-10-30: Resumed authorized artifact cleanup and log growth hardening. Removed 4.394 GiB
+  of regenerable outputs, added bounded diagnostic streams/default container rotation and
+  regression tests. Resolved actual Opus5.5 F1/F2/R1/R2 findings; source/pin qualification and
+  final approval complete. Signing/notarization and public release verification remain.
 
 - 2026-10-29: Published signed/notarized/stapled v0.4.0 from `9297d39` after actual Opus 5.5 approval. All 14 public assets, fresh unified install, selftest23, arm64/amd64/386 containers, public whole-app update and previous-CLI migration pass; live VM/container/volume preservation and daemon cleanup verified. Installed the published app/CLI locally without starting the engine. Direct status-menu GUI acceptance remains open.
 

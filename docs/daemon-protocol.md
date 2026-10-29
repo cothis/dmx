@@ -66,7 +66,10 @@ is also the process guest memory is charged to), `version`, `launchd`, `uptime_s
 `docker_socket`, `idle_timeout_s`, `idle_stop_in_s` (when nothing uses
 the VM), `socket`, `console_log`, `memory` (below), and `disk` (the data disk `~/.dmx/data.img`:
 `path`, `size_mb` as the guest sees it, `allocated_mb` it takes on the host; null before the first
-boot). `dmx status` prints `state: not_running` when no daemon answers.
+boot). Optional `log_warnings` lists diagnostic sinks disabled at startup; engine operations
+continue. The next VM boot retries disabled sinks and clears resolved warnings after the user
+repairs the log path/free space. `console_log` is bounded history with boot markers; `.1`/`.2`
+are size rotations, not previous-boot files. See [Docker storage and logging](docker.md). `dmx status` prints `state: not_running` when no daemon answers.
 
 `memory` fields: `host_pressure` (`normal`, `warning`, `critical`: macOS's level, as the controller
 sees it), `pressure_simulated`, `balloon_mb` and `balloon_target_mb` (what the guest gave back on

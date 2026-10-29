@@ -1,0 +1,74 @@
+{
+  "ok": false,
+  "checks": [
+    {
+      "name": "foreground_socket",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "real_vm_start",
+      "ok": true,
+      "detail": "{\n  \"clients\" : 0,\n  \"console_log\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-lv282bwf/logs/console.log\",\n  \"cpus\" : 2,\n  \"disk\" : {\n    \"allocated_mb\" : 10,\n    \"path\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-lv282bwf/data.img\",\n    \"size_mb\" : 65536\n  },\n  \"docker_socket\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-lv282bwf/docker.sock\",\n  \"execs\" : 0,\n  \"guest_used_mb\" : 21,\n  \"host_footprint_mb\" : 90,\n  \"host_peak_footprint_mb\" "
+    },
+    {
+      "name": "old_host_logs_bounded",
+      "ok": true,
+      "detail": "{'daemon.log': [216, 1048576, 1048576], 'console.log': [408, 1048576, 1048576]}"
+    },
+    {
+      "name": "guest_command_3",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "console_flood_tail",
+      "ok": false,
+      "detail": ""
+    }
+  ],
+  "metrics": {
+    "idle_before_docker": {
+      "clients": 0,
+      "console_log": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-lv282bwf/logs/console.log",
+      "cpus": 2,
+      "disk": {
+        "allocated_mb": 10,
+        "path": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-lv282bwf/data.img",
+        "size_mb": 65536
+      },
+      "docker_socket": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-lv282bwf/docker.sock",
+      "execs": 0,
+      "guest_used_mb": 21,
+      "host_footprint_mb": 90,
+      "host_peak_footprint_mb": 90,
+      "idle_timeout_s": 300,
+      "launchd": false,
+      "max_memory": "2.0G",
+      "memory": {
+        "balloon_mb": 0,
+        "balloon_target_mb": 0,
+        "guest_cache_mb": 5,
+        "guest_page_size": 4096,
+        "guest_swap_mb": 0,
+        "host_pressure": "normal",
+        "plug": {
+          "boot_mb": 1024,
+          "plugged_mb": 128,
+          "plugs": 1,
+          "requested_mb": 128,
+          "unplugs": 0
+        },
+        "pressure_simulated": false,
+        "reported_mb": 0,
+        "sweeps": 0,
+        "trims": 0
+      },
+      "pid": 5127,
+      "socket": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-lv282bwf/dmx.sock",
+      "state": "running",
+      "uptime_s": 0,
+      "version": "0.4.0"
+    }
+  }
+}

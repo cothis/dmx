@@ -1,0 +1,8 @@
+✘ Test containerActionsAndShutdown() recorded an issue at MenuEngineVMTests.swift:34:13: Expectation failed: launch.setupFailure == nil
+↳ launch.setupFailure == nil → false
+↳   launch.setupFailure → DMXError(code: "install_failed", message: "cannot install /tmp/dmx-mvm-55C22298-0043-4676-9F42-0D723EC89228/bin/docker: The file “bin” couldn’t be saved in the folder “dmx-mvm-55C22298-0043-4676-9F42-0D723EC89228”.", hint: Optional("check that /tmp/dmx-mvm-55C22298-0043-4676-9F42-0D723EC89228/bin is writable, then run `dmx tools install` again"))
+↳     some → DMXError(code: "install_failed", message: "cannot install /tmp/dmx-mvm-55C22298-0043-4676-9F42-0D723EC89228/bin/docker: The file “bin” couldn’t be saved in the folder “dmx-mvm-55C22298-0043-4676-9F42-0D723EC89228”.", hint: Optional("check that /tmp/dmx-mvm-55C22298-0043-4676-9F42-0D723EC89228/bin is writable, then run `dmx tools install` again"))
+✘ Test containerActionsAndShutdown() failed after 29.357 seconds with 1 issue.
+✘ Suite MenuEngineVMTests failed after 29.358 seconds with 1 issue.
+✘ Test run with 1 test in 1 suite failed after 29.358 seconds with 1 issue.
+make: *** [menutest] Error 1

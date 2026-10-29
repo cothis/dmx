@@ -1,0 +1,10 @@
+{
+  "failed_start": {
+    "code": 1,
+    "stderr": "ERROR: Error response from daemon: dmx: docker_start: Resource temporarily unavailable (os error 11) (see the log: `dmx exec -- tail -50 /var/lib/dmx/log/dockerd.log`)\nerrors pretty printing info\n"
+  },
+  "retry": {
+    "code": 1,
+    "stderr": "ERROR: Error response from daemon: dmx: docker_start: Resource temporarily unavailable (os error 11) (see the log: `dmx exec -- tail -50 /var/lib/dmx/log/dockerd.log`)\nerrors pretty printing info\n"
+  }
+}

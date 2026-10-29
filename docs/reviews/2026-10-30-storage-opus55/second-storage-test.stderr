@@ -1,0 +1,10 @@
+Traceback (most recent call last):
+  File "<repo>/scripts/test-storage.py", line 104, in <module>
+    docker('info')
+    ~~~~~~^^^^^^^^
+  File "<repo>/scripts/test-storage.py", line 60, in docker
+    check('docker_command_' + str(len(checks)), r.returncode == 0, r.stderr.decode(errors='replace'))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/scripts/test-storage.py", line 24, in check
+    raise AssertionError(name + ': ' + str(detail))
+AssertionError: docker_command_29: failed to connect to the docker API at unix:///var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-g6gustid/docker.sock; check if the path is correct and if the daemon is running: dial unix /var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-g6gustid/docker.sock: connect: no such file or directory

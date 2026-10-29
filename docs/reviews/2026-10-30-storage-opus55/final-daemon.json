@@ -1,0 +1,339 @@
+{
+  "ok": true,
+  "cold_exec_ms": 420,
+  "idle_footprint_mb": 99,
+  "guest_used_mb": 37,
+  "warm_exec_ms": 5,
+  "stdout_500mb_mb_per_s": 124,
+  "footprint_after_streams_mb": 94,
+  "net_64mb_mb_per_s": 494,
+  "footprint_after_net_mb": 90,
+  "stuck_agent_status_max_s": 2.11,
+  "memory_warning_trim_s": 2.1,
+  "memory_idle_trim_s": 15.8,
+  "memory_normal_unplug_s": 7.1,
+  "memory_normal_footprint_mb": 136,
+  "memory_grown_plug": {
+    "boot_mb": 1024,
+    "plugged_mb": 5504,
+    "plugs": 85,
+    "requested_mb": 5504,
+    "unplugs": 42
+  },
+  "memory_critical_unplug_s": 1.1,
+  "memory_critical_wait_succeeded": true,
+  "memory_critical_limit_mb": 156,
+  "memory_critical_footprint_mb": 124,
+  "portfwd_footprint_before_streams_mb": 137,
+  "portfwd_guest_to_host_mb_per_s": 385,
+  "portfwd_host_to_guest_mb_per_s": 484,
+  "portfwd_footprint_after_streams_mb": 140,
+  "footprint_stopped_mb": 7,
+  "disk": {
+    "allocated_mb": 11,
+    "path": "/tmp/dmx-test-xbdux5nx/data.img",
+    "size_mb": 65536
+  },
+  "fsck_repair_boot_s": 0.95,
+  "update_check": {
+    "available": false,
+    "current": "0.4.1",
+    "ok": true,
+    "path": "<repo>/.build/out/Products/Release/dmx",
+    "target": "0.4.0",
+    "updated": false,
+    "url": "https://github.com/cothis/dmx/releases/download/v0.4.0/dmx-0.4.0-darwin-arm64.tar.gz"
+  },
+  "checks": [
+    {
+      "name": "not_running",
+      "ok": true,
+      "detail": "not_running"
+    },
+    {
+      "name": "config_shares",
+      "ok": true,
+      "detail": "b''"
+    },
+    {
+      "name": "cold_exec",
+      "ok": true,
+      "detail": "b'6.18.58-dmx-4k\\n' rc 0"
+    },
+    {
+      "name": "running",
+      "ok": true,
+      "detail": "running"
+    },
+    {
+      "name": "exit_and_streams",
+      "ok": true,
+      "detail": "CompletedProcess(args=['<repo>/.build/out/Products/Release/dmx', 'exec', '--', 'sh', '-c', 'echo out; echo err >&2; exit 7'], returncode=7, stdout=b'out\\n', stderr=b'err\\n')"
+    },
+    {
+      "name": "env_and_cwd",
+      "ok": true,
+      "detail": "b'b /tmp\\n'"
+    },
+    {
+      "name": "stdin_64mb",
+      "ok": true,
+      "detail": "b'8f04f684e6cc3225df8062f3edd90d73  -\\n'"
+    },
+    {
+      "name": "stdout_500mb",
+      "ok": true,
+      "detail": "500000000"
+    },
+    {
+      "name": "net_http_64mb",
+      "ok": true,
+      "detail": "b'b296d8517c4da500f55a78bdedb58565  -\\n'"
+    },
+    {
+      "name": "dns_host_resolver",
+      "ok": true,
+      "detail": "mac ['127.0.0.1', '192.168.0.11'], guest ['192.168.0.11', '192.168.127.254', 'fd64:646d:7800::254']"
+    },
+    {
+      "name": "dns_ipv6",
+      "ok": true,
+      "detail": "b'Server:\\t\\tfd64:646d:7800::1\\nAddress:\\t[fd64:646d:7800::1]:53\\n\\nName:\\thost.docker.internal\\nAddress: fd64:646d:7800::254\\n\\n'"
+    },
+    {
+      "name": "udp_ipv6",
+      "ok": true,
+      "detail": "b'olleh'"
+    },
+    {
+      "name": "icmp_errors",
+      "ok": true,
+      "detail": "b\"0 0 1 1\\nwget: can't connect to remote host (240.0.0.1): Host is unreachable\\n\""
+    },
+    {
+      "name": "tcp_unreachable",
+      "ok": true,
+      "detail": "b\"wget: can't connect to remote host (240.0.0.1): Host is unreachable\\n\""
+    },
+    {
+      "name": "dns_cname_chain",
+      "ok": true,
+      "detail": "b'Server:\\t\\t192.168.127.1\\nAddress:\\t192.168.127.1:53\\n\\nNon-authoritative answer:\\nwww.github.com\\tcanonical name = github.com\\n\\nNon-authoritative answer:\\nwww.github.com\\tcanonical name = github.com\\nName:\\tgithub.com\\nAddress: 20.200.245.247\\n\\n'"
+    },
+    {
+      "name": "missing_binary",
+      "ok": true,
+      "detail": "b'error: exec: nosuch: No such file or directory (os error 2)\\n'"
+    },
+    {
+      "name": "share_read_write",
+      "ok": true,
+      "detail": "CompletedProcess(args=['<repo>/.build/out/Products/Release/dmx', 'exec', '--', 'sh', '-c', 'cat /tmp/dmx-test-xbdux5nx/share/from-host && echo guest > /tmp/dmx-test-xbdux5nx/share/from-guest && stat -c %u /tmp/dmx-test-xbdux5nx/share/from-host'], returncode=0, stdout=b'host\\n0\\n', stderr=b'')"
+    },
+    {
+      "name": "share_host_change",
+      "ok": true,
+      "detail": "b'changed on the host\\n'"
+    },
+    {
+      "name": "share_contained",
+      "ok": true,
+      "detail": "b\".\\n..\\nshare\\ncat: can't open '/tmp/dmx-test-xbdux5nx/share/esc': No such file or directory\\ncat: can't open '/tmp/dmx-test-xbdux5nx/share/../config.json': No such file or directory\\n\""
+    },
+    {
+      "name": "signal_forwarded",
+      "ok": true,
+      "detail": "rc 5 b'term\\n'"
+    },
+    {
+      "name": "client_killed",
+      "ok": true,
+      "detail": "guest process ended"
+    },
+    {
+      "name": "shell_tty",
+      "ok": true,
+      "detail": "rc 3 'dmx:~# \\x1b[6necho $((6*7))\\r\\n42\\r\\ndmx:~# \\x1b[6nsleep 100\\r\\n^C\\r\\ndmx:~# \\x1b[6necho after-$((1+1))\\r\\nafter-2\\r\\ndmx:~# \\x1b[6nexit 3\\r\\n'"
+    },
+    {
+      "name": "stuck_agent",
+      "ok": true,
+      "detail": "status 2.1 s, reconnect logged True, resumed True"
+    },
+    {
+      "name": "memory_cache_filled",
+      "ok": true,
+      "detail": "footprint 92 -> 610 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 523, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'normal', 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 2, 'requested_mb': 256, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 1190, 'sweeps': 1, 'trims': 0}"
+    },
+    {
+      "name": "memory_trim_on_warning",
+      "ok": true,
+      "detail": "footprint 109 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 16, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 508, 'ms': 2, 'reason': 'host pressure warning', 'seconds_ago': 2}, 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 2, 'requested_mb': 256, 'unplugs': 0}, 'pressure_simulated': True, 'reported_mb': 1696, 'sweeps': 1, 'trims': 1}"
+    },
+    {
+      "name": "memory_idle_trim",
+      "ok": true,
+      "detail": "footprint 120 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 21, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 512, 'ms': 10, 'reason': 'idle', 'seconds_ago': 2}, 'plug': {'boot_mb': 1024, 'plugged_mb': 128, 'plugs': 5, 'requested_mb': 128, 'unplugs': 4}, 'pressure_simulated': True, 'reported_mb': 2872, 'sweeps': 2, 'trims': 2}"
+    },
+    {
+      "name": "memory_idle_sweep",
+      "ok": true,
+      "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 21, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 512, 'ms': 10, 'reason': 'idle', 'seconds_ago': 2}, 'plug': {'boot_mb': 1024, 'plugged_mb': 128, 'plugs': 5, 'requested_mb': 128, 'unplugs': 4}, 'pressure_simulated': True, 'reported_mb': 2872, 'sweeps': 2, 'trims': 2}"
+    },
+    {
+      "name": "disk_idle_trim",
+      "ok": true,
+      "detail": "data.img 266 -> 10 MB, exit 0"
+    },
+    {
+      "name": "memory_hotplug_growth",
+      "ok": true,
+      "detail": "footprint 2265 MB, {'boot_mb': 1024, 'plugged_mb': 5248, 'plugs': 45, 'requested_mb': 5248, 'unplugs': 4}, b''"
+    },
+    {
+      "name": "memory_normal_unplug",
+      "ok": true,
+      "detail": "footprint 92 -> 136 MB, {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 21, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'normal', 'last_trim': {'freed_mb': 512, 'ms': 10, 'reason': 'idle', 'seconds_ago': 9}, 'plug': {'boot_mb': 1024, 'plugged_mb': 384, 'plugs': 45, 'requested_mb': 384, 'unplugs': 42}, 'pressure_simulated': True, 'reported_mb': 8326, 'sweeps': 2, 'trims': 2}"
+    },
+    {
+      "name": "memory_unplug_on_critical",
+      "ok": true,
+      "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 3, 'host_pressure': 'critical', 'last_trim': {'freed_mb': 22, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 1}, 'plug': {'boot_mb': 1024, 'plugged_mb': 0, 'plugs': 85, 'requested_mb': 0, 'unplugs': 85}, 'pressure_simulated': True, 'reported_mb': 8326, 'sweeps': 2, 'trims': 3}"
+    },
+    {
+      "name": "memory_balloon_on_critical",
+      "ok": true,
+      "detail": "footprint 124 MB, {'balloon_mb': 681, 'balloon_target_mb': 681, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 3, 'host_pressure': 'critical', 'last_trim': {'freed_mb': 22, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 1}, 'plug': {'boot_mb': 1024, 'plugged_mb': 0, 'plugs': 85, 'requested_mb': 0, 'unplugs': 85}, 'pressure_simulated': True, 'reported_mb': 8436, 'sweeps': 2, 'trims': 3}"
+    },
+    {
+      "name": "memory_growth_under_critical",
+      "ok": true,
+      "detail": "b'1610612736\\n' b'' {'balloon_mb': 111, 'balloon_target_mb': 111, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'critical', 'last_trim': {'freed_mb': 22, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 11}, 'plug': {'boot_mb': 1024, 'plugged_mb': 1024, 'plugs': 96, 'requested_mb': 1024, 'unplugs': 88}, 'pressure_simulated': True, 'reported_mb': 8750, 'sweeps': 2, 'trims': 3}"
+    },
+    {
+      "name": "memory_warning_headroom_restored",
+      "ok": true,
+      "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'warning', 'last_trim': {'freed_mb': 22, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 11}, 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 96, 'requested_mb': 256, 'unplugs': 94}, 'pressure_simulated': True, 'reported_mb': 8750, 'sweeps': 2, 'trims': 3}"
+    },
+    {
+      "name": "memory_balloon_deflated",
+      "ok": true,
+      "detail": "{'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'normal', 'last_trim': {'freed_mb': 22, 'ms': 6, 'reason': 'host pressure critical', 'seconds_ago': 11}, 'plug': {'boot_mb': 1024, 'plugged_mb': 256, 'plugs': 96, 'requested_mb': 256, 'unplugs': 94}, 'pressure_simulated': True, 'reported_mb': 8750, 'sweeps': 2, 'trims': 3}"
+    },
+    {
+      "name": "portfwd_http",
+      "ok": true,
+      "detail": "b'hello from the guest\\n' {'connections': 0, 'guest_port': 80, 'host_address': '127.0.0.1', 'host_port': 18780, 'listening': True, 'protocol': 'tcp', 'total_connections': 0}"
+    },
+    {
+      "name": "portfwd_ipv6_loopback",
+      "ok": true,
+      "detail": "b'hello from the guest\\n'"
+    },
+    {
+      "name": "portfwd_streams",
+      "ok": true,
+      "detail": "200000000 b'209715200\\n'"
+    },
+    {
+      "name": "portfwd_concurrent_guest_close",
+      "ok": true,
+      "detail": "echoed True, 30 cats, eof True"
+    },
+    {
+      "name": "portfwd_host_close",
+      "ok": true,
+      "detail": "guest cat gone True, no open connections True"
+    },
+    {
+      "name": "portfwd_errors",
+      "ok": true,
+      "detail": "['port_forwarded', 'port_in_use', 'port_not_forwarded', 'bad_port_spec']"
+    },
+    {
+      "name": "portfwd_boot_and_restart",
+      "ok": true,
+      "detail": "after stop stopped, after connect running, after restart [True, True, True]"
+    },
+    {
+      "name": "concurrent_cold_start",
+      "ok": true,
+      "detail": "1 daemons"
+    },
+    {
+      "name": "disk_mounted",
+      "ok": true,
+      "detail": "b'/dev/vda /var/lib ext4 rw,relatime,discard,no_prefetch_block_bitmaps 0 0\\n'"
+    },
+    {
+      "name": "restart_in_process",
+      "ok": true,
+      "detail": "stopped [22426]"
+    },
+    {
+      "name": "disk_persists",
+      "ok": true,
+      "detail": "b'kept\\n' {'allocated_mb': 11, 'path': '/tmp/dmx-test-xbdux5nx/data.img', 'size_mb': 65536}"
+    },
+    {
+      "name": "fsck_forced",
+      "ok": true,
+      "detail": "b'-- e2fsck at boot e2334430-7ffb-4cd8-8342-0cb97d70d488\\ndmx-data contains a file system with errors, check forced.\\ndmx-data: 17/4194304 files (0.0% non-contiguous), 310780/16777216 blocks\\n0\\n'"
+    },
+    {
+      "name": "fsck_repaired",
+      "ok": true,
+      "detail": "b'kept\\n\\ndmx-data: ***** FILE SYSTEM WAS MODIFIED *****\\ndmx-data: 19/4194304 files (0.0% non-contiguous), 310782/16777216 blocks\\n'"
+    },
+    {
+      "name": "disk_grows",
+      "ok": true,
+      "detail": "b'kept\\n/dev/vda              82381320      5668  78332756   0% /var/lib\\n' 81920"
+    },
+    {
+      "name": "disk_never_shrinks",
+      "ok": true,
+      "detail": "{'allocated_mb': 15, 'path': '/tmp/dmx-test-xbdux5nx/data.img', 'size_mb': 81920}"
+    },
+    {
+      "name": "memory_without_hotplug",
+      "ok": true,
+      "detail": "{'clients': 0, 'console_log': '/tmp/dmx-test-xbdux5nx/logs/console.log', 'cpus': 10, 'disk': {'allocated_mb': 15, 'path': '/tmp/dmx-test-xbdux5nx/data.img', 'size_mb': 81920}, 'docker_socket': '/tmp/dmx-test-xbdux5nx/docker.sock', 'execs': 0, 'guest_used_mb': 30, 'host_footprint_mb': 84, 'host_peak_footprint_mb': 1102, 'idle_stop_in_s': 299, 'idle_timeout_s': 300, 'launchd': False, 'max_memory': '1.0G', 'memory': {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 0, 'host_pressure': 'normal', 'pressure_simulated': True, 'reported_mb': 0, 'sweeps': 0, 'trims': 0}, 'pid': 22426, 'socket': '/tmp/dmx-test-xbdux5nx/dmx.sock', 'state': 'running', 'uptime_s': 0, 'version': '0.4.1'}"
+    },
+    {
+      "name": "memory_balloon_without_hotplug",
+      "ok": true,
+      "detail": "{'clients': 0, 'console_log': '/tmp/dmx-test-xbdux5nx/logs/console.log', 'cpus': 10, 'disk': {'allocated_mb': 15, 'path': '/tmp/dmx-test-xbdux5nx/data.img', 'size_mb': 81920}, 'docker_socket': '/tmp/dmx-test-xbdux5nx/docker.sock', 'execs': 0, 'guest_used_mb': 33, 'host_footprint_mb': 93, 'host_peak_footprint_mb': 1102, 'idle_stop_in_s': 299, 'idle_timeout_s': 300, 'launchd': False, 'max_memory': '1.0G', 'memory': {'balloon_mb': 700, 'balloon_target_mb': 700, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'critical', 'last_trim': {'freed_mb': 0, 'ms': 5, 'reason': 'host pressure critical', 'seconds_ago': 0}, 'pressure_simulated': True, 'reported_mb': 0, 'sweeps': 0, 'trims': 1}, 'pid': 22426, 'socket': '/tmp/dmx-test-xbdux5nx/dmx.sock', 'state': 'running', 'uptime_s': 0.2, 'version': '0.4.1'}"
+    },
+    {
+      "name": "memory_normal_without_hotplug",
+      "ok": true,
+      "detail": "{'clients': 0, 'console_log': '/tmp/dmx-test-xbdux5nx/logs/console.log', 'cpus': 10, 'disk': {'allocated_mb': 15, 'path': '/tmp/dmx-test-xbdux5nx/data.img', 'size_mb': 81920}, 'docker_socket': '/tmp/dmx-test-xbdux5nx/docker.sock', 'execs': 0, 'guest_used_mb': 33, 'host_footprint_mb': 93, 'host_peak_footprint_mb': 1102, 'idle_stop_in_s': 299, 'idle_timeout_s': 300, 'launchd': False, 'max_memory': '1.0G', 'memory': {'balloon_mb': 0, 'balloon_target_mb': 0, 'guest_cache_mb': 0, 'guest_page_size': 4096, 'guest_swap_mb': 2, 'host_pressure': 'normal', 'last_trim': {'freed_mb': 0, 'ms': 5, 'reason': 'host pressure critical', 'seconds_ago': 0}, 'pressure_simulated': True, 'reported_mb': 0, 'sweeps': 0, 'trims': 1}, 'pid': 22426, 'socket': '/tmp/dmx-test-xbdux5nx/dmx.sock', 'state': 'running', 'uptime_s': 0.3, 'version': '0.4.1'}"
+    },
+    {
+      "name": "update_check",
+      "ok": true,
+      "detail": "b'{\\n  \"available\" : false,\\n  \"current\" : \"0.4.1\",\\n  \"ok\" : true,\\n  \"path\" : \"<repo>/.build/out/Products/Release/dmx\",\\n  \"target\" : \"0.4.0\",\\n  \"updated\" : false,\\n  \"url\" : \"https://g'"
+    },
+    {
+      "name": "update_refuses_source_build",
+      "ok": true,
+      "detail": "b'{\\n  \"error\" : {\\n    \"code\" : \"update_source_build\",\\n    \"hint\" : \"update the installed copy instead, or pass --force to replace this one\",\\n    \"message\" : \"<repo>/.build/out/Produ'"
+    },
+    {
+      "name": "update_installs",
+      "ok": true,
+      "detail": "b'{\\n  \"available\" : true,\\n  \"bytes\" : 1816598,\\n  \"current\" : \"0.4.1\",\\n  \"daemon\" : {\\n    \"handover\" : \"stop_to_switch\",\\n    \"pid\" : 22426,\\n    \"version\" : \"0.4.1\",\\n    \"vm_running\" : true\\n  },\\n  \"ok\" : ' now b'0.2.2'"
+    },
+    {
+      "name": "update_notices_old_daemon",
+      "ok": true,
+      "detail": "b'dmx: the daemon answering is 0.2.2 (pid 22488), this dmx is 0.4.1\\ndmx: `dmx stop` powers the VM off and the daemon exits; the next command runs 0.4.1\\n'"
+    },
+    {
+      "name": "idle_stop",
+      "ok": true,
+      "detail": "vm stopped True, daemon exited True"
+    }
+  ]
+}

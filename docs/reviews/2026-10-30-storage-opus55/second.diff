@@ -1,0 +1,1375 @@
+diff --git a/Makefile b/Makefile
+index a5b36d6..18c1fc6 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,6 +1,6 @@
+ BIN := .build/release/dmx
+ 
+-.PHONY: build app install-app apptest menutest install kernel qemu fex guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest javatest pressuretest benchmark test formaltest release clean
++.PHONY: build app install-app apptest menutest install kernel qemu fex guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest javatest storagetest pressuretest benchmark test formaltest release clean
+ 
+ PREFIX ?= $(HOME)/.local
+ 
+@@ -85,6 +85,10 @@ imagetest: build
+ javatest: build
+ 	python3 -I scripts/test-images.py $(BIN) --image java --platform linux/amd64 --repeat 100
+ 
++# Diagnostic overflow/migration, Docker log defaults, failed-start retry, guest Rust unit tests.
++storagetest: build
++	python3 -I scripts/test-storage.py $(BIN)
++
+ # Guest memory and disk integrity while the Mac swaps (an incompressible hog of 3/4 of RAM,
+ # boots that run e2fsck -fy). Not a release check: the Mac slows down for a few minutes.
+ pressuretest: build
+diff --git a/Sources/DMXCore/Daemon/Daemon.swift b/Sources/DMXCore/Daemon/Daemon.swift
+index a55f4b9..b4eb696 100644
+--- a/Sources/DMXCore/Daemon/Daemon.swift
++++ b/Sources/DMXCore/Daemon/Daemon.swift
+@@ -14,6 +14,8 @@ public final class Daemon {
+     static let linger: Duration = .seconds(10)
+ 
+     private let paths: Paths
++    private let consoleLog: RotatingLog?
++    private let logWarnings: [String]
+     private let version: String
+     private let listener: Int32
+     private let launchd: Bool
+@@ -54,8 +56,24 @@ public final class Daemon {
+     public init(paths: Paths, version: String) throws {
+         self.paths = paths
+         self.version = version
+-        try FileManager.default.createDirectory(at: paths.logs, withIntermediateDirectories: true)
++        try FileManager.default.createDirectory(at: paths.home, withIntermediateDirectories: true)
+         try Self.takeLock(paths)
++        Diagnostics.detachLegacyLog(paths.daemonLog)
++        var warnings: [String] = []
++        func diagnostic(_ url: URL) -> RotatingLog? {
++            do {
++                try FileManager.default.createDirectory(at: paths.logs, withIntermediateDirectories: true)
++                return try RotatingLog(url: url)
++            } catch {
++                let error = error as? DMXError ?? DMXError("log_unwritable", error.localizedDescription,
++                    hint: "check the log directory's permissions and free space, then run `dmx start`")
++                warnings.append("\(error.code): \(error.message); \(error.hint ?? "")")
++                return nil
++            }
++        }
++        Diagnostics.install(diagnostic(paths.daemonLog))
++        consoleLog = diagnostic(paths.consoleLog)
++        logWarnings = warnings
+         if let fd = try launchdSocket() {
+             listener = fd
+             launchd = true
+@@ -251,7 +269,7 @@ public final class Daemon {
+             guestUsedMb: used, hostFootprintMb: host?.footprintMb, hostPeakFootprintMb: host?.peakFootprintMb,
+             clients: others, execs: execs, containers: docker.containers, idleTimeoutS: idleTimeout, idleStopInS: idleStopIn,
+             socket: paths.controlSocket.path, consoleLog: paths.consoleLog.path,
+-            memory: memory.status(guest: guest), disk: DataDisk.usage(paths.dataDisk), dockerSocket: paths.dockerSocket.path)
++            memory: memory.status(guest: guest), disk: DataDisk.usage(paths.dataDisk), dockerSocket: paths.dockerSocket.path, logWarnings: logWarnings.isEmpty ? nil : logWarnings)
+     }
+ 
+     // MARK: VM lifecycle
+@@ -305,9 +323,8 @@ public final class Daemon {
+                 if FileManager.default.fileExists(atPath: paths.dockerImage.path) {
+                     spec.extraDisks = [DataDisk(url: paths.dockerImage, size: 0, readOnly: true, id: "dmx-docker")]
+                 }
+-                FileManager.default.createFile(atPath: paths.consoleLog.path, contents: nil)
+-                let console = try FileHandle(forWritingTo: paths.consoleLog)
+-                let machine = try Machine(spec: spec, paths: paths, console: console)
++                consoleLog?.append(Data("\n--- dmx VM boot \(ISO8601DateFormatter().string(from: Date())) ---\n".utf8))
++                let machine = try Machine(spec: spec, paths: paths, output: .log(consoleLog))
+                 self.machine = machine
+                 try machine.start()
+                 // Generous: on a loaded Mac a first boot that formats the data disk can take 30 s,
+@@ -487,7 +504,7 @@ public final class Daemon {
+ 
+ func log(_ message: String) {
+     let stamp = ISO8601DateFormatter().string(from: Date())
+-    FileHandle.standardError.write(Data("\(stamp) dmx-daemon: \(message)\n".utf8))
++    Diagnostics.write(Data("\(stamp) dmx-daemon: \(message)\n".utf8))
+ }
+ 
+ func seconds(_ d: Duration) -> Double {
+diff --git a/Sources/DMXCore/Daemon/DaemonClient.swift b/Sources/DMXCore/Daemon/DaemonClient.swift
+index d5e66af..2623ada 100644
+--- a/Sources/DMXCore/Daemon/DaemonClient.swift
++++ b/Sources/DMXCore/Daemon/DaemonClient.swift
+@@ -145,7 +145,7 @@ private func spawnDaemon(_ paths: Paths, executable: String?) throws {
+     posix_spawn_file_actions_init(&actions)
+     defer { posix_spawn_file_actions_destroy(&actions) }
+     posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0)
+-    posix_spawn_file_actions_addopen(&actions, 1, paths.daemonLog.path, O_WRONLY | O_CREAT | O_APPEND, 0o600)
++    posix_spawn_file_actions_addopen(&actions, 1, "/dev/null", O_WRONLY, 0)
+     posix_spawn_file_actions_adddup2(&actions, 1, 2)
+     var attributes: posix_spawnattr_t?
+     posix_spawnattr_init(&attributes)
+diff --git a/Sources/DMXCore/Daemon/DaemonProtocol.swift b/Sources/DMXCore/Daemon/DaemonProtocol.swift
+index d8d0ef3..7476ab5 100644
+--- a/Sources/DMXCore/Daemon/DaemonProtocol.swift
++++ b/Sources/DMXCore/Daemon/DaemonProtocol.swift
+@@ -52,6 +52,9 @@ public struct DaemonStatus: Codable, Sendable {
+     /// The Docker API socket (`DOCKER_HOST=unix://...`, or the `dmx` docker context).
+     public var dockerSocket: String? = nil
+ 
++    /// Startup diagnostic sinks that are disabled; VM operations continue normally.
++    public var logWarnings: [String]? = nil
++
+     public static func notRunning(_ paths: Paths, config: Config) -> DaemonStatus {
+         DaemonStatus(state: "not_running", pid: nil, version: nil, launchd: nil, uptimeS: nil, cpus: nil,
+                      maxMemory: nil, guestUsedMb: nil, hostFootprintMb: nil, hostPeakFootprintMb: nil,
+diff --git a/Sources/DMXCore/Daemon/DockerEngineConfig.swift b/Sources/DMXCore/Daemon/DockerEngineConfig.swift
+index 8bc2dae..e659046 100644
+--- a/Sources/DMXCore/Daemon/DockerEngineConfig.swift
++++ b/Sources/DMXCore/Daemon/DockerEngineConfig.swift
+@@ -38,6 +38,18 @@ enum DockerEngineConfig {
+         let ignored = settings.keys.filter(owned.contains).sorted()
+         for key in owned { settings[key] = nil }
+         settings.merge(required) { _, dmx in dmx }
++        // File logging is bounded by default. Explicit user choices still win, including
++        // other drivers (which may not accept these options) and explicit size/count options.
++        if settings["log-driver"] == nil { settings["log-driver"] = "json-file" }
++        if settings["log-driver"] as? String == "json-file" {
++            if let supplied = settings["log-opts"], !(supplied is [String: String]) {
++                throw invalid(userFile, "log-opts must be an object of string values")
++            }
++            var options = settings["log-opts"] as? [String: String] ?? [:]
++            if options["max-size"] == nil { options["max-size"] = "10m" }
++            if options["max-file"] == nil { options["max-file"] = "2" }
++            settings["log-opts"] = options
++        }
+         if settings["proxies"] == nil, let proxy { settings["proxies"] = proxy.daemonJSON }
+         let data = try JSONSerialization.data(withJSONObject: settings, options: [.prettyPrinted, .sortedKeys])
+         return (String(decoding: data, as: UTF8.self), ignored)
+diff --git a/Sources/DMXCore/Daemon/Launchd.swift b/Sources/DMXCore/Daemon/Launchd.swift
+index 79c4bde..ee5b98a 100644
+--- a/Sources/DMXCore/Daemon/Launchd.swift
++++ b/Sources/DMXCore/Daemon/Launchd.swift
+@@ -142,8 +142,8 @@ public enum LaunchAgent {
+                 // The first Docker client starts the daemon too (DockerBridge takes it by this name).
+                 "Docker": ["SockPathName": paths.dockerSocket.path, "SockPathMode": 0o600],
+             ],
+-            "StandardOutPath": paths.daemonLog.path,
+-            "StandardErrorPath": paths.daemonLog.path,
++            "StandardOutPath": "/dev/null",
++            "StandardErrorPath": "/dev/null",
+             // Containers are interactive work: no background CPU and I/O throttling.
+             "ProcessType": "Interactive",
+             // The daemon exits whenever it is idle; let the next connection start it at once.
+diff --git a/Sources/DMXCore/HV/Machine.swift b/Sources/DMXCore/HV/Machine.swift
+index 2e7312e..ff90d09 100644
+--- a/Sources/DMXCore/HV/Machine.swift
++++ b/Sources/DMXCore/HV/Machine.swift
+@@ -62,7 +62,11 @@ public final class Machine: @unchecked Sendable {
+     private var redistributorBase: UInt64 = 0
+     private var redistributorStride: UInt64 = 0
+ 
+-    public init(spec: MachineSpec, paths: Paths, console: FileHandle) throws {
++    public convenience init(spec: MachineSpec, paths: Paths, console: FileHandle) throws {
++        try self.init(spec: spec, paths: paths, output: .file(console))
++    }
++
++    init(spec: MachineSpec, paths: Paths, output: ConsoleOutput) throws {
+         for file in [paths.kernel, paths.initramfs] where !FileManager.default.fileExists(atPath: file.path) {
+             throw DMXError("guest_missing", "guest file not found: \(file.path)", hint: "run `make guest` to build the guest kernel and initramfs")
+         }
+@@ -110,11 +114,11 @@ public final class Machine: @unchecked Sendable {
+         try check(hv_gic_config_set_redistributor_base(gic, redistributorBase), "hv_gic_config_set_redistributor_base")
+         try check(hv_gic_create(gic), "hv_gic_create")
+ 
+-        uart = PL011(output: console) { level in
++        uart = PL011(output: output) { level in
+             hv_gic_set_spi(32 + HVLayout.uartSPI, level)
+         }
+         bus.append((HVLayout.uart, HVLayout.uartSize, uart))
+-        self.console = VirtioConsole(output: console)
++        self.console = VirtioConsole(output: output)
+         let ram = GuestRAM(base: ram, guestBase: HVLayout.ramBase, size: ramSize, hostMappings: hostMappings)
+         addVirtio(self.console, ram: ram)
+         addVirtio(VirtioRNG(), ram: ram)
+diff --git a/Sources/DMXCore/HV/PL011.swift b/Sources/DMXCore/HV/PL011.swift
+index 2719b19..b529819 100644
+--- a/Sources/DMXCore/HV/PL011.swift
++++ b/Sources/DMXCore/HV/PL011.swift
+@@ -11,7 +11,7 @@ protocol MMIODevice: AnyObject {
+ /// TX is raised by every write and RX while input waits, both cleared through ICR.
+ final class PL011: MMIODevice, @unchecked Sendable {
+     private let lock = NSLock()
+-    private let output: FileHandle
++    private let output: ConsoleOutput
+     private let irq: (Bool) -> Void
+     private var input: [UInt8] = []
+     private var level: UInt32 = 0      // raw interrupt status (RIS)
+@@ -22,7 +22,7 @@ final class PL011: MMIODevice, @unchecked Sendable {
+     /// PeriphID0-3 and PCellID0-3, which the AMBA bus reads to match the driver.
+     private static let ids: [UInt32] = [0x11, 0x10, 0x14, 0x00, 0x0d, 0xf0, 0x05, 0xb1]
+ 
+-    init(output: FileHandle, irq: @escaping (Bool) -> Void) {
++    init(output: ConsoleOutput, irq: @escaping (Bool) -> Void) {
+         self.output = output
+         self.irq = irq
+     }
+diff --git a/Sources/DMXCore/HV/VCPU.swift b/Sources/DMXCore/HV/VCPU.swift
+index 582e0a1..65be9d4 100644
+--- a/Sources/DMXCore/HV/VCPU.swift
++++ b/Sources/DMXCore/HV/VCPU.swift
+@@ -260,7 +260,7 @@ final class VCPU: @unchecked Sendable {
+     }
+ 
+     private func debug(_ message: String) {
+-        FileHandle.standardError.write(Data("dmx-vmm: vcpu \(index): \(message)\n".utf8))
++        Diagnostics.write(Data("dmx-vmm: vcpu \(index): \(message)\n".utf8))
+     }
+ 
+     // MARK: Registers
+diff --git a/Sources/DMXCore/HV/VirtioConsole.swift b/Sources/DMXCore/HV/VirtioConsole.swift
+index 5cd3017..de62642 100644
+--- a/Sources/DMXCore/HV/VirtioConsole.swift
++++ b/Sources/DMXCore/HV/VirtioConsole.swift
+@@ -5,13 +5,13 @@ final class VirtioConsole: VirtioDevice, @unchecked Sendable {
+     let deviceID: UInt32 = 3
+     let features: UInt64 = 0
+     let queueSizes: [UInt16] = [64, 64]  // receiveq (to the guest), transmitq (from it)
+-    private let output: FileHandle
++    private let output: ConsoleOutput
+     /// Guards `pending` and `transport`; taken before `transport.lock`.
+     private let inputLock = NSLock()
+     private var pending = Data()  // typed on the host, not yet in a guest buffer
+     private weak var transport: VirtioMMIO?
+ 
+-    init(output: FileHandle) { self.output = output }
++    init(output: ConsoleOutput) { self.output = output }
+ 
+     func activate(_ transport: VirtioMMIO, features: UInt64) {
+         inputLock.lock()
+diff --git a/Sources/DMXCore/Paths.swift b/Sources/DMXCore/Paths.swift
+index bfeea17..186b800 100644
+--- a/Sources/DMXCore/Paths.swift
++++ b/Sources/DMXCore/Paths.swift
+@@ -27,7 +27,7 @@ public struct Paths: Sendable {
+     /// Atomic lifecycle receipts; a menu app watches this directory without opening a socket.
+     public var activityDirectory: URL { home.appendingPathComponent("run", isDirectory: true) }
+     public var activity: URL { activityDirectory.appendingPathComponent("engine.json") }
+-    /// The guest console of the VM the daemon runs, rewritten on every boot.
++    /// Bounded guest console history across boots; .1/.2 are size rotations, not boot boundaries.
+     public var consoleLog: URL { logs.appendingPathComponent("console.log") }
+     /// The guest's data disk (/var/lib), a sparse raw image.
+     public var dataDisk: URL { home.appendingPathComponent("data.img") }
+diff --git a/Sources/DMXCore/RotatingLog.swift b/Sources/DMXCore/RotatingLog.swift
+new file mode 100644
+index 0000000..de35893
+--- /dev/null
++++ b/Sources/DMXCore/RotatingLog.swift
+@@ -0,0 +1,170 @@
++import Foundation
++
++/// A single owner's diagnostic stream. Synchronous writes bound both disk use and memory:
++/// no output queue, timer or polling. A daemon owns these files under its existing home lock.
++final class RotatingLog: @unchecked Sendable {
++    static let limit = 1 << 20
++    private let lock = NSLock()
++    private let url: URL
++    private let limit: Int
++    private var fd: Int32 = -1
++    private var size = 0
++
++    init(url: URL, limit: Int = RotatingLog.limit) throws {
++        precondition(limit > 0)
++        self.url = url
++        self.limit = limit
++        // Also bound files left by older versions, without loading an unlimited old log.
++        for suffix in [".2", ".1", ""] {
++            let path = url.path + suffix
++            let file = try Self.open(path, create: suffix.isEmpty)
++            if file >= 0 {
++                defer { Darwin.close(file) }
++                var info = stat()
++                guard fstat(file, &info) == 0 else { throw Self.error(path) }
++                if info.st_size > limit {
++                    var tail = [UInt8](repeating: 0, count: limit)
++                    var got = 0
++                    while got < limit {
++                        let n = tail.withUnsafeMutableBytes {
++                            pread(file, $0.baseAddress!.advanced(by: got), limit - got, info.st_size - off_t(limit) + off_t(got))
++                        }
++                        if n < 0, errno == EINTR { continue }
++                        guard n > 0 else { throw Self.error(path) }
++                        got += n
++                    }
++                    guard ftruncate(file, 0) == 0 else { throw Self.error(path) }
++                    try tail.withUnsafeBytes { try Self.write(file, $0, path: path) }
++                }
++            }
++        }
++        do { try reopen() }
++        catch {
++            if fd >= 0 { Darwin.close(fd); fd = -1 }
++            throw error
++        }
++    }
++
++    deinit { if fd >= 0 { Darwin.close(fd) } }
++
++    /// Logging failure must not crash the VM. On a full/unwritable disk, drop diagnostics;
++    /// the next write retries opening the file, without building an in-memory backlog.
++    func append(_ data: Data) {
++        lock.lock()
++        defer { lock.unlock() }
++        do {
++            if fd < 0 { try reopen() }
++            try data.withUnsafeBytes { bytes in
++                var offset = 0
++                while offset < bytes.count {
++                    if size == limit { try rotate() }
++                    let count = min(limit - size, bytes.count - offset)
++                    try Self.write(fd, UnsafeRawBufferPointer(rebasing: bytes[offset..<(offset + count)]), path: url.path)
++                    size += count
++                    offset += count
++                }
++            }
++        } catch {
++            if fd >= 0 { Darwin.close(fd); fd = -1 }
++        }
++    }
++
++    private func reopen() throws {
++        fd = try Self.open(url.path, create: true)
++        var info = stat()
++        guard fstat(fd, &info) == 0 else { throw Self.error(url.path) }
++        size = Int(info.st_size)
++        // Another program may have enlarged it since startup. Never append beyond the cap.
++        if size > limit { try rotate() }
++    }
++
++    private func rotate() throws {
++        if fd >= 0 { Darwin.close(fd); fd = -1 }
++        // rename/unlink never follow links at the destination. open() below rejects links.
++        if unlink(url.path + ".2") != 0, errno != ENOENT { throw Self.error(url.path + ".2") }
++        if rename(url.path + ".1", url.path + ".2") != 0, errno != ENOENT { throw Self.error(url.path + ".1") }
++        guard rename(url.path, url.path + ".1") == 0 else { throw Self.error(url.path) }
++        try reopen()
++    }
++
++    private static func open(_ path: String, create: Bool) throws -> Int32 {
++        let fd = Darwin.open(path, O_RDWR | O_APPEND | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK | (create ? O_CREAT : 0), 0o600)
++        if fd < 0, !create, errno == ENOENT { return -1 }
++        guard fd >= 0 else { throw error(path) }
++        var info = stat()
++        guard fstat(fd, &info) == 0, info.st_mode & S_IFMT == S_IFREG, info.st_nlink == 1 else {
++            Darwin.close(fd)
++            throw DMXError("log_invalid", "diagnostic log must be a regular file with one link: \(path)",
++                           hint: "move this log aside, then run `dmx start`")
++        }
++        return fd
++    }
++
++    private static func write(_ fd: Int32, _ bytes: UnsafeRawBufferPointer, path: String) throws {
++        var offset = 0
++        while offset < bytes.count {
++            let n = Darwin.write(fd, bytes.baseAddress!.advanced(by: offset), bytes.count - offset)
++            if n < 0, errno == EINTR { continue }
++            guard n > 0 else { throw error(path) }
++            offset += n
++        }
++    }
++
++    private static func error(_ path: String) -> DMXError {
++        DMXError("log_unwritable", "cannot write diagnostic log \(path): \(String(cString: strerror(errno)))",
++                 hint: "check the log directory's permissions and free space, then run `dmx start`")
++    }
++}
++
++/// Both UART and virtio-console use the same synchronized bounded sink in daemon mode.
++/// Interactive boot and selftest retain their original file/pipe output.
++enum ConsoleOutput {
++    case file(FileHandle)
++    case log(RotatingLog?)
++
++    func write(_ data: Data) {
++        switch self {
++        case .file(let file): file.write(data)
++        case .log(let log): log?.append(data)
++        }
++    }
++}
++
++/// Process-wide diagnostics: a daemon installs its bounded sink before starting any VM.
++/// Foreground debugging retains stderr; detached/launchd daemons tee to /dev/null.
++enum Diagnostics {
++    private final class State: @unchecked Sendable {
++        let lock = NSLock()
++        var log: RotatingLog?
++    }
++    private static let state = State()
++
++    static func install(_ log: RotatingLog?) {
++        state.lock.lock()
++        state.log = log
++        state.lock.unlock()
++    }
++
++    static func write(_ data: Data) {
++        state.lock.lock()
++        let log = state.log
++        state.lock.unlock()
++        log?.append(data)
++        FileHandle.standardError.write(data)
++    }
++
++    /// Older launchd jobs opened daemon.log themselves. Release those descriptors before
++    /// rotation, so a renamed/deleted old inode cannot retain unbounded disk space.
++    static func detachLegacyLog(_ url: URL) {
++        var target = stat()
++        // Resolve metadata only: an older launchd job may already have followed a symlink.
++        guard stat(url.path, &target) == 0 else { return }
++        for fd in [STDOUT_FILENO, STDERR_FILENO] {
++            var info = stat()
++            if fstat(fd, &info) == 0, info.st_dev == target.st_dev, info.st_ino == target.st_ino {
++                let null = Darwin.open("/dev/null", O_WRONLY | O_CLOEXEC)
++                if null >= 0 { _ = dup2(null, fd); Darwin.close(null) }
++            }
++        }
++    }
++}
+diff --git a/Sources/DMXCore/Version.swift b/Sources/DMXCore/Version.swift
+index 5fbbbdb..8d6ae61 100644
+--- a/Sources/DMXCore/Version.swift
++++ b/Sources/DMXCore/Version.swift
+@@ -4,4 +4,4 @@
+ /// socket and `DaemonClient` compares it with the daemon that answers: after an update the old
+ /// daemon keeps serving until it exits, and a user who does not know that would think the new
+ /// version is running. `scripts/release.py` reads this line to check the version it was asked for.
+-public let dmxVersion = "0.4.0"
++public let dmxVersion = "0.4.1"
+diff --git a/Sources/dmx/Lifecycle.swift b/Sources/dmx/Lifecycle.swift
+index 760ff96..a7cd01b 100644
+--- a/Sources/dmx/Lifecycle.swift
++++ b/Sources/dmx/Lifecycle.swift
+@@ -313,6 +313,7 @@ func describe(_ s: DaemonStatus) -> String {
+     if let clients = s.clients, let execs = s.execs, s.state != "not_running" {
+         lines.append("  clients: \(clients), execs: \(execs)")
+     }
++    for warning in s.logWarnings ?? [] { lines.append("  log warning: \(warning)") }
+     lines.append("  idle timeout: \(formatDuration(s.idleTimeoutS))" + (s.idleStopInS.map { ", stops in \(formatElapsed($0)) if nothing uses it" } ?? ""))
+     return lines.joined(separator: "\n")
+ }
+diff --git a/Tests/DMXCoreTests/DockerTests.swift b/Tests/DMXCoreTests/DockerTests.swift
+index 52fb7fa..74c7a62 100644
+--- a/Tests/DMXCoreTests/DockerTests.swift
++++ b/Tests/DMXCoreTests/DockerTests.swift
+@@ -84,6 +84,33 @@ import Testing
+         }
+     }
+ 
++    @Test func engineLoggingDefaultsRespectExplicitChoices() throws {
++        let dir = URL(fileURLWithPath: NSTemporaryDirectory() + "dmx-log-config-\(UUID().uuidString)")
++        defer { try? FileManager.default.removeItem(at: dir) }
++        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
++        let file = dir.appendingPathComponent("daemon.json")
++        func build(_ input: String) throws -> [String: Any] {
++            try Data(input.utf8).write(to: file)
++            let json = try DockerEngineConfig.build(userFile: file).json
++            return try #require(JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
++        }
++        let bare = try build("{}")
++        #expect(bare["log-driver"] as? String == "json-file")
++        #expect(bare["log-opts"] as? [String: String] == ["max-size": "10m", "max-file": "2"])
++        let custom = try build(#"{"log-driver":"json-file","log-opts":{"max-size":"25m","labels":"task"}}"#)
++        #expect(custom["log-opts"] as? [String: String] == ["max-size": "25m", "max-file": "2", "labels": "task"])
++        for driver in ["local", "none", "syslog"] {
++            let other = try build("{\"log-driver\":\"\(driver)\"}")
++            #expect(other["log-driver"] as? String == driver)
++            #expect(other["log-opts"] == nil)
++        }
++        let other = try build(#"{"log-driver":"syslog","log-opts":{"syslog-address":"udp://localhost:514"}}"#)
++        #expect(other["log-opts"] as? [String: String] == ["syslog-address": "udp://localhost:514"])
++        for bad in [#"{"log-opts":{"max-size":10}}"#, #"{"log-opts":[]}"#, #"{"log-opts":null}"#] {
++            #expect(throws: DMXError.self) { try build(bad) }
++        }
++    }
++
+     @Test func contextInstallAndUninstall() throws {
+         let dir = URL(fileURLWithPath: NSTemporaryDirectory() + "dmx-docker-config-\(UUID().uuidString)")
+         defer { try? FileManager.default.removeItem(at: dir) }
+diff --git a/Tests/DMXCoreTests/RotatingLogTests.swift b/Tests/DMXCoreTests/RotatingLogTests.swift
+new file mode 100644
+index 0000000..7012889
+--- /dev/null
++++ b/Tests/DMXCoreTests/RotatingLogTests.swift
+@@ -0,0 +1,96 @@
++import Foundation
++import Testing
++@testable import DMXCore
++
++@Suite struct RotatingLogTests {
++    private func directory() throws -> URL {
++        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("dmx-log-\(UUID().uuidString)")
++        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
++        return dir
++    }
++
++    @Test func retainsNewestBytesAndBoundsOldFiles() throws {
++        let dir = try directory()
++        defer { try? FileManager.default.removeItem(at: dir) }
++        let path = dir.appendingPathComponent("console.log")
++        let old = Data((0..<10_000).map { UInt8($0 % 251) })
++        for suffix in ["", ".1", ".2"] {
++            try old.write(to: URL(fileURLWithPath: path.path + suffix))
++        }
++        let log = try RotatingLog(url: path, limit: 64)
++        for suffix in ["", ".1", ".2"] {
++            #expect(try Data(contentsOf: URL(fileURLWithPath: path.path + suffix)) == old.suffix(64))
++        }
++        let bytes = Data((0..<1003).map { UInt8($0 % 251) })
++        log.append(bytes.prefix(17))
++        log.append(bytes.dropFirst(17))
++        let retained = try [".2", ".1", ""].reduce(into: Data()) { result, suffix in
++            let file = try Data(contentsOf: URL(fileURLWithPath: path.path + suffix))
++            #expect(file.count <= 64)
++            result.append(file)
++        }
++        #expect(retained == bytes.suffix(retained.count))
++        // Reopening must append rather than overwrite the start of the existing file.
++        let before = try Data(contentsOf: path)
++        let reopened = try RotatingLog(url: path, limit: 64)
++        reopened.append(Data("END".utf8))
++        #expect(try Data(contentsOf: path) == before + Data("END".utf8))
++    }
++
++    @Test func concurrentConsoleWritersDoNotInterleaveRecords() throws {
++        let dir = try directory()
++        defer { try? FileManager.default.removeItem(at: dir) }
++        let path = dir.appendingPathComponent("console.log")
++        let log = try RotatingLog(url: path, limit: 1023)
++        DispatchQueue.concurrentPerform(iterations: 1000) { i in
++            log.append(Data(String(format: "%07d\n", i).utf8))
++        }
++        let retained = try [".2", ".1", ""].reduce(into: Data()) { result, suffix in
++            let file = try Data(contentsOf: URL(fileURLWithPath: path.path + suffix))
++            #expect(file.count <= 1023)
++            result.append(file)
++        }
++        // The retained prefix may start within a record. All complete records must remain
++        // intact across rotations whose limits deliberately do not align with record length.
++        let lines = String(decoding: retained, as: UTF8.self).split(separator: "\n").dropFirst()
++        #expect(lines.count > 300)
++        #expect(lines.allSatisfy { $0.count == 7 && Int($0).map { (0..<1000).contains($0) } == true })
++        #expect(Set(lines).count == lines.count)
++    }
++
++    @Test func failedRotationDropsOutputAndRetriesAfterPermissionsRecover() throws {
++        let dir = try directory()
++        defer {
++            _ = chmod(dir.path, 0o700)
++            try? FileManager.default.removeItem(at: dir)
++        }
++        let path = dir.appendingPathComponent("daemon.log")
++        let log = try RotatingLog(url: path, limit: 64)
++        log.append(Data(repeating: 97, count: 64))
++        #expect(chmod(dir.path, 0o500) == 0)
++        log.append(Data(repeating: 98, count: 1000))
++        #expect(try Data(contentsOf: path) == Data(repeating: 97, count: 64))
++        #expect(chmod(dir.path, 0o700) == 0)
++        log.append(Data("RECOVERED".utf8))
++        #expect(try Data(contentsOf: path) == Data("RECOVERED".utf8))
++        #expect(try Data(contentsOf: URL(fileURLWithPath: path.path + ".1")) == Data(repeating: 97, count: 64))
++    }
++
++    @Test func rejectsLinksAndSpecialFilesWithoutChangingTargets() throws {
++        let dir = try directory()
++        defer { try? FileManager.default.removeItem(at: dir) }
++        let target = dir.appendingPathComponent("keep")
++        let log = dir.appendingPathComponent("daemon.log")
++        let saved = Data(repeating: 42, count: 1000)
++        try saved.write(to: target)
++        try FileManager.default.createSymbolicLink(at: log, withDestinationURL: target)
++        #expect(throws: DMXError.self) { try RotatingLog(url: log, limit: 64) }
++        try FileManager.default.removeItem(at: log)
++        #expect(link(target.path, log.path) == 0)
++        #expect(throws: DMXError.self) { try RotatingLog(url: log, limit: 64) }
++        #expect(try Data(contentsOf: target) == saved)
++        try FileManager.default.removeItem(at: log)
++        #expect(mkfifo(log.path, 0o600) == 0)
++        #expect(throws: DMXError.self) { try RotatingLog(url: log, limit: 64) }
++    }
++}
+diff --git a/docs/PLAN.md b/docs/PLAN.md
+index 7e3b83e..9fd5dcf 100644
+--- a/docs/PLAN.md
++++ b/docs/PLAN.md
+@@ -560,8 +560,24 @@ Done when: on a Mac whose only way out is an HTTP proxy (no authentication) with
+ Local implementation and proof: [menu-app.md](menu-app.md). Direct GUI acceptance remains
+ separate from Core/VM tests and the completed public distribution checks.
+ 
++### Storage/log hardening (2026-10-30, release work in progress)
++
++- [x] Delete regenerable duplicate development/release artifacts; preserve user data and pinned inputs.
++- [x] Bound host daemon/console and guest dockerd diagnostics to 1 MiB x3 per stream.
++- [x] Set new-container default json-file rotation to 10m x2; preserve explicit logging choices.
++- [ ] Finish actual-VM overflow, old-log migration, memory comparison and release qualification.
++- [ ] Resolve actual Opus 5.5 review findings, sign/notarize and publish v0.4.1; verify public bytes
++      and fresh/update paths, then install the signed app locally.
++
+ ## Next up
+ 
++**Active maintainer request (2026-10-30):** complete the storage/log hardening checklist above,
++then actual Opus 5.5 review and v0.4.1 release. The pause was explicitly lifted. Release is
++already authorized, conditional on resolving defects and qualification. Preserve the installed
++user engine/data and the unrelated untracked photo. Direct GUI acceptance from Phase 12 remains
++separate; community announcements and another hosted upload job are not authorized by this work.
++
++
+ For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md).
+ 
+ **v0.4.0 is published**, the first unified native app/CLI distribution, from tagged commit
+@@ -692,6 +708,24 @@ acceptance suites.
+ 
+ ## Findings and measurements
+ 
++### Storage preflight (2026-10-30)
++
++Regenerable local output was 5.437 GiB. Removed 4,718,551,040 allocated bytes (4.394 GiB)
++from duplicate old distributions, test installations and old guest copies. Kept compiled build
++cache, v0.4.0 guest baseline, raw review/transport helpers, all committed evidence, installed
++app/CLI and `~/.dmx` (including user data and pinned source build cache). Before cleanup,
++`~/.dmx` used about 1.837 GiB: cache 1.195 GiB, sparse 64 GiB data disk 451.55 MiB allocated,
++daemon log about 60 KiB. These observations do not establish the cause of earlier macOS swap.
++At resumed preflight, macOS swap was 0 MiB. No host pressure stress was run.
++
++Baseline source v0.4.0 selftest: 23 checks passed, host idle 98 MiB, after-reclaim 103 MiB.
++Initial flood test failed its LF-only console marker assertion. Independent real-VM diagnosis
++observed `opost onlcr` and the exact tail `CONSOLE-TAIL\r\n`; current/backup log sizes were
++422/1,048,576/1,048,576 bytes. Corrected the harness to accept the actual terminal newline;
++this is a test defect, not evidence of dropped console output. Retain the failed result and
++byte/stty diagnosis with final verification evidence.
++
++
+ ### Native app review and unified installation (2026-10-29, v0.4.0 published)
+ 
+ Actual `claude-opus-5-5` reviewed immutable source snapshots read-only. Initial and follow-up
+@@ -1075,6 +1109,10 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
+ 
+ ## Progress log
+ 
++- 2026-10-30: Resumed authorized artifact cleanup and log growth hardening. Removed 4.394 GiB
++  of regenerable outputs, added bounded diagnostic streams/default container rotation and
++  regression tests. Actual Opus 5.5 review and real-VM release qualification in progress.
++
+ - 2026-10-29: Published signed/notarized/stapled v0.4.0 from `9297d39` after actual Opus 5.5 approval. All 14 public assets, fresh unified install, selftest23, arm64/amd64/386 containers, public whole-app update and previous-CLI migration pass; live VM/container/volume preservation and daemon cleanup verified. Installed the published app/CLI locally without starting the engine. Direct status-menu GUI acceptance remains open.
+ 
+ - 2026-10-29: Qualified the unified v0.4.0 native app candidate after actual Opus 5.5 reviews;
+diff --git a/docs/docker.md b/docs/docker.md
+index d108984..8d15646 100644
+--- a/docs/docker.md
++++ b/docs/docker.md
+@@ -174,13 +174,42 @@ docker CLI ──▶ ~/.dmx/docker.sock ──▶ dmx daemon ──vsock──
+ - **Configuration** (`/run/dmx/daemon.json`): `host-gateway-ips` 192.168.127.254 and
+   fd64:646d:7800::254 (the Mac, so `--add-host x:host-gateway` works as on Docker Desktop),
+   `shutdown-timeout` 5 s (the host powers the guest off within 10 s; the agent
+-  sends dockerd SIGTERM and waits up to 7 s so containers stop cleanly). Everything else is
+-  Docker's default: overlayfs, the containerd image store, json-file logs, the userland proxy,
++  sends dockerd SIGTERM and waits up to 7 s so containers stop cleanly). New containers default
++  to json-file logging with `max-size: "10m"` and `max-file: "2"`. Explicit settings in the user's
++  `daemon.json` and per-container logging options win; other logging drivers receive no json-file
++  options. Existing containers retain their creation-time logging settings, including unlimited
++  logs: recreate them with the desired options to apply a new policy. See Docker's
++  [logging configuration](https://docs.docker.com/engine/logging/configure/).
++  Everything else is Docker's default: overlayfs, the containerd image store, the userland proxy,
+   cgroup v2 with cgroupfs. dockerd and its containerd run in the `/dmx-docker` cgroup and
+   containers in `/docker/<id>`: from the root cgroup, which has no `memory.swap.max`, dockerd
+   reported no swap limit support, warned on every `--memory` and left swap unlimited. Images, containers and volumes live on the data disk
+   (`/var/lib/docker`, `/var/lib/containerd`). dockerd's log is `/var/lib/dmx/log/dockerd.log`
+-  (`dmx exec -- tail /var/lib/dmx/log/dockerd.log`), the previous one `dockerd.log.1`.
++  (`dmx exec -- tail /var/lib/dmx/log/dockerd.log`). Its current file and `.1`/`.2` backups are
++  each limited to 1 MiB; backups represent size rotations, not individual starts. The agent drains dockerd's output using an 8 KiB buffer and retains only
++  an 8 KiB startup error tail; it never queues output proportional to log volume.
++
++Host diagnostic logs (`$DMX_HOME/logs/daemon.log` and `console.log`) also retain a current file
++and two backups, each at most 1 MiB: at most 6 MiB for both streams. The guest dockerd stream
++adds at most 3 MiB on the data disk, plus filesystem metadata. Old oversized diagnostic files
++are reduced to their newest 1 MiB when their owner starts. Older launchd log descriptors are
++released before rotation so deleted old files cannot retain space. Log disk errors drop output
++without building a memory backlog. If a sink cannot be initialized (full disk, permissions or an
++unsafe link/special file), the engine still starts and drops that stream. Host startup warnings
++appear in `dmx status` / `log_warnings` in JSON; guest setup failures appear on the console.
++Repair the directory and run `dmx stop` followed by `dmx start` to recreate disabled sinks.
++Existing files that cannot safely be opened are left alone; their pre-existing sizes are outside
++the usable-stream budget. Console boot markers distinguish history from the current boot.
++If the guest agent itself crashes and restarts while dockerd survives, the inherited output
++pipe cannot be reattached: Docker continues to run, but its diagnostic output resumes only after
++`dmx stop` / `dmx start`. This does not affect container logs, which dockerd owns.
++
++These limits cover diagnostic output and default new-container logs. Container writable layers,
++images, volumes, build cache and explicitly configured logging have their own sizes; dmx does
++not delete user data to enforce a global disk quota. The sparse data disk returns free guest
++blocks through discard and the default idle trim. Build/release files under `.build` are
++regenerable development artifacts and are safe to remove when no build/review/release uses them;
++`~/.dmx/data.img` is user data, not a build artifact.
+ 
+ ## The socket
+ 
+diff --git a/docs/memory.md b/docs/memory.md
+index 4c91ebf..4141370 100644
+--- a/docs/memory.md
++++ b/docs/memory.md
+@@ -16,6 +16,11 @@ This repo is public: no private hostnames, IPs or personal details here.
+ 
+ ## Maintainer preferences
+ 
++- 2026-10-30: Authorized deleting regenerable development/release artifacts, hardening log
++  growth, actual Opus 5.5 review and release after resolving defects. Preserve user VM data
++  and pinned build inputs. Paused during preflight, then explicitly resumed. This authorization
++  does not include community announcements or a new GitHub Actions exception.
++
+ - 2026-10-29: Allowed one manually dispatched GitHub Actions job to reconstruct the byte-identical,
+   pinned GPL source archive from the previous public release and upload it to the existing draft.
+   App builds and tests stay local; remove the active workflow after upload. This is a one-time
+diff --git a/docs/release-notes/0.4.1.md b/docs/release-notes/0.4.1.md
+new file mode 100644
+index 0000000..7c4f35b
+--- /dev/null
++++ b/docs/release-notes/0.4.1.md
+@@ -0,0 +1,21 @@
++## Changes since 0.4.0
++
++- Bound daemon, VM console and guest dockerd diagnostic streams: each keeps at most three
++  1 MiB files. Oversized old logs are trimmed on startup; legacy launchd log descriptors are
++  detached before rotation. Output does not accumulate in an in-memory queue.
++- New containers default to json-file logging with `max-size: "10m"` and `max-file: "2"`.
++  Explicit daemon/per-container choices are preserved. Existing containers retain their old
++  logging settings; recreate them with the desired options to change those settings.
++- Guest startup diagnostics retain only an 8 KiB error tail. A collector's lifetime follows
++  dockerd instead of its inherited pipes, so a surviving descendant cannot keep the log lock
++  and block Docker restart after a failed start or crash. Timed-out starts are killed/reaped.
++- Log setup failures no longer block engine/Docker startup: unusable sinks are disabled,
++  host warnings appear in `dmx status`, and output is drained with bounded memory.
++
++Images, volumes, writable layers and build caches remain user data; this change does not
++impose a global disk quota or remove existing containers. Usable host and guest diagnostic
++streams together use at most 9 MiB of file contents, plus filesystem metadata. Inaccessible
++or unsafe old files are left alone. See `docs/docker.md` for details.
++
++If the guest agent itself crashes while dockerd survives, Docker continues but diagnostic
++output requires a VM restart to resume; container logs are independent of this limitation.
+diff --git a/docs/release.md b/docs/release.md
+index cf6cdfb..3bc3093 100644
+--- a/docs/release.md
++++ b/docs/release.md
+@@ -69,7 +69,7 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
+    make build && make formaltest && make selftest
+    make daemontest && make mcptest && make x86test && make dockertest
+    make sandboxtest && make imagetest
+-   make javatest && make menutest && make apptest
++   make javatest && make menutest && make apptest && make storagetest
+    ```
+ 
+ 4. Write what changed since the last release in `docs/release-notes/<version>.md`, starting with
+diff --git a/guest/agent/src/docker.rs b/guest/agent/src/docker.rs
+index 674b6ac..7d333eb 100644
+--- a/guest/agent/src/docker.rs
++++ b/guest/agent/src/docker.rs
+@@ -10,8 +10,11 @@ use std::io::{self, Read, Write};
+ use std::os::unix::fs::OpenOptionsExt;
+ use std::os::unix::net::UnixStream;
+ use std::os::unix::process::CommandExt;
+-use std::process::{Command, Stdio};
+-use std::sync::Mutex;
++use std::process::{ChildStderr, Command, Stdio};
++use std::os::fd::AsRawFd;
++use std::sync::{Arc, Mutex};
++use std::collections::VecDeque;
++use std::path::Path;
+ use std::time::{Duration, Instant};
+ 
+ const SCRIPT: &str = "/sbin/dmx-docker";
+@@ -74,6 +77,13 @@ pub fn start(only_restartable: bool, params: StartParams) -> io::Result<Started>
+         Some(pem) => std::fs::write(HOST_CA, pem)?,
+         None => drop(std::fs::remove_file(HOST_CA)),
+     }
++    let log = match crate::rotating_log::RotatingLog::new(Path::new(LOG), crate::rotating_log::LIMIT) {
++        Ok(log) => Some(log),
++        Err(error) => {
++            eprintln!("dmx-agent: diagnostic logging disabled for {LOG}: {error}");
++            None
++        }
++    };
+     let mut cmd = Command::new(SCRIPT);
+     cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::piped());
+     // Its own session, so nothing aimed at an exec's process group reaches it.
+@@ -85,34 +95,114 @@ pub fn start(only_restartable: bool, params: StartParams) -> io::Result<Started>
+         });
+     }
+     let mut child = cmd.spawn().map_err(|e| io::Error::new(e.kind(), format!("{SCRIPT}: {e}")))?;
+-    // The script's own complaints; dockerd's output goes to its log, which closes this pipe.
+-    let mut stderr = child.stderr.take();
+-    let complaints = std::thread::spawn(move || {
+-        let mut text = String::new();
+-        if let Some(s) = stderr.as_mut() {
+-            let _ = s.read_to_string(&mut text);
++    let collector = match OutputCollector::start(child.stderr.take().unwrap(), log) {
++        Ok(collector) => collector,
++        Err(error) => {
++            unsafe { libc::kill(-(child.id() as i32), libc::SIGKILL); }
++            let _ = child.wait();
++            return Err(error);
+         }
+-        text
+-    });
++    };
+     loop {
+         if answers() {
+             std::thread::spawn(move || {
+                 let status = child.wait();
++                collector.finish();
+                 eprintln!("dmx-agent: dockerd exited: {status:?}");
+             });
+             return Ok(Started { started: true, ms: begun.elapsed().as_millis() as u64, running: true, restartable });
+         }
+         if let Some(status) = child.try_wait()? {
+-            let text = complaints.join().unwrap_or_default();
++            let text = collector.finish();
+             return Err(io::Error::other(format!("dockerd did not start ({status}): {} (see {LOG})", text.trim())));
+         }
+         if begun.elapsed() > START_TIMEOUT {
++            // A retry must not leave another dockerd and collector alive in the background.
++            unsafe { libc::kill(-(child.id() as i32), libc::SIGKILL); }
++            let _ = child.wait();
++            collector.finish();
+             return Err(io::Error::other(format!("dockerd did not answer within {} s (see {LOG})", START_TIMEOUT.as_secs())));
+         }
+         std::thread::sleep(Duration::from_millis(20));
+     }
+ }
+ 
++/// The child owns its collector lifetime. A cancellation socket wakes an indefinite poll
++/// when the child exits, even if a descendant inherited stderr. No idle timer or polling loop.
++struct OutputCollector {
++    cancel: UnixStream,
++    reader: std::thread::JoinHandle<()>,
++    tail: Arc<Mutex<VecDeque<u8>>>,
++}
++
++impl OutputCollector {
++    fn start(mut stderr: ChildStderr, mut log: Option<crate::rotating_log::RotatingLog>) -> io::Result<Self> {
++        let (cancel, stop) = UnixStream::pair()?;
++        let fd = stderr.as_raw_fd();
++        let flags = unsafe { libc::fcntl(fd, libc::F_GETFL) };
++        if flags < 0 || unsafe { libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK) } < 0 {
++            return Err(io::Error::last_os_error());
++        }
++        let tail = Arc::new(Mutex::new(VecDeque::with_capacity(8192)));
++        let saved = tail.clone();
++        let reader = std::thread::spawn(move || {
++            let mut buffer = [0u8; 8192];
++            let mut consume = |bytes: &[u8]| {
++                if let Some(log) = log.as_mut() { log.append(bytes); }
++                let mut tail = saved.lock().unwrap_or_else(|e| e.into_inner());
++                let excess = (tail.len() + bytes.len()).saturating_sub(8192);
++                tail.drain(..excess);
++                tail.extend(bytes);
++            };
++            let mut fds = [
++                libc::pollfd { fd, events: libc::POLLIN, revents: 0 },
++                libc::pollfd { fd: stop.as_raw_fd(), events: libc::POLLIN, revents: 0 },
++            ];
++            loop {
++                if unsafe { libc::poll(fds.as_mut_ptr(), 2, -1) } < 0 {
++                    if io::Error::last_os_error().kind() == io::ErrorKind::Interrupted { continue; }
++                    break;
++                }
++                if fds[1].revents != 0 {
++                    // Drain only bytes already queued at cancellation. A live descendant
++                    // cannot extend this finite budget or keep the log lock alive.
++                    let mut available: libc::c_int = 0;
++                    unsafe { libc::ioctl(fd, libc::FIONREAD, &mut available); }
++                    let mut left = (available.max(0) as usize).min(crate::rotating_log::LIMIT);
++                    while left > 0 {
++                        let want = left.min(buffer.len());
++                        match stderr.read(&mut buffer[..want]) {
++                            Ok(0) => break,
++                            Ok(n) => { consume(&buffer[..n]); left -= n; }
++                            Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
++                            Err(_) => break,
++                        }
++                    }
++                    break;
++                }
++                match stderr.read(&mut buffer) {
++                    Ok(0) => break,
++                    Ok(n) => consume(&buffer[..n]),
++                    Err(e) if matches!(e.kind(), io::ErrorKind::Interrupted | io::ErrorKind::WouldBlock) => continue,
++                    Err(_) => break,
++                }
++            }
++        });
++        Ok(Self { cancel, reader, tail })
++    }
++
++    fn finish(self) -> String {
++        drop(self.cancel);
++        let _ = self.reader.join();
++        complaint_tail(&self.tail)
++    }
++}
++
++fn complaint_tail(tail: &Mutex<VecDeque<u8>>) -> String {
++    let bytes: Vec<u8> = tail.lock().unwrap_or_else(|e| e.into_inner()).iter().copied().collect();
++    String::from_utf8_lossy(&bytes).into_owned()
++}
++
+ fn answers() -> bool {
+     UnixStream::connect(SOCKET).is_ok()
+ }
+@@ -163,3 +253,26 @@ fn alive(pid: libc::pid_t) -> bool {
+         Err(_) => false,
+     }
+ }
++
++#[cfg(test)]
++mod output_tests {
++    use super::*;
++
++    #[test]
++    fn inherited_stderr_cannot_hold_the_log_lock_after_child_exit() {
++        let dir = std::env::temp_dir().join(format!("dmx-collector-test-{}", std::process::id()));
++        std::fs::create_dir_all(&dir).unwrap();
++        let path = dir.join("dockerd.log");
++        let log = crate::rotating_log::RotatingLog::new(&path, 64).unwrap();
++        let mut child = Command::new("sh").args(["-c", "sleep 3 & echo COLLECTOR-TAIL >&2; exit 23"])
++            .stdout(Stdio::null()).stderr(Stdio::piped()).spawn().unwrap();
++        let collector = OutputCollector::start(child.stderr.take().unwrap(), Some(log)).unwrap();
++        assert_eq!(child.wait().unwrap().code(), Some(23));
++        let started = Instant::now();
++        let tail = collector.finish();
++        assert!(started.elapsed() < Duration::from_secs(1));
++        assert!(tail.contains("COLLECTOR-TAIL"));
++        assert!(crate::rotating_log::RotatingLog::new(&path, 64).is_ok());
++        std::fs::remove_dir_all(dir).unwrap();
++    }
++}
+diff --git a/guest/agent/src/main.rs b/guest/agent/src/main.rs
+index d5d28cc..b29c6d8 100644
+--- a/guest/agent/src/main.rs
++++ b/guest/agent/src/main.rs
+@@ -5,6 +5,7 @@ mod exec;
+ mod forward;
+ mod frame;
+ mod host_services;
++mod rotating_log;
+ mod sys;
+ mod vsock;
+ 
+diff --git a/guest/agent/src/rotating_log.rs b/guest/agent/src/rotating_log.rs
+new file mode 100644
+index 0000000..137b537
+--- /dev/null
++++ b/guest/agent/src/rotating_log.rs
+@@ -0,0 +1,156 @@
++//! A bounded diagnostic file, owned by one collector. No queue of output in memory.
++use std::fs::{File, OpenOptions};
++use std::io::{self, Read, Seek, SeekFrom, Write};
++use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
++use std::os::fd::AsRawFd;
++use std::path::{Path, PathBuf};
++
++pub const LIMIT: usize = 1 << 20;
++
++pub struct RotatingLog {
++    path: PathBuf,
++    limit: usize,
++    file: Option<File>,
++    size: usize,
++    _lock: File,
++}
++
++impl RotatingLog {
++    pub fn new(path: &Path, limit: usize) -> io::Result<Self> {
++        assert!(limit > 0);
++        std::fs::create_dir_all(path.parent().unwrap())?;
++        let lock = open(&suffix(path, ".lock"), true)?.unwrap();
++        if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
++            return Err(io::Error::last_os_error());
++        }
++        for end in [".2", ".1", ""] {
++            if let Some(mut file) = open(&suffix(path, end), end.is_empty())? {
++                let size = file.metadata()?.len();
++                if size > limit as u64 {
++                    file.seek(SeekFrom::End(-(limit as i64)))?;
++                    let mut tail = vec![0; limit];
++                    file.read_exact(&mut tail)?;
++                    file.set_len(0)?;
++                    file.seek(SeekFrom::Start(0))?;
++                    file.write_all(&tail)?;
++                }
++            }
++        }
++        let mut log = Self { path: path.to_owned(), limit, file: None, size: 0, _lock: lock };
++        log.reopen()?;
++        Ok(log)
++    }
++
++    pub fn append(&mut self, bytes: &[u8]) {
++        if self.write(bytes).is_err() {
++            // Disk full or permissions changed: drop output, retry next chunk, never queue it.
++            self.file = None;
++        }
++    }
++
++    fn write(&mut self, mut bytes: &[u8]) -> io::Result<()> {
++        if self.file.is_none() { self.reopen()?; }
++        while !bytes.is_empty() {
++            if self.size >= self.limit { self.rotate()?; }
++            let n = bytes.len().min(self.limit - self.size);
++            self.file.as_mut().unwrap().write_all(&bytes[..n])?;
++            self.size += n;
++            bytes = &bytes[n..];
++        }
++        Ok(())
++    }
++
++    fn reopen(&mut self) -> io::Result<()> {
++        let mut file = open(&self.path, true)?.unwrap();
++        self.size = file.metadata()?.len().try_into().unwrap_or(usize::MAX);
++        file.seek(SeekFrom::End(0))?;
++        self.file = Some(file);
++        if self.size > self.limit { self.rotate()?; }
++        Ok(())
++    }
++
++    fn rotate(&mut self) -> io::Result<()> {
++        self.file = None;
++        match std::fs::remove_file(suffix(&self.path, ".2")) {
++            Ok(()) => {}, Err(e) if e.kind() == io::ErrorKind::NotFound => {}, Err(e) => return Err(e),
++        }
++        match std::fs::rename(suffix(&self.path, ".1"), suffix(&self.path, ".2")) {
++            Ok(()) => {}, Err(e) if e.kind() == io::ErrorKind::NotFound => {}, Err(e) => return Err(e),
++        }
++        std::fs::rename(&self.path, suffix(&self.path, ".1"))?;
++        self.reopen()
++    }
++}
++
++fn suffix(path: &Path, end: &str) -> PathBuf {
++    let mut name = path.as_os_str().to_owned();
++    name.push(end);
++    PathBuf::from(name)
++}
++
++fn open(path: &Path, create: bool) -> io::Result<Option<File>> {
++    let file = match OpenOptions::new().read(true).write(true).create(create).mode(0o600)
++        .custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC).open(path) {
++        Ok(f) => f,
++        Err(e) if !create && e.kind() == io::ErrorKind::NotFound => return Ok(None),
++        Err(e) => return Err(e),
++    };
++    let info = file.metadata()?;
++    if !info.is_file() || info.nlink() != 1 {
++        return Err(io::Error::other("log must be a regular file with one link"));
++    }
++    Ok(Some(file))
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn retains_tail_with_fixed_disk_budget() {
++        let dir = std::env::temp_dir().join(format!("dmx-log-test-{}", std::process::id()));
++        std::fs::create_dir_all(&dir).unwrap();
++        let path = dir.join("dockerd.log");
++        let old: Vec<u8> = (0..200).map(|i| i as u8).collect();
++        for s in ["", ".1", ".2"] { std::fs::write(suffix(&path, s), &old).unwrap(); }
++        let mut log = RotatingLog::new(&path, 64).unwrap();
++        for s in ["", ".1", ".2"] { assert_eq!(std::fs::read(suffix(&path, s)).unwrap(), old[136..]); }
++        let bytes: Vec<u8> = (0..251).map(|i| i as u8).collect();
++        log.append(&bytes);
++        drop(log);
++        let retained: Vec<u8> = [".2", ".1", ""].into_iter().flat_map(|s| {
++            let bytes = std::fs::read(suffix(&path, s)).unwrap();
++            assert!(bytes.len() <= 64);
++            bytes
++        }).collect();
++        assert!(retained.ends_with(&bytes[bytes.len()-128..]));
++        // A log planted as a symlink/hard link must not change the target.
++        std::fs::remove_file(&path).unwrap();
++        let target = dir.join("keep");
++        std::fs::write(&target, b"preserve").unwrap();
++        std::os::unix::fs::symlink(&target, &path).unwrap();
++        assert!(RotatingLog::new(&path, 64).is_err());
++        std::fs::remove_file(&path).unwrap();
++        std::fs::hard_link(&target, &path).unwrap();
++        assert!(RotatingLog::new(&path, 64).is_err());
++        assert_eq!(std::fs::read(&target).unwrap(), b"preserve");
++        std::fs::remove_dir_all(dir).unwrap();
++    }
++    #[test]
++    fn rotation_error_drops_bytes_then_recovers() {
++        let dir = std::env::temp_dir().join(format!("dmx-retry-test-{}", std::process::id()));
++        std::fs::create_dir_all(&dir).unwrap();
++        let path = dir.join("dockerd.log");
++        let mut log = RotatingLog::new(&path, 64).unwrap();
++        log.append(&[b'a'; 64]);
++        // Even root cannot unlink a directory with remove_file; deterministic I/O failure.
++        std::fs::create_dir(suffix(&path, ".2")).unwrap();
++        log.append(&[b'b'; 1000]);
++        assert_eq!(std::fs::read(&path).unwrap(), &[b'a'; 64]);
++        std::fs::remove_dir(suffix(&path, ".2")).unwrap();
++        log.append(b"RECOVERED");
++        assert_eq!(std::fs::read(&path).unwrap(), b"RECOVERED");
++        drop(log);
++        std::fs::remove_dir_all(dir).unwrap();
++    }
++
++}
+diff --git a/guest/docker b/guest/docker
+index ccb5494..41bc925 100644
+--- a/guest/docker
++++ b/guest/docker
+@@ -8,10 +8,11 @@
+ # unpacked onto the data disk whenever that sha256 changes, so Docker costs guest RAM only for
+ # what runs.
+ set -eu
++# The agent drains this pipe into a bounded rotating log, including startup errors.
++exec 1>&2
+ export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+ lib=/var/lib/dmx
+ root=$lib/docker
+-log=$lib/log/dockerd.log
+ 
+ fail() {
+ 	echo "dmx-docker: $*" >&2
+@@ -60,10 +61,11 @@ mkdir -p /run/dmx "$lib/log" /etc/ssl /var/folders
+ {
+ 	"hosts": ["unix:///var/run/docker.sock"],
+ 	"host-gateway-ips": ["192.168.127.254", "fd64:646d:7800::254"],
+-	"shutdown-timeout": 5
++	"shutdown-timeout": 5,
++	"log-driver": "json-file",
++	"log-opts": {"max-size": "10m", "max-file": "2"}
+ }
+ EOF
+-[ -f "$log" ] && mv -f "$log" "$log.1"
+ 
+ # dockerd runs in its own mount namespace, where /usr is the unpacked tree over the guest's own
+ # (binaries and libraries at the paths they were built for), /etc/ssl has the CA bundle, and
+@@ -107,4 +109,4 @@ exec unshare -m --propagation slave sh -c "
+ 	cd /run/dmx/root
+ 	mount --move . /
+ 	exec chroot . /usr/bin/dockerd --config-file /run/dmx/daemon.json
+-" </dev/null >>"$log" 2>&1
++" </dev/null
+diff --git a/scripts/test-daemon.py b/scripts/test-daemon.py
+index 43d2e2a..1867c9e 100644
+--- a/scripts/test-daemon.py
++++ b/scripts/test-daemon.py
+@@ -583,7 +583,7 @@ try:
+     started = time.monotonic()
+     r = dmx("exec", "--", "sh", "-c", "cat /var/lib/marker; tail -3 /var/lib/dmx/log/fsck.log")
+     results["fsck_repair_boot_s"] = round(time.monotonic() - started, 2)
+-    console = (HOME / "logs" / "console.log").read_text(errors="replace")
++    console = (HOME / "logs" / "console.log").read_text(errors="replace").rsplit("--- dmx VM boot ", 1)[-1]
+     check("fsck_repaired", r.stdout.startswith(b"kept\n") and b"FILE SYSTEM WAS MODIFIED" in r.stdout and "running e2fsck -fy" in console,
+           f"{r.stdout[-300:]!r}")
+ 
+diff --git a/scripts/test-pressure.py b/scripts/test-pressure.py
+index 6ed3e54..9e52d32 100644
+--- a/scripts/test-pressure.py
++++ b/scripts/test-pressure.py
+@@ -96,7 +96,7 @@ try:
+             image.seek(1024 + 12)  # s_free_blocks_count_lo: the superblock checksum no longer matches
+             image.write((12345 + i).to_bytes(4, "little"))
+         r = dmx("exec", "--", "cat", "/var/lib/marker", timeout=60)
+-        console = (HOME / "logs" / "console.log").read_text(errors="replace")
++        console = (HOME / "logs" / "console.log").read_text(errors="replace").rsplit("--- dmx VM boot ", 1)[-1]
+         oops = [l for l in console.splitlines() if "Unable to handle" in l or "Internal error" in l or "Kernel panic" in l]
+         if r is None or r.stdout != b"kept\n" or oops:
+             failures.append(f"round {i}: " + ("no answer" if r is None else repr(r.stdout + r.stderr)[:120]) + (f", {oops[0][:100]}" if oops else ""))
+diff --git a/scripts/test-storage.py b/scripts/test-storage.py
+new file mode 100644
+index 0000000..b223422
+--- /dev/null
++++ b/scripts/test-storage.py
+@@ -0,0 +1,184 @@
++#!/usr/bin/env python3
++"""Bounded host/guest/container logs on a real, isolated VM; never touch the user's engine."""
++import json
++import hashlib
++import os
++from pathlib import Path
++import subprocess
++import sys
++import tempfile
++import time
++
++DMX = Path(sys.argv[1] if len(sys.argv) > 1 else '.build/release/dmx').resolve()
++ROOT = Path(__file__).resolve().parent.parent
++SOURCE = Path(os.environ.get('DMX_HOME', Path.home() / '.dmx'))
++GUEST = (SOURCE / 'guest').resolve()
++DOCKER = SOURCE / 'cache/docker-tools/bin/docker'
++LIMIT = 1 << 20
++checks = []
++metrics = {}
++HARNESS = os.environ.get('DMX_RUST_TEST')
++if HARNESS is None:
++    built = subprocess.run(['cargo', 'test', '--locked', '--no-run', '--message-format=json'],
++                           cwd=ROOT / 'guest/agent', capture_output=True, text=True, timeout=180)
++    if built.returncode:
++        raise RuntimeError(built.stderr)
++    artifacts = [json.loads(line) for line in built.stdout.splitlines() if line.strip()]
++    HARNESS = next(a['executable'] for a in artifacts if a.get('reason') == 'compiler-artifact'
++                   and a.get('profile', {}).get('test') and a.get('executable'))
++HARNESS = Path(HARNESS).resolve()
++metrics['guest_test_harness_sha256'] = hashlib.sha256(HARNESS.read_bytes()).hexdigest()
++
++
++def check(name, ok, detail=''):
++    checks.append({'name': name, 'ok': bool(ok), 'detail': str(detail)[:500]})
++    if not ok:
++        raise AssertionError(name + ': ' + str(detail))
++
++
++def wait(predicate, seconds=15):
++    end = time.monotonic() + seconds
++    while time.monotonic() < end:
++        try:
++            if predicate():
++                return True
++        except FileNotFoundError:
++            pass  # A log can be between rename and create during rotation.
++        time.sleep(.05)
++    return False
++
++
++with tempfile.TemporaryDirectory(prefix='dmx-storage-') as scratch:
++    home = Path(scratch)
++    (home / 'guest').symlink_to(GUEST)
++    (home / 'logs').mkdir()
++    (home / 'config.json').write_text(json.dumps({'cpus': 2, 'memory': '2G', 'shares': [str(HARNESS.parent)], 'idle_timeout': 300}))
++    env = {**os.environ, 'DMX_HOME': str(home), 'DOCKER_CONFIG': str(home / 'docker-config'), 'DOCKER_HOST': 'unix://' + str(home / 'docker.sock')}
++    (home / 'docker-config').mkdir()
++    for name in ['daemon.log', 'console.log']:
++        for suffix in ['', '.1', '.2']:
++            (home / 'logs' / (name + suffix)).write_bytes(b'o' * (4 * LIMIT))
++    # Reproduce an older launchd job whose stdout/stderr already reference the old log inode.
++    with (home / 'logs/daemon.log').open('ab') as legacy:
++        daemon = subprocess.Popen([DMX, 'daemon'], env=env, stdin=subprocess.DEVNULL, stdout=legacy, stderr=legacy)
++
++    def command(*args, seconds=150):
++        return subprocess.run([DMX, *args], capture_output=True, env=env, timeout=seconds)
++
++    def guest(script):
++        r = command('exec', '--', 'sh', '-c', script)
++        check('guest_command_' + str(len(checks)), r.returncode == 0, r.stderr.decode(errors='replace'))
++        return r.stdout
++
++    def docker(*args):
++        r = subprocess.run([DOCKER, *args], capture_output=True, env=env, timeout=180)
++        check('docker_command_' + str(len(checks)), r.returncode == 0, r.stderr.decode(errors='replace'))
++        return r.stdout
++
++    def host_sizes(name):
++        return [(home / 'logs' / (name + suffix)).stat().st_size for suffix in ['', '.1', '.2']]
++
++    try:
++        check('foreground_socket', wait(lambda: (home / 'dmx.sock').exists() or daemon.poll() is not None) and daemon.poll() is None)
++        started = command('start', '--json')
++        check('real_vm_start', started.returncode == 0, started.stdout.decode())
++        metrics['idle_before_docker'] = json.loads(started.stdout)
++        descriptors = subprocess.run(['lsof', '-a', '-p', str(daemon.pid), '-d', '1,2', '-Fn'], capture_output=True, text=True)
++        names = [line[1:] for line in descriptors.stdout.splitlines() if line.startswith('n')]
++        check('legacy_stdio_detached', names == ['/dev/null', '/dev/null'], names)
++        check('old_host_logs_bounded', all(0 <= n <= LIMIT for name in ['daemon.log', 'console.log'] for n in host_sizes(name)), {name: host_sizes(name) for name in ['daemon.log', 'console.log']})
++        guest("dd if=/dev/zero bs=8192 count=1024 2>/dev/null > /dev/hvc0; printf 'CONSOLE-TAIL\\n' > /dev/hvc0")
++        check('console_flood_tail', wait(lambda: (home / 'logs/console.log').read_bytes().rstrip(b'\r\n').endswith(b'CONSOLE-TAIL')))
++        check('console_flood_bound', all(n <= LIMIT for n in host_sizes('console.log')), host_sizes('console.log'))
++        guest("mkdir -p /var/lib/dmx/log; for s in '' .1 .2; do dd if=/dev/zero bs=1048576 count=4 2>/dev/null > /var/lib/dmx/log/dockerd.log$s; done")
++        # A failed script leaves a descendant holding stderr. Retry must work before it exits.
++        stub = '#!/bin/sh\nsleep 120 &\necho $! >> /run/dmx/log-probe-pids\necho INHERITED-PIPE-START-FAIL >&2\nexit 23\n'
++        prepared = command('exec', '--', 'sh', '-c', 'cp /sbin/dmx-docker /tmp/original-dmx-docker; printf %s "$1" > /sbin/dmx-docker', 'sh', stub)
++        check('failed_start_fixture', prepared.returncode == 0)
++        failed = subprocess.run([DOCKER, 'info'], capture_output=True, env=env, timeout=30)
++        check('failed_start_returns', failed.returncode != 0)
++        check('failed_start_tail_retained', b'INHERITED-PIPE-START-FAIL' in guest('tail -c 8192 /var/lib/dmx/log/dockerd.log'))
++        guest('cp /tmp/original-dmx-docker /sbin/dmx-docker')
++        began = time.monotonic()
++        docker('info', '--format', '{{.LoggingDriver}}')
++        check('retry_before_inherited_pipe_closes', time.monotonic() - began < 20)
++        guest('for p in $(cat /run/dmx/log-probe-pids); do kill "$p" 2>/dev/null || true; done')
++        # Real dockerd/containerd inheritance, beyond the controlled failed-script fixture.
++        previous_dockerd = guest('cat /var/run/docker.pid').strip()
++        guest('kill -9 "$(cat /var/run/docker.pid)"')
++        check('dockerd_restart_after_crash', wait(lambda: subprocess.run([DOCKER, 'info'], capture_output=True, env=env, timeout=20).returncode == 0 and command('exec', '--', 'cat', '/var/run/docker.pid').stdout.strip() not in [b'', previous_dockerd], 25))
++        before = guest('wc -c /var/lib/dmx/log/dockerd.log /var/lib/dmx/log/dockerd.log.1 /var/lib/dmx/log/dockerd.log.2').decode()
++        check('old_guest_logs_bounded', all(int(line.split()[0]) <= LIMIT for line in before.splitlines()[:-1]), before)
++        guest("p=$(cat /var/run/docker.pid); dd if=/dev/zero bs=8192 count=1024 2>/dev/null > /proc/$p/fd/2; printf 'DOCKERD-TAIL\\n' > /proc/$p/fd/2")
++        check('dockerd_flood_tail', wait(lambda: b'DOCKERD-TAIL' in command('exec', '--', 'tail', '-c', '1024', '/var/lib/dmx/log/dockerd.log').stdout))
++        sizes = guest('wc -c /var/lib/dmx/log/dockerd.log /var/lib/dmx/log/dockerd.log.1 /var/lib/dmx/log/dockerd.log.2').decode()
++        check('dockerd_flood_bound', all(int(line.split()[0]) <= LIMIT for line in sizes.splitlines()[:-1]), sizes)
++        pin = json.loads((ROOT / 'scripts/image-matrix.json').read_text())['images']['alpine']
++        image = 'alpine@' + pin['platforms']['linux/arm64']
++        # About 30 MiB of ordinary container stdout, more than its default two-file budget.
++        docker('run', '-d', '--name', 'log-flood', image, 'sh', '-c', "yes '012345678901234567890123456789' | head -c 30000000; echo CONTAINER-TAIL")
++        check('container_flood_exit', docker('wait', 'log-flood').strip() == b'0')
++        config = json.loads(docker('inspect', '--format', '{{json .HostConfig.LogConfig}}', 'log-flood'))
++        check('container_defaults', config == {'Type': 'json-file', 'Config': {'max-size': '10m', 'max-file': '2'}}, config)
++        check('docker_logs_retains_tail', b'CONTAINER-TAIL' in docker('logs', '--tail', '1', 'log-flood'))
++        container = json.loads(docker('inspect', 'log-flood'))[0]
++        prefix = container['LogPath']
++        usage = guest('wc -c ' + prefix + ' ' + prefix + '.1').decode()
++        # Docker rotates by record: allow one bounded record beyond the nominal file size.
++        check('container_flood_bound', all(int(line.split()[0]) <= 10_000_000 + 65536 for line in usage.splitlines()[:-1]), usage)
++        metrics['container_log_sizes'] = usage
++        docker('run', '--name', 'explicit-log', '--log-driver', 'none', image, 'echo', 'explicit')
++        explicit = json.loads(docker('inspect', '--format', '{{json .HostConfig.LogConfig}}', 'explicit-log'))
++        check('per_container_override', explicit['Type'] == 'none', explicit)
++        # Verify persisted creation-time settings are untouched by a daemon restart.
++        stopped = command('stop', '--json')
++        check('stop', stopped.returncode == 0)
++        check('old_daemon_exits', wait(lambda: daemon.poll() is not None))
++        restarted = command('start', '--json')
++        check('restart_after_manual_daemon_exit', restarted.returncode == 0, restarted.stdout.decode())
++        docker('info')
++        retained = json.loads(docker('inspect', '--format', '{{json .HostConfig.LogConfig}}', 'explicit-log'))
++        check('existing_container_override_preserved', retained['Type'] == 'none', retained)
++        metrics['idle_after_docker'] = json.loads(command('status', '--json').stdout)
++        # Cross-compiled tests run inside Linux, exercising the same collector/log code.
++        result = command('exec', '--', str(HARNESS), '--nocapture')
++        check('guest_rust_rotation_tests', result.returncode == 0 and b'test result: ok.' in result.stdout,
++              result.stdout.decode() + result.stderr.decode())
++        # Diagnostic setup failure must never prevent the otherwise healthy engine starting.
++        command('stop', '--json')
++        check('stopped_before_log_failures', wait(lambda: not (home / 'dmx.sock').exists()))
++        saved_logs = home / 'logs.saved'
++        (home / 'logs').rename(saved_logs)
++        (home / 'logs').mkdir(mode=0o500)
++        unavailable = command('start', '--json')
++        check('unwritable_host_logs_still_boot', unavailable.returncode == 0, unavailable.stdout.decode())
++        warning_status = json.loads(unavailable.stdout)
++        check('unwritable_logs_reported', len(warning_status.get('log_warnings', [])) == 2, warning_status.get('log_warnings'))
++        check('plain_status_reports_log_warning', b'log warning:' in command('status').stdout)
++        guest("rm -f /var/lib/dmx/log/dockerd.log; printf PRESERVE > /var/lib/dmx/log/keep; ln -s /var/lib/dmx/log/keep /var/lib/dmx/log/dockerd.log")
++        docker('info', '--format', '{{.LoggingDriver}}')
++        check('unsafe_guest_log_still_starts_docker', guest('cat /var/lib/dmx/log/keep') == b'PRESERVE')
++        command('stop', '--json')
++        check('unavailable_logger_daemon_exits', wait(lambda: not (home / 'dmx.sock').exists()))
++        (home / 'logs').chmod(0o700)
++        (home / 'logs').rmdir()
++        saved_logs.rename(home / 'logs')
++        target = home / 'keep-host'
++        contents = b'preserve host target' * 100000
++        target.write_bytes(contents)
++        (home / 'logs/daemon.log').unlink()
++        (home / 'logs/daemon.log').symlink_to(target)
++        (home / 'logs/console.log').unlink()
++        os.mkfifo(home / 'logs/console.log', 0o600)
++        unsafe = command('start', '--json')
++        check('unsafe_host_logs_still_boot', unsafe.returncode == 0, unsafe.stdout.decode())
++        check('unsafe_host_logs_reported', len(json.loads(unsafe.stdout).get('log_warnings', [])) == 2)
++        check('unsafe_log_target_unchanged', target.read_bytes() == contents)
++    finally:
++        (home / 'logs').chmod(0o700)
++        command('stop', '--json')
++        if daemon.poll() is None:
++            daemon.terminate()
++            daemon.wait(timeout=15)
++        wait(lambda: not (home / 'dmx.sock').exists())
++        print(json.dumps({'ok': all(c['ok'] for c in checks), 'checks': checks, 'metrics': metrics}, indent=2))
