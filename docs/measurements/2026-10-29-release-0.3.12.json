@@ -5251,7 +5251,166 @@
     "sha256": "ade3c89ddc3bca41bee0d953e2ca63f6b148e81bf6d27c3ca3ca14ce8b0dfc1c"
   },
   "release_publication": {
-    "published": false
+    "published": true,
+    "tag": "v0.3.12",
+    "commit": "e01befa51f162e6c3f645f21c73ff15f36b19a65",
+    "url": "https://github.com/cothis/dmx/releases/tag/v0.3.12",
+    "published_at": "2026-10-29T02:38:20Z",
+    "assets_verified": 14,
+    "upload": {
+      "tag": "v0.3.12",
+      "commit": "e01befa51f162e6c3f645f21c73ff15f36b19a65",
+      "assets": [
+        {
+          "name": "dmx-0.3.12-darwin-arm64.tar.gz",
+          "bytes": 1885250,
+          "sha256": "aecb74167ed78f1d78aa5f5ac302ae2d242d8b6765327c08abce3821f1df7b8e"
+        },
+        {
+          "name": "dmx-0.3.12-darwin-arm64.tar.gz.sha256",
+          "bytes": 97,
+          "sha256": "4b4a8994cf77f46fb536900f3c439b7cd6d47036191efc83119e55b48c34436a"
+        },
+        {
+          "name": "dmx-guest-0.3.12.tar.gz",
+          "bytes": 62890710,
+          "sha256": "dc1bfaf22cdcfbd5a2271c84a7b4d0478694558297c354f1e35d3ed1cebb2478"
+        },
+        {
+          "name": "dmx-guest-0.3.12.tar.gz.sha256",
+          "bytes": 90,
+          "sha256": "d4eb866911168c13c23820fd1c9db215bf1d99140384e9660b14b9f9e0e5bc73"
+        },
+        {
+          "name": "dmx-sources-0.3.12.tar",
+          "bytes": 496209920,
+          "sha256": "4df14eda667bddb071c44c6813b5b7aeba36594a042e1763de8178b963752008"
+        },
+        {
+          "name": "dmx-sources-0.3.12.tar.sha256",
+          "bytes": 89,
+          "sha256": "62769dbd05045a8feb57f63ad37b45077e6f4e8ec82940f047bbc134416c45d1"
+        },
+        {
+          "name": "fex-2610-dmx11.build.py",
+          "bytes": 46966,
+          "sha256": "6f6b8f71fa15e46104d4421ed456af3843008a1b96044151bc426d93846d2832"
+        },
+        {
+          "name": "install.sh",
+          "bytes": 3322,
+          "sha256": "4e37037d20559f9c3e76665fedd9343f4902155bc17322baf50314e07e12a016"
+        },
+        {
+          "name": "kernel-6.18.58-dmx-4k.build.py",
+          "bytes": 20141,
+          "sha256": "8c130d00d9a267ac91e68e8b47d326cd0755d1cd36ea9446bcc3bdc51b6fe107"
+        },
+        {
+          "name": "kernel-6.18.58-dmx-4k.config",
+          "bytes": 94622,
+          "sha256": "4a1315db472ec88e6857dac27afb49db310abb69ac5cde98af16d5211ffbf60e"
+        },
+        {
+          "name": "NOTES.md",
+          "bytes": 5298,
+          "sha256": "e4d8570608762bc23a3b1630b3a8711babe828c503e2d31d714dfd53368aaf07"
+        },
+        {
+          "name": "qemu-x86_64-11.0.3-dmx1.build.py",
+          "bytes": 17224,
+          "sha256": "029608626a77b62fed86f67579150905bf3589e4cc3735b132475ec2e7e23202"
+        },
+        {
+          "name": "SHA256SUMS",
+          "bytes": 892,
+          "sha256": "aea2b16819af1b2eea4656b1ded8007e29c4d1177454ffb998dca765bf3db4fa"
+        },
+        {
+          "name": "third-party.json",
+          "bytes": 24571,
+          "sha256": "491bfd106845feb3e3eebb1d7d33bae1ce383524191d0e5f03bd600d575465d1"
+        }
+      ]
+    },
+    "downloaded_asset_verification": {
+      "ok": true,
+      "version": "0.3.12",
+      "mode": "published",
+      "all_asset_sha256": {
+        "dmx-guest-0.3.12.tar.gz": "dc1bfaf22cdcfbd5a2271c84a7b4d0478694558297c354f1e35d3ed1cebb2478",
+        "dmx-sources-0.3.12.tar": "4df14eda667bddb071c44c6813b5b7aeba36594a042e1763de8178b963752008",
+        "third-party.json": "491bfd106845feb3e3eebb1d7d33bae1ce383524191d0e5f03bd600d575465d1",
+        "kernel-6.18.58-dmx-4k.config": "4a1315db472ec88e6857dac27afb49db310abb69ac5cde98af16d5211ffbf60e",
+        "install.sh": "4e37037d20559f9c3e76665fedd9343f4902155bc17322baf50314e07e12a016",
+        "fex-2610-dmx11.build.py": "6f6b8f71fa15e46104d4421ed456af3843008a1b96044151bc426d93846d2832",
+        "dmx-0.3.12-darwin-arm64.tar.gz": "aecb74167ed78f1d78aa5f5ac302ae2d242d8b6765327c08abce3821f1df7b8e",
+        "dmx-0.3.12-darwin-arm64.tar.gz.sha256": "4b4a8994cf77f46fb536900f3c439b7cd6d47036191efc83119e55b48c34436a",
+        "kernel-6.18.58-dmx-4k.build.py": "8c130d00d9a267ac91e68e8b47d326cd0755d1cd36ea9446bcc3bdc51b6fe107",
+        "dmx-guest-0.3.12.tar.gz.sha256": "d4eb866911168c13c23820fd1c9db215bf1d99140384e9660b14b9f9e0e5bc73",
+        "NOTES.md": "e4d8570608762bc23a3b1630b3a8711babe828c503e2d31d714dfd53368aaf07",
+        "SHA256SUMS": "aea2b16819af1b2eea4656b1ded8007e29c4d1177454ffb998dca765bf3db4fa",
+        "dmx-sources-0.3.12.tar.sha256": "62769dbd05045a8feb57f63ad37b45077e6f4e8ec82940f047bbc134416c45d1",
+        "qemu-x86_64-11.0.3-dmx1.build.py": "029608626a77b62fed86f67579150905bf3589e4cc3735b132475ec2e7e23202"
+      },
+      "fresh_install": {
+        "guest_bytes": 62890710,
+        "selftest_checks": 23,
+        "host_footprint_mb": 96,
+        "reclaim": {
+          "after_free_mb": 1121,
+          "after_reclaim_mb": 103,
+          "idle_mb": 96,
+          "reported_mb": 2651,
+          "reports": 24,
+          "returned_ms": 209
+        }
+      },
+      "published_daemon_error_message": {
+        "exit_code": 1,
+        "message": "error: exec: dmx-no-such-command: No such file or directory (os error 2)",
+        "single_method_prefix": true
+      },
+      "update_from_0_3_11": {
+        "ok": true,
+        "bytes": 1885250,
+        "signature": "V4YA23448U",
+        "running_vm_kept_during_update": true,
+        "running_container_kept_during_update": true,
+        "container_restarted_after_vm_stop": true,
+        "volume_data_preserved": true,
+        "data_disk_marker_preserved": true,
+        "release_downloads_blocked_on_first_boot": true,
+        "receipt_tag_before_explicit_fetch": "v0.3.12",
+        "guest_and_doctor_report_new_tag": true,
+        "all_four_boot_file_inodes_and_hashes_kept": true
+      },
+      "containers": {
+        "linux/arm64": {
+          "uname": "aarch64",
+          "elf_class": 2
+        },
+        "linux/amd64": {
+          "uname": "x86_64",
+          "elf_class": 2
+        },
+        "linux/386": {
+          "uname": "x86_64",
+          "elf_class": 1
+        }
+      },
+      "live_emulator_sha256": "ade3c89ddc3bca41bee0d953e2ca63f6b148e81bf6d27c3ca3ca14ce8b0dfc1c",
+      "published_socket_paths": {
+        "mcp_checks": 33,
+        "timeout": true,
+        "cancellation": true,
+        "large_stream": true,
+        "deterministic_descriptor_reuse_proof": "source regression tests and bounded model; not forced through the published CLI",
+        "test_daemon_cleanup_verified": true,
+        "alias_cleanup_count": 1
+      }
+    },
+    "local_test_cleanup": "After local MCP fixture path-string discovery missed a /tmp vs /private/tmp alias, the known isolated test daemon was explicitly stopped. Published verifier normalizes the unique test executable path and confirms cleanup."
   },
   "packaging_first": {
     "ok": true,
@@ -5296,5 +5455,119 @@
     "formal/evidence/v0.3.12/opus55-recheck/metadata.json",
     "formal/evidence/v0.3.12/opus55-final/metadata.json",
     "formal/evidence/v0.3.12/memory-gate/opus55/metadata.json"
-  ]
+  ],
+  "packaging_second": {
+    "ok": true,
+    "out": "/Users/cothis/dev/dockermax/.build/dist/v0.3.12",
+    "tag": "v0.3.12",
+    "pin_changed": false,
+    "guest": {
+      "name": "dmx-guest-0.3.12.tar.gz",
+      "bytes": 62890710,
+      "sha256": "dc1bfaf22cdcfbd5a2271c84a7b4d0478694558297c354f1e35d3ed1cebb2478"
+    },
+    "binary": {
+      "name": "dmx-0.3.12-darwin-arm64.tar.gz",
+      "bytes": 1885250,
+      "sha256": "aecb74167ed78f1d78aa5f5ac302ae2d242d8b6765327c08abce3821f1df7b8e"
+    },
+    "sources": {
+      "name": "dmx-sources-0.3.12.tar",
+      "bytes": 496209920,
+      "packages": 21
+    },
+    "licenses": [
+      "0BSD",
+      "Apache-2.0",
+      "BSD-2-Clause",
+      "BSD-3-Clause",
+      "BSL-1.0",
+      "GPL-2.0-only",
+      "GPL-2.0-or-later",
+      "GPL-3.0-or-later",
+      "LGPL-2.0-or-later",
+      "LGPL-2.1-only",
+      "LGPL-2.1-or-later",
+      "Linux-syscall-note",
+      "MIT",
+      "MPL-2.0",
+      "Unlicense"
+    ],
+    "packages": 52
+  },
+  "local_rehearsal": {
+    "ok": true,
+    "version": "0.3.12",
+    "mode": "local",
+    "all_asset_sha256": {
+      "dmx-guest-0.3.12.tar.gz": "dc1bfaf22cdcfbd5a2271c84a7b4d0478694558297c354f1e35d3ed1cebb2478",
+      "dmx-sources-0.3.12.tar": "4df14eda667bddb071c44c6813b5b7aeba36594a042e1763de8178b963752008",
+      "third-party.json": "491bfd106845feb3e3eebb1d7d33bae1ce383524191d0e5f03bd600d575465d1",
+      "kernel-6.18.58-dmx-4k.config": "4a1315db472ec88e6857dac27afb49db310abb69ac5cde98af16d5211ffbf60e",
+      "install.sh": "4e37037d20559f9c3e76665fedd9343f4902155bc17322baf50314e07e12a016",
+      "fex-2610-dmx11.build.py": "6f6b8f71fa15e46104d4421ed456af3843008a1b96044151bc426d93846d2832",
+      "dmx-0.3.12-darwin-arm64.tar.gz": "aecb74167ed78f1d78aa5f5ac302ae2d242d8b6765327c08abce3821f1df7b8e",
+      "dmx-0.3.12-darwin-arm64.tar.gz.sha256": "4b4a8994cf77f46fb536900f3c439b7cd6d47036191efc83119e55b48c34436a",
+      "kernel-6.18.58-dmx-4k.build.py": "8c130d00d9a267ac91e68e8b47d326cd0755d1cd36ea9446bcc3bdc51b6fe107",
+      "dmx-guest-0.3.12.tar.gz.sha256": "d4eb866911168c13c23820fd1c9db215bf1d99140384e9660b14b9f9e0e5bc73",
+      "NOTES.md": "e4d8570608762bc23a3b1630b3a8711babe828c503e2d31d714dfd53368aaf07",
+      "SHA256SUMS": "aea2b16819af1b2eea4656b1ded8007e29c4d1177454ffb998dca765bf3db4fa",
+      "dmx-sources-0.3.12.tar.sha256": "62769dbd05045a8feb57f63ad37b45077e6f4e8ec82940f047bbc134416c45d1",
+      "qemu-x86_64-11.0.3-dmx1.build.py": "029608626a77b62fed86f67579150905bf3589e4cc3735b132475ec2e7e23202"
+    },
+    "fresh_install": {
+      "guest_bytes": 62890710,
+      "selftest_checks": 23,
+      "host_footprint_mb": 96,
+      "reclaim": {
+        "after_free_mb": 1121,
+        "after_reclaim_mb": 103,
+        "idle_mb": 96,
+        "reported_mb": 2661,
+        "reports": 24,
+        "returned_ms": 107
+      }
+    },
+    "published_daemon_error_message": {
+      "exit_code": 1,
+      "message": "error: exec: dmx-no-such-command: No such file or directory (os error 2)",
+      "single_method_prefix": true
+    },
+    "update_from_0_3_11": {
+      "ok": true,
+      "bytes": 1885250,
+      "signature": "V4YA23448U",
+      "running_vm_kept_during_update": true,
+      "running_container_kept_during_update": true,
+      "container_restarted_after_vm_stop": true,
+      "volume_data_preserved": true,
+      "data_disk_marker_preserved": true,
+      "release_downloads_blocked_on_first_boot": true,
+      "receipt_tag_before_explicit_fetch": "v0.3.12",
+      "guest_and_doctor_report_new_tag": true,
+      "all_four_boot_file_inodes_and_hashes_kept": true
+    },
+    "containers": {
+      "linux/arm64": {
+        "uname": "aarch64",
+        "elf_class": 2
+      },
+      "linux/amd64": {
+        "uname": "x86_64",
+        "elf_class": 2
+      },
+      "linux/386": {
+        "uname": "x86_64",
+        "elf_class": 1
+      }
+    },
+    "live_emulator_sha256": "ade3c89ddc3bca41bee0d953e2ca63f6b148e81bf6d27c3ca3ca14ce8b0dfc1c",
+    "published_socket_paths": {
+      "mcp_checks": 33,
+      "timeout": true,
+      "cancellation": true,
+      "large_stream": true,
+      "deterministic_descriptor_reuse_proof": "source regression tests and bounded model; not forced through the published CLI"
+    }
+  }
 }

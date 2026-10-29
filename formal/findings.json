@@ -1,7 +1,7 @@
 {
   "concern": "frame-connection-lifetime",
   "workflow": "W1",
-  "generated_at": "2026-10-28T18:05:49.578698+00:00",
+  "generated_at": "2026-10-29T02:38:20Z",
   "repo_commit": "2ed2c21",
   "summary": "The original wrong-socket bug and R1\u2013R5 review findings are repaired for v0.3.12. Semantic FD and RPC models pass within explicit finite bounds; thirteen independent mutation/reachability checks fail as required. Historical model/test blind spots are retained and explained. This is not whole-program verification.",
   "scope": {
@@ -270,9 +270,9 @@
     "No whole-program correctness claim; raw-FD consumers, OS semantics, unbounded inputs and production incidence remain outside these models."
   ],
   "release": {
-    "tag": "v0.3.11",
-    "url": "https://github.com/cothis/dmx/releases/tag/v0.3.11",
-    "commit": "13c12579765b21b4d894127a767e4fe99c68a49e",
+    "tag": "v0.3.12",
+    "url": "https://github.com/cothis/dmx/releases/tag/v0.3.12",
+    "commit": "e01befa51f162e6c3f645f21c73ff15f36b19a65",
     "date": "2026-10-29"
   },
   "review": {
@@ -284,7 +284,7 @@
   },
   "resolution": {
     "version": "0.3.12",
-    "status": "repaired candidate; public release verification recorded separately",
+    "status": "Published signed/notarized v0.3.12; all 14 public downloads match local assets. Fresh installation, live 0.3.11 update/data preservation, three container architectures and published MCP 33/33 pass.",
     "analysis": "../../docs/formal-verification-miss-2026-10-29.md",
     "model_results": "formal/evidence/v0.3.12/results.json",
     "checks": [

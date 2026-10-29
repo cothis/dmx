@@ -604,26 +604,31 @@ ran arm64/amd64/386 containers and passed MCP 33/33 (streams, timeout and cancel
 See [the release](https://github.com/cothis/dmx/releases/tag/v0.3.11) and
 [the measurements](measurements/2026-10-29-release-0.3.11.json).
 
+**v0.3.12 is published** (2026-10-29, signed/notarized, tag commit `e01befa`): R1–R5,
+two secondary Opus findings and the memory-test sampling repair are complete. Final Opus
+Core review recommends release; the scoped gate review's full-suite conditions passed.
+Second packaging kept the pin. All 14 uploaded/downloaded files match. Fresh public
+installation passed selftest 23/23 (96 MiB); update from a live 0.3.11 kept its VM,
+container, disk and volume data. First boot with guest downloads blocked refreshed the tag
+without replacing any boot file. Published CLI error prefixes, arm64/amd64/386 containers
+(386 ELF class 1), FEX hash and MCP 33/33 passed. The verifier also confirms isolated test
+daemon cleanup. See [the release](https://github.com/cothis/dmx/releases/tag/v0.3.12),
+[measurements](measurements/2026-10-29-release-0.3.12.json), and
+[why formal verification missed the bugs](formal-verification-miss-2026-10-29.md).
+
 In order:
 
-1. Finish publication of the v0.3.12 repair. R1–R5 and two secondary error paths are fixed;
-   actual Opus 5.5 Core re-review recommends release. Semantic FD/RPC models and independent
-   source mutants now guard the mechanisms; installed skills were improved and blindly
-   evaluated. Full initial matrix passed; secondary changes are rechecked with unit 76,
-   VM selftest, daemon, MCP and real syscall probes. A daemon memory-gate resampling defect
-   was investigated without discarding the original failure; final publication evidence
-   will be recorded in `measurements/2026-10-29-release-0.3.12.json`.
-2. Measure Apple's `container` (and a Container Machine) with the engine comparison's protocol
+1. Measure Apple's `container` (and a Container Machine) with the engine comparison's protocol
    when the Mac is quiet (maintainer, 2026-10-27: worth adding, not now). It runs on
    Virtualization.framework and its docs give a machine half the host's memory by default; HN's
    Container Machines thread (1269 points) argued about exactly this. Install Apple's signed
    package, record idle, 2 GiB held/returned, `docker run` equivalent, then uninstall and undo
    what it changed (see docs/memory.md). The announcement drafts say it was not measured yet.
-3. Community announcement (Show HN, Reddit, GeekNews) is now the maintainer’s next decision.
-   The requested review, documentation and release work through v0.3.11 are complete; no community post was
+2. Community announcement (Show HN, Reddit, GeekNews) is now the maintainer’s next decision.
+   The requested review, documentation and release work through v0.3.12 are complete; no community post was
    sent by this release work.
-4. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
-5. Open, not blocking: `qemu-x86_64` cannot run 32-bit programs, so `linux/386` needs
+3. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
+4. Open, not blocking: `qemu-x86_64` cannot run 32-bit programs, so `linux/386` needs
    `x86_emulator fex` (the default); adding qemu-i386 would be a separate build. Warm `docker run`
    (~100 ms on a quiet Mac) stays behind Colima by choice (data disk barrier flushes, see
    Decisions). FEX's emulated `uname -m` says `x86_64` even for a 32-bit process.
@@ -941,11 +946,17 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-10-29: Published signed/notarized v0.3.12 from `e01befa`; second pin stable,
+  14 uploaded/public-download hashes match. Fresh selftest 23/23, live 0.3.11 update with
+  VM/container/volume preservation, offline first-boot receipt refresh without replacing
+  files, arm64/amd64/386 workloads and public MCP 33/33 passed. Requested repair, re-review,
+  causal analysis, installed skill improvements, main/tag push and release are complete.
+
 - 2026-10-29: Repaired R1–R5 and two secondary Opus findings for v0.3.12; final Core review
   recommends release. Added semantic FD/RPC models with independent mutations, child syscall
   probes, safe binding/retirement tests, and installed formal skill improvements with blind
   evaluation. Retained and diagnosed a daemon memory-test failure; same-sample assertion
-  preserves its original thresholds/deadline. Signing/publication evidence follows below.
+  preserves its original thresholds/deadline. Signing/publication subsequently completed (see release record above).
 
 - 2026-10-29: Requested independent Opus 5.5 review of v0.3.11 (`claude-opus-5-5`, confirmed
   by CLI/API metadata). Parent reproduced one new P2 RPC-alignment bug and two validation

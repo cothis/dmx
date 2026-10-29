@@ -1,4 +1,4 @@
-# v0.3.12 검수 수정 작업 상태 (2026-10-29)
+# v0.3.12 수정·검수·공개 배포 완료 (2026-10-29)
 
 R1–R5와 추가 Opus 지적 두 건을 수정했어요. 최종 Core Opus 5.5 검수는 새 런타임 결함 없이
 릴리즈 진행을 권고했어요. 전체 RPC lease, 응답 ID 검사, 오류 후 retire/reconnect(재전송 없음),
@@ -16,11 +16,21 @@ R1–R5와 추가 Opus 지적 두 건을 수정했어요. 최종 Core Opus 5.5 �
 확정할 수 없다는 한계도 기록했어요. 기준·15초 제한은 그대로 두고 동일 측정값으로 판정하게
 했으며, 별도 Opus 검수와 최종 daemon/MCP 결과를 보존해요.
 
-최종 단위 76, VM selftest 23, 보정된 daemon 58, MCP 33 검사를 통과했어요. 전체 선행
-검증은 x86 53, Docker 69, sandbox 44, image 24, Java 100을 통과했어요. 전후 selftest
-idle은 94→99MiB이고 단발 측정이라 통계적 성능 비교는 아니에요. 첫 패키징의 서명·공증과
-0.3.12 guest pin 생성도 끝났어요. 현재 공개 버전은 아직 v0.3.11이에요. 두 번째 패키징의
-pin_changed=false와 설치/실행 중 업데이트 리허설 후 main/tag push·공개 배포를 마무리해야 해요.
+최종 단위 76, VM selftest 23, 보정된 daemon 58, MCP 33 검사를 통과했어요. 선행 전체
+검증은 x86 53, Docker 69, sandbox 44, image 24, Java 100을 통과했어요. 전후 idle은
+94→99MiB 단발 측정이고 통계적 성능 비교는 아니에요.
+
+**v0.3.12를 공개했어요.** 태그 커밋은 `e01befa`이고 main/tag push를 마쳤어요. 서명·공증,
+두 번째 pin_changed=false, 업로드·공개 다운로드 14개 해시 일치를 확인했어요. 공개 파일의
+새 설치 selftest 23/23(96MiB), 실행 중 0.3.11 업데이트의 VM·컨테이너·볼륨 보존,
+다운로드 차단 첫 부팅의 receipt 갱신과 기존 부팅 파일 보존, arm64/amd64/실제 ELF32 386,
+공개 바이너리 MCP 33/33과 오류 메시지 검사를 통과했어요. 테스트가 띄운 daemon 정리도
+확인했어요. 강제 FD 오류는 소스 기반의 격리 실행 증거이며, 공증 바이너리에 주입한 것은
+아니에요. 요청 범위는 완료됐고, 다음 우선순위는 PLAN.md의 Apple container 비교와
+maintainer가 결정할 커뮤니티 발표예요. 발표 메시지는 보내지 않았어요.
+
+[릴리즈](https://github.com/cothis/dmx/releases/tag/v0.3.12) ·
+[공개 검증 기록](measurements/2026-10-29-release-0.3.12.json) ·
 [원인과 증거](formal-verification-miss-2026-10-29.md)를 확인하세요.
 
 ---
