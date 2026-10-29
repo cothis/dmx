@@ -122,7 +122,7 @@ final class DockerProxy: @unchecked Sendable {
                 guard writeAll(server, head) else { return }
                 return raw(input)
             }
-            var discard = false
+            let discard = false
             if let container = request.startedContainer {
                 switch wait({ await self.starting(container) }) {
                 case .pass(let hook):
@@ -130,8 +130,12 @@ final class DockerProxy: @unchecked Sendable {
                     answered = hook
                     lock.unlock()
                 case .refuse(let message):
-                    discard = true
                     refuse(message)
+                    // Our HTTP/1.0 clients read to EOF. A synthetic refusal must finish the
+                    // response too; there will be no dockerd reply to close this connection.
+                    shutdown(client, SHUT_WR)
+                    shutdown(server, SHUT_RDWR)
+                    return
                 }
             }
             if !discard { guard writeAll(server, head) else { return } }
@@ -194,7 +198,7 @@ final class DockerProxy: @unchecked Sendable {
     /// Answers the request with dockerd's error format; the client prints the message.
     private func refuse(_ message: String) {
         let body = (try? JSONSerialization.data(withJSONObject: ["message": message])) ?? Data()
-        let head = "HTTP/1.1 500 Internal Server Error\r\nContent-Type: application/json\r\nContent-Length: \(body.count + 1)\r\n\r\n"
+        let head = "HTTP/1.1 500 Internal Server Error\r\nContent-Type: application/json\r\nContent-Length: \(body.count + 1)\r\nConnection: close\r\n\r\n"
         let reply = Data(head.utf8) + body + Data("\n".utf8)
         _ = reply.withUnsafeBytes { toClient($0) }
     }

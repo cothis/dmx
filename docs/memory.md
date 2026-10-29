@@ -16,6 +16,11 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Maintainer preferences
 
+- 2026-10-29: Requested actual Opus 5.5 review and authorized release conditional on resolving
+  review defects. The public app installation should include its CLI in one installation, with
+  whole-app updates preserving the signed bundle; old CLI-only updaters require the new
+  installer once to add the app. Community announcements are not part of release authorization.
+
 - 2026-10-29: Approved a manually launched native dmx.app (app launcher/Applications) with a
   menu bar status item, memory and container start/stop controls, errors and engine shutdown.
   The menu app must exit with normal/idle engine shutdown instead of remaining resident;

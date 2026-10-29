@@ -2,15 +2,16 @@ import Foundation
 
 /// Passive lifecycle observation. Reading a receipt never activates launchd, claims the VM,
 /// holds a daemon connection open, or samples guest memory. The daemon owns this file.
-public struct EngineActivity: Codable, Sendable {
+public struct EngineActivity: Codable, Sendable, Equatable {
     public let pid: Int32
     public let version: String
     public let state: String
     public let containers: Int?
     public let reason: String?
     public let failure: Failure?
+    public var sequence: UInt64? = nil
 
-    public struct Failure: Codable, Sendable {
+    public struct Failure: Codable, Sendable, Equatable {
         public let code: String
         public let message: String
         public let hint: String?
@@ -21,11 +22,11 @@ public struct EngineActivity: Codable, Sendable {
     }
 
     static func publish(paths: Paths, version: String, state: String, containers: Int?,
-                        reason: String? = nil, failure: DMXError? = nil) throws {
+                        reason: String? = nil, failure: DMXError? = nil, sequence: UInt64? = nil) throws {
         try FileManager.default.createDirectory(at: paths.activityDirectory, withIntermediateDirectories: true,
                                               attributes: [.posixPermissions: 0o700])
         let receipt = EngineActivity(pid: getpid(), version: version, state: state, containers: containers,
-                                     reason: reason, failure: failure.map(Failure.init))
+                                     reason: reason, failure: failure.map(Failure.init), sequence: sequence)
         try JSONEncoder().encode(receipt).write(to: paths.activity, options: [.atomic])
     }
 
@@ -72,9 +73,7 @@ public final class EngineActivityObserver {
         self.pid = pid
         let source = DispatchSource.makeProcessSource(identifier: pid, eventMask: .exit, queue: .main)
         source.setEventHandler { [weak self] in
-            // A standalone helper is our child; launchd's daemon is not (ECHILD is harmless).
-            // Reap only this exited PID, never change process-wide SIGCHLD handling.
-            _ = waitpid(pid, nil, WNOHANG)
+            DaemonChildren.shared.reapIfExited(pid)
             MainActor.assumeIsolated { self?.onExit(pid) }
         }
         source.resume()

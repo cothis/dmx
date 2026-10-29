@@ -55,7 +55,7 @@ public struct SelfUpdate: Sendable {
         self.paths = paths
         let custom = Config.mirror("DMX_RELEASE_URL", \.releaseUrl, paths: paths, environment: environment)
         baseURL = (custom ?? GuestRelease.defaultBaseURL).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        let running = executable ?? Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments[0])
+        let running = executable ?? URL(fileURLWithPath: (try? currentExecutable()) ?? CommandLine.arguments[0])
         self.executable = running.resolvingSymlinksInPath()
     }
 
@@ -190,6 +190,16 @@ public struct SelfUpdate: Sendable {
         try check(binary: new, is: target)
         let checked = try sha256Hex(of: new)
 
+        if let app = AppInstallation.containing(executable) {
+            let incoming = try AppInstallation.unpack(archive, into: work.appendingPathComponent("app"))
+            _ = try AppInstallation.verify(incoming, version: target, requiringInstalledTeamAt: app)
+            try AppInstallation.replace(source: incoming, destination: app, binDirectory: nil, version: target)
+            progress("installed dmx \(target) at \(app.path); reopen dmx.app to use the new menu")
+            return Report(current: current, target: target, available: true, updated: true,
+                          path: app.path, url: url.absoluteString, sha256: expected, bytes: bytes,
+                          daemon: try await handOver(target: target, progress: progress), signature: signature)
+        }
+
         // Same directory, so the rename is atomic and cannot leave a half-written dmx behind.
         let staged = executable.deletingLastPathComponent().appendingPathComponent(".dmx.update-\(getpid())")
         try? fm.removeItem(at: staged)
@@ -248,7 +258,7 @@ public struct SelfUpdate: Sendable {
     /// the user cannot write.
     func checkDestination(force: Bool) throws {
         let path = executable.path
-        if path.contains(".app/Contents/MacOS/") {
+        if path.contains(".app/Contents/MacOS/"), AppInstallation.containing(executable) == nil {
             throw DMXError("update_app_bundle", "a CLI-only update would invalidate dmx.app's signature",
                            hint: "replace the whole dmx.app; for a source installation run `make install-app`")
         }
@@ -256,7 +266,7 @@ public struct SelfUpdate: Sendable {
             throw DMXError("update_source_build", "\(path) is a build from source, not an installed release",
                            hint: "update the installed copy instead, or pass --force to replace this one")
         }
-        let dir = executable.deletingLastPathComponent().path
+        let dir = (AppInstallation.containing(executable) ?? executable).deletingLastPathComponent().path
         guard FileManager.default.isWritableFile(atPath: dir) else {
             throw DMXError("update_not_writable", "\(dir) is not writable by this user",
                            hint: "install it where you can write: `curl -fsSL \(baseURL)/latest/install.sh | PREFIX=$HOME/.local sh`")
@@ -292,7 +302,8 @@ public struct SelfUpdate: Sendable {
     /// source, or `--ad-hoc` released) has nothing to compare against, so the check is skipped
     /// rather than faked.
     func checkSignature(of binary: URL) throws -> String {
-        guard let team = try Self.teamToRequire(current: Self.teamIdentifier(of: executable),
+        let anchor = AppInstallation.containing(executable) ?? executable
+        guard let team = try Self.teamToRequire(current: Self.teamIdentifier(of: anchor),
                                                 downloaded: Self.teamIdentifier(of: binary)) else {
             return "skipped: this dmx is not Developer ID signed"
         }

@@ -1,0 +1,661 @@
+{
+  "date": "2026-10-29",
+  "release": "0.4.0",
+  "base_commit": "4d2a411",
+  "reviewed_runtime_index_tree": "fde17c1b6e8d749eda0d13b4b5679af1f9019d42",
+  "review_model": "claude-opus-5-5",
+  "code_gate": "approve",
+  "qualification_counts": {
+    "unit_runner": 92,
+    "opt_in_suites_skipped_in_normal_unit_runner": 2,
+    "selftest": 23,
+    "daemon": 58,
+    "mcp": 33,
+    "x86": 53,
+    "docker": 69,
+    "sandbox": 44,
+    "image": 24,
+    "java_repetitions": 100,
+    "menu_lifecycle_checks": 25,
+    "menu_engine_vm_tests": 1,
+    "app_install_transaction_vm_test": 1
+  },
+  "initial_full_matrix": {
+    "ok": true,
+    "results": [
+      {
+        "target": "apptest",
+        "exit_code": 0,
+        "seconds": 58.793
+      },
+      {
+        "target": "formaltest",
+        "exit_code": 0,
+        "seconds": 16.294
+      },
+      {
+        "target": "selftest",
+        "exit_code": 0,
+        "seconds": 43.095
+      },
+      {
+        "target": "daemontest",
+        "exit_code": 0,
+        "seconds": 190.57
+      },
+      {
+        "target": "mcptest",
+        "exit_code": 0,
+        "seconds": 7.99
+      },
+      {
+        "target": "x86test",
+        "exit_code": 0,
+        "seconds": 52.957
+      },
+      {
+        "target": "dockertest",
+        "exit_code": 0,
+        "seconds": 264.964
+      },
+      {
+        "target": "sandboxtest",
+        "exit_code": 0,
+        "seconds": 37.937
+      },
+      {
+        "target": "imagetest",
+        "exit_code": 0,
+        "seconds": 292.205
+      },
+      {
+        "target": "javatest",
+        "exit_code": 0,
+        "seconds": 292.363
+      },
+      {
+        "target": "menutest",
+        "exit_code": 0,
+        "seconds": 75.168
+      }
+    ]
+  },
+  "final_targeted_qualification": {
+    "ok": true,
+    "results": [
+      {
+        "target": "test",
+        "exit_code": 0,
+        "seconds": 8.373
+      },
+      {
+        "target": "apptest",
+        "exit_code": 0,
+        "seconds": 48.837
+      },
+      {
+        "target": "selftest",
+        "exit_code": 0,
+        "seconds": 26.928
+      },
+      {
+        "target": "daemontest",
+        "exit_code": 0,
+        "seconds": 198.001
+      },
+      {
+        "target": "mcptest",
+        "exit_code": 0,
+        "seconds": 7.66
+      },
+      {
+        "target": "menutest",
+        "exit_code": 0,
+        "seconds": 74.269
+      }
+    ]
+  },
+  "qualification_scope": "Full matrix spans intermediate revisions. Final targeted rerun covers unit, app, selftest, daemon, MCP and menu on the final runtime source. No VMM/FEX/guest boot-file change. Publication validation is recorded separately.",
+  "engine_footprint_mib": {
+    "previous_feature_source": 93,
+    "final_source": 94,
+    "scope": "Single selftest samples, not an improvement or regression claim."
+  },
+  "first_signed_installer": {
+    "ok": true,
+    "app_cli_tools_one_installer": true,
+    "engine_not_started": true,
+    "codesign_stapler_gatekeeper": [
+      {
+        "check": [
+          "codesign",
+          "--verify"
+        ],
+        "exit_code": 0,
+        "output": ""
+      },
+      {
+        "check": [
+          "xcrun",
+          "stapler"
+        ],
+        "exit_code": 0,
+        "output": "Processing: /Users/cothis/dev/dockermax/.build/menu-release-review/signed-installer/Applications/dmx.app\nThe validate action worked!\n"
+      },
+      {
+        "check": [
+          "spctl",
+          "--assess"
+        ],
+        "exit_code": 0,
+        "output": "/Users/cothis/dev/dockermax/.build/menu-release-review/signed-installer/Applications/dmx.app: accepted\nsource=Notarized Developer ID\n"
+      }
+    ],
+    "archive_sha256": "bbb634252241924efc74fb7398b75478ac12f48da097f0acdb4a319ba1d7a35a"
+  },
+  "identity_before_execution": {
+    "ok": true,
+    "installed_identity_checked_before_execution": true,
+    "signed_install_preserved_on_refusal": true,
+    "explicit_exception_positive_control": true
+  },
+  "actual_ui_regressions": {
+    "bad_context_startup": {
+      "ok": true,
+      "native_error_dialog_captured": true,
+      "normal_idle_ui_exit": true
+    },
+    "slow_first_guest": {
+      "ok": true,
+      "first_start_ready_seconds": 179.01871416601352,
+      "observations": [
+        {
+          "seconds": 150.0538885409478,
+          "trace": {
+            "errorButtonAction": "",
+            "errorCode": "",
+            "event": "rendered",
+            "items": [
+              {
+                "enabled": false,
+                "title": "dmx \u2014 Starting\u2026"
+              },
+              {
+                "enabled": false,
+                "title": ""
+              },
+              {
+                "enabled": false,
+                "title": "Containers"
+              },
+              {
+                "enabled": false,
+                "title": "Open menu to load containers"
+              },
+              {
+                "enabled": false,
+                "title": ""
+              },
+              {
+                "enabled": false,
+                "title": "Refresh"
+              },
+              {
+                "enabled": true,
+                "title": "Open logs\u2026"
+              },
+              {
+                "enabled": false,
+                "title": ""
+              },
+              {
+                "enabled": true,
+                "title": "Quit dmx"
+              }
+            ],
+            "phase": "starting",
+            "pid": 65262,
+            "quitting": false,
+            "ready": false,
+            "setupComplete": false,
+            "startupActive": true,
+            "statusWindowID": 4294967296
+          }
+        },
+        {
+          "seconds": 179.01871416601352,
+          "trace": {
+            "errorButtonAction": "",
+            "errorCode": "",
+            "event": "rendered",
+            "items": [
+              {
+                "enabled": false,
+                "title": "dmx \u2014 Running"
+              },
+              {
+                "enabled": false,
+                "title": "Engine: 94 MiB  \u00b7  Menu: 12 MiB"
+              },
+              {
+                "enabled": false,
+                "title": ""
+              },
+              {
+                "enabled": false,
+                "title": "Containers"
+              },
+              {
+                "enabled": false,
+                "title": "Open menu to load containers"
+              },
+              {
+                "enabled": false,
+                "title": ""
+              },
+              {
+                "enabled": true,
+                "title": "Refresh"
+              },
+              {
+                "enabled": true,
+                "title": "Open logs\u2026"
+              },
+              {
+                "enabled": false,
+                "title": ""
+              },
+              {
+                "enabled": true,
+                "title": "Quit dmx"
+              }
+            ],
+            "phase": "running",
+            "pid": 65262,
+            "quitting": false,
+            "ready": true,
+            "setupComplete": true,
+            "startupActive": false,
+            "statusWindowID": 4294967296
+          }
+        }
+      ],
+      "final_trace": {
+        "errorButtonAction": "",
+        "errorCode": "",
+        "event": "terminated",
+        "items": [
+          {
+            "enabled": false,
+            "title": "dmx \u2014 Stopped"
+          },
+          {
+            "enabled": false,
+            "title": ""
+          },
+          {
+            "enabled": false,
+            "title": "Containers"
+          },
+          {
+            "enabled": false,
+            "title": "Open menu to load containers"
+          },
+          {
+            "enabled": false,
+            "title": ""
+          },
+          {
+            "enabled": false,
+            "title": "Refresh"
+          },
+          {
+            "enabled": true,
+            "title": "Open logs\u2026"
+          },
+          {
+            "enabled": false,
+            "title": ""
+          },
+          {
+            "enabled": true,
+            "title": "Quit dmx"
+          }
+        ],
+        "phase": "stopped",
+        "pid": 65262,
+        "quitting": false,
+        "ready": true,
+        "setupComplete": true,
+        "startupActive": false,
+        "statusWindowID": 4294967296
+      },
+      "engine": {
+        "state": "stopped",
+        "version": "0.4.0",
+        "pid": 65262,
+        "sequence": 5,
+        "reason": "stopped"
+      },
+      "ui_processes": "",
+      "scope": "Finder-launched native app, real byte-for-byte pinned guest streamed slowly; no synthetic engine receipt"
+    },
+    "ordinary_operation_failure_then_idle_exit": {
+      "ok": true,
+      "fixture": "Real malformed isolated daemon config; actual Finder-launched and reopened app; no synthetic receipt."
+    }
+  },
+  "proof_limits": [
+    "Direct container Start/Stop and Quit clicks/submenu capture remain unverified by available windowless native automation.",
+    "The late-boot-snapshot interleaving is covered by the production state model unit regression, not a forced actual-GUI interleaving.",
+    "Actual first-run GUI regressions predate only the final anti-stale-snapshot/display patches; runtime details are recorded in staged review reports."
+  ],
+  "runtime_changes_after_final_review": [],
+  "menu_lifecycle_regressions": {
+    "ok": true,
+    "checks": [
+      {
+        "name": "startup_download_reached_server",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "startup_download_cancelled_before_server_close",
+        "ok": true,
+        "detail": "{\n  \"clients\" : 1,\n  \"console_log\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-cancel-mu4wic7t/logs/console.log\",\n  \"docker_socket\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-cancel-mu4wic7t/docker.sock\",\n  \"execs\" : 0,\n  \"host_footprint_mb\" : 5,\n  \"host_peak_footprint_mb\" : 5,\n  \"idle_timeout_s\" : 300,\n  \"launchd\" : false,\n  \"memory\" : {\n    \"host_pressure\" : \"normal\",\n    \"pressure_simulated\" : false,\n    \"sweeps\" : 0,\n    \"trims\" : 0\n  },\n  \"pid\" : 84109,\n  \"socket\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-cancel-mu4wic7t/dmx.sock\",\n  \"state\" : \"stopped\",\n  \"version\" : \"0.4.0\"\n}\n"
+      },
+      {
+        "name": "cancelled_start_is_normal_shutdown",
+        "ok": true,
+        "detail": "{\n  \"error\" : {\n    \"code\" : \"start_cancelled\",\n    \"hint\" : \"run `dmx start` when needed\",\n    \"message\" : \"VM startup was cancelled before it booted\"\n  },\n  \"ok\" : false\n}\n"
+      },
+      {
+        "name": "start",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "hello_capability",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "running_receipt",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "release_cannot_stop_active_vm",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "menu_tunnel",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "menu_docker_listing",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "idle_while_observed",
+        "ok": true,
+        "detail": {
+          "version": "0.4.0",
+          "state": "stopped",
+          "pid": 84112,
+          "sequence": 7,
+          "reason": "stopped"
+        }
+      },
+      {
+        "name": "normal_stop_has_no_failure",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "menu_cannot_boot_idle_vm",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "menu_release",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "daemon_exits_after_menu_release",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "reading_receipt_does_not_restart_engine",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "cli_works_without_app",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "independent_docker_cli",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "cli_idle_stop",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "menu_detach_from_cli_idle",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "cli_keepalive_survives_menu",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "docker_cli_restarts_vm_without_app",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "passive_overlap_ack",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "active_exec_ends_under_passive_lease",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "active_completion_sets_idle_epoch_under_passive_lease",
+        "ok": true,
+        "detail": {
+          "disk": {
+            "allocated_mb": 173,
+            "size_mb": 65536,
+            "path": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-menu-723hl7n5/data.img"
+          },
+          "execs": 0,
+          "state": "running",
+          "host_footprint_mb": 252,
+          "uptime_s": 4.7,
+          "cpus": 2,
+          "guest_used_mb": 62,
+          "version": "0.4.0",
+          "docker_socket": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-menu-723hl7n5/docker.sock",
+          "host_peak_footprint_mb": 312,
+          "idle_timeout_s": 3,
+          "clients": 0,
+          "socket": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-menu-723hl7n5/dmx.sock",
+          "launchd": false,
+          "max_memory": "2.0G",
+          "pid": 84226,
+          "containers": 0,
+          "idle_stop_in_s": 2,
+          "console_log": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-menu-723hl7n5/logs/console.log",
+          "memory": {
+            "sweeps": 0,
+            "guest_page_size": 4096,
+            "balloon_mb": 0,
+            "plug": {
+              "plugged_mb": 256,
+              "boot_mb": 1024,
+              "plugs": 2,
+              "unplugs": 0,
+              "requested_mb": 256
+            },
+            "balloon_target_mb": 0,
+            "guest_cache_mb": 139,
+            "pressure_simulated": false,
+            "trims": 0,
+            "host_pressure": "normal",
+            "guest_swap_mb": 0,
+            "reported_mb": 1033
+          }
+        }
+      },
+      {
+        "name": "guest_poweroff_reported_as_failure",
+        "ok": true,
+        "detail": {
+          "failure": {
+            "hint": "run `dmx doctor`, then start dmx again",
+            "code": "guest_stopped",
+            "message": "the guest powered off unexpectedly"
+          },
+          "sequence": 12,
+          "pid": 84226,
+          "state": "stopped",
+          "version": "0.4.0",
+          "reason": "guest_stopped"
+        }
+      }
+    ]
+  },
+  "signed_whole_app_update_with_live_vm_container_volume": {
+    "ok": true,
+    "checks": [
+      {
+        "name": "single_install_app_and_cli",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "bundled_helper_reports_cli_version",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "repeat_install_valid_signature",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "damaged_bundle_preserves_install",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "cannot_link_cli_inside_signed_app",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "reject_traversal",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "reject_duplicate",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "reject_symlink",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "seed_guest_data",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "whole_app_update_keeps_running_vm",
+        "ok": true,
+        "detail": {
+          "available": true,
+          "bytes": 5394055,
+          "current": "0.4.0",
+          "daemon": {
+            "handover": "stop_to_switch",
+            "pid": 87784,
+            "version": "0.4.0",
+            "vm_running": true
+          },
+          "ok": true,
+          "path": "/tmp/dmx-app-test-kki6qp9o/Applications/dmx.app",
+          "sha256": "3d19e5cae72bb411dd887b7763b745c712ad59c777df3ccdb8ddf807c5100a03",
+          "signature": "V4YA23448U",
+          "target": "0.4.0",
+          "updated": true,
+          "url": "http://127.0.0.1:59980/v0.4.0/dmx-0.4.0-darwin-arm64.tar.gz"
+        }
+      },
+      {
+        "name": "whole_app_update_keeps_guest_data",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "whole_app_update_keeps_running_container",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "whole_app_update_keeps_named_volume",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "whole_app_update_keeps_cli_link_and_signature",
+        "ok": true,
+        "detail": null
+      }
+    ]
+  },
+  "final_menu_cost_before_menu_open": {
+    "scope": "menu process only, engine excluded",
+    "interval_s": 45.00544524984434,
+    "before": {
+      "pid": 88611,
+      "footprint_mb": 11.95,
+      "cpu_s": 0.165741375
+    },
+    "after": {
+      "pid": 88611,
+      "footprint_mb": 11.92,
+      "cpu_s": 0.16593675
+    },
+    "cpu_percent_one_core": 0.0004341141364459079,
+    "host_pressure_before": 1,
+    "host_pressure_after": 1,
+    "cpu_reader_check": {
+      "getrusage_s": 0.050005999999999995,
+      "reader_s": 0.050024
+    },
+    "instruction": "No UI interaction during sample; memory is ri_phys_footprint in MiB.",
+    "phase": "Final source, first launch ready, menu never opened, preinstalled pinned tools; ad-hoc QA bundle with isolated DMX_HOME",
+    "source_index": "fde17c1b6e8d749eda0d13b4b5679af1f9019d42"
+  },
+  "final_source_normal_stop_ui_exit": true
+}

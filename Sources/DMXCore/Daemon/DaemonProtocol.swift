@@ -9,6 +9,12 @@ public struct DaemonHello: Codable, Sendable {
     public let pid: Int32
     /// Additive capability: old daemons do not publish lifecycle receipts.
     public var activityNotifications: Bool? = nil
+    public var menuControl: Bool? = nil
+}
+
+public struct MenuDaemonState: Codable, Sendable {
+    public let pid: Int32
+    public let state: String
 }
 
 /// What `dmx status` shows. VM fields are nil while the VM is stopped.

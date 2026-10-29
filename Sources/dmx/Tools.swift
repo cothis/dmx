@@ -19,11 +19,15 @@ struct Tools: AsyncParsableCommand {
         )
         @OptionGroup var global: GlobalOptions
 
+        @Option(help: "Create CLI links here even when it is not on PATH (the unified installer uses this).")
+        var binDir: String?
+
         @MainActor
         func run() async throws {
             let quiet = global.json
             try await report(global) {
-                let result = try await DockerTools.install(paths: Paths(), progress: { if !quiet { printProgress($0) } })
+                let result = try await DockerTools.install(paths: Paths(), linkDirectory: binDir.map { URL(fileURLWithPath: $0) },
+                                                          progress: { if !quiet { printProgress($0) } })
                 return (result, describeTools(result), true)
             }
         }

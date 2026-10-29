@@ -13,18 +13,20 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var activity: EngineActivity?
     private var status: DaemonStatus?
     private var containers: [MenuEngine.Container]?
-    private var error: Error?
+    private var session = MenuSessionState()
+    private var error: Error? { session.failure }
     private var errorAlert: NSAlert?
     private var startup: Task<Void, Never>?
     private var refreshTask: Task<Void, Never>?
     private var containerTask: Task<Void, Never>?
     private var refreshing = false
     private var ready = false
+    private var setupComplete = false
     private var busy = false
     private var quitting = false
     private var mayTerminate = false
     private var automaticExit = false
-    private var phase = "Starting…"
+    private var phase: MenuSessionState.Phase { get { session.phase } set { session.phase = newValue } }
 
     override init() {
         let helper = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/dmx").path
@@ -48,10 +50,9 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func start() {
-        guard startup == nil, !quitting else { return }
+        guard startup == nil, !quitting, !automaticExit else { return }
         dismissError()
-        error = nil; ready = false; phase = "Starting…"
-        render()
+        session.prepareStart(); ready = false; setupComplete = false
         do {
             if observer == nil {
                 observer = try EngineActivityObserver(paths: engine.paths, changed: { [weak self] in self?.changed($0) },
@@ -59,11 +60,14 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         } catch { fail(error); return }
         startup = Task {
-            defer { startup = nil }
+            defer { startup = nil; considerExit(); render() }
             do {
-                status = try await engine.start { [weak self] pid in
+                let launch = try await engine.start(connected: { [weak self] pid in
                     await self?.connected(pid)
-                }
+                }, booted: { [weak self] status in await self?.booted(status) })
+                status = launch.status
+                setupComplete = launch.setupFailure == nil
+                if let failure = launch.setupFailure { fail(failure, scope: .operation) }
                 ready = true
                 if !quitting {
                     // An external stop can arrive while first-time tools are downloading.
@@ -71,44 +75,65 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     if let receipt = EngineActivity.read(paths: engine.paths), receipt.pid == pid {
                         changed(receipt)
                     } else {
-                        phase = status?.state == "running" ? "Running" : "Stopped"
                         render()
-                        if phase == "Stopped" { exitAfterIdle() }
+                        if phase == .stopped { considerExit() }
                     }
                 }
-            } catch { if !quitting { fail(error) } }
-        }
-    }
-
-    private func connected(_ pid: Int32) {
-        self.pid = pid
-        observer?.watch(pid: pid)
-    }
-
-    private func changed(_ receipt: EngineActivity) {
-        guard receipt.pid == pid, !quitting else { return }
-        activity = receipt
-        if let failure = receipt.failure {
-            fail(DMXError(failure.code, failure.message, hint: failure.hint))
-            return
-        }
-        switch receipt.state {
-        case "starting": phase = "Starting…"
-        case "running": phase = "Running"
-        case "stopping": phase = "Stopping…"
-        case "stopped":
-            phase = "Stopped"
-            status = nil
-            if ready, !busy, !refreshing, error == nil { exitAfterIdle() }
-        default: break
+                render()
+                considerExit()
+            } catch {
+                if !quitting {
+                    if (error as? DMXError)?.code == "start_cancelled" ||
+                        (error is CancellationError && activity?.state == "stopped" && activity?.failure == nil) {
+                        phase = .stopped
+                    } else { fail(error) }
+                }
+            }
         }
         render()
     }
 
+    private func connected(_ pid: Int32) {
+        self.pid = pid
+        session.bind(pid: pid)
+        observer?.watch(pid: pid)
+    }
+
+    private func booted(_ status: DaemonStatus) {
+        self.status = status; ready = true
+        if let receipt = EngineActivity.read(paths: engine.paths), receipt.pid == pid { changed(receipt) }
+        session.reconcileBoot(state: status.state)
+        render()
+    }
+
+    private func considerExit() {
+        guard !quitting, session.shouldExit(startupFinished: startup == nil, busy: busy, refreshing: refreshing) else { return }
+        exitAfterIdle()
+    }
+
+    private func changed(_ receipt: EngineActivity) {
+        guard receipt.pid == pid, !quitting else { return }
+        guard session.receive(receipt) else { return }
+        activity = receipt
+        if receipt.failure != nil { showError() }
+        if error == nil { dismissError() }
+        if receipt.state == "stopped" {
+            status = nil
+            if !session.blocksAutomaticExit { dismissError(); if ready { startup?.cancel() } }
+        }
+        considerExit()
+        render()
+    }
+
     private func exited(_ pid: Int32) {
-        guard self.pid == pid, !quitting, !automaticExit, error == nil else { return }
-        if activity?.state == "stopped", activity?.failure == nil, ready, !busy, !refreshing, error == nil {
-            terminateNow()
+        guard self.pid == pid, !quitting, !automaticExit, !session.blocksAutomaticExit else { return }
+        // Filesystem and process notifications can arrive in either order.
+        if let receipt = EngineActivity.read(paths: engine.paths), receipt.pid == pid { changed(receipt) }
+        guard !session.blocksAutomaticExit else { return }
+        if activity?.state == "stopped", activity?.failure == nil {
+            session.reconcile(state: "stopped")
+            startup?.cancel()
+            considerExit()
         } else {
             fail(DMXError("daemon_exited", "The dmx engine exited unexpectedly.", hint: "Run `dmx doctor`, then retry."))
         }
@@ -118,11 +143,19 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard !automaticExit, let pid else { return }
         automaticExit = true
         Task {
+            defer { if !mayTerminate { automaticExit = false; render() } }
             do {
-                let released = try await engine.releaseAfterIdle(pid: pid)
-                guard !quitting else { return }
-                if released { terminateNow() }
-                else { automaticExit = false; phase = "Running"; render() }
+                let revision = session.receiptRevision
+                let latest = try await engine.stateAfterIdle(pid: pid)
+                if let receipt = EngineActivity.read(paths: engine.paths), receipt.pid == pid { changed(receipt) }
+                guard !quitting, !session.blocksAutomaticExit else { return }
+                // A newer receipt wins over the state sampled by the RPC before it arrived.
+                if session.receiptRevision != revision {
+                    if phase == .stopped { terminateNow() }
+                    return
+                }
+                if latest == nil || latest?.state == "stopped" { terminateNow() }
+                else { session.reconcile(state: latest!.state); render() }
             } catch {
                 guard !quitting else { return }
                 // The daemon may have exited between its stopped receipt and this call.
@@ -147,44 +180,61 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func trace(_ event: String) {
         guard ProcessInfo.processInfo.environment["DMX_MENU_TRACE"] == "1" else { return }
         let action = errorAlert?.buttons.first?.action
-        let object: [String: Any] = ["event": event, "phase": phase,
+        let object: [String: Any] = ["event": event, "phase": phase.rawValue,
+                                     "pid": pid ?? 0, "ready": ready, "setupComplete": setupComplete, "startupActive": startup != nil, "quitting": quitting,
+                                     "errorCode": (error as? DMXError)?.code ?? "",
+                                     "statusWindowID": item.button?.window?.windowNumber ?? 0,
                                      "errorButtonAction": action.map(NSStringFromSelector) ?? "",
                                      "items": menu.items.map { ["title": $0.title, "enabled": $0.isEnabled] }]
         if let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) {
-            try? data.write(to: engine.paths.activityDirectory.appendingPathComponent("menu-ui.json"), options: [.atomic])
+            try? FileManager.default.createDirectory(at: engine.paths.logs, withIntermediateDirectories: true)
+            try? data.write(to: engine.paths.logs.appendingPathComponent("menu-ui.json"), options: [.atomic])
+            let events = engine.paths.logs.appendingPathComponent("menu-events.jsonl")
+            if !FileManager.default.fileExists(atPath: events.path) { FileManager.default.createFile(atPath: events.path, contents: nil) }
+            if let file = try? FileHandle(forWritingTo: events) {
+                _ = try? file.seekToEnd(); try? file.write(contentsOf: data + Data([10])); try? file.close()
+            }
         }
     }
 
     private func refresh() {
-        guard ready, !busy, !refreshing, !quitting, !automaticExit, phase == "Running" else { return }
+        guard ready, !busy, !refreshing, !quitting, !automaticExit, phase == .running else { return }
         refreshing = true
         render()
         refreshTask = Task {
             defer {
                 refreshTask = nil
                 refreshing = false
-                if activity?.state == "stopped", error == nil, !quitting { exitAfterIdle() }
+                considerExit()
                 render()
             }
             do {
+                let revision = session.receiptRevision
                 status = try await engine.status()
-                guard status?.state == "running", !quitting else { return }
+                guard !quitting else { return }
+                if status?.state != "running" {
+                    if let receipt = EngineActivity.read(paths: engine.paths), receipt.pid == pid { changed(receipt) }
+                    if session.receiptRevision == revision { session.reconcile(state: status?.state ?? "stopped") }
+                    return
+                }
                 containers = try await engine.containers()
                 guard !quitting else { return }
                 // The first listing may start dockerd; show memory after that work.
                 status = try await engine.status()
-            } catch { if !quitting { fail(error, alert: false) } }
+                session.operationSucceeded()
+                if error == nil { dismissError() }
+            } catch { if !quitting { fail(error, alert: false, scope: .operation) } }
         }
     }
 
     private func render() {
-        let symbol = error != nil ? "exclamationmark.triangle" : (phase == "Running" ? "shippingbox.fill" : "shippingbox")
-        item?.button?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "dmx — \(phase)")
+        let symbol = error != nil ? "exclamationmark.triangle" : (phase == .running ? "shippingbox.fill" : "shippingbox")
+        item?.button?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "dmx — \(phase.label)")
         item?.button?.image?.isTemplate = true
-        item?.button?.setAccessibilityLabel("dmx — \(phase)")
-        item?.button?.toolTip = "dmx — \(phase)"
+        item?.button?.setAccessibilityLabel("dmx — \(phase.label)")
+        item?.button?.toolTip = "dmx — \(phase.label)"
         menu.removeAllItems()
-        add("dmx — \(error == nil ? phase : "Needs attention")")
+        add("dmx — \(error == nil ? phase.label : "Needs attention")")
         if let footprint = status?.hostFootprintMb {
             add("Engine: \(footprint) MiB  ·  Menu: \(HostFootprint.read(pid: getpid())?.footprintMb ?? 0) MiB")
         }
@@ -192,8 +242,8 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let message = (failure as? DMXError)?.message ?? failure.localizedDescription
             let detail = add("Show error…", action: #selector(showErrorAction))
             detail.toolTip = message
-            if !quitting { add("Retry", action: #selector(retry)) }
         }
+        if !quitting, !automaticExit, startup == nil, error != nil || !ready || !setupComplete { add("Retry", action: #selector(retry)) }
         menu.addItem(.separator())
         let count = activity?.containers ?? status?.containers
         add(count.map { "Containers (\($0) running)" } ?? "Containers")
@@ -214,7 +264,7 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 submenu.addItem(.separator())
                 let action = NSMenuItem(title: container.running ? "Stop" : "Start", action: #selector(toggleContainer(_:)), keyEquivalent: "")
                 action.target = self; action.representedObject = container
-                action.isEnabled = !busy && !quitting && phase == "Running"
+                action.isEnabled = !busy && !quitting && phase == .running
                 submenu.addItem(action)
                 row.submenu = submenu
             }
@@ -222,11 +272,12 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else { add(refreshing ? "Loading containers…" : "Open menu to load containers") }
         menu.addItem(.separator())
         let refresh = add("Refresh", action: #selector(refreshAction), key: "r")
-        refresh.isEnabled = ready && !refreshing && !busy && !quitting && phase == "Running"
+        refresh.isEnabled = ready && !refreshing && !busy && !quitting && phase == .running
         add("Open logs…", action: #selector(openLogs))
         menu.addItem(.separator())
         let quit = add(quitting ? "Stopping dmx…" : "Quit dmx", action: #selector(quitAction), key: "q")
         quit.isEnabled = !quitting
+        trace("rendered")
     }
 
     @discardableResult
@@ -245,7 +296,7 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func refreshAction() { refresh() }
     @objc private func retry() {
         dismissError()
-        if ready, let pid, kill(pid, 0) == 0, activity?.state == "running" { error = nil; phase = "Running"; refresh() }
+        if ready, setupComplete, !session.blocksAutomaticExit, let pid, kill(pid, 0) == 0, activity?.state == "running" { session.operationSucceeded(); phase = .running; refresh() }
         else { start() }
     }
 
@@ -257,12 +308,13 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             await refreshTask?.value
             do {
                 try await engine.setRunning(!container.running, container: container)
-                if phase == "Running" { error = nil }
+                session.operationSucceeded()
+                if error == nil { dismissError() }
             }
-            catch { if !quitting { fail(error) } }
+            catch { if !quitting { fail(error, scope: .operation) } }
             busy = false
             if !quitting {
-                if activity?.state == "stopped", error == nil { exitAfterIdle() }
+                if activity?.state == "stopped", !session.blocksAutomaticExit { considerExit() }
                 else { refresh() }
             }
             render()
@@ -300,12 +352,11 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         errorAlert = nil
     }
 
-    private func fail(_ error: Error, alert: Bool = true) {
+    private func fail(_ error: Error, alert: Bool = true, scope: MenuSessionState.FailureScope = .lifecycle) {
         let previous = self.error as? DMXError
         let next = error as? DMXError
         let duplicate = previous != nil && previous?.code == next?.code && previous?.message == next?.message
-        self.error = error
-        phase = "Needs attention"
+        session.failed(next ?? DMXError("menu_failed", error.localizedDescription, hint: "run `dmx doctor`"), scope: scope)
         render()
         if alert && !duplicate { showError() }
     }
@@ -315,7 +366,7 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if mayTerminate { return .terminateNow }
         guard !quitting else { return .terminateLater }
         dismissError()
-        quitting = true; phase = "Stopping…"; render()
+        quitting = true; phase = .stopping; startup?.cancel(); render()
         Task {
             await startup?.value
             // Drain work before the final stop. No in-flight Docker action may start a VM
@@ -325,10 +376,11 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
             do {
                 if pid != nil { try await engine.stop() }
                 mayTerminate = true
+                trace("terminated_after_quit")
                 observer?.close()
                 NSApp.reply(toApplicationShouldTerminate: true)
             } catch {
-                quitting = false
+                quitting = false; automaticExit = false
                 NSApp.reply(toApplicationShouldTerminate: false)
                 fail(error)
             }
@@ -338,8 +390,21 @@ final class MenuApp: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func terminateNow() {
         mayTerminate = true
+        trace("terminated")
         observer?.close()
         NSApp.terminate(nil)
+    }
+}
+
+private extension MenuSessionState.Phase {
+    var label: String {
+        switch self {
+        case .starting: "Starting…"
+        case .running: "Running"
+        case .stopping: "Stopping…"
+        case .stopped: "Stopped"
+        case .needsAttention: "Needs attention"
+        }
     }
 }
 

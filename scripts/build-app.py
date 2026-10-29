@@ -18,9 +18,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=ROOT / ".build/dmx.app")
     parser.add_argument("--install", action="store_true", help="copy to ~/Applications/dmx.app")
+    parser.add_argument("--helper", type=Path, default=ROOT / ".build/release/dmx", help="pre-signed CLI helper")
+    parser.add_argument("--no-sign", action="store_true", help="leave Developer ID signing to release.py")
+    parser.add_argument("--bin-dir", type=Path, default=Path.home() / ".local/bin")
     args = parser.parse_args()
     output = args.output.resolve()
-    version = subprocess.check_output([ROOT / ".build/release/dmx", "--version"], text=True).strip()
+    version = subprocess.check_output([args.helper, "--version"], text=True).strip()
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="dmx-app-", dir=output.parent) as scratch:
         scratch = Path(scratch)
@@ -31,7 +34,7 @@ def main():
         macos.mkdir(parents=True)
         resources.mkdir()
         for name in ("dmx", "dmx-menu"):
-            shutil.copy2(ROOT / ".build/release" / name, macos / name)
+            shutil.copy2(args.helper if name == "dmx" else ROOT / ".build/release" / name, macos / name)
         shutil.copy2(ROOT / "LICENSE", resources / "LICENSE")
         shutil.copy2(ROOT / ".build/checkouts/swift-argument-parser/LICENSE.txt", resources / "ArgumentParser-LICENSE.txt")
         info = {
@@ -53,10 +56,11 @@ def main():
         iconset = scratch / "AppIcon.iconset"
         run("swift", ROOT / "scripts/draw-app-icon.swift", iconset)
         run("iconutil", "-c", "icns", iconset, "-o", resources / "AppIcon.icns")
-        run("codesign", "--force", "--sign", "-", "--entitlements", ROOT / "dmx.entitlements", macos / "dmx")
-        run("codesign", "--force", "--sign", "-", macos / "dmx-menu")
-        run("codesign", "--force", "--sign", "-", app)
-        run("codesign", "--verify", "--deep", "--strict", app)
+        if not args.no_sign:
+            run("codesign", "--force", "--sign", "-", "--entitlements", ROOT / "dmx.entitlements", macos / "dmx")
+            run("codesign", "--force", "--sign", "-", macos / "dmx-menu")
+            run("codesign", "--force", "--sign", "-", app)
+            run("codesign", "--verify", "--deep", "--strict", app)
         # Never write through a running executable's pages. The old bundle remains usable
         # until the new one has been completely built and verified.
         previous = output.with_name(output.name + ".previous")
@@ -73,28 +77,7 @@ def main():
         if previous.exists():
             shutil.rmtree(previous)
     if args.install:
-        destination = Path.home() / "Applications/dmx.app"
-        destination.parent.mkdir(exist_ok=True)
-        if output == destination:
-            raise RuntimeError("build output must differ from the installed app")
-        staging = destination.with_name(".dmx.app.new")
-        if staging.exists():
-            raise RuntimeError(f"preserving existing {staging}; move it before installing")
-        shutil.copytree(output, staging)
-        old = destination.with_name(".dmx.app.previous")
-        if old.exists():
-            raise RuntimeError(f"preserving existing {old}; move it before installing")
-        if destination.exists():
-            destination.rename(old)
-        try:
-            staging.rename(destination)
-        except BaseException:
-            if old.exists():
-                old.rename(destination)
-            raise
-        if old.exists():
-            shutil.rmtree(old)
-        print(destination)
+        run(args.helper, "app", "install", "--bundle", output, "--bin-dir", args.bin_dir, "--allow-signing-change")
     else:
         print(output)
 

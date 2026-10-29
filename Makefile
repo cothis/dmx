@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build app install-app menutest install kernel qemu fex guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest javatest pressuretest benchmark test formaltest release clean
+.PHONY: build app install-app apptest menutest install kernel qemu fex guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest javatest pressuretest benchmark test formaltest release clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -13,9 +13,13 @@ build:
 app: build
 	python3 -I scripts/build-app.py
 
-# Update the CLI too, so an existing socket-activated daemon supports app lifecycle receipts.
-install-app: install
-	python3 -I scripts/build-app.py --install
+# One verified app owns the CLI too; replacement preserves existing running VM processes.
+install-app: build
+	python3 -I scripts/build-app.py --install --bin-dir "$(PREFIX)/bin"
+
+apptest: app
+	DMX_APP_TEST_BUNDLE="$(abspath .build/dmx.app)" swift test --filter AppInstallationTests
+	python3 -I scripts/test-app-install.py $(BIN) .build/dmx.app
 
 # Copies dmx to $(PREFIX)/bin (default ~/.local/bin, no sudo). If the launchd agent is installed,
 # points it at the new copy. The guest stays in ~/.dmx/guest (`make guest`).

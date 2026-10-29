@@ -23,6 +23,7 @@ public final class Daemon {
     private var exiting = false
 
     private var state = State.stopped
+    private var activitySequence: UInt64 = 0
     private var machine: Machine?
     private var agent: AgentClient?
     private var booting: Task<AgentClient, Error>?
@@ -39,6 +40,7 @@ public final class Daemon {
     private var idleSince = ContinuousClock.now
     private var quietSince = ContinuousClock.now
     private var idleCheck: Task<Void, Never>?
+    private var dockerWasBusy = false
     /// Idle trims, host pressure and the balloon (MemoryController.swift).
     private let memory = MemoryController()
     /// Host ports forwarded to the guest (`dmx port`); see PortForward.swift.
@@ -89,13 +91,14 @@ public final class Daemon {
         // So does a Docker client's connection, and so does a running container.
         let using: @MainActor (Bool) -> Void = { [unowned self] open in
             users += open ? 1 : -1
-            if users == 0 { idleSince = .now }
+            if !open { idleSince = .now }
             memory.noteActivity()
             scheduleIdleCheck()
         }
         ports.start(agent: { [unowned self] in try await running() }, using: using)
         docker.start(agent: { [unowned self] in try await running() }, using: using) { [unowned self] in
-            if users == 0 && !docker.busy { idleSince = .now }
+            if dockerWasBusy && !docker.busy { idleSince = .now }
+            dockerWasBusy = docker.busy
             sandboxReaper.update(agent: docker.containers == nil ? nil : agent)
             scheduleIdleCheck()
             publishActivity()
@@ -117,12 +120,12 @@ public final class Daemon {
             idleCheck?.cancel()
             let connection = FrameConnection(fd: fd, peer: .daemon) { _ = Darwin.close(fd) }
             Task {
-                let usedVM = await serve(connection)
+                let use = await serve(connection)
                 connection.close()
                 clients -= 1
-                if usedVM {
+                if use.usedVM {
                     users -= 1
-                    if users == 0 { idleSince = .now }
+                    if use.resetsIdle { idleSince = .now }
                 }
                 quietSince = .now
                 scheduleIdleCheck()
@@ -131,21 +134,23 @@ public final class Daemon {
     }
 
     /// Answers requests until the client leaves or starts an exec. Returns whether it used the VM.
-    private func serve(_ connection: FrameConnection) async -> Bool {
+    private func serve(_ connection: FrameConnection) async -> (usedVM: Bool, resetsIdle: Bool) {
         var usesVM = false
-        func claimVM() {
+        var resetsIdle = false
+        func claimVM(passive: Bool = false) {
             if !usesVM { usesVM = true; users += 1 }
+            if !passive { resetsIdle = true }
         }
         while true {
-            guard let (kind, payload) = try? await connection.receive() else { return usesVM }
+            guard let (kind, payload) = try? await connection.receive() else { return (usesVM, resetsIdle) }
             guard kind == .json, let request = try? FrameConnection.decoder.decode(DaemonRequest.self, from: payload) else {
                 try? connection.send(DaemonFailure(id: 0, error: DMXError("bad_request", "expected a JSON request frame")))
-                return usesVM
+                return (usesVM, resetsIdle)
             }
             do {
                 switch request.method {
                 case "hello":
-                    try connection.send(DaemonReply(id: request.id, result: DaemonHello(version: version, protocol: daemonProtocol, pid: getpid(), activityNotifications: true)))
+                    try connection.send(DaemonReply(id: request.id, result: DaemonHello(version: version, protocol: daemonProtocol, pid: getpid(), activityNotifications: true, menuControl: true)))
                 case "status":
                     try connection.send(DaemonReply(id: request.id, result: await status()))
                 case "start":
@@ -162,12 +167,20 @@ public final class Daemon {
                     try connection.send(DaemonReply(id: request.id, result: NoParams()))
                     Task { await shutdown() }
                 case "menu_release":
-                    // A menu app leaves after idle stop. A standalone Docker socket must not
-                    // keep that session resident forever. Never retire a VM another client
-                    // has restarted since the stopped receipt was published.
-                    let released = state == .stopped && users == 0 && !docker.busy
-                    if released { docker.used = false; scheduleIdleCheck() }
+                    // Compatibility with the unreleased first menu app. Observation never
+                    // clears the keepalive established by an independent Docker CLI client.
+                    let released = state == .stopped
                     try connection.send(DaemonReply(id: request.id, result: released))
+                case "menu_state":
+                    try connection.send(DaemonReply(id: request.id, result: MenuDaemonState(pid: getpid(), state: state.rawValue)))
+                case "menu_docker", "menu_docker_read":
+                    guard state == .running, let agent else {
+                        throw DMXError("menu_engine_not_running", "the engine is \(state.rawValue)", hint: "reopen dmx.app to start the engine")
+                    }
+                    claimVM(passive: request.method == "menu_docker_read")
+                    try connection.send(DaemonReply(id: request.id, result: NoParams()))
+                    await docker.forwardMenu(connection.fd, agent: agent)
+                    return (usesVM, resetsIdle)
                 case "exec":
                     let params: ExecRequest
                     do {
@@ -177,7 +190,7 @@ public final class Daemon {
                     }
                     claimVM()
                     try await exec(params, id: request.id, client: connection)
-                    return usesVM
+                    return (usesVM, resetsIdle)
                 case "simulate_pressure":
                     struct Params: Decodable { let level: MemoryController.Pressure? }
                     guard let params = try? FrameConnection.decoder.decode(DaemonParams<Params>.self, from: payload).params else {
@@ -244,9 +257,10 @@ public final class Daemon {
     // MARK: VM lifecycle
 
     private func publishActivity(reason: String? = nil, failure: DMXError? = nil) {
+        activitySequence += 1
         do {
             try EngineActivity.publish(paths: paths, version: version, state: state.rawValue,
-                                       containers: docker.containers, reason: reason, failure: failure)
+                                       containers: docker.containers, reason: reason, failure: failure, sequence: activitySequence)
         } catch { log("lifecycle receipt: \(error.localizedDescription)") }
     }
 
@@ -287,6 +301,7 @@ public final class Daemon {
                 }
                 // A missing guest, or one from an older release, is downloaded first (GuestStore).
                 try await GuestStore(paths: paths).ensure(log: log)
+                try Task.checkCancellation()
                 if FileManager.default.fileExists(atPath: paths.dockerImage.path) {
                     spec.extraDisks = [DataDisk(url: paths.dockerImage, size: 0, readOnly: true, id: "dmx-docker")]
                 }
@@ -312,6 +327,7 @@ public final class Daemon {
                 publishActivity()
                 return agent
             } catch {
+                let cancelled = Task.isCancelled || error is CancellationError
                 log("boot failed: \((error as? DMXError)?.message ?? "\(error)")")
                 if let machine {
                     await machine.stop()
@@ -323,6 +339,10 @@ public final class Daemon {
                 state = .stopped
                 quietSince = .now
                 scheduleIdleCheck()
+                if cancelled {
+                    publishActivity(reason: "start_cancelled")
+                    throw DMXError("start_cancelled", "VM startup was cancelled before it booted", hint: "run `dmx start` when needed")
+                }
                 publishActivity(reason: "boot_failed", failure: error as? DMXError ?? DMXError("boot_failed", "\(error)", hint: "run `dmx doctor`"))
                 throw error
             }
@@ -359,6 +379,9 @@ public final class Daemon {
             case .stopping:
                 await stopping?.value
             case .starting:
+                // Downloads are cancellable. Once a VM exists, allow its first disk format
+                // to finish before poweroff rather than leaving a half-formatted data disk.
+                if machine == nil { booting?.cancel() }
                 _ = try? await booting?.value
             case .running:
                 log("stopping the VM: \(reason)")

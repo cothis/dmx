@@ -46,14 +46,16 @@ slower than Colima's because dmx keeps write ordering on the data disk across a 
 Requires macOS 15 or later on Apple Silicon. Intel Macs are not supported.
 
 ```sh
-curl -fsSL https://github.com/cothis/dmx/releases/download/v0.3.12/install.sh | sh
+curl -fsSL https://github.com/cothis/dmx/releases/download/v0.4.0/install.sh | sh
 dmx install                      # launchd starts dmx on demand; installs docker, compose, buildx
                                  # and selects the docker context "dmx"
 docker run --rm hello-world      # the first run downloads the Linux guest (~62 MB, sha256-checked)
 ```
 
-The script installs `dmx` into `~/.local/bin` without sudo. `dmx install` is optional: without it,
-`dmx exec` and `dmx start` start the daemon themselves.
+The script installs `~/Applications/dmx.app`, links its CLI into `~/.local/bin`, and installs
+the pinned Docker tools without sudo. Open **dmx** from Applications/your app launcher for menu
+controls. `dmx install` is optional: it enables Docker socket activation without the app;
+`dmx exec` and `dmx start` also start the daemon themselves.
 
 Tools that ignore the docker context and look for Docker Desktop's socket find dmx too:
 `dmx install` links `~/.docker/run/docker.sock` to `~/.dmx/docker.sock` (unless Docker Desktop
@@ -72,9 +74,9 @@ dmx doctor                       # check this Mac and the installation
 dmx update                       # install the newest release over this one
 ```
 
-### Native menu app (source build)
+### Native menu app
 
-The source checkout also builds `dmx.app`, a manually launched macOS menu app:
+The installer includes the manually launched menu app. From a source checkout:
 
 ```sh
 make guest
@@ -89,23 +91,26 @@ data are refreshed when opening the menu, rather than polled in the background.
 
 The CLI works independently and does not launch the menu app. The app's control connections
 close after each operation, so it does not hold off idle shutdown. Source-built apps are
-ad-hoc signed for local use; the v0.3.12 public release remains CLI-only. Replace the whole app
-to update it (`make install-app` for source builds); the bundled CLI refuses a partial self-update
-that would invalidate the app signature. See [the menu app guide](docs/menu-app.md).
+ad-hoc signed for local use. Public apps are Developer ID signed, notarized and stapled.
+`dmx update` replaces the complete app and keeps its CLI link; use `make install-app` for source
+builds. Reopen the app to use the updated menu. See [the menu app guide](docs/menu-app.md).
 
 ### Updating
 
 `dmx update` downloads the newest release, checks it against the sha256 published beside it and
-against the Developer ID the running dmx is signed with, and replaces the binary it is running
-from; `dmx update --check` only says whether a newer one exists. The Linux guest follows by
+against the Developer ID the running dmx is signed with, and replaces the complete app (or
+standalone CLI for a legacy installation); `dmx update --check` only says whether a newer one exists. The Linux guest follows by
 itself: the new dmx knows the sha256 of its own guest and downloads it before the next boot, and
 skips that download when the release ships the kernel, initramfs and Docker image already on disk
-(a patch release usually does, so updating moves 1.8 MB rather than 64).
+(a patch release usually does).
 
 A VM that is running is left alone, because its containers are. The daemon serving it is still the
 old version until it exits, which `dmx update` says: `dmx stop` powers the VM off and the daemon
 exits a few seconds later, so the next command runs the new version. Any command that reaches a
 daemon of another version says so too, and `dmx doctor` names both.
+
+To add the app to v0.3.12 or earlier, run the new installer once: those old updaters only replace
+the standalone CLI. Thereafter `dmx update` updates the whole app.
 
 `dmx update` is in v0.3.1 and later; from v0.3.2 it also checks who signed the download. From v0.3.0 or earlier, update once by running the install
 script, which replaces the binary the same way:
@@ -149,7 +154,8 @@ images pulled from it, whatever engine pulls them.
 
 **Signing and notarization.** Every release from 0.2.0 on is signed with the Developer ID
 "Developer ID Application: MINHO YUN (V4YA23448U)", with the hardened runtime, a secure timestamp
-and a single entitlement (`com.apple.security.hypervisor`), and notarized by Apple. Macs that
+and the CLI helper’s `com.apple.security.hypervisor` entitlement, and notarized by Apple.
+The menu executable has no hypervisor entitlement; the complete app carries a stapled ticket. Macs that
 allow only notarized software run it, and a copy downloaded with a browser asks once before its
 first launch. (0.1.0 was ad-hoc signed.) To check an installed copy:
 

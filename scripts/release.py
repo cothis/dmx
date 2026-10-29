@@ -497,17 +497,36 @@ def main():
     if not args.ad_hoc:
         binary = sign_and_notarize(binary, ROOT / ".build" / "signed")
         signing = "signed with a Developer ID and notarized by Apple"
+    app = ROOT / ".build" / "signed" / "dmx.app"
+    app_args = [sys.executable, "-I", str(ROOT / "scripts/build-app.py"), "--output", str(app), "--helper", str(binary)]
+    if not args.ad_hoc:
+        app_args.append("--no-sign")
+    subprocess.run(app_args, cwd=ROOT, check=True)
+    if not args.ad_hoc:
+        sign_and_notarize_app(app)
     swift = swift_packages()
     binary_notes = third_party_md("Software in the dmx binary", "Linked into dmx; the license texts are in LICENSE.", swift)
     binary_name = f"dmx-{args.version}-darwin-arm64.tar.gz"
+    app_members = []
+    for file in sorted(app.rglob("*")):
+        if file.is_symlink():
+            sys.exit("the release app must contain regular files, not links")
+        if file.is_file():
+            app_members.append(("dmx.app/" + str(file.relative_to(app)), file.read_bytes(), file.stat().st_mode & 0o777))
     deterministic_targz(out / binary_name, [("dmx", binary.read_bytes(), 0o755), ("LICENSE", (ROOT / "LICENSE").read_bytes(), 0o644),
-                                            ("THIRD_PARTY.md", binary_notes.encode(), 0o644)])
+                                            ("THIRD_PARTY.md", binary_notes.encode(), 0o644), *app_members])
     binary_sha = write_sha256(out / binary_name)
 
     # 4. Everything else on the release page.
     install = (ROOT / "scripts" / "install.sh").read_text()
     install = install.replace('release_version=""', f'release_version="{args.version}"', 1)
     install = install.replace('release_sha256=""', f'release_sha256="{binary_sha}"', 1)
+    if not args.ad_hoc:
+        details = subprocess.run(["codesign", "-dvv", str(binary)], capture_output=True, text=True).stderr
+        team = re.search(r"^TeamIdentifier=([A-Z0-9]{10})$", details, re.MULTILINE)
+        if not team:
+            sys.exit("signed CLI has no Developer ID team")
+        install = install.replace('release_team=""', f'release_team="{team[1]}"', 1)
     (out / "install.sh").write_text(install)
     with tarfile.open(kernel_tar) as tar:
         (out / f"kernel-{guest.DMX_KERNEL_RELEASE}.config").write_bytes(tar.extractfile("boot/config").read())
@@ -546,34 +565,65 @@ def sign_and_notarize(binary: Path, work: Path) -> Path:
     work.mkdir(parents=True, exist_ok=True)
     signed.write_bytes(binary.read_bytes())
     signed.chmod(0o755)
-    keychain = path("keychain")
-    password = Path(path("keychain_password_file")).read_text().strip()
-    subprocess.run(["security", "unlock-keychain", "-p", password, keychain], check=True)
-    # codesign looks for identities only in the search list; add the keychain for the signature
-    # and put the list back exactly as it was.
-    listed = subprocess.run(["security", "list-keychains", "-d", "user"], check=True, capture_output=True, text=True).stdout
-    before = [line.strip().strip('"') for line in listed.splitlines() if line.strip()]
-    subprocess.run(["security", "list-keychains", "-d", "user", "-s", keychain, *before], check=True)
-    try:
-        subprocess.run(["codesign", "--force", "--options", "runtime", "--timestamp",
-                        "--entitlements", str(ROOT / "dmx.entitlements"), "--sign", config["identity"], str(signed)], check=True)
-    finally:
-        subprocess.run(["security", "list-keychains", "-d", "user", "-s", *before], check=True)
+    sign_targets(config, [(signed, True)])
     details = subprocess.run(["codesign", "-dvv", str(signed)], capture_output=True, text=True).stderr
     if "Authority=Developer ID Application" not in details or "(runtime)" not in details:
         sys.exit(f"{signed} is not signed with a Developer ID and the hardened runtime:\n{details}")
     archive = work / "dmx-notarize.zip"
     archive.unlink(missing_ok=True)
     subprocess.run(["ditto", "-c", "-k", "--keepParent", str(signed), str(archive)], check=True)
+    notarize(archive, config)
+    archive.unlink()
+    return signed
+
+
+def sign_targets(config: dict, targets: list):
+    keychain = str(Path(config["keychain"]).expanduser())
+    password = Path(config["keychain_password_file"]).expanduser().read_text().strip()
+    # Do not put the password-bearing argv in a CalledProcessError's printed traceback.
+    if subprocess.run(["security", "unlock-keychain", "-p", password, keychain], capture_output=True).returncode:
+        sys.exit("cannot unlock the release signing keychain")
+    # codesign looks for identities only in the search list; add the keychain for the signature
+    # and put the list back exactly as it was.
+    listed = subprocess.run(["security", "list-keychains", "-d", "user"], check=True, capture_output=True, text=True).stdout
+    before = [line.strip().strip('"') for line in listed.splitlines() if line.strip()]
+    subprocess.run(["security", "list-keychains", "-d", "user", "-s", keychain, *before], check=True)
+    try:
+        for target, hypervisor in targets:
+            command = ["codesign", "--force", "--options", "runtime", "--timestamp"]
+            if hypervisor:
+                command += ["--entitlements", str(ROOT / "dmx.entitlements")]
+            subprocess.run([*command, "--sign", config["identity"], str(target)], check=True)
+    finally:
+        subprocess.run(["security", "list-keychains", "-d", "user", "-s", *before], check=True)
+
+
+def notarize(archive: Path, config: dict):
+    path = lambda key: str(Path(config[key]).expanduser())
     notary = ["--key", path("notary_key"), "--key-id", config["notary_key_id"], "--issuer", config["notary_issuer"]]
     result = json.loads(subprocess.run(["xcrun", "notarytool", "submit", str(archive), *notary, "--wait", "--output-format", "json"],
                                        check=True, capture_output=True, text=True).stdout)
-    archive.unlink()
     if result.get("status") != "Accepted":
         log = subprocess.run(["xcrun", "notarytool", "log", result.get("id", ""), *notary], capture_output=True, text=True).stdout
         sys.exit(f"notarization {result.get('id')}: {result.get('status')}\n{log}")
     print(f"notarized: {result['id']}", file=sys.stderr)
-    return signed
+
+
+def sign_and_notarize_app(app: Path):
+    config = json.loads(SIGNING_CONFIG.read_text())
+    # The helper already has its Developer ID signature, hypervisor entitlement and ticket.
+    # Sign inside out, without giving the menu process hypervisor access.
+    sign_targets(config, [(app / "Contents/MacOS/dmx-menu", False), (app, False)])
+    subprocess.run(["codesign", "--verify", "--deep", "--strict", str(app)], check=True)
+    archive = app.parent / "dmx-app-notarize.zip"
+    archive.unlink(missing_ok=True)
+    subprocess.run(["ditto", "-c", "-k", "--keepParent", str(app), str(archive)], check=True)
+    notarize(archive, config)
+    archive.unlink()
+    subprocess.run(["xcrun", "stapler", "staple", str(app)], check=True)
+    subprocess.run(["xcrun", "stapler", "validate", str(app)], check=True)
+    subprocess.run(["codesign", "--verify", "--deep", "--strict", "--check-notarization", str(app)], check=True)
+    subprocess.run(["spctl", "--assess", "--type", "execute", "--verbose=2", str(app)], check=True)
 
 
 def changes(version: str, path: Path | None) -> str:
@@ -608,9 +658,9 @@ into dmx; `dmx guest fetch` does it ahead of time.
 {changes_md}
 ## Assets
 
-- `{binary}`: the dmx binary ({signing}), its license and third-party notices
+- `{binary}`: dmx.app and a legacy standalone CLI ({signing}), licenses and third-party notices
 - `{archive}`: the Linux guest: kernel, initramfs, Docker image, licenses and THIRD_PARTY.md
-- `install.sh`: installs dmx into ~/.local/bin after checking the tarball's sha256
+- `install.sh`: verifies the publisher, installs ~/Applications/dmx.app, a CLI link in ~/.local/bin and pinned Docker tools
 - `kernel-{guest.DMX_KERNEL_RELEASE}.config`: the configuration the guest kernel was built with
 - `kernel-{guest.DMX_KERNEL_RELEASE}.build.py`: pinned inputs and the exact kernel source patch
 - `{guest.DMX_QEMU}.build.py`: pinned inputs, patches and configure line of qemu-x86_64

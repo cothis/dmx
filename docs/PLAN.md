@@ -541,15 +541,20 @@ Done when: on a Mac whose only way out is an HTTP proxy (no authentication) with
 - [x] Passive atomic lifecycle receipt + process-exit observation; no control lease or repeating
       status polling. Normal/idle stop closes the UI; failures keep recovery visible.
 - [x] Explicit Quit drains menu actions, stops the guest and exits/reaps the helper. Standalone
-      Docker keepalive release refuses to stop a VM another client has already restarted.
+      Docker keepalive is independent: menu calls use a running-guest-only control tunnel and never
+      clear CLI socket use.
 - [x] Retry recreates a failed observer and dismisses/updates old errors. Menu requests do not
       spawn a fallback UI process; a one-shot HTTP deadline wakes stalled socket waits safely.
 - [x] Local packaging, ad-hoc signature verification and real VM/API regression coverage.
 - [ ] Capture the full running menu/submenus and verify container buttons and Quit through GUI
       input. Current native automation can capture the error dialog and its OK callback, but
       cannot select a windowless menu app. API/VM proof is separate from these UI interactions.
-- [ ] Public app archive, Developer ID signing/notarization and whole-app update distribution,
-      when the maintainer authorizes the first app release. v0.3.12 remains a CLI-only release.
+- [x] Unified app/CLI archive, Developer ID signing, hardened runtime, notarization/staple,
+      archive roundtrip and whole-app update implementation. Source signing requires an explicit
+      exception to replace an installed Developer ID app.
+- [ ] Publish v0.4.0 after final-source packaging and verify downloaded assets, unified install
+      and live VM/container/volume preservation. The maintainer already authorized publication
+      after Opus 5.5 defects are resolved; no repeated publication permission is needed.
 
 Local implementation and proof: [menu-app.md](menu-app.md). The remaining GUI proof and public
 distribution are not silently marked complete by the passing Core/VM tests.
@@ -558,11 +563,20 @@ distribution are not silently marked complete by the passing Core/VM tests.
 
 For a new session told only "이어서 진행해", first read [HANDOFF.md](HANDOFF.md).
 
-**Latest source work: the manually launched native menu app**, approved 2026-10-29. It is
-installed locally as ~/Applications/dmx.app and documented in [menu-app.md](menu-app.md).
-The engine/CLI stay independent of the UI. Main menu/submenu capture and direct GUI control
-proof remain unavailable through the current windowless-app automation; see Phase 12 before
-claiming complete visual acceptance. Public distribution still needs a maintainer decision.
+**Active: qualify and publish v0.4.0**, the first native app distribution, authorized
+conditionally on Opus 5.5 review (2026-10-29). The first actual `claude-opus-5-5` review required
+fixes. The candidate now separates operation/lifecycle errors, preserves independent CLI socket
+use, refuses menu-triggered idle boots, handles 304, cancels first-run downloads, bounds control
+calls and reaps every spawned helper. One installer owns the whole app and terminal link;
+whole-app updates preserve the signed bundle and live VM. Actual Opus 5.5 final code gate is **approve**; all reported defects, including the cosmetic
+initial Retry timing, are resolved. The full matrix passed, followed by final-source targeted
+checks. First signed/notarized archive roundtrip passes codesign, stapler and Gatekeeper.
+Finish final packaging and public-download verification before declaring the release published. Do not call this candidate published or fully GUI accepted.
+
+The native tool cannot select a windowless menu app. Actual Finder launch/reopen, real refresh
+error, subsequent idle stop and UI exit are verified through production callback receipts.
+Direct container/Quit GUI clicks and complete menu/submenu captures remain a separate open
+acceptance item. API/VM evidence does not close it. See [menu-app.md](menu-app.md).
 
 **v0.3.4 is published** (signed and notarized, 2026-10-27; all 14 assets checked after download,
 fresh installation and update from 0.3.3 verified with running-VM/data preservation). It ships
@@ -648,9 +662,10 @@ daemon cleanup. See [the release](https://github.com/cothis/dmx/releases/tag/v0.
 
 In order:
 
-1. Finish Phase 12's direct GUI acceptance with a menu-capable native tool or maintainer input.
-   Then obtain the maintainer's decision on the first public app release; source build/local
-   install does not imply a Developer ID-signed/notarized app has been published.
+1. Finish v0.4.0 final-source packaging, commit/tag, publication and downloaded-asset verification.
+   Actual Opus 5.5 code review, full matrix and first notarized installer roundtrip passed. Publication is already
+   authorized if defects are resolved. Keep Phase 12's direct GUI acceptance open where the
+   native tool lacks access; never describe API tests as GUI-click proof.
 2. Measure Apple's `container` (and a Container Machine) with the engine comparison's protocol
    when the Mac is quiet (maintainer, 2026-10-27: worth adding, not now). It runs on
    Virtualization.framework and its docs give a machine half the host's memory by default; HN's
@@ -671,6 +686,29 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### Native app review and unified installation (2026-10-29, v0.4.0 candidate)
+
+Actual `claude-opus-5-5` reviewed immutable source snapshots read-only. Initial and follow-up
+findings were repaired: setup and operation errors no longer retain a normally stopped UI;
+slow first downloads have no artificial start deadline and remain cancellable; accepted lifecycle
+receipts outrank late boot snapshots; passive menu reads neither boot the VM nor reset idle,
+and active completion timestamps survive overlapping passive requests. Every helper is reaped.
+
+App installation verifies publisher and version before executing incoming code, exchanges
+complete app directories atomically with `RENAME_SWAP`, and atomically replaces the CLI link.
+Rollback preserves the original app inode on failed CLI commit. The destination's Developer ID
+identity is checked even when the installer CLI is source/ad-hoc; a runnable marker-writing
+fixture was rejected before execution, with an explicit source-signing positive control.
+
+The actual native app recovered from a real bad-context setup failure and exited on normal
+idle stop. A real pinned guest streamed slowly reached ready at **179.019 seconds**, then the
+UI exited on idle stop. Neither test injected a lifecycle receipt. The narrow late-snapshot
+interleaving is covered by a deterministic production-state test; direct menu/submenu clicks
+remain outside the available native tool's proof. Initial/final selftest engine samples were
+98/94 MiB; the preceding feature sample was93 MiB. These are individual samples, not a claimed
+memory improvement or regression. [Reviews](reviews/2026-10-29-menu-opus55/README.md),
+[measurements and staged checks](measurements/2026-10-29-release-0.4.0.json).
 
 ### Native menu app (2026-10-29, source/local installation)
 
@@ -1005,6 +1043,11 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 | 2026-10-27 | Pre-announcement review of 0.3.3 | Six code findings fixed, stale docs corrected. Unit 59/59; selftest 23/23; daemon 57/57; MCP 33/33; x86 47/47; Docker 69/69; sandbox 44/44; image matrix 24/24; pressure 12/12 rounds (12 GiB host allocation). Selftest host footprint 97 MiB before, 94–97 after; final 1 GiB reclaim 1123 → 103 MiB in 329 ms (before 1122 → 102 in 214 ms). Published 0.3.3 installer, guest fetch, strict signature/notarization check, selftest (97 MiB) and signed same-version update pass; local guest hashes match published. [Review](review-2026-10-27.md), [bounded results](measurements/2026-10-27-preannouncement-review.json). These fixes are not released. |
 
 ## Progress log
+
+- 2026-10-29: Qualified the unified v0.4.0 native app candidate after actual Opus 5.5 reviews;
+  fixed lifecycle/setup/snapshot races, passive CLI independence, cancellable first startup,
+  atomic whole-app updates and pre-execution identity checks. Final code gate approve; first
+  Developer ID/notarized/stapled archive and installer roundtrip passed. Publication pending.
 
 - 2026-10-29: Added and locally installed the manually launched native menu app; passive
   receipts/process observation, container controls, bounded HTTP waits, Retry recovery and

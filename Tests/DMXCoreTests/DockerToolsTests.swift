@@ -5,6 +5,60 @@ import Testing
 /// Installing the docker CLI and plugins, with stand-ins served from file URLs: placement,
 /// sha256 checks, the docker config and the links on PATH.
 @Suite struct DockerToolsTests {
+    @Test func explicitBinDirectoryWorksWithoutBeingOnPath() async throws {
+        let f = try Fixture()
+        defer { try? FileManager.default.removeItem(at: f.root) }
+        let bin = f.root.appendingPathComponent("not-on-path")
+        var environment = f.environment; environment["PATH"] = "/usr/bin:/bin"
+        let unrelated = f.paths.downloads.appendingPathComponent("unrelated-update/keep")
+        try FileManager.default.createDirectory(at: unrelated.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("keep".utf8).write(to: unrelated)
+        let report = try await DockerTools.install(paths: f.paths, configDir: f.configDir, environment: environment,
+                                                  linkDirectory: bin, tools: f.tools)
+        #expect(report.links.map(\.state) == ["created"])
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: bin.appendingPathComponent("docker").path) == f.paths.dockerBin.appendingPathComponent("docker").path)
+        #expect(try String(contentsOf: unrelated, encoding: .utf8) == "keep")
+    }
+
+    @Test func cancellingAnUnfinishedHTTPTransferDoesNotWaitForTheServer() async throws {
+        let listener = socket(AF_INET, SOCK_STREAM, 0)
+        try #require(listener >= 0)
+        defer { Darwin.close(listener) }
+        var address = sockaddr_in()
+        address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_addr.s_addr = inet_addr("127.0.0.1")
+        let bound = withUnsafePointer(to: &address) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(listener, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) } }
+        try #require(bound == 0)
+        try #require(listen(listener, 1) == 0)
+        var length = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let named = withUnsafeMutablePointer(to: &address) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(listener, $0, &length) } }
+        try #require(named == 0)
+        let port = UInt16(bigEndian: address.sin_port)
+        let f = try Fixture()
+        defer { try? FileManager.default.removeItem(at: f.root) }
+        let tool = DockerTools.Tool(name: "cancel-probe", version: "1", url: URL(string: "http://127.0.0.1:\(port)/slow")!,
+                                    sha256: String(repeating: "0", count: 64), size: 16, member: nil, file: "cancel-probe", plugin: false)
+        let task = Task { try await DockerTools.install(paths: f.paths, configDir: f.configDir, environment: f.environment, tools: [tool]) }
+        defer { task.cancel() }
+        let connected = await Task.detached {
+            var ready = pollfd(fd: listener, events: Int16(POLLIN), revents: 0)
+            return poll(&ready, 1, 3000)
+        }.value
+        try #require(connected > 0)
+        let peer = accept(listener, nil, nil)
+        try #require(peer >= 0)
+        defer { Darwin.close(peer) }
+        let started = ContinuousClock.now
+        task.cancel()
+        do { _ = try await task.value; Issue.record("cancelled transfer succeeded") }
+        catch is CancellationError {}
+        catch { Issue.record("unexpected cancellation error: \(error)") }
+        // Assert while the accepted peer is still open and has never supplied a response.
+        #expect(ContinuousClock.now - started < .seconds(1))
+        #expect(!FileManager.default.fileExists(atPath: f.paths.dockerBin.appendingPathComponent(tool.file).path))
+    }
+
     struct Fixture {
         let root: URL
         let paths: Paths

@@ -102,11 +102,13 @@ public enum DockerTools {
     /// downloads resume from `~/.dmx/downloads`. Never replaces files dmx did not put there.
     public static func install(paths: Paths, configDir: URL = DockerContext.configDir(),
                                environment: [String: String] = ProcessInfo.processInfo.environment,
+                               linkDirectory: URL? = nil,
                                tools: [Tool] = pinned,
                                progress: @Sendable (String) -> Void = { _ in }) async throws -> Report {
         var installed: [Installed] = []
         let mirror = mirror(paths: paths, environment: environment)
         for tool in tools {
+            try Task.checkCancellation()
             let dest = destination(tool, paths)
             let source = tool.source(mirror: mirror)
             if (try? sha256Hex(of: dest)) == tool.installedSHA256 {
@@ -116,10 +118,14 @@ public enum DockerTools {
             progress("downloading \(tool.name) \(tool.version) (\(tool.size >> 20) MB) from \(source.host ?? source.absoluteString)")
             let part = paths.downloads.appendingPathComponent(tool.url.lastPathComponent + ".part")
             let fetched = try await fetch(tool, from: source, to: part)
+            try Task.checkCancellation()
             try place(tool, from: part, at: dest, scratch: paths.downloads)
+            try? FileManager.default.removeItem(at: part)
             installed.append(Installed(name: tool.name, version: tool.version, path: dest.path, url: source.absoluteString, state: "installed", downloadedBytes: fetched))
         }
-        try? FileManager.default.removeItem(at: paths.downloads)
+        try Task.checkCancellation()
+        // A concurrent updater may own a sibling download. Remove only an empty directory.
+        _ = rmdir(paths.downloads.path)
 
         if tools.contains(where: \.plugin) {
             try DockerContext.updateConfig(configDir) { config in
@@ -131,8 +137,8 @@ public enum DockerTools {
             }
         }
         var links: [Link] = []
-        let dir = linkDir(environment)
-        if searchPath(environment).contains(dir.standardizedFileURL.path) {
+        let dir = linkDirectory ?? linkDir(environment)
+        if linkDirectory != nil || searchPath(environment).contains(dir.standardizedFileURL.path) {
             for tool in tools where !tool.plugin {
                 links.append(try link(destination(tool, paths), in: dir))
             }
@@ -265,6 +271,7 @@ public enum DockerTools {
         var lastError = ""
         var attempt = 0
         while true {
+            try Task.checkCancellation()
             var have = (try? fm.attributesOfItem(atPath: part.path)[.size] as? Int) ?? 0
             if have > tool.size {
                 try? fm.removeItem(at: part)
@@ -397,10 +404,20 @@ private final class Transfer: NSObject, URLSessionDataDelegate, @unchecked Senda
         configuration.timeoutIntervalForRequest = 30
         let session = URLSession(configuration: configuration, delegate: transfer, delegateQueue: nil)
         defer { session.finishTasksAndInvalidate() }
-        return try await withCheckedThrowingContinuation { continuation in
-            transfer.continuation = continuation
-            session.dataTask(with: request).resume()
-        }
+        return try await withTaskCancellationHandler {
+            do {
+                try Task.checkCancellation()
+                let result: Int = try await withCheckedThrowingContinuation { continuation in
+                    transfer.lock.withLock { transfer.continuation = continuation }
+                    session.dataTask(with: request).resume()
+                }
+                try Task.checkCancellation()
+                return result
+            } catch {
+                try Task.checkCancellation()
+                throw error
+            }
+        } onCancel: { session.invalidateAndCancel() }
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,

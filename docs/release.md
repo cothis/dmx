@@ -7,21 +7,28 @@ maintainer's Mac by `make release`; nothing is uploaded by a script.
 ## What a user gets
 
 ```sh
-curl -fsSL https://github.com/cothis/dmx/releases/download/v0.3.12/install.sh | sh
+curl -fsSL https://github.com/cothis/dmx/releases/download/v0.4.0/install.sh | sh
 dmx install            # optional: launchd and the docker context
 dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks it
 ```
 
 - `install.sh` downloads `dmx-<version>-darwin-arm64.tar.gz`, checks it against the sha256 written
   into that copy of the script (or, with `DMX_VERSION` set to another version, the `.sha256` file
-  next to the tarball), and installs `dmx` to `~/.local/bin` (`PREFIX` to change). It needs no
-  sudo and changes nothing else: no shell profile, no launchd, no `~/.dmx`.
+  next to the tarball), verifies the root helper against the published Developer ID team before
+  executing it, then installs the complete `~/Applications/dmx.app` (`DMX_APP_DIR` to change),
+  its CLI link in `~/.local/bin` (`PREFIX` to change), and pinned Docker tools under `~/.dmx`.
+  It needs no sudo and changes no shell profile or launchd configuration. It never starts or
+  stops a VM. A tools-download failure leaves the installed app usable and names the retry command.
 - `dmx update` does the same for an installed dmx, from the binary itself: it resolves the newest
   release (the redirect GitHub answers for `releases/latest`, so a mirror needs `--version`),
   checks the archive against the published `.sha256` and the download's Developer ID team against
   the running binary's (skipped when this dmx is unsigned, which a build from source is), runs the
-  binary it unpacked to see that it reports that version, and renames it over the file it is
-  running from. It refuses to overwrite a
+  binary it unpacked to see that it reports that version, and replaces the complete recognized
+  app bundle (or regular CLI for legacy installations). App archives are extracted only through
+  stdout into our regular files after path/count/size validation, never archive-controlled links.
+  Bundle/helper signatures and versions are checked before execution and again on the staged
+  copy. Whole-app and CLI-link installation uses same-volume renames, an advisory lock and
+  rollback on a failed commit. A running executable keeps its old mapped inode. It refuses to overwrite a
   build from source (`.build/...`) without `--force`, and refuses a directory it cannot write with
   a hint naming `install.sh` and `PREFIX`. A running VM is left alone and the report says
   `stop_to_switch`; an idle daemon exits on its own after ten seconds without clients
@@ -62,7 +69,7 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
    make build && make formaltest && make selftest
    make daemontest && make mcptest && make x86test && make dockertest
    make sandboxtest && make imagetest
-   make javatest
+   make javatest && make menutest && make apptest
    ```
 
 4. Write what changed since the last release in `docs/release-notes/<version>.md`, starting with
@@ -79,7 +86,7 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
    python3 -m http.server --bind 127.0.0.1 --directory .build/dist 23456 &
    export DMX_RELEASE_URL=http://127.0.0.1:23456
    DMX_HOME=$(mktemp -d) .build/release/dmx boot --selftest      # downloads the guest, boots it
-   PREFIX=$(mktemp -d) sh .build/dist/v0.1.0/install.sh             # installs from the tarball
+   PREFIX=$(mktemp -d) DMX_APP_DIR=$(mktemp -d)/dmx.app sh .build/dist/v0.1.0/install.sh             # installs from the tarball
    ```
 
 7. Point README's install line at the new tag (`releases/download/v<version>/install.sh`): it is
@@ -120,9 +127,9 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
 
 | File | What |
 |---|---|
-| `dmx-<version>-darwin-arm64.tar.gz` (+ `.sha256`) | `dmx` (signed with the maintainer's Developer ID, hardened runtime and the hypervisor entitlement, notarized; ad-hoc with `--ad-hoc` and in v0.1.0), `LICENSE`, `THIRD_PARTY.md` (swift-argument-parser) |
+| `dmx-<version>-darwin-arm64.tar.gz` (+ `.sha256`) | `dmx.app` (Developer ID signed, hardened runtime, notarized and stapled), a standalone signed `dmx` for older updaters, `LICENSE`, `THIRD_PARTY.md` (swift-argument-parser); ad-hoc with `--ad-hoc` |
 | `dmx-guest-<version>.tar.gz` (+ `.sha256`) | `Image`, `initramfs.gz`, `docker.img`, `manifest.json`, `THIRD_PARTY.md`, `LICENSES/` |
-| `install.sh` | `scripts/install.sh` with the version and the tarball's sha256 written in |
+| `install.sh` | `scripts/install.sh` with version, archive sha256 and Developer ID team written in |
 | `kernel-<release>.config` | the exact config of the guest kernel |
 | `kernel-<release>.build.py` | the build recipe, pinned inputs and exact reporting-budget source patch |
 | `qemu-x86_64-<version>.build.py` | qemu-x86_64's recipe: pinned source, Alpine patches, guest-base patch, configure line |
@@ -132,8 +139,9 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
 | `NOTES.md` | release text: install line, assets, where the source is |
 | `SHA256SUMS` | all of the above |
 
-Both archives are byte-identical for the same inputs (fixed order, owner and mtime), so the pin
-does not change when nothing in the guest did.
+The guest archive is byte-identical for the same inputs (fixed order, owner and mtime), so the
+pin does not change when nothing in the guest did. The app archive is deterministic for the
+exact signed input bytes; secure timestamps/notarization may change those bytes between signings.
 
 ## Licenses and the GPL
 

@@ -139,16 +139,36 @@ final class DockerBridge {
         stream.close()
     }
 
+    /// A control-socket menu tunnel uses the already running agent. It neither claims the
+    /// standalone Docker CLI keepalive nor calls running() after an idle/explicit stop.
+    func forwardMenu(_ client: Int32, agent: AgentClient) async {
+        do {
+            try await ensureDocker(agent)
+            let stream = try await agent.connect(path: Self.guestSocket)
+            defer { stream.close() }
+            let proxy = DockerProxy(client: client, server: stream.fd) { [weak self] container in
+                await self?.reservePorts(container, boundAgent: agent) ?? .pass(answered: nil)
+            }
+            await proxy.run()
+        } catch {
+            refuse(client, error as? DMXError ?? DMXError("docker_failed", "\(error)"))
+        }
+    }
+
     /// Before dockerd starts (or restarts) a container: listens on the host ports it publishes,
     /// or refuses the start with Docker Desktop's message when one is taken. The reservation ends
     /// when dockerd answers the start; the container listing that follows keeps the ports if the
     /// container runs. Ports dockerd picks itself (`-P`, a range) are forwarded once it runs.
-    private func reservePorts(_ container: String) async -> DockerProxy.Verdict {
+    private func reservePorts(_ container: String, boundAgent: AgentClient? = nil) async -> DockerProxy.Verdict {
+        let resolve: @MainActor () async throws -> AgentClient = {
+            if let boundAgent { return boundAgent }
+            guard let provider = self.agent else { throw DMXError("daemon_exiting", "the daemon is shutting down") }
+            return try await provider()
+        }
         let wanted: [PortForward]
         let autoRemove: Bool
         do {
-            guard let agent else { return .pass(answered: nil) }
-            let stream = try await agent().connect(path: Self.guestSocket)
+            let stream = try await resolve().connect(path: Self.guestSocket)
             defer { stream.close() }
             let body = try await DockerHTTP.get(stream.fd, "/containers/\(container)/json")
             let inspected = try JSONSerialization.jsonObject(with: body) as? [String: Any] ?? [:]
@@ -175,7 +195,7 @@ final class DockerBridge {
             log("docker: refused to start \(container): \(message)")
             // dockerd removes a `--rm` container whose start failed, and `docker run --rm` waits
             // for that before it exits.
-            if autoRemove, let agent, let stream = try? await agent().connect(path: Self.guestSocket) {
+            if autoRemove, let stream = try? await resolve().connect(path: Self.guestSocket) {
                 _ = try? await DockerHTTP.get(stream.fd, "/containers/\(container)?force=1&v=1", method: "DELETE")
                 stream.close()
             }
