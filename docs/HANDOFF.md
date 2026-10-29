@@ -1,20 +1,25 @@
-# 다음 세션 인계 — 2026-10-29 (v0.3.10 릴리스 완료·미배포 수정 2건)
+# 다음 세션 인계 — 2026-10-29 (v0.3.11 릴리스 완료)
 
 `이어서 진행해`라는 요청을 받으면 [PLAN.md](PLAN.md)의 **Next up**과 이 문서를 읽어요.
 계획·결정·측정의 기준은 `PLAN.md`, 공유 작업 메모는 [memory.md](memory.md)예요.
 
 ## 현재 상태
 
-- **v0.3.11 릴리스 진행 중:** maintainer가 2026-10-29에 게시를 지시했어요. 소켓 수명과 게스트 영수증
-  수정 모두 포함해 단위 66, selftest 23(96 MiB), daemon 58, MCP 33, x86 53, Docker 69,
-  sandbox 44, 이미지 24, Java 100과 수학적 모델 재검증을 통과했어요. 게스트 부팅 파일은 0.3.10과
-  바이트 단위로 같아요. 서명·공증 패키징과 로컬/게시본 검증을 마친 뒤 이 상태를 갱신하세요.
-  [측정 기록](measurements/2026-10-29-release-0.3.11.json)을 보세요.
-- 게시된 최신 릴리스는 [v0.3.10](https://github.com/cothis/dmx/releases/tag/v0.3.10)이에요(태그 커밋 `aa061fc`,
-  Developer ID 서명·Apple 공증). `dmx install`이 Docker Desktop 경로 `~/.docker/run/docker.sock`을 dmx 소켓에 링크해,
+- **최신 릴리스는 [v0.3.11](https://github.com/cothis/dmx/releases/tag/v0.3.11)이에요.** 2026-10-29,
+  태그 커밋 `13c1257`, Developer ID 서명·Apple 공증을 완료했어요. 소켓 수명과 게스트 영수증 수정을
+  포함해 단위 66, selftest 23(96 MiB), daemon 58, MCP 33, x86 53, Docker 69, sandbox 44,
+  이미지 24, Java 100과 수학적 모델 재검증을 모두 통과했어요. 두 번째 패키징은 핀을 유지했고,
+  게시 파일 14개를 다시 받아 모두 해시가 일치했어요. 로컬 리허설 selftest는 97 MiB,
+  GitHub 신규 설치 selftest는 95 MiB, 둘 다 23/23이에요. 실행 중인 0.3.10에서 업데이트할 때
+  VM·컨테이너를 유지했고, 이후 VM 재시작에서도 데이터 디스크와 이름 있는 볼륨이 보존됐어요.
+  게스트 다운로드를 차단한 첫 부팅에서, 명시적 fetch 전에 영수증·guest·doctor가 v0.3.11을
+  표시했고 부팅 파일 4개의 inode와 해시는 그대로였어요. 게시본의 arm64/amd64/386 컨테이너와
+  MCP 33/33(스트림·타임아웃·취소)도 통과했어요. [측정 기록](measurements/2026-10-29-release-0.3.11.json)을 보세요.
+- 이전 [v0.3.10](https://github.com/cothis/dmx/releases/tag/v0.3.10)은 태그 커밋 `aa061fc`예요
+  (Developer ID 서명·Apple 공증). `dmx install`이 Docker Desktop 경로 `~/.docker/run/docker.sock`을 dmx 소켓에 링크해,
   docker context를 읽지 않는 도구(SDK·IDE 플러그인·Testcontainers)도 dmx를 찾아요. 게스트 부팅 파일은 0.3.9와 같아요.
-- **main에 미배포 수정 2건:** 부팅 파일이 같은 릴리스로 올라가도 게스트 영수증(`release.json`)이 옛 태그에
-  머물던 문제(`dmx guest`가 0.3.10에서도 v0.3.6 표시)를 고쳤어요(`77433a0`). maintainer 결정으로 다음 릴리스에 함께 넣어요.
+- **v0.3.11에 반영한 수정 2건:** 부팅 파일이 같은 릴리스로 올라가도 게스트 영수증(`release.json`)이 옛 태그에
+  머물던 문제(`dmx guest`가 0.3.10에서도 v0.3.6 표시)를 고쳤어요(`77433a0`). v0.3.11에 함께 넣었어요.
   v0.3.9(`1051460`)는 게스트 MTU를 49126으로 낮춰, 새로 켠 VM의 수신이 약 1% 확률로 영구히 멈추던 교착을 고쳤어요.
   v0.3.8(`7f32e3f`)은 `dmx install`이 launchd 재등록을 기다려요(보안 에이전트가 있는 Mac에서 실패하던 문제).
   v0.3.7(`b4f9da0`)은 깨진 `docker` 링크를 교체하고 README에 서명 확인법을 적었어요.
@@ -27,7 +32,7 @@
   반례가 나와요. 프로그램 전체나 무한 크기의 증명은 아니에요. 단위 66/66, 실제 VM selftest 23/23,
   daemon 58/58, MCP 33/33을 통과했어요. 메모리는 단일 전후 표본으로 idle 94→96 MiB,
   1 GiB 회수 후 101→104 MiB예요. [보고서](../formal/reports/frame-connection-lifetime.html),
-  [재실행 방법과 증거](../formal/README.md)를 보세요. 서명 릴리스는 게시하지 않았어요.
+  [재실행 방법과 증거](../formal/README.md)를 보세요. 두 수정 모두 v0.3.11에서 배포했어요.
 - **v0.3.4의 공개 전 검수·문서 정리·릴리스는 완료됐어요.** 14개 게시 파일을 다시 내려받아 해시를
   확인했고, 신규 설치·VM selftest·실행 중인 0.3.3에서 업데이트·기존 데이터 보존·다음 부팅의
   새 게스트 적용·arm64/amd64/386 컨테이너 실행까지 통과했어요. 게시본 selftest 유휴 메모리는 97 MiB예요.
@@ -90,7 +95,7 @@ make javatest
 
 [release.md](release.md)를 따르세요. `docs/release-notes/<버전>.md`를 먼저 쓰고,
 버전·게스트 pin·README 설치 URL을 같은 릴리스로 맞춰요. `make release`가 NOTES.md와 SHA256SUMS를
-자동 생성하므로 손으로 요약을 넣거나 해시를 다시 계산하지 않아요. v0.3.9의 태그·게시·게시본 검증은 완료됐어요.
+자동 생성하므로 손으로 요약을 넣거나 해시를 다시 계산하지 않아요. v0.3.11의 태그·게시·게시본 검증은 완료됐어요.
 
 서명 설정은 저장소 밖에 있어요. 자세한 절차는 release.md와 `scripts/release.py`를 사용하고,
 키·암호·개인 인프라 정보는 이 공개 저장소에 적지 않아요. CLI 바이너리의 `spctl` 결과가

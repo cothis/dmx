@@ -584,20 +584,24 @@ the published binary's `dmx install` creating the link on a free path and over a
 Found while verifying, not new in 0.3.10: when the boot files were unchanged, a boot never
 rewrote the guest receipt (`release.json`), so `dmx guest` on this Mac named v0.3.6 under 0.3.10.
 Fixed on main after the release (`GuestStore.ensure` now also runs `fetch` for a renamed
-release, which downloads nothing and records the tag); not released yet.
+release, which downloads nothing and records the tag), and shipped in v0.3.11.
 
 The 2026-10-29 formal bug hunt also fixed `FrameConnection` I/O using a descriptor number
 after close, when that number could name another connection. Frames now retain an owned
 duplicate acquired under the close lock, and close shuts down pending I/O. Three real-socket
 regressions fail on the original code and pass with the fix; the bounded TLA+ model checks
 134 reachable states. See [the report](../formal/reports/frame-connection-lifetime.html)
-and [re-run instructions](../formal/README.md). This fix is also **not released**.
+and [re-run instructions](../formal/README.md). This fix ships in v0.3.11.
 
-**v0.3.11 is qualified** (2026-10-29, maintainer requested the release). It combines the
-receipt and socket lifetime fixes above. All release suites passed: unit 66, VM selftest 23
-(idle 96 MiB), daemon 58, MCP 33, x86 53, Docker 69, sandbox 44, images 24, Java 100.
-The four guest boot files are byte-identical to 0.3.10. Signed packaging, local rehearsal,
-publication and verification of the downloaded release follow; see
+**v0.3.11 is published** (2026-10-29, signed and notarized, tag commit `13c1257`): it combines
+the receipt and socket lifetime fixes above. All release suites passed: unit 66, VM selftest
+23 (idle 96 MiB), daemon 58, MCP 33, x86 53, Docker 69, sandbox 44, images 24, Java 100.
+The second packaging kept the pin; all 14 uploaded and re-downloaded files match. A fresh
+GitHub installation passed selftest 23/23 (95 MiB). Updating a running 0.3.10 kept its VM,
+container and volume data; the next boot with guest downloads blocked refreshed the receipt
+to v0.3.11 without replacing any of the four byte-identical boot files. The published binary
+ran arm64/amd64/386 containers and passed MCP 33/33 (streams, timeout and cancellation).
+See [the release](https://github.com/cothis/dmx/releases/tag/v0.3.11) and
 [the measurements](measurements/2026-10-29-release-0.3.11.json).
 
 In order:
@@ -609,7 +613,7 @@ In order:
    package, record idle, 2 GiB held/returned, `docker run` equivalent, then uninstall and undo
    what it changed (see docs/memory.md). The announcement drafts say it was not measured yet.
 2. Community announcement (Show HN, Reddit, GeekNews) is now the maintainer’s next decision.
-   The requested review, documentation and v0.3.4 release are complete; no community post was
+   The requested review, documentation and release work through v0.3.11 are complete; no community post was
    sent by this release work.
 3. Phase 11's acceptance on a real corporate network (inspecting proxy), when one is at hand.
 4. Open, not blocking: `qemu-x86_64` cannot run 32-bit programs, so `linux/386` needs
@@ -637,6 +641,19 @@ in 2112 ms**. This is a single fresh-boot sample, not a comparative performance 
 Commands, durations, check results, image digests, live emulator identity and memory readings
 are in [the release record](measurements/2026-10-29-release-0.3.11.json).
 
+Published from `13c1257` with Developer ID signing and Apple notarization. Both packaging
+runs were accepted; the second reported `pin_changed: false`. All 14 uploaded asset sizes
+and digests matched, then all 14 downloaded files matched locally. Local installation
+rehearsal selftest: 23/23, 97 MiB; fresh GitHub installation: 23/23, 95 MiB. The signed
+0.3.10 updater kept the running VM and container, and the data disk and named volume survived
+the subsequent VM stop/start. Before any explicit guest fetch, with the guest download URL
+set to an unreachable local port, the receipt, `dmx guest` and `dmx doctor` reported
+v0.3.11; every boot-file inode and hash stayed the same. Published arm64, amd64 and 386
+containers passed (the 386 busybox is ELF class 1); the live FEX hash matched the build.
+The downloaded binary also passed MCP 33/33, including large streams, timeout and cancellation.
+Deterministic descriptor reuse remains covered by the source regression tests and model,
+not claimed as forced through the public CLI. All details are in the same release record.
+
 ### FrameConnection formal bug hunt (2026-10-29)
 
 - [x] Scope close versus queued/in-flight framed socket I/O; freeze two protocol invariants
@@ -660,7 +677,8 @@ are in [the release record](measurements/2026-10-29-release-0.3.11.json).
 - The model excludes raw `.fd` users (splice/relay, Docker HTTP), kernel internals, VM
   destruction and guest vsock flow control. The report, JSON findings, model, reproduction,
   correspondence checks and all cited logs are in `formal/`. No Artifact tool was available,
-  so the report is self-contained local HTML. No GitHub CI or signed release was added.
+  so the report is self-contained local HTML. The investigation added no GitHub CI or signed
+  release; the fixes were subsequently published in v0.3.11 (see the release record above).
 - Next verification candidates, not findings: old VM memory callbacks versus reattachment;
   virtio-block flush ordering with the guest's request submission rules included.
 
@@ -872,15 +890,21 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-10-29: Published signed/notarized v0.3.11 from `13c1257`. Second packaging kept the
+  guest pin; all 14 uploaded and downloaded assets match. Local rehearsal (97 MiB), a fresh
+  GitHub installation (95 MiB), update from a running 0.3.10 with a container and named volume,
+  first boot with guest downloads blocked refreshing the receipt without replacing boot files,
+  arm64/amd64/386 containers and published-binary MCP 33/33 passed. Next: the maintainer's
+  existing Next up priorities (Apple container comparison, community announcement, corporate network).
 - 2026-10-29: Qualified v0.3.11 (socket lifetime and guest receipt fixes): unit 66, selftest 23
   (96 MiB; 1121 → 100 MiB in 2112 ms), daemon 58, MCP 33, x86 53, Docker 69, sandbox 44,
   images 24, Java 100, plus the bounded formal checks. Guest boot files match 0.3.10 exactly.
-  The maintainer requested publication; signed packaging and release verification follow.
+  The maintainer requested publication; the resulting release is recorded above.
 - 2026-10-29: Formal verification found and reproduced framed socket I/O crossing into a new
   connection after descriptor reuse. Fixed frame descriptor lifetime and pending-read shutdown;
   three new regressions pass, bounded TLC checks 134 states and rejects the unfixed mutation.
   Unit 66, selftest 23 (96 MiB), daemon 58 and MCP 33 pass. Evidence and the local HTML report
-  are in `formal/`. Not released; the existing Next up priorities remain unchanged.
+  are in `formal/`. Not released at that checkpoint; subsequently shipped in v0.3.11.
 - 2026-10-23: Phase 1 done. Repo published at https://github.com/cothis/dmx (commit e630133).
 - 2026-10-23: Phase 2 started. Rust agent cross compiles on macOS and runs in the guest.
 - 2026-10-23: Phase 2 done. Host and guest talk over vsock; the selftest runs entirely through the agent.

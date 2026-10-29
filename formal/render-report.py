@@ -6,6 +6,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 data = json.loads((HERE / "findings.json").read_text())
+publication_label = (f"shipped in {data['release']['tag']}" if data.get("release")
+                     else "source fix, no signed release published")
 
 
 def e(value):
@@ -83,7 +85,7 @@ pre{{background:#edf0e9;padding:20px;overflow-x:auto;font-size:.82rem;line-heigh
 <header><p class="eyebrow">dmx · W1 formal bug hunt · 2026-10-29</p>
 <h1>FrameConnection<br>descriptor lifetime</h1>
 <p class="verdict">{e(data['summary'])}</p>
-<p class="meta">Baseline {e(data['repo_commit'])} · {e(data['generated_at'])} · source fix, no signed release published</p></header>
+<p class="meta">Baseline {e(data['repo_commit'])} · {e(data['generated_at'])} · {e(publication_label)}</p></header>
 {''.join(parts)}
 <section><h2>What was verified</h2><p>{e(data['properties'][0]['bounds'])}.</p>
 <p>{trust['states_generated']} states generated; {trust['distinct_states']} distinct states; complete graph depth {trust['depth']}.</p>

@@ -4992,6 +4992,303 @@
     "sha256": "ade3c89ddc3bca41bee0d953e2ca63f6b148e81bf6d27c3ca3ca14ce8b0dfc1c"
   },
   "release_publication": {
-    "published": false
+    "published": true,
+    "url": "https://github.com/cothis/dmx/releases/tag/v0.3.11",
+    "published_at": "2026-10-29T00:30:14Z",
+    "tag_commit": "13c12579765b21b4d894127a767e4fe99c68a49e",
+    "developer_id_team": "V4YA23448U",
+    "notarization_ids": [
+      "9eaed6b3-9283-41dc-991e-545401ec60df",
+      "0e4f26a2-22d3-402a-ac91-a6971ba592f6"
+    ],
+    "second_packaging_pin_changed": false,
+    "uploaded_assets": [
+      {
+        "name": "dmx-0.3.11-darwin-arm64.tar.gz",
+        "bytes": 1880079,
+        "sha256": "76f910663fe3994d3d5704f4a9b972e0db2901214e9277668ec86ff3c246419d"
+      },
+      {
+        "name": "dmx-0.3.11-darwin-arm64.tar.gz.sha256",
+        "bytes": 97,
+        "sha256": "9a9ac908796a6ccf2e6c727630ebbafb3aedf2273663f3abd17218bdb8478eb4"
+      },
+      {
+        "name": "dmx-guest-0.3.11.tar.gz",
+        "bytes": 62890693,
+        "sha256": "3f81010e774111fb32b80c337366c6d4f7cdfe319b9f42d079f3ed52435e6668"
+      },
+      {
+        "name": "dmx-guest-0.3.11.tar.gz.sha256",
+        "bytes": 90,
+        "sha256": "888ad1c6f239bdff73bc7bd486a38bf6e3d3bd84eac5cb9e00eab3a99b8d6685"
+      },
+      {
+        "name": "dmx-sources-0.3.11.tar",
+        "bytes": 496209920,
+        "sha256": "8fa34d94b68a19d148e931b697367731789c0a718d69ce86421f12b5f0ba2354"
+      },
+      {
+        "name": "dmx-sources-0.3.11.tar.sha256",
+        "bytes": 89,
+        "sha256": "bf84f2fc5eecb2285a38dc75b634be79a0df5584af3e3b4e033bb7e395eb09ba"
+      },
+      {
+        "name": "fex-2610-dmx11.build.py",
+        "bytes": 46966,
+        "sha256": "6f6b8f71fa15e46104d4421ed456af3843008a1b96044151bc426d93846d2832"
+      },
+      {
+        "name": "install.sh",
+        "bytes": 3322,
+        "sha256": "6bcef2b3731000c009b758a75127a415afa7e1495bf0b8cd825844ee29cd27f9"
+      },
+      {
+        "name": "kernel-6.18.58-dmx-4k.build.py",
+        "bytes": 20141,
+        "sha256": "8c130d00d9a267ac91e68e8b47d326cd0755d1cd36ea9446bcc3bdc51b6fe107"
+      },
+      {
+        "name": "kernel-6.18.58-dmx-4k.config",
+        "bytes": 94622,
+        "sha256": "4a1315db472ec88e6857dac27afb49db310abb69ac5cde98af16d5211ffbf60e"
+      },
+      {
+        "name": "NOTES.md",
+        "bytes": 4164,
+        "sha256": "db1661392e1888d463e0fb6cdb7adc05effe098e5d27aa6a688c5a947ce8b48a"
+      },
+      {
+        "name": "qemu-x86_64-11.0.3-dmx1.build.py",
+        "bytes": 17224,
+        "sha256": "029608626a77b62fed86f67579150905bf3589e4cc3735b132475ec2e7e23202"
+      },
+      {
+        "name": "SHA256SUMS",
+        "bytes": 892,
+        "sha256": "e2142c5678b8a2bbaea1b83429a7292215dd8ac38c1e3e469ce71898b4f9c33b"
+      },
+      {
+        "name": "third-party.json",
+        "bytes": 24571,
+        "sha256": "491bfd106845feb3e3eebb1d7d33bae1ce383524191d0e5f03bd600d575465d1"
+      }
+    ],
+    "local_rehearsal": {
+      "ok": true,
+      "version": "0.3.11",
+      "mode": "local",
+      "all_asset_sha256": {
+        "dmx-0.3.11-darwin-arm64.tar.gz.sha256": "9a9ac908796a6ccf2e6c727630ebbafb3aedf2273663f3abd17218bdb8478eb4",
+        "dmx-sources-0.3.11.tar.sha256": "bf84f2fc5eecb2285a38dc75b634be79a0df5584af3e3b4e033bb7e395eb09ba",
+        "third-party.json": "491bfd106845feb3e3eebb1d7d33bae1ce383524191d0e5f03bd600d575465d1",
+        "dmx-sources-0.3.11.tar": "8fa34d94b68a19d148e931b697367731789c0a718d69ce86421f12b5f0ba2354",
+        "kernel-6.18.58-dmx-4k.config": "4a1315db472ec88e6857dac27afb49db310abb69ac5cde98af16d5211ffbf60e",
+        "dmx-0.3.11-darwin-arm64.tar.gz": "76f910663fe3994d3d5704f4a9b972e0db2901214e9277668ec86ff3c246419d",
+        "install.sh": "6bcef2b3731000c009b758a75127a415afa7e1495bf0b8cd825844ee29cd27f9",
+        "fex-2610-dmx11.build.py": "6f6b8f71fa15e46104d4421ed456af3843008a1b96044151bc426d93846d2832",
+        "dmx-guest-0.3.11.tar.gz": "3f81010e774111fb32b80c337366c6d4f7cdfe319b9f42d079f3ed52435e6668",
+        "kernel-6.18.58-dmx-4k.build.py": "8c130d00d9a267ac91e68e8b47d326cd0755d1cd36ea9446bcc3bdc51b6fe107",
+        "NOTES.md": "db1661392e1888d463e0fb6cdb7adc05effe098e5d27aa6a688c5a947ce8b48a",
+        "SHA256SUMS": "e2142c5678b8a2bbaea1b83429a7292215dd8ac38c1e3e469ce71898b4f9c33b",
+        "qemu-x86_64-11.0.3-dmx1.build.py": "029608626a77b62fed86f67579150905bf3589e4cc3735b132475ec2e7e23202",
+        "dmx-guest-0.3.11.tar.gz.sha256": "888ad1c6f239bdff73bc7bd486a38bf6e3d3bd84eac5cb9e00eab3a99b8d6685"
+      },
+      "fresh_install": {
+        "guest_bytes": 62890693,
+        "selftest_checks": 23,
+        "host_footprint_mb": 97,
+        "reclaim": {
+          "after_free_mb": 1120,
+          "after_reclaim_mb": 102,
+          "idle_mb": 97,
+          "reported_mb": 2893,
+          "reports": 29,
+          "returned_ms": 1587
+        }
+      },
+      "update_from_0_3_10": {
+        "ok": true,
+        "bytes": 1880079,
+        "signature": "V4YA23448U",
+        "running_vm_kept_during_update": true,
+        "running_container_kept_during_update": true,
+        "container_restarted_after_vm_stop": true,
+        "volume_data_preserved": true,
+        "data_disk_marker_preserved": true,
+        "release_downloads_blocked_on_first_boot": true,
+        "receipt_tag_before_explicit_fetch": "v0.3.11",
+        "guest_and_doctor_report_new_tag": true,
+        "all_four_boot_file_inodes_and_hashes_kept": true
+      },
+      "containers": {
+        "linux/arm64": {
+          "uname": "aarch64",
+          "elf_class": 2
+        },
+        "linux/amd64": {
+          "uname": "x86_64",
+          "elf_class": 2
+        },
+        "linux/386": {
+          "uname": "x86_64",
+          "elf_class": 1
+        }
+      },
+      "live_emulator_sha256": "ade3c89ddc3bca41bee0d953e2ca63f6b148e81bf6d27c3ca3ca14ce8b0dfc1c",
+      "published_socket_paths": {
+        "mcp_checks": 33,
+        "timeout": true,
+        "cancellation": true,
+        "large_stream": true,
+        "deterministic_descriptor_reuse_proof": "source regression tests and bounded model; not forced through the published CLI"
+      }
+    },
+    "published_verification": {
+      "ok": true,
+      "version": "0.3.11",
+      "mode": "published",
+      "all_asset_sha256": {
+        "dmx-0.3.11-darwin-arm64.tar.gz.sha256": "9a9ac908796a6ccf2e6c727630ebbafb3aedf2273663f3abd17218bdb8478eb4",
+        "dmx-sources-0.3.11.tar.sha256": "bf84f2fc5eecb2285a38dc75b634be79a0df5584af3e3b4e033bb7e395eb09ba",
+        "third-party.json": "491bfd106845feb3e3eebb1d7d33bae1ce383524191d0e5f03bd600d575465d1",
+        "dmx-sources-0.3.11.tar": "8fa34d94b68a19d148e931b697367731789c0a718d69ce86421f12b5f0ba2354",
+        "kernel-6.18.58-dmx-4k.config": "4a1315db472ec88e6857dac27afb49db310abb69ac5cde98af16d5211ffbf60e",
+        "dmx-0.3.11-darwin-arm64.tar.gz": "76f910663fe3994d3d5704f4a9b972e0db2901214e9277668ec86ff3c246419d",
+        "install.sh": "6bcef2b3731000c009b758a75127a415afa7e1495bf0b8cd825844ee29cd27f9",
+        "fex-2610-dmx11.build.py": "6f6b8f71fa15e46104d4421ed456af3843008a1b96044151bc426d93846d2832",
+        "dmx-guest-0.3.11.tar.gz": "3f81010e774111fb32b80c337366c6d4f7cdfe319b9f42d079f3ed52435e6668",
+        "kernel-6.18.58-dmx-4k.build.py": "8c130d00d9a267ac91e68e8b47d326cd0755d1cd36ea9446bcc3bdc51b6fe107",
+        "NOTES.md": "db1661392e1888d463e0fb6cdb7adc05effe098e5d27aa6a688c5a947ce8b48a",
+        "SHA256SUMS": "e2142c5678b8a2bbaea1b83429a7292215dd8ac38c1e3e469ce71898b4f9c33b",
+        "qemu-x86_64-11.0.3-dmx1.build.py": "029608626a77b62fed86f67579150905bf3589e4cc3735b132475ec2e7e23202",
+        "dmx-guest-0.3.11.tar.gz.sha256": "888ad1c6f239bdff73bc7bd486a38bf6e3d3bd84eac5cb9e00eab3a99b8d6685"
+      },
+      "fresh_install": {
+        "guest_bytes": 62890693,
+        "selftest_checks": 23,
+        "host_footprint_mb": 95,
+        "reclaim": {
+          "after_free_mb": 1121,
+          "after_reclaim_mb": 100,
+          "idle_mb": 95,
+          "reported_mb": 2578,
+          "reports": 22,
+          "returned_ms": 1683
+        }
+      },
+      "update_from_0_3_10": {
+        "ok": true,
+        "bytes": 1880079,
+        "signature": "V4YA23448U",
+        "running_vm_kept_during_update": true,
+        "running_container_kept_during_update": true,
+        "container_restarted_after_vm_stop": true,
+        "volume_data_preserved": true,
+        "data_disk_marker_preserved": true,
+        "release_downloads_blocked_on_first_boot": true,
+        "receipt_tag_before_explicit_fetch": "v0.3.11",
+        "guest_and_doctor_report_new_tag": true,
+        "all_four_boot_file_inodes_and_hashes_kept": true
+      },
+      "containers": {
+        "linux/arm64": {
+          "uname": "aarch64",
+          "elf_class": 2
+        },
+        "linux/amd64": {
+          "uname": "x86_64",
+          "elf_class": 2
+        },
+        "linux/386": {
+          "uname": "x86_64",
+          "elf_class": 1
+        }
+      },
+      "live_emulator_sha256": "ade3c89ddc3bca41bee0d953e2ca63f6b148e81bf6d27c3ca3ca14ce8b0dfc1c",
+      "published_socket_paths": {
+        "mcp_checks": 33,
+        "timeout": true,
+        "cancellation": true,
+        "large_stream": true,
+        "deterministic_descriptor_reuse_proof": "source regression tests and bounded model; not forced through the published CLI"
+      }
+    }
+  },
+  "package_first": {
+    "ok": true,
+    "tag": "v0.3.11",
+    "pin_changed": true,
+    "guest": {
+      "name": "dmx-guest-0.3.11.tar.gz",
+      "bytes": 62890693,
+      "sha256": "3f81010e774111fb32b80c337366c6d4f7cdfe319b9f42d079f3ed52435e6668"
+    },
+    "binary": {
+      "name": "dmx-0.3.11-darwin-arm64.tar.gz",
+      "bytes": 1880070,
+      "sha256": "2a0ef72f129bef8ef564b8e9eba92c814c2f723e6c9e2bab1e0175526658a2ee"
+    },
+    "sources": {
+      "name": "dmx-sources-0.3.11.tar",
+      "bytes": 496209920,
+      "packages": 21
+    },
+    "licenses": [
+      "0BSD",
+      "Apache-2.0",
+      "BSD-2-Clause",
+      "BSD-3-Clause",
+      "BSL-1.0",
+      "GPL-2.0-only",
+      "GPL-2.0-or-later",
+      "GPL-3.0-or-later",
+      "LGPL-2.0-or-later",
+      "LGPL-2.1-only",
+      "LGPL-2.1-or-later",
+      "Linux-syscall-note",
+      "MIT",
+      "MPL-2.0",
+      "Unlicense"
+    ],
+    "packages": 52
+  },
+  "package_second": {
+    "ok": true,
+    "tag": "v0.3.11",
+    "pin_changed": false,
+    "guest": {
+      "name": "dmx-guest-0.3.11.tar.gz",
+      "bytes": 62890693,
+      "sha256": "3f81010e774111fb32b80c337366c6d4f7cdfe319b9f42d079f3ed52435e6668"
+    },
+    "binary": {
+      "name": "dmx-0.3.11-darwin-arm64.tar.gz",
+      "bytes": 1880079,
+      "sha256": "76f910663fe3994d3d5704f4a9b972e0db2901214e9277668ec86ff3c246419d"
+    },
+    "sources": {
+      "name": "dmx-sources-0.3.11.tar",
+      "bytes": 496209920,
+      "packages": 21
+    },
+    "licenses": [
+      "0BSD",
+      "Apache-2.0",
+      "BSD-2-Clause",
+      "BSD-3-Clause",
+      "BSL-1.0",
+      "GPL-2.0-only",
+      "GPL-2.0-or-later",
+      "GPL-3.0-or-later",
+      "LGPL-2.0-or-later",
+      "LGPL-2.1-only",
+      "LGPL-2.1-or-later",
+      "Linux-syscall-note",
+      "MIT",
+      "MPL-2.0",
+      "Unlicense"
+    ],
+    "packages": 52
   }
 }

@@ -273,6 +273,12 @@
     "W5: add this runner to the local pre-release checklist if desired; no GitHub CI, per the repository decision.",
     "W6: review/update the correspondence map when Agent.swift changes.",
     "Separate future scopes: VM/memory callback generations; guest-aware virtio block flush ordering. Neither is reported as a bug here.",
-    "No signed release was published as part of this investigation; release publication remains a maintainer decision."
-  ]
+    "The fix ships in signed and Apple-notarized v0.3.11: https://github.com/cothis/dmx/releases/tag/v0.3.11. Published assets were re-downloaded and exercised on the real VM."
+  ],
+  "release": {
+    "tag": "v0.3.11",
+    "url": "https://github.com/cothis/dmx/releases/tag/v0.3.11",
+    "commit": "13c12579765b21b4d894127a767e4fe99c68a49e",
+    "date": "2026-10-29"
+  }
 }
