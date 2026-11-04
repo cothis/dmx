@@ -38,3 +38,8 @@ phase with its tasks, the next task, and the measurements so far.
   macOS `script` with piped stdin does not forward input reliably.
 - Host memory of the VM: selftest `host.footprint_mb`, which is `ri_phys_footprint` of the dmx process
   (guest RAM lives there). Do not use the `footprint` tool: it leaves out guest pages.
+
+## Source of truth and checks
+
+- Source of truth: `docs/PLAN.md` (goal, decisions, next task, measurements) wins over every other doc; maintainer preferences live in `docs/memory.md`; guest inputs are only what `scripts/build-guest.py` pins.
+- Check: `make selftest` on the real VM (after `make build && make guest`), `make test` or `swift test` for unit tests — run before committing code changes; docs-only changes skip them.
