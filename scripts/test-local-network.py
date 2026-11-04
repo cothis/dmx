@@ -105,6 +105,9 @@ with tempfile.TemporaryDirectory(prefix="dmxln", dir="/private/tmp") as scratch:
         running = status()
         daemon = running.get("pid")
         check("launchd_owns_the_daemon", running.get("launchd") is True and running.get("state") == "running", running.get("state"))
+        # A new build's first try is refused with the permission allowed, and the next passes.
+        time.sleep(4)
+        running = status()
         access = running.get("local_network")
         check("reports_a_state", access in ("allowed", "blocked", "unknown"), access)
 

@@ -111,13 +111,14 @@ def check(name, ok, detail=""):
 
 def fixture(name):
     """Assemble one of our Linux x86 regressions in scripts/fixtures with the existing Xcode/Rust tools."""
-    source = ROOT / f"scripts/fixtures/{name}-x86_64.S"
+    i386 = name.endswith("32")
+    source = ROOT / f"scripts/fixtures/{name}-{'i386' if i386 else 'x86_64'}.S"
     toolchain = Path(subprocess.check_output(["rustc", "--print", "sysroot"], text=True).strip())
     linker = toolchain / "lib/rustlib/aarch64-apple-darwin/bin/rust-lld"
     with tempfile.TemporaryDirectory(prefix="dmx-fixture-build-") as tmp:
         obj, binary = Path(tmp) / f"{name}.o", Path(tmp) / name
-        subprocess.run(["xcrun", "clang", "--target=x86_64-linux-gnu", "-c", str(source), "-o", str(obj)], check=True)
-        subprocess.run([str(linker), "-flavor", "gnu", "-m", "elf_x86_64", "-static", "-o", str(binary), str(obj)],
+        subprocess.run(["xcrun", "clang", f"--target={'i386' if i386 else 'x86_64'}-linux-gnu", "-c", str(source), "-o", str(obj)], check=True)
+        subprocess.run([str(linker), "-flavor", "gnu", "-m", "elf_i386" if i386 else "elf_x86_64", "-static", "-o", str(binary), str(obj)],
                        check=True, env={**os.environ, "DYLD_LIBRARY_PATH": str(toolchain / "lib")})
         return binary.read_bytes()
 
@@ -267,6 +268,35 @@ def suite(emulator):
     r = sh(f"cat >{DIR}/signal-mask && chmod +x {DIR}/signal-mask && "
            f"for i in 1 2 3; do timeout -s KILL 60 {DIR}/signal-mask || exit; done", stdin=fixtures["signal-mask"], timeout=200)
     check_("signal_mask_preserved", r.returncode == 0 and r.stdout == b"signal-mask-ok\n" * 3, out(r))
+    # What a handler does with its context and mask, as a kernel lets it, and realtime order.
+    r = sh(f"cat >{DIR}/signal-context && chmod +x {DIR}/signal-context && "
+           f"for i in 1 2 3; do timeout -s KILL 60 {DIR}/signal-context || exit; done", stdin=fixtures["signal-context"], timeout=200)
+    check_("signal_context_honoured", r.returncode == 0 and r.stdout == b"signal-context-ok\n" * 3, out(r))
+    # x86's divide error, which .NET and the JVM turn into their exceptions and arm64's division does not have.
+    r = sh(f"cat >{DIR}/div-fault && chmod +x {DIR}/div-fault && "
+           f"timeout -s KILL 60 {DIR}/div-fault; echo $?; timeout -s KILL 30 {DIR}/div-fault a 2>/dev/null; echo $?; "
+           f"timeout -s KILL 30 {DIR}/div-fault a b 2>/dev/null; echo $?; timeout -s KILL 30 {DIR}/div-fault a b c 2>/dev/null; echo $?; "
+           f"(trap '' 8; timeout -s KILL 30 {DIR}/div-fault a b c 2>/dev/null); echo $?; "
+           f"(trap '' 8; timeout -s KILL 30 {DIR}/div-fault a b c d 2>/dev/null); echo $?",
+           stdin=fixtures["div-fault"], timeout=200)
+    check_("div_fault", r.stdout == b"div-fault-ok\n0\n136\n136\n136\n136\n136\n", out(r))
+    # Fatal SIGSEGV paths, including a host parent's inherited ignored disposition.
+    r = sh(f"cat >{DIR}/signal-fatal && chmod +x {DIR}/signal-fatal && "
+           f"timeout -s KILL 30 {DIR}/signal-fatal 2>/dev/null; echo $?; timeout -s KILL 30 {DIR}/signal-fatal a 2>/dev/null; echo $?; "
+           f"timeout -s KILL 30 {DIR}/signal-fatal a b 2>/dev/null; echo $?; "
+           f"(trap '' 11; timeout -s KILL 30 {DIR}/signal-fatal a b c 2>/dev/null); echo $?", stdin=fixtures["signal-fatal"], timeout=150)
+    check_("signal_fatal", r.stdout == b"139\n139\n139\n139\n", out(r))
+    # Handlers that move between stacks and return, a jump out followed by a blocking call, and sigsuspend's mask.
+    r = sh(f"cat >{DIR}/signal-stacks && chmod +x {DIR}/signal-stacks && "
+           f"for i in 1 2 3; do timeout -s KILL 60 {DIR}/signal-stacks || exit; done", stdin=fixtures["signal-stacks"], timeout=200)
+    check_("signal_stacks", r.returncode == 0 and r.stdout == b"signal-stacks-ok\n" * 3, out(r))
+    # siglongjmp out of a handler, many times, on both stacks.
+    r = sh(f"cat >{DIR}/signal-longjmp && chmod +x {DIR}/signal-longjmp && "
+           f"for i in 1 2 3; do timeout -s KILL 120 {DIR}/signal-longjmp || exit; done", stdin=fixtures["signal-longjmp"], timeout=400)
+    check_("signal_longjmp", r.returncode == 0 and r.stdout == b"signal-longjmp-ok\n" * 3, out(r))
+    # A vfork child that exits while a descendant sharing its descriptors lives on.
+    r = sh(f"cat >{DIR}/vfork-clone && chmod +x {DIR}/vfork-clone && s=$(date +%s); timeout -s KILL 30 {DIR}/vfork-clone; rc=$?; echo $rc $(($(date +%s)-s))", stdin=fixtures["vfork-clone"], timeout=40)
+    check_("vfork_child_exit_ends_wait", r.stdout.split()[:1] == [b"0"] and int(r.stdout.split()[1]) < 5, out(r))
     # A vfork child that forks and exits, as busybox's timeout does to leave a watcher behind: the
     # parent goes on when the child exits, not when the watcher does.
     r = sh(f"s=$(date +%s); {DIR}/busybox timeout 20 {DIR}/busybox true; rc=$?; echo $rc $(($(date +%s)-s))", timeout=40)
@@ -315,6 +345,20 @@ def suite(emulator):
     check_("node_worker", r.returncode == 0 and r.stdout == b"42\n", out(r))
 
     if emulator == "fex":
+        # A system call's own signal mask, which FEX has to know about for the handlers it lets in to run. Not on
+        # qemu-x86_64, which never runs the handler of a SIGALRM that the call's mask held back.
+        r = sh(f"cat >{DIR}/signal-tempmask && chmod +x {DIR}/signal-tempmask && "
+               f"for i in 1 2 3; do timeout -s KILL 60 {DIR}/signal-tempmask || exit; done", stdin=fixtures["signal-tempmask"], timeout=200)
+        check_("signal_tempmask", r.returncode == 0 and r.stdout == b"signal-tempmask-ok\n" * 3, out(r))
+        # Code changed through a second mapping of its memory, as .NET's W^X does. Not on qemu-x86_64, which keeps
+        # running the old code.
+        r = sh(f"cat >{DIR}/code-alias && chmod +x {DIR}/code-alias && "
+               f"for i in 1 2 3; do timeout -s KILL 60 {DIR}/code-alias || exit; done", stdin=fixtures["code-alias"], timeout=200)
+        check_("code_alias", r.returncode == 0 and r.stdout == b"code-alias-ok\n" * 3, out(r))
+        # Signals FEX cannot leave blocked on the host, and masks at bad addresses.
+        r = sh(f"cat >{DIR}/signal-required && chmod +x {DIR}/signal-required && "
+               f"for i in 1 2 3; do timeout -s KILL 60 {DIR}/signal-required || exit; done", stdin=fixtures["signal-required"], timeout=200)
+        check_("signal_required", r.returncode == 0 and r.stdout == b"signal-required-ok\n" * 3, out(r))
         # FEX asks the guest kernel for the TSO memory model (Asahi's PR_SET_MEM_MODEL patches,
         # build-kernel.py), so x86 code needs no barriers; PR_GET_MEM_MODEL passes through to it.
         r = sh(f"{run} python3 -c 'import ctypes; print(ctypes.CDLL(None).prctl(0x6d4d444c, 0, 0, 0, 0))'")
@@ -363,6 +407,9 @@ def suite(emulator):
                f"dd if=/dev/zero bs=1024 count=64 2>/dev/null | md5sum; "
                f"/lib/ld-musl-i386.so.1 /bin/busybox echo loader-ok'", stdin=rootfs32)
         check_("i386_dynamic", r.stdout == b"42\nmusl\nbusybox\nfcd6bcb56c1689fcef28b57c22475bad  -\nloader-ok\n", out(r))
+        r = sh(f"cat >{DIR}/signal-tempmask32 && chmod +x {DIR}/signal-tempmask32 && "
+               f"for i in 1 2 3; do timeout -s KILL 60 {DIR}/signal-tempmask32 || exit; done", stdin=fixtures["signal-tempmask32"], timeout=200)
+        check_("i386_signal_tempmask", r.returncode == 0 and r.stdout == b"signal-tempmask32-ok\n" * 3, out(r))
         # As with 64-bit programs, each process is the emulator plus the program.
         r = sh(f"{DIR}/i386/busybox sleep 4 & sleep 2; grep -E '^(Rss|AnonHugePages):' /proc/$!/smaps_rollup; wait")
         rss32 = {line.split()[0].decode().rstrip(":"): int(line.split()[1]) // 1024 for line in r.stdout.splitlines()}
@@ -455,7 +502,7 @@ try:
     with tarfile.open(guest.fetch("i386-busybox-static", cache32), "r:gz", ignore_zeros=True) as tar:
         busybox32 = tar.extractfile("bin/busybox.static").read()
     rootfs32 = guest.fetch("i386-minirootfs", cache32).read_bytes()
-    fixtures = {name: fixture(name) for name in ("signal-frame", "signal-resume", "signal-syscall", "signal-mask", "entry-patch", "code-stale")}
+    fixtures = {name: fixture(name) for name in ("signal-frame", "signal-resume", "signal-syscall", "signal-mask", "signal-tempmask", "signal-tempmask32", "signal-required", "signal-fatal", "code-alias", "div-fault", "signal-context", "signal-stacks", "signal-longjmp", "vfork-clone", "entry-patch", "code-stale")}
 
     dmx("config", "set", "shares", "none")
     for emulator in EMULATORS:

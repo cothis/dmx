@@ -323,7 +323,15 @@ public final class Daemon {
                 state = .running
                 idleSince = .now
                 log("VM up in \(milliseconds(ContinuousClock.now - started)) ms (\(spec.cpus) cpus, \(formatSize(machine.spec.maxMemory)) max)")
-                if LocalNetworkAccess.probe() == .blocked { log("local network: \(LocalNetworkAccess.blockedDetail); \(LocalNetworkAccess.blockedHint)") }
+                // The first try of a new binary, as after an update, is refused even if the owner has allowed dmx:
+                // macOS refreshes what it knows of the binary then and allows the next one, with no prompt.
+                if LocalNetworkAccess.probe() == .blocked {
+                    Task { [weak self] in
+                        try? await Task.sleep(for: .seconds(3))
+                        guard let self, self.state == .running, LocalNetworkAccess.probe() == .blocked else { return }
+                        log("local network: \(LocalNetworkAccess.blockedDetail); \(LocalNetworkAccess.blockedHint)")
+                    }
+                }
                 watch(machine)
                 memory.attach(machine: machine, agent: agent)
                 scheduleIdleCheck()

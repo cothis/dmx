@@ -1,0 +1,1539 @@
+{
+  "schema": 1,
+  "date": "2026-11-05",
+  "base_commit": "b513e3a",
+  "published": false,
+  "emulators": {
+    "dmx12": "60c150a89c4414b9803ecff4041eb111cabab1d6350c423a8c0f9ead0030c401",
+    "dmx13": "a75324c3ee1e228ead62b88a71c7b42734e8ce7420fdeb592366217af19c7682"
+  },
+  "source_sha256": {
+    "Sources/DMXCore/Daemon/Daemon.swift": "68ec11072fd0b5c5b4db3a1f45b84a4faf38ce423b52da6cbb0649f65348d225",
+    "scripts/build-fex.py": "5eedd34c399b8105feca2cff478e7ee816b9bb5a29232c0fa25c63b82a401490",
+    "scripts/build-guest.py": "56238db36ffdf61cc29438bf568cbc5293a8296aa13dbd1b4d05869c2f687fca",
+    "scripts/test-local-network.py": "1c1004f32742bc1998dfb313e0d6913a0035dcec83f8e19520aa06b3964ad923",
+    "scripts/test-x86.py": "608791521635377a80c2cd4e981ee33f9720861b7f5fa636f2ed4e022db035fa",
+    "scripts/fixtures/code-alias-x86_64.S": "c3a23755d6292b548f50cb8afca7d465cac343839358554203efb8089724166e",
+    "scripts/fixtures/code-stale-x86_64.S": "21e200de232d9a8b56e535f81db5e29fc9f5659297c153a9f569a1d1c6a8ef05",
+    "scripts/fixtures/compile-storm-x86_64.S": "80d075c6d0371691dac318f7a1930cb756b2b4bb4b41b3eb3a6619742a0de1ef",
+    "scripts/fixtures/div-fault-x86_64.S": "20542e2ac1ce41609bd966d4612acd36b4694eb32aacdfa271892bd8c8f8643f",
+    "scripts/fixtures/entry-patch-x86_64.S": "393e585cbcc92201a93358035287cdbc2826b07966021652a3bb4fdd55248ec4",
+    "scripts/fixtures/signal-context-x86_64.S": "20362387a05d5ffbfd3ac1d32bd7df3c1bcd0f382fcd05ef143f4df1df75db82",
+    "scripts/fixtures/signal-fatal-x86_64.S": "033c9ac9d3e1ec3025e733ba2152db8f70205c3396d1512555531d31e56b7228",
+    "scripts/fixtures/signal-frame-x86_64.S": "93986f2a837ab494f9c12c99402fc92ffc3a8ffce87f0d42d322ae60d1fbe86a",
+    "scripts/fixtures/signal-longjmp-x86_64.S": "55efbae7f8a3ed6e37eb60991e21128779457b249013ef2e056c376d16954e10",
+    "scripts/fixtures/signal-mask-x86_64.S": "7a980ea30b7ac1c991da5b634d6b3604f80dc1516caf76ce10b1ea1047fa4e32",
+    "scripts/fixtures/signal-required-x86_64.S": "e0d6037b35fdc8118f43e952f2765674c5a2fd1b94ab4844ac77a8378b580484",
+    "scripts/fixtures/signal-resume-x86_64.S": "0c8683d90602df42ee49d71343b026da96cb5f201a6a4b2aea508051588cc2b6",
+    "scripts/fixtures/signal-stacks-x86_64.S": "5a83fe418155f152f3c4a42fdc2bcf969431495bd580d29e77dc12ae941a4f2b",
+    "scripts/fixtures/signal-syscall-x86_64.S": "829b741a6fe3ed75a7c39272a41bf71d7d59aad526f9dea62f147bfa5ecdf772",
+    "scripts/fixtures/signal-tempmask-x86_64.S": "3770811368a34597322bdd1c1a6e953da9b9c621a4e495f806e4027cbcfef6f7",
+    "scripts/fixtures/signal-tempmask32-i386.S": "c3344e470edecd8960570dd34dd4779765726ffda51cb9161bef73574c61c5ff",
+    "scripts/fixtures/vfork-clone-x86_64.S": "cedb707c7dde0d253e9500e489574d6f1b1f96763b4a9ebd8f638256c9f02929"
+  },
+  "provenance": {
+    "upstream_commit": "14c92681f4d62cf84d901460e0358de09c8847a7",
+    "upstream_archive_sha256": "76bb2fb0c1bed5713828c33fc79a82efdc06b20bd8267212b438bb60fa149713",
+    "final_patch_sha256": "0d37ea572f56ad191beaf864db3de6ef6f399c9273534277f41f6bd85e9cde95",
+    "canonical_patched_files": 42,
+    "canonical_patched_files_sha256": {
+      "FEXCore/Source/Interface/Config/Config.json.in": "dde6384a03264e503f945f1b40c8881f571efe1d144ceca65ffccf2b74ed5ab3",
+      "FEXCore/Source/Interface/Context/Context.h": "0b82b34d87f1ed9c9b1878f376dd37689bd86f4b8f3b7d57b12c9ae6e0c4fc14",
+      "FEXCore/Source/Interface/Core/CPUBackend.h": "efef750a8874d5329f5a8ba29b0e871115e94d0e340b359140e526a39aa6d485",
+      "FEXCore/Source/Interface/Core/Core.cpp": "bb31ba25c3c9292161d4c51dd5f3fe7d2c85d92e7e3801515d5508ca1432bc7e",
+      "FEXCore/Source/Interface/Core/Dispatcher/Dispatcher.cpp": "279761ec5bd2c777801b327c72c8ddac6550094b74777e62e189272d6c3b50bf",
+      "FEXCore/Source/Interface/Core/Frontend.cpp": "9bb5ea7336dbb36d26ae3b1989ee07ba659fb9747cfcb23ff8aecb2726d646dc",
+      "FEXCore/Source/Interface/Core/Frontend.h": "211fe921a4a3b0369906e5594aa09c6700522e8bd9f747cabb4c15f0c19c68a0",
+      "FEXCore/Source/Interface/Core/JIT/BranchOps.cpp": "08f4aec53a702aec8e0a0ce3fedaf78dd1ca112c7770b1f3b458573ca3e83ae3",
+      "FEXCore/Source/Interface/Core/JIT/JIT.cpp": "b5bc996d38c9583f7f17b05269958a1ffec9da07b39f14358b62b27e4fcc5436",
+      "FEXCore/Source/Interface/Core/JIT/JITClass.h": "ba7f859925b7c0a40d4c01e8603c80d2f76fe6cb5b5055314a344e69462c5f54",
+      "FEXCore/Source/Interface/Core/JIT/MiscOps.cpp": "6def4faa1f1bfcc7ea7b660fac1d68bfe562a6e390569d18a58781b2d504c814",
+      "FEXCore/Source/Interface/Core/OpcodeDispatcher.cpp": "6c7f53deb15044e71895954c9f298698d1549f6d77fbf78e88f0106beef90a6b",
+      "FEXCore/Source/Interface/Core/OpcodeDispatcher.h": "a3a522ed69cf739799330286f594e2a7c26cfd904d4f2de6b65a1e54bfd44157",
+      "FEXCore/Source/Interface/IR/IR.json": "1a98dc5e16574d6581860463a1c96f3109ad27dd897e99a54719f921e14e29c4",
+      "FEXCore/Source/Interface/IR/Passes/RedundantFlagCalculationElimination.cpp": "cda7b5a7000a49c451b20af9d35bcb29ecacaf7ec413f527b2761d38fa9e0850",
+      "FEXCore/Source/Utils/Allocator.cpp": "02a81dea1c773a2de205e73ffce83fd7ac9cd05056fa0ecaf4f84e9ef3daded6",
+      "FEXCore/Source/Utils/FileUtils.cpp": "d2c22ba567f3e00327c0476202880e8640b60d6f54d41b3e8e96133c896ded40",
+      "FEXCore/include/FEXCore/Core/Context.h": "a7846efdbe781355aa33e9c83069a7d837f7e5dd6e59cacd4a43117f848e18dc",
+      "FEXCore/include/FEXCore/Core/CoreState.h": "9c1165bd8678e2de235e198b43a11d35eec26333cf40c6a8dcf31178fa84adba",
+      "FEXCore/include/FEXCore/HLE/SyscallHandler.h": "a74118ef2ace7d92197b876c73dd5585402caa9f75e45054c9de9f3abe2809a9",
+      "FEXCore/include/FEXCore/Utils/SignalScopeGuards.h": "a9c6457d42fb07572dccd4c268301e337ac536d978997925f71322fc0169f214",
+      "Source/Common/Config.cpp": "6d35b16d864884a8b3377dc074a3f8ac34b99e2eea9a4b5bd48b28e9e3a91fa2",
+      "Source/Common/FEXServerClient.cpp": "600cdfdc77b4f8b871a33f6f20e92180ba2e86b2280b225b3c71ec727e079603",
+      "Source/Tools/FEXInterpreter/ELFCodeLoader.h": "20c934a783a79f449097c6c949c8ed46724e0dd7f270eb7272d74eef60c99216",
+      "Source/Tools/FEXInterpreter/FEXInterpreter.cpp": "2d81aa13dd00c9f8770c645aa0c302884b29ba7b07ea7536225a23c33df8ca4b",
+      "Source/Tools/LinuxEmulation/ArchHelpers/MContext.h": "78a367d1ed47cb7d5b94f893ab623d2d4d732e5573673d66a18ffe2de2df8bf8",
+      "Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp": "57dd1bc0caf6b35573672a7b68636faf7dd71750d03400cc529d04724076782a",
+      "Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.h": "4fd6a06749c3b9145af004099af0d13d4a4b8a5f3d50ee1dca941ed35098652f",
+      "Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator/GuestFramesManagement.cpp": "95ad2a5de9255956a1051a4829869e8ae8df79b89d415d5cca1b7b0a5922049b",
+      "Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls.cpp": "a92eab709b5d46f2e55d00a4e642813b5cc9e4cff0a1ddd1ff0d8470fa1c919a",
+      "Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls.h": "793764856fae7c81ac5c65d48246ec76941e68218bd69b8fd29c01e0a770519e",
+      "Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls/Passthrough.cpp": "68b55475af817496f6931f6ad44b782e23b0bcb9d29cd64bf43e291e9d98de5e",
+      "Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls/Thread.cpp": "b975b870d663a84538887491c240932cacb0813b9bf7eec61472db5c46fc9aa9",
+      "Source/Tools/LinuxEmulation/LinuxSyscalls/SyscallsSMCTracking.cpp": "090afee315f9184c9ba47e9a73e78253d5d1a838b4e105281f06762658f42864",
+      "Source/Tools/LinuxEmulation/LinuxSyscalls/SyscallsVMATracking.cpp": "49cbeccef4739beb912a4cd68098ea452f42bb1a2151a728428c138e678cc0ec",
+      "Source/Tools/LinuxEmulation/LinuxSyscalls/SyscallsVMATracking.h": "41d205a3bffec46f1e7f56f14517d02e00ae4802cccba08cfcaac902376c9650",
+      "Source/Tools/LinuxEmulation/LinuxSyscalls/ThreadManager.h": "47993c3c0898fc5734154ec2d976fd661a9f9f1bbc01daa4db5ba410647dd5fb",
+      "Source/Tools/LinuxEmulation/LinuxSyscalls/Utils/Threads.cpp": "9de491b588317cba50fe5798db557d146e06996494ffb5b794b9ad6dba0c3520",
+      "Source/Tools/LinuxEmulation/LinuxSyscalls/x32/EPoll.cpp": "e1d6cdb73b300576f882b703026eb7eefd0c7d29aae25c2d148ae421af3c98a3",
+      "Source/Tools/LinuxEmulation/LinuxSyscalls/x32/FD.cpp": "6947def42debb2d7ebcbbb6fda9f9dfbdcd51246b1f91c4348c65ca99172edff",
+      "Source/Tools/LinuxEmulation/LinuxSyscalls/x64/EPoll.cpp": "5bdce5bfae2f1c81eb1ad3cba0de91a16de9e4a5318acb07f583c4edfe897373",
+      "Source/Tools/LinuxEmulation/LinuxSyscalls/x64/FD.cpp": "31d6ae075d0ca9e579b8102a88758411ef870f8741d32826c5469b4ad67c72bd"
+    },
+    "build": [
+      {
+        "task": "fex-fixed",
+        "exit": 0,
+        "seconds": 71.4
+      },
+      {
+        "task": "guest-fixed",
+        "exit": 0,
+        "seconds": 5.76
+      }
+    ],
+    "live_guest_sha256_verified": "a75324c3ee1e228ead62b88a71c7b42734e8ce7420fdeb592366217af19c7682"
+  },
+  "fresh_checks": [
+    {
+      "task": "unit-fixed",
+      "exit": 0,
+      "seconds": 5.0
+    },
+    {
+      "task": "selftest-fixed",
+      "exit": 0,
+      "seconds": 25.47
+    },
+    {
+      "task": "x86test-fixed",
+      "exit": 0,
+      "seconds": 78.38
+    },
+    {
+      "task": "managed-fixed",
+      "exit": 0,
+      "seconds": 22.12
+    },
+    {
+      "task": "benchmark-prepare-fixed",
+      "exit": 0,
+      "seconds": 2.88
+    },
+    {
+      "task": "benchmark",
+      "exit": 0,
+      "seconds": 259.17
+    },
+    {
+      "task": "memory",
+      "exit": 0,
+      "seconds": 28.93
+    }
+  ],
+  "selftest": {
+    "ok": true,
+    "checks": 23,
+    "host": {
+      "footprint_mb": 97,
+      "peak_footprint_mb": 97
+    },
+    "cpus": 10,
+    "max_memory": "8.0G"
+  },
+  "x86": {
+    "ok": true,
+    "checks": 77,
+    "fatal_checks": [
+      {
+        "name": "fex.div_fault",
+        "ok": true,
+        "detail": "div-fault-ok\n0\n136\n136\n136\n136\n136\nArithmetic exception\nArithmetic exception"
+      },
+      {
+        "name": "fex.signal_fatal",
+        "ok": true,
+        "detail": "139\n139\n139\n139\nSegmentation fault"
+      },
+      {
+        "name": "qemu.div_fault",
+        "ok": true,
+        "detail": "div-fault-ok\n0\n136\n136\n136\n136\n136\nArithmetic exception\nArithmetic exception"
+      },
+      {
+        "name": "qemu.signal_fatal",
+        "ok": true,
+        "detail": "139\n139\n139\n139\nSegmentation fault"
+      }
+    ]
+  },
+  "managed": {
+    "schema": 1,
+    "fex_sha256": "a75324c3ee1e228ead62b88a71c7b42734e8ce7420fdeb592366217af19c7682",
+    "platform": "linux/amd64",
+    "checks": [
+      {
+        "name": "dotnet",
+        "image": "mcr.microsoft.com/dotnet/sdk@sha256:6ba9644da07bb5b560a402acec9ca38711a0762969f1b61da261df5c9f6f85da",
+        "source": "using System; using System.Threading; using System.Threading.Tasks;\nclass P { class N { public int V; }\n  static int Hit(N n) { try { return n.V; } catch (NullReferenceException) { return 1; } }\n  static int Zero(int d) { try { return 1 / d; } catch (DivideByZeroException) { return 1; } }\n  static int Main() { long c = 0; var ts = new Task[8];\n    for (int t = 0; t < 8; t++) ts[t] = Task.Run(() => { for (int i = 0; i < 20000; i++) { Interlocked.Add(ref c, Hit(null) + Zero(0)); var a = new byte[1000]; a[i % 1000] = 1; } });\n    Task.WaitAll(ts); GC.Collect(); Console.WriteLine(\"dotnet-ok \" + c); return c == 320000 ? 0 : 1; } }\n",
+        "source_sha256": "6a6a5631c2356f532264dcd058aff33735dfc4c25eeae028cdc29f2d8b551725",
+        "shell_command": "set -eu; uname -m; cd /tmp; dotnet new console -o a >/dev/null; cd a; cat > Program.cs; dotnet build -c Release -o out; for i in 1 2 3; do dotnet out/a.dll; done",
+        "exit": 0,
+        "seconds": 18.74,
+        "expected": "dotnet-ok 320000",
+        "observed": [
+          "x86_64",
+          "  Determining projects to restore...",
+          "  All projects are up-to-date for restore.",
+          "/tmp/a/Program.cs(6,119): warning CS8625: Cannot convert null literal to non-nullable reference type. [/tmp/a/a.csproj]",
+          "/tmp/a/Program.cs(2,32): warning CS0649: Field 'P.N.V' is never assigned to, and will always have its default value 0 [/tmp/a/a.csproj]",
+          "  a -> /tmp/a/out/a.dll",
+          "",
+          "Build succeeded.",
+          "",
+          "/tmp/a/Program.cs(6,119): warning CS8625: Cannot convert null literal to non-nullable reference type. [/tmp/a/a.csproj]",
+          "/tmp/a/Program.cs(2,32): warning CS0649: Field 'P.N.V' is never assigned to, and will always have its default value 0 [/tmp/a/a.csproj]",
+          "    2 Warning(s)",
+          "    0 Error(s)",
+          "",
+          "Time Elapsed 00:00:09.99",
+          "dotnet-ok 320000",
+          "dotnet-ok 320000",
+          "dotnet-ok 320000"
+        ],
+        "ok": true
+      },
+      {
+        "name": "java",
+        "image": "library/eclipse-temurin@sha256:074d6f95f1e69965dbd23750a37ec3b234025d0864e9821e0b1fba0763a3e853",
+        "source": "public class Div { static int d(int a, int b) { return a / b; } static long l(long a, long b) { return a / b; }\n  public static void main(String[] x) { int c = 0, v = 0;\n    for (int i = 0; i < 200000; i++) { try { v += d(i, 0); } catch (ArithmeticException e) { c++; } try { v += (int) l(i, 0); } catch (ArithmeticException e) { c++; } }\n    System.out.println(\"java c=\" + c + \" v=\" + v + \" min/-1=\" + d(Integer.MIN_VALUE, -1) + \" \" + l(Long.MIN_VALUE, -1)); } }\n",
+        "source_sha256": "1c568ea442219ada1452deeba4e1294606567ab3920cbcb9e8e96103143e9a95",
+        "shell_command": "set -eu; uname -m; cd /tmp; cat > Div.java; javac Div.java; for i in 1 2 3; do java -Xmx256m -cp /tmp Div; done",
+        "exit": 0,
+        "seconds": 3.35,
+        "expected": "java c=400000 v=0 min/-1=-2147483648 -9223372036854775808",
+        "observed": [
+          "x86_64",
+          "java c=400000 v=0 min/-1=-2147483648 -9223372036854775808",
+          "java c=400000 v=0 min/-1=-2147483648 -9223372036854775808",
+          "java c=400000 v=0 min/-1=-2147483648 -9223372036854775808"
+        ],
+        "ok": true
+      }
+    ]
+  },
+  "performance": {
+    "schema": 1,
+    "cpus": 4,
+    "memory": "8G",
+    "rounds": [
+      {
+        "round": 1,
+        "order": [
+          "12",
+          "13"
+        ],
+        "before": {
+          "at": 1793813381.730984,
+          "idle_percent": 92.25,
+          "load1": 1.39794921875,
+          "Swapins": 62731049,
+          "Swapouts": 73818079
+        },
+        "samples": {
+          "tight_loop": {
+            "12": {
+              "ns": [
+                1406098751,
+                1407180709,
+                1422113584,
+                1414057459,
+                1421954709,
+                1420171792
+              ],
+              "best_ns": 1406098751
+            },
+            "13": {
+              "ns": [
+                1440392334,
+                1430217042,
+                1441337001,
+                1433461626,
+                1434063167,
+                1438605167
+              ],
+              "best_ns": 1430217042
+            }
+          },
+          "compile_storm": {
+            "12": {
+              "ns": [
+                244656667,
+                243029458,
+                259855042,
+                248957876,
+                247903791,
+                247268084
+              ],
+              "best_ns": 243029458
+            },
+            "13": {
+              "ns": [
+                246914417,
+                253034750,
+                247108667,
+                248603417,
+                250161625,
+                244659333
+              ],
+              "best_ns": 244659333
+            }
+          },
+          "python_loop": {
+            "12": {
+              "ns": [
+                232399542,
+                230038250,
+                232929959,
+                239426958,
+                234570250,
+                233829333
+              ],
+              "best_ns": 230038250
+            },
+            "13": {
+              "ns": [
+                230204500,
+                234232292,
+                234043208,
+                231637167,
+                231286500,
+                231054666
+              ],
+              "best_ns": 230204500
+            }
+          },
+          "python_start": {
+            "12": {
+              "ns": [
+                106913000,
+                104856083,
+                105550042,
+                104742958,
+                108539083,
+                107159000
+              ],
+              "best_ns": 104742958
+            },
+            "13": {
+              "ns": [
+                105964583,
+                104467500,
+                104940667,
+                106991916,
+                104918625,
+                105305833
+              ],
+              "best_ns": 104467500
+            }
+          }
+        },
+        "after": {
+          "at": 1793813412.210616,
+          "idle_percent": 90.3,
+          "load1": 1.69580078125,
+          "Swapins": 62731057,
+          "Swapouts": 73818079
+        },
+        "swapped_pages": {
+          "Swapins": 8,
+          "Swapouts": 0
+        }
+      },
+      {
+        "round": 2,
+        "order": [
+          "13",
+          "12"
+        ],
+        "before": {
+          "at": 1793813413.5204952,
+          "idle_percent": 95.85,
+          "load1": 1.6396484375,
+          "Swapins": 62731057,
+          "Swapouts": 73818079
+        },
+        "samples": {
+          "tight_loop": {
+            "13": {
+              "ns": [
+                1454604875,
+                1449366584,
+                1443166375,
+                1441170751,
+                1444160084,
+                1455108626
+              ],
+              "best_ns": 1441170751
+            },
+            "12": {
+              "ns": [
+                1450642418,
+                1460029042,
+                1442137293,
+                1445732751,
+                1454945334,
+                1446413292
+              ],
+              "best_ns": 1442137293
+            }
+          },
+          "compile_storm": {
+            "13": {
+              "ns": [
+                246719167,
+                253456625,
+                248473584,
+                259201333,
+                247050542,
+                245745750
+              ],
+              "best_ns": 245745750
+            },
+            "12": {
+              "ns": [
+                249000833,
+                247805666,
+                247815667,
+                260302083,
+                253292751,
+                248711583
+              ],
+              "best_ns": 247805666
+            }
+          },
+          "python_loop": {
+            "13": {
+              "ns": [
+                231464875,
+                230654417,
+                235540750,
+                234183751,
+                233580959,
+                227797041
+              ],
+              "best_ns": 227797041
+            },
+            "12": {
+              "ns": [
+                229732167,
+                232136333,
+                235705792,
+                231876416,
+                230244125,
+                232644375
+              ],
+              "best_ns": 229732167
+            }
+          },
+          "python_start": {
+            "13": {
+              "ns": [
+                105631667,
+                105849833,
+                111004625,
+                107230375,
+                105677333,
+                107474042
+              ],
+              "best_ns": 105631667
+            },
+            "12": {
+              "ns": [
+                105445292,
+                105159084,
+                106232875,
+                107914083,
+                111217709,
+                106668583
+              ],
+              "best_ns": 105159084
+            }
+          }
+        },
+        "after": {
+          "at": 1793813444.4206588,
+          "idle_percent": 89.93,
+          "load1": 1.5634765625,
+          "Swapins": 62731057,
+          "Swapouts": 73818079
+        },
+        "swapped_pages": {
+          "Swapins": 0,
+          "Swapouts": 0
+        }
+      },
+      {
+        "round": 3,
+        "order": [
+          "12",
+          "13"
+        ],
+        "before": {
+          "at": 1793813445.72148,
+          "idle_percent": 92.89,
+          "load1": 1.5634765625,
+          "Swapins": 62731057,
+          "Swapouts": 73818079
+        },
+        "samples": {
+          "tight_loop": {
+            "12": {
+              "ns": [
+                1468268209,
+                1446551125,
+                1457059626,
+                1457974792,
+                1455108084,
+                1469721667
+              ],
+              "best_ns": 1446551125
+            },
+            "13": {
+              "ns": [
+                1463812417,
+                1450248375,
+                1455838418,
+                1461869376,
+                1450745251,
+                1464432375
+              ],
+              "best_ns": 1450248375
+            }
+          },
+          "compile_storm": {
+            "12": {
+              "ns": [
+                248240666,
+                250236501,
+                249979958,
+                249055167,
+                260781000,
+                247964125
+              ],
+              "best_ns": 247964125
+            },
+            "13": {
+              "ns": [
+                254131333,
+                245732417,
+                247978667,
+                253069958,
+                246506125,
+                248523542
+              ],
+              "best_ns": 245732417
+            }
+          },
+          "python_loop": {
+            "12": {
+              "ns": [
+                233029667,
+                234299000,
+                233699875,
+                236674417,
+                228854500,
+                235358625
+              ],
+              "best_ns": 228854500
+            },
+            "13": {
+              "ns": [
+                233318917,
+                231361958,
+                233141084,
+                238294625,
+                236587333,
+                236411709
+              ],
+              "best_ns": 231361958
+            }
+          },
+          "python_start": {
+            "12": {
+              "ns": [
+                105806792,
+                107186250,
+                105998917,
+                106643125,
+                105166375,
+                105940209
+              ],
+              "best_ns": 105166375
+            },
+            "13": {
+              "ns": [
+                106975917,
+                105571542,
+                106676375,
+                106913667,
+                107540667,
+                105685083
+              ],
+              "best_ns": 105571542
+            }
+          }
+        },
+        "after": {
+          "at": 1793813476.767188,
+          "idle_percent": 89.9,
+          "load1": 1.908203125,
+          "Swapins": 62731061,
+          "Swapouts": 73818079
+        },
+        "swapped_pages": {
+          "Swapins": 4,
+          "Swapouts": 0
+        }
+      },
+      {
+        "round": 4,
+        "order": [
+          "13",
+          "12"
+        ],
+        "before": {
+          "at": 1793813478.088201,
+          "idle_percent": 95.99,
+          "load1": 1.908203125,
+          "Swapins": 62731061,
+          "Swapouts": 73818079
+        },
+        "samples": {
+          "tight_loop": {
+            "13": {
+              "ns": [
+                1447965751,
+                1459622543,
+                1462887459,
+                1451705084,
+                1471162542,
+                1470679126
+              ],
+              "best_ns": 1447965751
+            },
+            "12": {
+              "ns": [
+                1450056334,
+                1456529584,
+                1460418043,
+                1457752751,
+                1468522918,
+                1466277043
+              ],
+              "best_ns": 1450056334
+            }
+          },
+          "compile_storm": {
+            "13": {
+              "ns": [
+                247162041,
+                252878917,
+                248058667,
+                249646917,
+                248505334,
+                247125500
+              ],
+              "best_ns": 247125500
+            },
+            "12": {
+              "ns": [
+                249077750,
+                256530125,
+                252354458,
+                295231000,
+                250563750,
+                249467208
+              ],
+              "best_ns": 249077750
+            }
+          },
+          "python_loop": {
+            "13": {
+              "ns": [
+                231115875,
+                235166708,
+                232682958,
+                241533000,
+                240457541,
+                236129167
+              ],
+              "best_ns": 231115875
+            },
+            "12": {
+              "ns": [
+                232841875,
+                234559542,
+                234498125,
+                244157834,
+                237049542,
+                235333625
+              ],
+              "best_ns": 232841875
+            }
+          },
+          "python_start": {
+            "13": {
+              "ns": [
+                109400750,
+                109702542,
+                109275208,
+                113771334,
+                111631167,
+                108054500
+              ],
+              "best_ns": 108054500
+            },
+            "12": {
+              "ns": [
+                107321042,
+                108925209,
+                107292542,
+                107773959,
+                110571250,
+                107249250
+              ],
+              "best_ns": 107249250
+            }
+          }
+        },
+        "after": {
+          "at": 1793813509.230564,
+          "idle_percent": 89.56,
+          "load1": 2.12158203125,
+          "Swapins": 62731101,
+          "Swapouts": 73818079
+        },
+        "swapped_pages": {
+          "Swapins": 40,
+          "Swapouts": 0
+        }
+      },
+      {
+        "round": 5,
+        "order": [
+          "12",
+          "13"
+        ],
+        "before": {
+          "at": 1793813510.550417,
+          "idle_percent": 80.94,
+          "load1": 2.12158203125,
+          "Swapins": 62731105,
+          "Swapouts": 73818079
+        },
+        "samples": {
+          "tight_loop": {
+            "12": {
+              "ns": [
+                1484810584,
+                1470902667,
+                1465781626,
+                1476255501,
+                1482006126,
+                1467700168
+              ],
+              "best_ns": 1465781626
+            },
+            "13": {
+              "ns": [
+                1470760084,
+                1474236209,
+                1466445126,
+                1474422334,
+                1472797918,
+                1464067168
+              ],
+              "best_ns": 1464067168
+            }
+          },
+          "compile_storm": {
+            "12": {
+              "ns": [
+                253655959,
+                258034333,
+                252190666,
+                251140417,
+                251277542,
+                251974334
+              ],
+              "best_ns": 251140417
+            },
+            "13": {
+              "ns": [
+                253058625,
+                249407875,
+                252600208,
+                256481334,
+                264133292,
+                255388292
+              ],
+              "best_ns": 249407875
+            }
+          },
+          "python_loop": {
+            "12": {
+              "ns": [
+                231194959,
+                235644459,
+                250511334,
+                233377375,
+                231332709,
+                239050459
+              ],
+              "best_ns": 231194959
+            },
+            "13": {
+              "ns": [
+                249561459,
+                235071791,
+                232984416,
+                235540417,
+                232107750,
+                242399750
+              ],
+              "best_ns": 232107750
+            }
+          },
+          "python_start": {
+            "12": {
+              "ns": [
+                107739501,
+                113788708,
+                109227542,
+                107196750,
+                107973000,
+                107848750
+              ],
+              "best_ns": 107196750
+            },
+            "13": {
+              "ns": [
+                106322166,
+                106779958,
+                106946667,
+                107787292,
+                107372125,
+                106368334
+              ],
+              "best_ns": 106322166
+            }
+          }
+        },
+        "after": {
+          "at": 1793813541.92017,
+          "idle_percent": 92.47,
+          "load1": 2.43359375,
+          "Swapins": 62731113,
+          "Swapouts": 73818079
+        },
+        "swapped_pages": {
+          "Swapins": 8,
+          "Swapouts": 0
+        }
+      },
+      {
+        "round": 6,
+        "order": [
+          "13",
+          "12"
+        ],
+        "before": {
+          "at": 1793813543.230061,
+          "idle_percent": 90.72,
+          "load1": 2.43359375,
+          "Swapins": 62731113,
+          "Swapouts": 73818079
+        },
+        "samples": {
+          "tight_loop": {
+            "13": {
+              "ns": [
+                1493676375,
+                1472865542,
+                1483041292,
+                1476265709,
+                1473259542,
+                1471394918
+              ],
+              "best_ns": 1471394918
+            },
+            "12": {
+              "ns": [
+                1466634126,
+                1470195542,
+                1471386626,
+                1466577501,
+                1458436835,
+                1462646209
+              ],
+              "best_ns": 1458436835
+            }
+          },
+          "compile_storm": {
+            "13": {
+              "ns": [
+                250108167,
+                251840958,
+                252899000,
+                255032250,
+                252923084,
+                252568667
+              ],
+              "best_ns": 250108167
+            },
+            "12": {
+              "ns": [
+                252276208,
+                248690958,
+                253576416,
+                254739375,
+                258389750,
+                263161959
+              ],
+              "best_ns": 248690958
+            }
+          },
+          "python_loop": {
+            "13": {
+              "ns": [
+                232921209,
+                230563208,
+                230871375,
+                237410542,
+                235236792,
+                239255083
+              ],
+              "best_ns": 230563208
+            },
+            "12": {
+              "ns": [
+                240830501,
+                233119708,
+                230857000,
+                236546000,
+                233297625,
+                238711250
+              ],
+              "best_ns": 230857000
+            }
+          },
+          "python_start": {
+            "13": {
+              "ns": [
+                106698792,
+                105961375,
+                106747000,
+                106237500,
+                106157542,
+                106585708
+              ],
+              "best_ns": 105961375
+            },
+            "12": {
+              "ns": [
+                108060626,
+                107998500,
+                105217125,
+                106677375,
+                119349417,
+                108013250
+              ],
+              "best_ns": 105217125
+            }
+          }
+        },
+        "after": {
+          "at": 1793813574.562492,
+          "idle_percent": 95.92,
+          "load1": 2.01220703125,
+          "Swapins": 62731276,
+          "Swapouts": 73818079
+        },
+        "swapped_pages": {
+          "Swapins": 163,
+          "Swapouts": 0
+        }
+      },
+      {
+        "round": 7,
+        "order": [
+          "12",
+          "13"
+        ],
+        "before": {
+          "at": 1793813575.853817,
+          "idle_percent": 94.26,
+          "load1": 2.01220703125,
+          "Swapins": 62731276,
+          "Swapouts": 73818079
+        },
+        "samples": {
+          "tight_loop": {
+            "12": {
+              "ns": [
+                1467389959,
+                1477961584,
+                1464948001,
+                1461477501,
+                1464681334,
+                1464607835
+              ],
+              "best_ns": 1461477501
+            },
+            "13": {
+              "ns": [
+                1464805334,
+                1474586167,
+                1458264167,
+                1459529793,
+                1459815250,
+                1463913501
+              ],
+              "best_ns": 1458264167
+            }
+          },
+          "compile_storm": {
+            "12": {
+              "ns": [
+                252547625,
+                254460167,
+                262108333,
+                251124667,
+                253473667,
+                256227125
+              ],
+              "best_ns": 251124667
+            },
+            "13": {
+              "ns": [
+                251808875,
+                253961250,
+                255658750,
+                251421209,
+                252771875,
+                250561125
+              ],
+              "best_ns": 250561125
+            }
+          },
+          "python_loop": {
+            "12": {
+              "ns": [
+                230840208,
+                239330500,
+                233694959,
+                236921833,
+                227787209,
+                230463959
+              ],
+              "best_ns": 227787209
+            },
+            "13": {
+              "ns": [
+                236658834,
+                233889125,
+                237449625,
+                230532708,
+                237388833,
+                237943209
+              ],
+              "best_ns": 230532708
+            }
+          },
+          "python_start": {
+            "12": {
+              "ns": [
+                105271667,
+                106243959,
+                106225667,
+                105899292,
+                107277292,
+                106671959
+              ],
+              "best_ns": 105271667
+            },
+            "13": {
+              "ns": [
+                106386334,
+                107546417,
+                107319667,
+                107193917,
+                107285792,
+                105433708
+              ],
+              "best_ns": 105433708
+            }
+          }
+        },
+        "after": {
+          "at": 1793813607.041416,
+          "idle_percent": 94.34,
+          "load1": 2.42236328125,
+          "Swapins": 62731280,
+          "Swapouts": 73818079
+        },
+        "swapped_pages": {
+          "Swapins": 4,
+          "Swapouts": 0
+        }
+      },
+      {
+        "round": 8,
+        "order": [
+          "13",
+          "12"
+        ],
+        "before": {
+          "at": 1793813608.352434,
+          "idle_percent": 93.45,
+          "load1": 2.42236328125,
+          "Swapins": 62731280,
+          "Swapouts": 73818079
+        },
+        "samples": {
+          "tight_loop": {
+            "13": {
+              "ns": [
+                1474199126,
+                1458616917,
+                1463394292,
+                1460422501,
+                1458362751,
+                1457289376
+              ],
+              "best_ns": 1457289376
+            },
+            "12": {
+              "ns": [
+                1475411001,
+                1459235918,
+                1463663084,
+                1465171959,
+                1467578418,
+                1460874543
+              ],
+              "best_ns": 1459235918
+            }
+          },
+          "compile_storm": {
+            "13": {
+              "ns": [
+                256017208,
+                251414959,
+                252831625,
+                266480167,
+                256958166,
+                251273792
+              ],
+              "best_ns": 251273792
+            },
+            "12": {
+              "ns": [
+                247347250,
+                256326834,
+                254892292,
+                248812417,
+                252088917,
+                251290542
+              ],
+              "best_ns": 247347250
+            }
+          },
+          "python_loop": {
+            "13": {
+              "ns": [
+                230460542,
+                233084708,
+                235587000,
+                235957584,
+                231885834,
+                231070001
+              ],
+              "best_ns": 230460542
+            },
+            "12": {
+              "ns": [
+                232567167,
+                236989542,
+                232393333,
+                231240792,
+                236506292,
+                234303083
+              ],
+              "best_ns": 231240792
+            }
+          },
+          "python_start": {
+            "13": {
+              "ns": [
+                105782292,
+                105893667,
+                112819167,
+                111515917,
+                106689667,
+                106610417
+              ],
+              "best_ns": 105782292
+            },
+            "12": {
+              "ns": [
+                106783542,
+                104955876,
+                104940750,
+                106513709,
+                105804417,
+                105699084
+              ],
+              "best_ns": 104940750
+            }
+          }
+        },
+        "after": {
+          "at": 1793813639.516874,
+          "idle_percent": 95.9,
+          "load1": 2.16455078125,
+          "Swapins": 62731280,
+          "Swapouts": 73818079
+        },
+        "swapped_pages": {
+          "Swapins": 0,
+          "Swapouts": 0
+        }
+      }
+    ],
+    "gate": {
+      "idle_percent_min": 80,
+      "load1_max": 3
+    },
+    "method": "8 paired rounds; order alternates; 1 warmup then best of 6; median of round bests; internal guest CLOCK_MONOTONIC for assembly, native guest timer for Python",
+    "emulators": {
+      "12": "60c150a89c4414b9803ecff4041eb111cabab1d6350c423a8c0f9ead0030c401",
+      "13": "a75324c3ee1e228ead62b88a71c7b42734e8ce7420fdeb592366217af19c7682"
+    },
+    "final_fex_sha256": "a75324c3ee1e228ead62b88a71c7b42734e8ce7420fdeb592366217af19c7682",
+    "summary": {
+      "tight_loop": {
+        "dmx12_ms": 1454.2465845000002,
+        "dmx13_ms": 1453.7688755,
+        "change_percent": -0.03284924338773365
+      },
+      "compile_storm": {
+        "dmx12_ms": 248.3275415,
+        "dmx13_ms": 248.2666875,
+        "change_percent": -0.024505537981178716
+      },
+      "python_loop": {
+        "dmx12_ms": 230.44762500000002,
+        "dmx13_ms": 230.547958,
+        "change_percent": 0.0435383094097741
+      },
+      "python_start": {
+        "dmx12_ms": 105.19175,
+        "dmx13_ms": 105.70697949999999,
+        "change_percent": 0.48980029327394536
+      }
+    },
+    "host_observed": {
+      "pre_round_idle_percent": [
+        80.94,
+        95.99
+      ],
+      "pre_round_load1": [
+        1.39794921875,
+        2.43359375
+      ],
+      "swapin_16k_pages": 227,
+      "swapout_16k_pages": 0
+    },
+    "input_sources": {
+      "loop_assembly": ".global _start\n.text\n_start:\n    lea t0(%rip), %rsi\n    call now\n    mov $3000000000, %ecx\nloop:\n    dec %ecx\n    jnz loop\n    lea t1(%rip), %rsi\n    call now\n    mov t1(%rip), %rax\n    sub t0(%rip), %rax\n    imul $1000000000, %rax\n    add t1+8(%rip), %rax\n    sub t0+8(%rip), %rax\n    mov %rax, %rbx\n    lea hex+16(%rip), %rsi\n    mov $16, %ecx\n1:  mov %ebx, %edx\n    and $15, %edx\n    lea digits(%rip), %r8\n    movb (%r8,%rdx), %dl\n    dec %rsi\n    movb %dl, (%rsi)\n    shr $4, %rbx\n    dec %ecx\n    jnz 1b\n    mov $1, %eax\n    mov $1, %edi\n    mov $17, %edx\n    syscall\n    xor %edi, %edi\n    jmp exit\nnow:                            /* clock_gettime(CLOCK_MONOTONIC, rsi) */\n    mov $228, %eax\n    mov $1, %edi\n    syscall\n    ret\nfail:\n    mov $2, %edi\nexit:\n    mov $231, %eax\n    syscall\n.data\n.align 8\nt0: .quad 0, 0\nt1: .quad 0, 0\nhex: .space 16\n    .ascii \"\\n\"\ndigits: .ascii \"0123456789abcdef\"\n",
+      "native_guest_timer": "use std::{env, process::{Command, Stdio}, time::Instant};\nfn main() {\n    let args: Vec<String> = env::args().skip(1).collect();\n    let mode = &args[0];\n    let runs: usize = args[1].parse().unwrap();\n    let mut samples = Vec::new();\n    for index in 0..=runs {\n        let start = Instant::now();\n        let output = Command::new(&args[2]).args(&args[3..]).stdin(Stdio::null()).output().unwrap();\n        let elapsed = start.elapsed().as_nanos() as u64;\n        if !output.status.success() {\n            eprintln!(\"{}: {}\", output.status, String::from_utf8_lossy(&output.stderr));\n            std::process::exit(1);\n        }\n        let measured = if mode == \"hex\" {\n            u64::from_str_radix(String::from_utf8(output.stdout).unwrap().trim(), 16).unwrap()\n        } else {\n            elapsed\n        };\n        if index > 0 { samples.push(measured); }\n    }\n    println!(\"{{\\\"ns\\\":{:?},\\\"best_ns\\\":{}}}\", samples, samples.iter().min().unwrap());\n}\n",
+      "python_loop": "s = 0\nfor i in range(1000000): s = (s + i * i) % 1000003\nprint(s)\n",
+      "compile_storm": "scripts/fixtures/compile-storm-x86_64.S"
+    }
+  },
+  "memory": {
+    "final_fex_sha256": "a75324c3ee1e228ead62b88a71c7b42734e8ce7420fdeb592366217af19c7682",
+    "schema": 1,
+    "method": "same final host binary, default boot spec, matching kernel/initramfs/agent; fresh selftest disk; order 12,13,13,12; host ri_phys_footprint",
+    "samples": [
+      {
+        "dmx": "12",
+        "ok": true,
+        "checks": 23,
+        "cpus": 10,
+        "max_memory": "8.0G",
+        "footprint_mb": 97,
+        "peak_footprint_mb": 97,
+        "seconds": 8.48
+      },
+      {
+        "dmx": "13",
+        "ok": true,
+        "checks": 23,
+        "cpus": 10,
+        "max_memory": "8.0G",
+        "footprint_mb": 96,
+        "peak_footprint_mb": 96,
+        "seconds": 7.43
+      },
+      {
+        "dmx": "13",
+        "ok": true,
+        "checks": 23,
+        "cpus": 10,
+        "max_memory": "8.0G",
+        "footprint_mb": 97,
+        "peak_footprint_mb": 97,
+        "seconds": 6.28
+      },
+      {
+        "dmx": "12",
+        "ok": true,
+        "checks": 23,
+        "cpus": 10,
+        "max_memory": "8.0G",
+        "footprint_mb": 96,
+        "peak_footprint_mb": 96,
+        "seconds": 6.71
+      }
+    ],
+    "summary": {
+      "12": {
+        "footprint_mb": [
+          97,
+          96
+        ],
+        "median_mb": 96.5
+      },
+      "13": {
+        "footprint_mb": [
+          96,
+          97
+        ],
+        "median_mb": 96.5
+      }
+    }
+  },
+  "review_identity": "../reviews/2026-11-05-fex-dmx13/identity.json",
+  "pre_fix_probes": {
+    "fb3b0acde0a8": [
+      {
+        "inherited_sigfpe_ignore": false,
+        "script": "timeout -s KILL 3 /tmp/dmx-div-fault a b c; rc=$?; echo fault-rc=$rc",
+        "exec_exit": 0,
+        "stdout": "fault-rc=136\n",
+        "stderr": "Arithmetic exception\n"
+      },
+      {
+        "inherited_sigfpe_ignore": true,
+        "script": "trap \"\" 8; timeout -s KILL 3 /tmp/dmx-div-fault a b c; rc=$?; echo fault-rc=$rc",
+        "exec_exit": 0,
+        "stdout": "fault-rc=137\n",
+        "stderr": "Killed\n"
+      }
+    ],
+    "75c981fbf765": [
+      {
+        "name": "signal-fatal",
+        "script": "trap \"\" 11; timeout -s KILL 3 /tmp/dmx-signal-fatal a b c; rc=$?; echo fault-rc=$rc",
+        "stdout": "fault-rc=137\n",
+        "stderr": "Killed\n"
+      },
+      {
+        "name": "div-fault",
+        "script": "trap \"\" 8; timeout -s KILL 3 /tmp/dmx-div-fault a b c d; rc=$?; echo fault-rc=$rc",
+        "stdout": "fault-rc=137\n",
+        "stderr": "Killed\n"
+      }
+    ]
+  },
+  "timeout_harness_control": {
+    "pid1": [
+      {
+        "platform": "linux/arm64",
+        "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+        "iteration": 1,
+        "exit": 0,
+        "seconds": 7.79,
+        "stdout": "",
+        "stderr": "digest-pinned image pulled successfully"
+      },
+      {
+        "platform": "linux/arm64",
+        "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+        "iteration": 2,
+        "exit": 0,
+        "seconds": 5.23,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "platform": "linux/arm64",
+        "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+        "iteration": 3,
+        "exit": 0,
+        "seconds": 5.21,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "platform": "linux/amd64",
+        "image": "library/alpine@sha256:c26612752c78b18faacd63c7d50f4592c2e7b0f25e0e20e82bd74e465c57ab0d",
+        "iteration": 1,
+        "exit": 0,
+        "seconds": 6.44,
+        "stdout": "",
+        "stderr": "digest-pinned image pulled successfully"
+      },
+      {
+        "platform": "linux/amd64",
+        "image": "library/alpine@sha256:c26612752c78b18faacd63c7d50f4592c2e7b0f25e0e20e82bd74e465c57ab0d",
+        "iteration": 2,
+        "exit": 0,
+        "seconds": 5.24,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "platform": "linux/amd64",
+        "image": "library/alpine@sha256:c26612752c78b18faacd63c7d50f4592c2e7b0f25e0e20e82bd74e465c57ab0d",
+        "iteration": 3,
+        "exit": 0,
+        "seconds": 5.25,
+        "stdout": "",
+        "stderr": ""
+      }
+    ],
+    "with_shell_parent": [
+      {
+        "platform": "linux/arm64",
+        "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+        "iteration": 1,
+        "exit": 143,
+        "seconds": 1.23,
+        "stdout": "timeout-rc=143\n",
+        "stderr": "Terminated\n",
+        "ok": true
+      },
+      {
+        "platform": "linux/arm64",
+        "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+        "iteration": 2,
+        "exit": 143,
+        "seconds": 1.24,
+        "stdout": "timeout-rc=143\n",
+        "stderr": "Terminated\n",
+        "ok": true
+      },
+      {
+        "platform": "linux/arm64",
+        "image": "library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42",
+        "iteration": 3,
+        "exit": 143,
+        "seconds": 1.23,
+        "stdout": "timeout-rc=143\n",
+        "stderr": "Terminated\n",
+        "ok": true
+      },
+      {
+        "platform": "linux/amd64",
+        "image": "library/alpine@sha256:c26612752c78b18faacd63c7d50f4592c2e7b0f25e0e20e82bd74e465c57ab0d",
+        "iteration": 1,
+        "exit": 143,
+        "seconds": 1.21,
+        "stdout": "timeout-rc=143\n",
+        "stderr": "Terminated\n",
+        "ok": true
+      },
+      {
+        "platform": "linux/amd64",
+        "image": "library/alpine@sha256:c26612752c78b18faacd63c7d50f4592c2e7b0f25e0e20e82bd74e465c57ab0d",
+        "iteration": 2,
+        "exit": 143,
+        "seconds": 1.22,
+        "stdout": "timeout-rc=143\n",
+        "stderr": "Terminated\n",
+        "ok": true
+      },
+      {
+        "platform": "linux/amd64",
+        "image": "library/alpine@sha256:c26612752c78b18faacd63c7d50f4592c2e7b0f25e0e20e82bd74e465c57ab0d",
+        "iteration": 3,
+        "exit": 143,
+        "seconds": 1.24,
+        "stdout": "timeout-rc=143\n",
+        "stderr": "Terminated\n",
+        "ok": true
+      }
+    ]
+  },
+  "earlier_qualification": {
+    "date": "2026-11-04",
+    "emulator_sha256": "fb3b0acde0a89a5def54fc7c384b99cf6eeab9c41790ac306d2e5adb97b97166",
+    "suites": {
+      "unit": 101,
+      "formal": true,
+      "selftest": 23,
+      "daemon": 61,
+      "mcp": 33,
+      "x86": 77,
+      "docker": 69,
+      "sandbox": 44,
+      "images": 24,
+      "java_jit": 100,
+      "menu": 25,
+      "app_install": 14,
+      "storage": 64,
+      "local_network": 12
+    },
+    "boundary": "These older runs predate the inherited-fatal-signal fixes. Fresh final-build checks are listed separately."
+  },
+  "final_fault_probes": {
+    "emulator_sha256": "a75324c3ee1e228ead62b88a71c7b42734e8ce7420fdeb592366217af19c7682",
+    "probes": [
+      {
+        "script": "trap \"\" 8; timeout -s KILL 3 /tmp/dmx-div-fault a b c; rc=$?; echo fault-rc=$rc",
+        "stdout": "fault-rc=136\n",
+        "stderr": "Arithmetic exception\n",
+        "ok": true
+      },
+      {
+        "script": "trap \"\" 8; timeout -s KILL 3 /tmp/dmx-div-fault a b c d; rc=$?; echo fault-rc=$rc",
+        "stdout": "fault-rc=136\n",
+        "stderr": "Arithmetic exception\n",
+        "ok": true
+      },
+      {
+        "script": "trap \"\" 11; timeout -s KILL 3 /tmp/dmx-signal-fatal a b c; rc=$?; echo fault-rc=$rc",
+        "stdout": "fault-rc=139\n",
+        "stderr": "Segmentation fault\n",
+        "ok": true
+      }
+    ]
+  },
+  "retained_async_inherited_limit": {
+    "description": "Inherited SIGSEGV ignore, guest handler restores SIG_DFL and asynchronously re-raises SIGSEGV. Same pre-existing behavior on both emulators; not changed by the synchronous fault fix.",
+    "script": "trap \"\" 11; timeout -s KILL 3 /tmp/dmx-signal-fatal; rc=$?; echo fault-rc=$rc",
+    "dmx12_stdout": "signal-fatal-SURVIVED\nfault-rc=1\n",
+    "dmx13_stdout": "signal-fatal-SURVIVED\nfault-rc=1\n"
+  },
+  "benchmark_inputs": {
+    "files": {
+      "loop.S": "e7410ce5c541d06be85058015c400ac399304b5002375fdd8d5767c2f889534f",
+      "bench-timer.rs": "1dbd2e0201cc82956061d9b8ae52495da0012c25edbdcc99e2ba95dbda9ecb40"
+    },
+    "rootfs_payload_sha256": "e262af2fe1dafce4818eb5226f0cb2272ff388c63f0362086213f5233d7461ec"
+  }
+}

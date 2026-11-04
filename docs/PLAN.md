@@ -573,7 +573,26 @@ separate from Core/VM tests and the completed public distribution checks.
 - [x] Resolve actual Opus 5.5 review findings, sign/notarize and publish v0.4.1; verify public bytes
       and fresh/update paths, then install the signed app and matching guest locally.
 
+### FEX follow-up (2026-11-05, v0.4.4 candidate)
+
+- [x] Honour edited signal contexts, handler masks and temporary wait masks, including i386.
+- [x] Preserve ordinary queued realtime signals until an exact guest state; reclaim abandoned host
+      signal frames; finish vfork waits when the child exits even if a descendant shares its descriptors.
+- [x] Invalidate code changed through a new writable alias, as .NET's W^X does.
+- [x] Implement x86 DIV/IDIV faults, preserving registers, flags and x87 state; exercise managed exceptions on the final emulator.
+- [x] Rebuild host/guest, run unit tests and real-VM selftest, and compare dmx12/dmx13 on a quiet host.
+- [x] Obtain actual Opus 5.5 approval of the final delta and both inherited-fault follow-ups; reproduce and resolve its low-severity finding.
+- [ ] Publish v0.4.4 only after the maintainer approves the release.
+
 ## Next up
+
+**The v0.4.4 candidate is qualified locally, not published.** `fex-2610-dmx13` fixes the signal/context,
+wait-mask, abandoned-frame, vfork, writable-code-alias and divide-error defects described below. Final
+emulator `a75324c3ee1e` passed the managed exception checks again after the last review fixes. The
+eight-round comparison with released dmx12 differs by less than 0.5% in each measured workload; boot
+footprint medians are both 96.5 MiB. Next is the maintainer's v0.4.4 release decision. Signing,
+notarization, packaging and verification of the public update remain release work; the installed
+public app is still v0.4.3.
 
 **v0.4.2 is published** (2026-11-04, signed and notarized, tag commit `23193b3`). The 14 draft assets
 downloaded byte-identical to the qualified files before it went public; second packaging said
@@ -591,14 +610,17 @@ announcement was made.
 From the public URLs 27 checks passed: a fresh install and selftest 23 (101 MB, guest fetched), the live emulator's hash and both sysctls, arm64, amd64 and 386 (`LONG_BIT` 32), `timeout`, 1000 `gosu` runs, `go build -a std`,
 6 GiB mapped and touched, and public 0.4.2 updated with a VM, container and volume running (same daemon pid, container kept, volume intact after restart, new guest fetched). This Mac's app, CLI and guest are 0.4.3. No community announcement was made.
 
-**Next: does the local network permission survive an update?** On this Mac 0.4.2 reported `allowed`; after `dmx update` to 0.4.3 the same launchd install reports `blocked`, and LAN TCP fails. macOS's `uuidcache` keeps the `dmx` signing identifier against an older binary UUID (`84153b77`, the new
-binary is `6FE8B5C6`), and the log has `Local network preference not yet set, prompting for dmx`. So a new binary looks like a new program, and the owner must answer again. That reading is not confirmed: nobody has answered since. If it holds, every release costs users a prompt and their LAN access until they answer, which belongs in README and the notes; a stable UUID or identity for the daemon is worth looking at. The bundle's own identifier and the helper's `dmx` signing identifier may also be two entries in System Settings.
+**Local network follow-up:** the first observation after updating 0.4.2 to 0.4.3 was `blocked`, with
+an old binary UUID in macOS's `uuidcache`. The inference that every update requires another user
+answer was not established. The November 4 candidate's launchd/app test reported `allowed` and LAN access
+worked (12 checks), before the FEX-only fatal-signal follow-ups. A blocked startup probe is now retried after three seconds before it is logged;
+status still probes and reports the current state. This local test does not prove permission
+continuity across a newly signed public update; keep that in release verification.
 
-**Also open:** the AAAA fix has not run on the network that showed the failure. FEX defects left as they were, all
-older than this work: a handler's edit to `uc_sigmask` is ignored (musl's `pthread_cancel` of a busy thread should spin, by
-reading, not measured); `GetNewSigMask` replaces the mask rather than adding to it, which can use up a guest-masked
-signal before `sigsuspend`; repeated `siglongjmp` out of handlers uses up the host stack; and a vfork child that clones with `CLONE_NEW*`
-or `CLONE_FILES` still holds its parent's wait.
+**Also open:** the AAAA fix has not run on the network that showed the failure. The four older FEX
+defects previously listed here are addressed in dmx13; its remaining compatibility limits are
+recorded with the measurements below. Direct native-menu GUI acceptance and the existing optional
+engine comparisons remain separate work.
 
 **`.build/storage-review/qualified-v0.4.1` no longer exists.** `.build` was already absent on
 2026-11-03 before any build that day (`git check-ignore .build` failed, which it does only when the
@@ -748,6 +770,83 @@ acceptance suites.
 
 ## Findings and measurements
 
+### dmx13: signal contexts, writable code aliases and divide errors (2026-11-05, candidate)
+
+Final emulator: `a75324c3ee1e228ead62b88a71c7b42734e8ce7420fdeb592366217af19c7682`.
+The complete patch applies to the sha256-pinned FEX 2610 source; all 42 patched files match the
+canonical review source. The final emulator was rebuilt with `make fex`, the guest repackaged with
+`make guest`, and its live hash checked before the managed-runtime tests.
+The earlier successful .NET run preceded the last emulator build and was not counted as final proof.
+
+Actual Opus 5.5 approved the final delta and two small follow-ups; Sonnet fallback was not needed.
+Its initially low-severity inherited-SIGFPE note reproduced as a fault loop. A second probe found the
+same issue after restoring SIG_DFL and on a plain SIGSEGV. All three now terminate with 136/139,
+instead of needing the three-second SIGKILL watchdog. The local previous-host-action copy preserves
+non-forced asynchronous behavior. Static review verdicts and model identity are retained in
+[the review record](reviews/2026-11-05-fex-dmx13/identity.json); those approvals are limited to the
+specified deltas, not an independent review of the entire dmx13 patch.
+
+Changes:
+
+- Signal frames honour an edited `uc_sigmask` and register-only context changes. Handler masks add
+  to the interrupted mask; temporary masks for ppoll/pselect/epoll and related waits have their own
+  lifetime, including the i386 wrappers. Required host signals still obey the guest's mask when sent
+  asynchronously; a blocked or ignored synchronous fatal fault terminates the program.
+- One ordinary asynchronous signal is held per thread until a block-entry, loop-edge or syscall
+  check has an exact guest state; later signals remain queued in the kernel. Abandoned host signal
+  frames are reclaimed, with a threshold to avoid dropping frames used by stack-switching handlers.
+  vfork also waits on a pidfd, so descendants holding the pipe no longer prolong the parent's wait.
+- A newly writable shared alias of translated executable memory is protected and invalidates its
+  executable views when written. The code-page single-step path releases the translated block's stack.
+- DIV/IDIV now raise x86's SIGFPE/FPE_INTDIV on zero divisors and quotient overflow at every width.
+  The conditional fault preserves pre-instruction flags and x87 state, and 64-bit IDIV loads a memory
+  divisor once on either path. REP CMPS waits until its temporary PF/AF operands become real flags.
+
+Final-build runtime results, each run three times on linux/amd64 with digest-pinned images:
+
+| Workload | Required and observed result |
+|---|---|
+| .NET 8, eight tasks mixing null and divide-by-zero exceptions | `dotnet-ok 320000`, exit 0, 3/3 |
+| Java 21, int and long divide-by-zero | 400000 exceptions, accumulator 0, 3/3 |
+| Java MIN_VALUE / -1 | `-2147483648` and `-9223372036854775808`, 3/3 |
+
+Fresh final-source checks: `make build`, `make fex`, `make guest`, `make test` (101),
+`make selftest` (23) and `make x86test` (77, both FEX and QEMU).
+The November 4 qualification logs on the earlier `fb3b0acde0a8` emulator also pass: formal, daemon 61, MCP 33,
+x86 77, Docker 69, sandbox 44, images 24, Java JIT 100, menu 25, app installation 14, storage 64 and
+local network 12. The earlier Go stress/standard-library build also passed. Those older suite runs
+predate the inherited-fatal-signal fixes and are not represented as fresh final-build executions.
+
+Same final host binary, matching kernel/initramfs/agent and 10 vCPUs/8 GiB (the boot defaults), fresh selftest disks,
+order dmx12/dmx13/dmx13/dmx12: footprint 97/96 MiB for dmx12 and 96/97 MiB for dmx13, both medians
+96.5 MiB (`ri_phys_footprint`). This measures fresh boot, not managed-runtime peak memory.
+
+Cost against released dmx12 on 4 vCPUs/8 GiB, eight paired rounds alternating order, one warmup then best of six per
+workload/build, median of round bests. Each round starts only with host CPU idle >=80% and load1 <=3;
+observed pre-round idle 80.94-95.99%, load1 1.40-2.43. During timed rounds macOS paged in 227 16-KiB
+pages (3.55 MiB) and paged out none. Assembly uses guest CLOCK_MONOTONIC; Python uses a native guest
+timer, excluding host exec round trips. Both emulator hashes were verified in the same VM/chroot.
+
+| Measure | dmx12 | dmx13 | Change |
+|---|---|---|---|
+| Tight loop, `dec; jnz`, 3e9 iterations | 1454.247 ms | 1453.769 ms | -0.03% |
+| Compile storm, 262144 new blocks | 248.328 ms | 248.267 ms | -0.02% |
+| Python loop | 230.448 ms | 230.548 ms | +0.04% |
+| Python start | 105.192 ms | 105.707 ms | +0.49% |
+
+All four median differences are below 0.5%; this is not a claim about every amd64 application. Workloads,
+pins, source hashes, raw round samples and managed outputs are in
+[the measurement record](measurements/2026-11-05-fex-dmx13.json).
+
+Remaining FEX limits: cancelling a held signal around a synchronous fault can reorder realtime
+signals, or lose a payload if the kernel queue is full; asynchronous copies of signals that must
+remain unblocked on the host can still see inexact state. Returning to a reclaimed frame after more
+than 128 frames and a handler's stack switch can restart an interrupted syscall. A syscall writing
+to a protected code alias gets EFAULT, and splitting an alias by protection can prevent a later
+mremap. An inherited ignored SIGSEGV can also still bypass an asynchronous re-raise after a guest
+restores SIG_DFL (observed on both dmx12 and dmx13); the synchronous-fault fix preserves that older
+host-action behavior. These are recorded limits, not covered by the successful managed workloads.
+
 ### DNS on a network that does not answer AAAA (2026-11-04)
 
 A work Mac on 0.4.1: `RUN uv pip install` in `docker build` failed with `failed to lookup address
@@ -793,7 +892,7 @@ resolvers answer AAAA. The fix has not yet run on the affected network.
 
 A cause ruled out on the way: file descriptors stayed at 32 through those builds.
 
-### FEX: signals and an exact guest state (2026-11-04, fixed on main, not released)
+### FEX: signals and an exact guest state (2026-11-04, shipped in v0.4.3)
 
 The amd64 `postgres` crash below is `gosu`, a Go program, and not Postgres: `gosu postgres true` failed about 14% of runs under
 FEX and none under QEMU (600/600), with `true`, `busybox`, `bash` and `psql` at 0/400. `GODEBUG=asyncpreemptoff=1` made it 0/300. Load
@@ -1340,6 +1439,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-05: Qualified the v0.4.4 candidate with `fex-2610-dmx13` (`a75324c3ee1e`). Actual Opus 5.5 approved the final delta and two follow-ups; its inherited-ignored-fault finding was reproduced and fixed, including default SIGFPE and SIGSEGV. Rebuilt FEX/guest, verified the live hash, reran unit 101, selftest 23, x86 77 and .NET/Java exception workloads three times each. Final-build paired performance and boot-footprint measurements are recorded above. Updated handoff and retained sanitized review/evidence records. Not released: ask the maintainer about v0.4.4.
 - 2026-11-04: Published signed/notarized v0.4.3 from `4076136` and verified it from the public assets, 27/27; installed it on this Mac. Reviewed by Opus 5.5 and Codex: the final Codex pass found REP SCAS restarted after its match, fixed and measured; its remaining note, PF and AF during `rep cmps`, is recorded. Found after publishing: the local network permission reads `blocked` after the update (see Next up).
 - 2026-11-04: Qualified `fex-2610-dmx12` (see Findings: cost 1-4%, guest suites pass, a long Go program runs). `go build -a std` exposed a general bug: the overcommit heuristic refused mappings larger than the memory plugged so far, 2 GiB natively in a VM with an 8 GB ceiling; fixed with `vm.overcommit_memory=1`. Not released.
 - 2026-11-04: Found and fixed the amd64 crash under FEX, with five related FEX defects, in `fex-2610-dmx12` (see Findings); added x86test's `signal_moves_program`, `signal_blocking_syscall`, `signal_mask_preserved` and `vfork_grandchild`, and a 200-run `gosu` loop in the image matrix. `make localnettest`'s script passes in the allowed state on the signed app. Not released: images, Java, Docker, a long Go run and the cost are still to run on a quiet Mac.

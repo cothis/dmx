@@ -63,6 +63,15 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-11-05: Keep a shell parent when testing `timeout` in a container: `sh -c 'timeout 1 sleep 5'`
+  can exec sleep as PID 1, which does not take the default SIGTERM termination. It returned 0 after
+  five seconds on both native arm64 and FEX; adding a command after timeout made both return 143
+  after one second. That earlier "timeout failed" record was a harness mistake, not FEX evidence.
+- 2026-11-05: A review's low-severity note can still be a real fault loop. Opus's inherited
+  ignored-signal note reproduced, including a plain SIGSEGV; fix and regression-test the actual
+  sequence. Rerun managed exceptions and measurements on the emulator built after that last fix,
+  rather than carrying forward an earlier successful result.
+
 - 2026-11-04: A crash that matches a reviewer's finding is not that finding. I called a code-write crash "confirmed" before reading its core, which showed
   a different bug; a build without the reviewed fix then passed, so the fixture was not testing it. Read the crash record, then test the fix by removing it.
 - 2026-11-04: A wider use of an existing mechanism inherits limits it never needed. FEX's deferred frames were safe around short C++ sections and wrong
