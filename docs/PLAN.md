@@ -573,6 +573,16 @@ separate from Core/VM tests and the completed public distribution checks.
 
 ## Next up
 
+**v0.4.2 is published** (2026-11-04, signed and notarized, tag commit `23193b3`). The 14 draft assets
+downloaded byte-identical to the qualified files before it went public; second packaging said
+`pin_changed: false`. From the public URLs, 25 checks passed: a fresh install and selftest 23 (101 MB,
+guest fetched), containers on arm64 and amd64 and 386, public 0.4.1 updated with a VM, container and
+volume running (same daemon pid, `stop_to_switch`, container kept; after a restart 0.4.2 serves and the
+volume's data is there), and the published signed standalone binary resolving a stalled-AAAA name with
+`uv` in 0.385 s and installing real packages from PyPI. This Mac's app, CLI and guest are 0.4.2: with
+launchd and the signed app, `dmx status`, `dmx doctor` and the log all say `blocked`, 386 reports
+`LONG_BIT` 32, and the unchanged guest was not downloaded again. No community announcement was made.
+
 **Next, first: amd64 crashes under FEX when the Mac is busy** (see Findings). Present in published
 0.4.1, not caused by 0.4.2, cause unknown. Start with the crash's own record, per the 2026-10-27
 lesson, and with `x86_emulator qemu` as a control; `test-images.py --image postgres --platform
@@ -1253,6 +1263,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-04: Published signed/notarized v0.4.2 from `23193b3` and verified it from the public assets (see Next up); installed it on this Mac. Next: the amd64 crash under FEX.
 - 2026-11-04: Local network permission made visible: usage description, a probe in the daemon at VM start and on status while running, `dmx status`, `dmx doctor` and the log; `make localnettest` checks it under a real launchd job, in either state. Three review rounds by Opus 5.5 and two by Codex; the last Opus round approved. Qualification: formal, x86, Docker, sandbox and Java 100/100 passed on the source before the final doctor and test-script changes; unit 101, selftest 23, daemon 59, MCP 33, menu 25, app, storage 64 and localnet 13 on the final source. Image matrix 23/24: amd64 postgres crashed under FEX, explained as present in 0.4.1 with the same bytes and recorded as open, not fixed. For 0.4.2.
 - 2026-11-04: Fixed name lookups on networks that do not answer AAAA: once a name has an A answer its AAAA ends after 300 ms as an empty NOERROR, so musl clients such as uv no longer fail with `Try again`. Reproduced first on a real VM with a multicast record whose AAAA never answers; daemontest gained `dns_aaaa_unanswered`, which fails on the old code (58/59, then 59/59), unit 100, selftest 23/23 with memory unchanged. Recorded, not fixed: the app-installed engine cannot reach the local network until macOS grants it. Not released.
 - 2026-10-30: Resumed authorized artifact cleanup and log growth hardening. Removed 4.394 GiB
