@@ -819,7 +819,7 @@ child's forked watcher inherited the pipe the parent waits on (`timeout 3 true` 
 | `timeout 3 true` | exit 143 after 3 s | exit 0 at once |
 | x86test | failed the 3 checks it had gained by then, in each of 3 runs | 61/61 with QEMU too |
 
-Load was 3-20 for those. The final candidate is `d8a53dcb5c75`; selftest 23 (95 MB). `signal-mask` catches the code page
+Load was 3-20 for those. Those are on the candidate before the last change; see the qualification below. `signal-mask` catches the code page
 case: a build without the page opening passed 1 of 10, after a first version of the fixture let that build pass 10 of 10.
 The 123/200 figure above came from an interim dmx12. Reviewed by Opus 5.5 (three passes) and Codex (two complete passes): the last of each asked for changes, and those
 that were not older behaviour went in without a further pass.
@@ -828,26 +828,29 @@ similar signals are still delivered inexactly.
 
 ### dmx12 qualification and cost (2026-11-04)
 
-Cost against dmx11 at a load of about 2, eight rounds alternating in both orders, each the best of 4-6 runs, medians of those:
+Final emulator `60c150a89c`. Cost against dmx11, eight rounds alternating in both orders, each the best of 6 runs, medians of those, load 2-6 in this set:
 
 | Measure | dmx11 | dmx12 | Change |
 |---|---|---|---|
-| Tightest loop, `dec; jnz`, 3e9 times | 1359 ms | 1380 ms | +1.5% |
-| Compile storm (262144 new blocks) | 241 ms | 244 ms | +1.2% |
-| Python loop | 655 ms | 679 ms | +3.7% |
-| Python start | 99 ms | 104 ms | within the 10 ms timer |
-| sha256 of 100 MB | 390 ms | 399 ms | within the 10 ms timer |
+| Tightest loop, `dec; jnz`, 3e9 times | 1405 ms | 1459 ms | +3.9% |
+| Compile storm (262144 new blocks) | 251 ms | 254 ms | +1.2% |
+| Python loop | 650 ms | 680 ms | +4.6% |
+| Python start | 104 ms | 104 ms | unchanged |
 
-Suites on dmx12 (`d8a53dcb5c75`, live hash checked): selftest 23, x86 61, images 24 with 200 `gosu` runs per platform, Java 100/100, Docker 69, sandbox 44, daemon 59, MCP 33, storage 64.
-After the overcommit change below: unit 101, selftest 23 (97 MB), daemon 60, images 24. A Go 1.27 program with call-free loops on 4 goroutines and an allocator ran 480 s on 4 vCPUs:
-1225906 rounds, 238 collections, no arithmetic errors, no crash. On dmx11 the same image's `go version` itself segfaulted. Nothing here measures the spill stack directly; the run outlasting it is the evidence.
+Earlier forms measured the same way: the check before every backward branch, Python loop +3.7%, which review showed wrong for REP SCAS; the check on the taken path reached by a jump, +9.9%. The final form inverts the branch.
+
+The last review found the REP SCAS case: a check before the branch restarted a search whose match was already decided (`signal-resume` 4 of 6 failed, QEMU passed). Now only a taken backward branch has a check. Also accepted from that review: a handler reading EFLAGS during `rep cmps` sees temporaries in PF and AF, which a restart recomputes.
+
+Suites on the final source and emulator, live hash checked: unit 101, formal, selftest 23 (97 MB), daemon 61, MCP 33, x86 61, Docker 69, sandbox 44, images 24 with 200 `gosu` runs per platform, Java 100/100, menu 25, app, storage 64, localnet 12 (allowed). A first run of the Docker suite failed on port 20081: a daemon left by my own interrupted run held it, shown by `lsof` and its `DMX_HOME`; stopped, the suite passed.
+A Go 1.27 program with call-free loops on 4 goroutines and an allocator ran 480 s on 4 vCPUs on an earlier dmx12 with the same signal design: 1225906 rounds, 238 collections, no arithmetic errors, no crash. On dmx11 the same image's `go version` itself segfaulted. Nothing measures the spill stack directly.
+Touching memory at 5-8 GiB/s right after boot, 6 and 7 GiB of an 8 GiB ceiling: no OOM kill.
 
 ### Large allocations refused by the overcommit heuristic (2026-11-04)
 
 `go build -a std` under FEX failed with `fork/exec ...: cannot allocate memory`. `MemTotal` is what virtio-mem has plugged so far (1.2-1.9 GB in a VM with an 8 GB ceiling), and the default heuristic refuses any
 single mapping larger than that. Not specific to FEX: in a native arm64 container at `MemTotal` 1244 MB, an anonymous mmap of 1 GiB worked and 2, 3, 4 and 6 GiB failed with ENOMEM. With `vm.overcommit_memory=1`, which LinuxKit also sets,
 all succeed, and `go build -a std` passed on 3 of 3 fresh boots in 42-44 s. It is a kernel command line setting, so the guest is unchanged by it. Too much memory now ends in the OOM killer rather than ENOMEM, as on Docker Desktop.
-Not done: LinuxKit's `vm.max_map_count = 262144` against the default 65530, which Elasticsearch-style images ask for.
+`vm.max_map_count=262144`, also from LinuxKit and asked for by images such as Elasticsearch, went in with it (maintainer, 2026-11-04). It raises a limit and reserves nothing.
 
 ### Local network permission allowed (2026-11-04)
 
