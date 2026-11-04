@@ -1,0 +1,131 @@
+{
+  "schema": 1,
+  "version": "0.4.4",
+  "phase": "qualified_before_publication",
+  "source_base": "1eee2f9",
+  "fex_sha256": "a75324c3ee1e228ead62b88a71c7b42734e8ce7420fdeb592366217af19c7682",
+  "qualification": [
+    {
+      "task": "build",
+      "exit": 0,
+      "seconds": 2.35
+    },
+    {
+      "task": "formaltest",
+      "exit": 0,
+      "seconds": 14.47,
+      "unit_tests": 101
+    },
+    {
+      "task": "selftest",
+      "exit": 0,
+      "seconds": 27.17,
+      "ok": true,
+      "checks": 23,
+      "host_footprint_mb": 96
+    },
+    {
+      "task": "daemontest",
+      "exit": 0,
+      "seconds": 176.75,
+      "ok": true,
+      "checks": 61
+    },
+    {
+      "task": "mcptest",
+      "exit": 0,
+      "seconds": 7.4,
+      "ok": true,
+      "checks": 33
+    },
+    {
+      "task": "x86test",
+      "exit": 0,
+      "seconds": 77.57,
+      "ok": true,
+      "checks": 77
+    },
+    {
+      "task": "dockertest",
+      "exit": 0,
+      "seconds": 234.69,
+      "ok": true,
+      "checks": 69
+    },
+    {
+      "task": "sandboxtest",
+      "exit": 0,
+      "seconds": 34.35,
+      "ok": true,
+      "checks": 44
+    },
+    {
+      "task": "imagetest",
+      "exit": 0,
+      "seconds": 211.38,
+      "ok": true,
+      "results": 24,
+      "emulator_sha256": "a75324c3ee1e228ead62b88a71c7b42734e8ce7420fdeb592366217af19c7682"
+    },
+    {
+      "task": "javatest",
+      "exit": 0,
+      "seconds": 228.09,
+      "ok": true,
+      "results": 100,
+      "emulator_sha256": "a75324c3ee1e228ead62b88a71c7b42734e8ce7420fdeb592366217af19c7682"
+    },
+    {
+      "task": "menutest",
+      "exit": 0,
+      "seconds": 67.78,
+      "ok": true,
+      "checks": 25
+    },
+    {
+      "task": "apptest",
+      "exit": 0,
+      "seconds": 56.21,
+      "ok": true,
+      "checks": 14
+    },
+    {
+      "task": "storagetest",
+      "exit": 0,
+      "seconds": 76.28,
+      "ok": true,
+      "checks": 64
+    },
+    {
+      "task": "localnettest",
+      "exit": 0,
+      "seconds": 6.82,
+      "ok": true,
+      "checks": 13,
+      "access": "blocked",
+      "lan": true,
+      "compared": true
+    }
+  ],
+  "guest_pin_source_sha256": "b740e64725da514d6e50d6e3eea6a124967feb0ebcac1e0839e60433eeb92283",
+  "candidate_evidence": "2026-11-05-fex-dmx13.json",
+  "reviews": "../reviews/2026-11-05-fex-dmx13/identity.json",
+  "first_packaging_pin_changed": true,
+  "preflight_issue": "The isolated guest symlink initially had no target directory; created that directory before the successful build. No product test failed.",
+  "historical_formal_logs": "Fresh checker logs retained locally; historical v0.3.12 evidence not rewritten.",
+  "signed_rehearsal_before_publication": {
+    "ok": true,
+    "checks": 32,
+    "permission_before": "allowed",
+    "permission_after": "blocked",
+    "permission_continuity_proven": false,
+    "lan_matches_report": true,
+    "managed_runtime_repeats": 3
+  },
+  "rehearsal_setup_correction": {
+    "first_attempt_failed_at": "updated_live_emulator",
+    "cause": "Local rehearsal launchd fixture omitted DMX_RELEASE_URL. Daemon log showed HTTP 404 from the unpublished public v0.4.4 guest URL and intentional fallback to v0.4.3.",
+    "correction": "Pass the same release base URL to the isolated launchd job. No product source or release artifact changed.",
+    "evidence_preserved": true
+  }
+}

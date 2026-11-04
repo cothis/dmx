@@ -590,9 +590,9 @@ separate from Core/VM tests and the completed public distribution checks.
 wait-mask, abandoned-frame, vfork, writable-code-alias and divide-error defects described below. Final
 emulator `a75324c3ee1e` passed the managed exception checks again after the last review fixes. The
 eight-round comparison with released dmx12 differs by less than 0.5% in each measured workload; boot
-footprint medians are both 96.5 MiB. Next is the maintainer's v0.4.4 release decision. Signing,
-notarization, packaging and verification of the public update remain release work; the installed
-public app is still v0.4.3.
+footprint medians are both 96.5 MiB. The maintainer approved v0.4.4 on November 5. Release qualification is green on version 0.4.4
+and its new guest pin (see below). Next: verify the second packaging, rehearse the signed install
+and update, then tag and publish; the installed public app is still v0.4.3.
 
 **v0.4.2 is published** (2026-11-04, signed and notarized, tag commit `23193b3`). The 14 draft assets
 downloaded byte-identical to the qualified files before it went public; second packaging said
@@ -769,6 +769,21 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### v0.4.4 release qualification (2026-11-05)
+
+All required local release gates pass on version 0.4.4 and its new guest pin: unit 101, bounded
+formal checks, selftest 23 (96 MiB), daemon 61, MCP 33, x86 77, Docker 69, sandbox 44, images 24,
+Java JIT 100/100, menu 25, app installation 14, storage 64, and local network 13 checks
+(real LAN compared, blocked). Both image runs verified live emulator `a75324c3ee1e`.
+The first signed/notarized packaging updated GuestPin.swift; the second retained it
+(`pin_changed: false`). Signed local installation/update rehearsal passed 32 checks, including
+live VM/container/data preservation and the final managed workloads. It also reproduced
+`allowed -> blocked` for LAN permission after the signed update on this Mac; the release notes
+state that users may need to allow dmx again. The initial mirror rehearsal omitted the local
+base URL from its launchd fixture and intentionally fell back after a public HTTP 404; forwarding
+the mirror setting fixed that test setup, with no product change. Raw logs stay local; the [release record](measurements/2026-11-05-release-0.4.4.json)
+contains sanitized results. Publication and verification from public URLs are still pending.
 
 ### dmx13: signal contexts, writable code aliases and divide errors (2026-11-05, candidate)
 
@@ -1439,6 +1454,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-05: The maintainer approved v0.4.4. Completed every required release qualification gate on version 0.4.4 and the new guest pin; initial CLI/app Developer ID signing, notarization and stapling passed. Prepared release notes and install links. Next: second packaging, signed rehearsal, tag/publication and public-asset verification.
 - 2026-11-05: Qualified the v0.4.4 candidate with `fex-2610-dmx13` (`a75324c3ee1e`). Actual Opus 5.5 approved the final delta and two follow-ups; its inherited-ignored-fault finding was reproduced and fixed, including default SIGFPE and SIGSEGV. Rebuilt FEX/guest, verified the live hash, reran unit 101, selftest 23, x86 77 and .NET/Java exception workloads three times each. Final-build paired performance and boot-footprint measurements are recorded above. Updated handoff and retained sanitized review/evidence records. Not released: ask the maintainer about v0.4.4.
 - 2026-11-04: Published signed/notarized v0.4.3 from `4076136` and verified it from the public assets, 27/27; installed it on this Mac. Reviewed by Opus 5.5 and Codex: the final Codex pass found REP SCAS restarted after its match, fixed and measured; its remaining note, PF and AF during `rep cmps`, is recorded. Found after publishing: the local network permission reads `blocked` after the update (see Next up).
 - 2026-11-04: Qualified `fex-2610-dmx12` (see Findings: cost 1-4%, guest suites pass, a long Go program runs). `go build -a std` exposed a general bug: the overcommit heuristic refused mappings larger than the memory plugged so far, 2 GiB natively in a VM with an 8 GB ceiling; fixed with `vm.overcommit_memory=1`. Not released.
