@@ -63,6 +63,7 @@ dmx.app (AppKit) ── short-lived control calls; passive run/engine.json + pro
 | Transparent huge pages off in the guest (2026-10-24) | With 16K pages a huge page is 32 MB. `madvise` (2026-10-23) still let qemu's 128 MB code buffer take 32 MB per x86 process (`sleep` 38 MB RSS, 5.4 MB without); nothing in dmx needs huge pages. Replaces the `madvise` choice. |
 | Guest network is a user space NAT inside dmx, not vmnet (2026-10-24) | vmnet needs root or `com.apple.vm.networking`, which Apple grants on request (verified: an ad-hoc process gets VMNET_FAILURE, the entitlement gets it killed). Guest flows map onto host sockets like passt: no TCP stack, no second process, bounded buffers, and traffic is dmx's own so VPNs and firewalls apply. Costs: IPv4 only, no ICMP errors; inbound goes through vsock port forwarding. |
 | Guest IPv6 is a unique local prefix behind dmx's NAT (2026-10-25) | The guest cannot have the Mac's own prefix without a bridge (vmnet, which needs root). With fd64:646d:7800::/64 the guest's resolvers keep IPv4 first for names with both families (RFC 6724 label matching), so IPv6 adds IPv6-only destinations without making anything that works over IPv4 depend on the Mac's IPv6. AAAA records the Mac cannot route to are left out, as Docker Desktop does on a Mac without IPv6. |
+| An unanswered AAAA does not fail a name that has an A record (2026-11-04) | Some networks never answer AAAA queries. macOS apps do not notice, but musl fails a whole lookup when either family's query fails, so a static uv in a container could not resolve `pypi.org`. Once a name's A lookup has found an address, its AAAA lookup waits 300 ms more and then reports no records. RFC 8305 waits for AAAA after A in the same way (50 ms). The guest prefers IPv4 for names with both families, so a late AAAA costs it nothing. Without an A answer nothing changes: SERVFAIL after 5 s, which the client may retry. |
 | No host file I/O directly on guest RAM (2026-10-26) | Direct I/O (`F_NOCACHE`) between the disk image and guest pages corrupted guest memory while macOS was short of memory: zeroed page tables, stacks and lists crashed the guest kernel, and files were lost (18 of 28 fsck boots under swap, 0 of 36 after). macOS presumably moves or copies a page under a direct transfer, and the guest's stage-2 mapping then sees another page than the one it wrote once the page is compressed and comes back. virtio-blk copies through a buffer of its own (reads got faster: 0.9 → 1.8 GB/s for 1 MB reads); virtio-fs no longer passes the guest's O_DIRECT on as `F_NOCACHE`. `make pressuretest` reproduces the old bug. |
 | Defaults and security follow Docker Desktop (2026-10-24) | Maintainer's rule: Docker must just work, and security choices match standard tools. So: host directories shared read-write at the same path (/Users, /Volumes, /private, /tmp, /var/folders), containers reach host services through `host.docker.internal` (`host.dmx.internal` also works), dmx port forwards bind 127.0.0.1 unless asked (Docker published ports follow their bindings), host user ↔ guest root on shares, `init_on_alloc` on as in stock kernels, no TLS tools in the base guest (dockerd does its own TLS). Port forwards persist and keep the 4 MB daemon up while they exist. MCP tools are `dmx_*`, argv-based, 8 KiB/120 s defaults. |
 | No GitHub CI, no Homebrew dependency (2026-10-24) | Maintainer's choice: GitHub is only for distribution (source and releases). Checks run locally before a release (`make build`, `swift test`, selftest, daemontest, dockertest). dmx ships its own pinned Docker CLI tools instead of relying on Homebrew. |
@@ -571,6 +572,18 @@ separate from Core/VM tests and the completed public distribution checks.
 
 ## Next up
 
+**Unreleased on `main` (2026-11-04):** the AAAA fix below. A Mac on a network that does not answer
+AAAA gets it only with a new release, which is the maintainer's decision.
+
+**Open defect, not fixed: the installed app cannot reach the local network until macOS grants it.**
+Measured on 0.4.1 (see Findings). `Info.plist` has no `NSLocalNetworkUsageDescription`, nothing
+in dmx reports the state, daemontest only exercises a standalone binary, and README's claim that
+`.local` names resolve in containers does not hold for the app install. Waiting on the maintainer.
+
+**`.build/storage-review/qualified-v0.4.1` no longer exists.** `.build` was already absent on
+2026-11-03 before any build that day (`git check-ignore .build` failed, which it does only when the
+directory is missing). The published release assets remain the reference.
+
 **v0.4.1 is published and installed** (2026-10-30), from `241aaae`. The authorized artifact
 cleanup, log hardening, actual Opus5.5 review/repairs and release are complete. CLI/app Apple
 notarization, staple/Gatekeeper and second-package pin stability pass. All14 public bytes match
@@ -714,6 +727,68 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### DNS on a network that does not answer AAAA (2026-11-04)
+
+A work Mac on 0.4.1: `RUN uv pip install` in `docker build` failed with `failed to lookup address
+information: Try again`, at a different package each time, with or without `--network=host`, while
+the Mac resolved `pypi.org`. 40 rounds measured in a musl container on that Mac:
+
+| Query | Result |
+|---|---|
+| dmx gateway, `pypi.org` A | NOERROR 40/40, at most 0.67 s |
+| dmx gateway, `pypi.org` AAAA | SERVFAIL 40/40, at most 5.01 s |
+| dmx gateway, `files.pythonhosted.org` AAAA | NOERROR 40/40 (CNAME only), at most 5.01 s |
+| 1.1.1.1 directly, A / AAAA | NOERROR / timeout 40/40 |
+| `getaddrinfo("pypi.org")` | `Try again` 40/40 |
+| TCP to a `pypi.org` address, port 443 | connected 40/40 |
+
+The network drops AAAA queries; dmx turned that silence into SERVFAIL after 5 s. What each client
+does, against a fake resolver:
+
+| A | AAAA | glibc | uv (static musl) |
+|---|---|---|---|
+| answer | empty | ok | ok |
+| answer | SERVFAIL | ok at once | `Try again` after 5.1 s |
+| answer | no reply | ok after 15 s | `Try again` after 5.1 s |
+
+Reproduced without changing any network setting: a multicast DNS record registered as shared answers
+A and never answers AAAA (a unique one gets a negative answer at once). uv pointed at that name on a
+closed port, so `Connection refused` means the name resolved:
+
+| Path | Before | After |
+|---|---|---|
+| Gateway, A and AAAA together | A 0.01 s; AAAA SERVFAIL 5.01 s | A 0.01 s; AAAA empty NOERROR 0.31 s |
+| Gateway, AAAA after A | SERVFAIL 5.01 s | empty NOERROR 0.30 s |
+| uv, default bridge | `Try again` 5.08 s | refused 0.39 s |
+| uv, user network (dockerd's DNS) | `Try again` 5.09 s | refused 0.38 s |
+| uv, `docker build` RUN | `Try again` at 5.2 s | refused at 0.5 s |
+| glibc, default bridge / user network | ok 5.02 s / 4.02 s | ok 0.31 s / 0.32 s |
+
+daemontest's new `dns_aaaa_unanswered`: the old code fails only that check, 58/59 (5059 ms); the fix
+passes 59/59 (344 ms). Unit 100. selftest 23/23 in a throwaway home, three runs each: 96-98 MB before,
+94-98 MB after, within noise. A real `docker build` of 16 requirements (78 packages) through the fix
+succeeded; 36 requirements (141 packages) succeeded 3/3 on the old code on this Mac's network, whose
+resolvers answer AAAA. The fix has not yet run on the affected network.
+
+A cause ruled out on the way: file descriptors stayed at 32 through those builds.
+
+### Local network privacy blocks the app-installed engine (2026-11-03, open)
+
+macOS attributes the CLI and daemon inside `dmx.app` to `io.github.cothis.dmx.menu`; mDNSResponder logs
+`Local network access to query policy 'pending'` and the system logs `Local network preference not
+yet set, prompting for dmx`. Same 0.4.1 source, policy undecided on the test Mac:
+
+| From the guest | App binary | Standalone build | The Mac itself |
+|---|---|---|---|
+| The Mac's own `.local` name | SERVFAIL after 5 s | ok | ok |
+| `pypi.org` through a LAN DNS server directly | timeout | ok | ok |
+| TCP to a LAN host | fails | ok | ok |
+| Public names through the gateway | ok | ok | ok |
+
+launchd is not the cause: the app binary started from a shell behaves the same. Not measured: other
+versions, what happens after the prompt is answered, and a Mac whose first DNS server is on the LAN
+(DNS over TCP goes straight to that server, so it should fail the same way).
 
 ### Storage preflight (2026-10-30)
 
@@ -1134,6 +1209,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-04: Fixed name lookups on networks that do not answer AAAA: once a name has an A answer its AAAA ends after 300 ms as an empty NOERROR, so musl clients such as uv no longer fail with `Try again`. Reproduced first on a real VM with a multicast record whose AAAA never answers; daemontest gained `dns_aaaa_unanswered`, which fails on the old code (58/59, then 59/59), unit 100, selftest 23/23 with memory unchanged. Recorded, not fixed: the app-installed engine cannot reach the local network until macOS grants it. Not released.
 - 2026-10-30: Resumed authorized artifact cleanup and log growth hardening. Removed 4.394 GiB
   of regenerable outputs, added bounded diagnostic streams/default container rotation and
   regression tests. Resolved actual Opus5.5 F1/F2/R1/R2 findings; source/pin qualification and

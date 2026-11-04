@@ -9,11 +9,20 @@ import dnssd
 /// Everything runs on the network queue. Queries it cannot represent (more than one question, an
 /// opcode other than QUERY) go to the first nameserver of /etc/resolv.conf as before, and so does
 /// DNS over TCP, which a client uses after a reply too large for UDP came back truncated.
+///
+/// Some networks never answer AAAA queries. Mac apps do not notice, but musl fails a whole name
+/// lookup when either family's query fails (glibc needs only one), so a static uv in a container
+/// could not resolve a name whose A record was fine. Once a name's A lookup has found an address,
+/// its AAAA lookup waits only `aaaaGrace` longer and then reports no AAAA records. The guest
+/// prefers IPv4 for names with both families, so a late AAAA costs it nothing.
 final class HostDNS {
     private let queue: DispatchQueue
     private var pending: [ObjectIdentifier: Lookup] = [:]
+    private var addresses = RecentAddresses()
     /// A query unanswered for this long gets SERVFAIL; the client then retries or gives up.
     static let timeout: Duration = .seconds(5)
+    /// How long an AAAA lookup waits once the name is known to have an IPv4 address.
+    static let aaaaGrace: Duration = .milliseconds(300)
     static let maxPending = 256
 
     init(queue: DispatchQueue) { self.queue = queue }
@@ -23,6 +32,9 @@ final class HostDNS {
     func resolve(_ query: UnsafeRawBufferPointer, reply: @escaping ([UInt8]) -> Void) -> Bool {
         guard let question = Question(query), pending.count < Self.maxPending else { return false }
         let lookup = Lookup(question: question, queue: queue, reply: reply)
+        // A client that asks for AAAA after its A query was answered (or whose queries the
+        // answer overtook) gets the same bound as one with both in flight.
+        let addressKnown = question.isAAAA && addresses.contains(question.key, now: .now)
         var ref: DNSServiceRef?
         let flags = DNSServiceFlags(kDNSServiceFlagsReturnIntermediates)
         let context = Unmanaged.passUnretained(lookup).toOpaque()
@@ -38,6 +50,7 @@ final class HostDNS {
         pending[ObjectIdentifier(lookup)] = lookup
         DNSServiceSetDispatchQueue(ref, queue)
         lookup.arm(Self.timeout)
+        if addressKnown { lookup.addressFound(grace: Self.aaaaGrace) }
         return true
     }
 
@@ -45,6 +58,12 @@ final class HostDNS {
         guard pending.removeValue(forKey: ObjectIdentifier(lookup)) != nil else { return }
         lookup.timer?.cancel()
         if let ref = lookup.ref { DNSServiceRefDeallocate(ref) }
+        if lookup.question.isA, lookup.hasIPv4Address {
+            addresses.note(lookup.question.key, now: .now)
+            for other in pending.values where other.question.isAAAA && other.question.key == lookup.question.key {
+                other.addressFound(grace: Self.aaaaGrace)
+            }
+        }
         lookup.reply(lookup.response())
     }
 
@@ -55,6 +74,29 @@ final class HostDNS {
             if let ref = lookup.ref { DNSServiceRefDeallocate(ref) }
         }
         pending.removeAll()
+        addresses = RecentAddresses()
+    }
+
+    /// Names whose A lookup found an address a moment ago, for AAAA queries that arrive after it.
+    struct RecentAddresses {
+        private var found: [String: ContinuousClock.Instant] = [:]
+        static let horizon: Duration = HostDNS.timeout
+        static let capacity = HostDNS.maxPending
+
+        mutating func note(_ key: String, now: ContinuousClock.Instant) {
+            if found.count >= Self.capacity {
+                found = found.filter { now - $0.value < Self.horizon }
+                if found.count >= Self.capacity { found.removeAll() }
+            }
+            found[key] = now
+        }
+
+        func contains(_ key: String, now: ContinuousClock.Instant) -> Bool {
+            guard let when = found[key] else { return false }
+            return now - when < Self.horizon
+        }
+
+        var count: Int { found.count }
     }
 
     /// The one question of a standard query, as the message carried it.
@@ -68,6 +110,11 @@ final class HostDNS {
         let wire: [UInt8]
         /// The largest UDP reply the client takes: 512, or what its EDNS OPT record says.
         let udpLimit: Int
+
+        var isA: Bool { type == 1 && qclass == 1 }
+        var isAAAA: Bool { type == 28 && qclass == 1 }
+        /// DNS names compare without regard to case.
+        var key: String { name.lowercased() }
 
         init?(_ m: UnsafeRawBufferPointer) {
             guard m.count >= 17, m[2] & 0xf8 == 0, m.u16(4) == 1, m.u16(6) == 0, m.u16(8) == 0 else { return nil }
@@ -109,6 +156,9 @@ final class HostDNS {
         private var records: [(name: String, type: UInt16, qclass: UInt16, ttl: UInt32, rdata: Data)] = []
         private var rcode: UInt8 = 2  // SERVFAIL until something answers
         private var done = false
+        private var deadline = ContinuousClock.now
+        /// The name's A lookup found an address, so having no AAAA answer is not a failure.
+        private var addressKnown = false
 
         init(question: Question, queue: DispatchQueue, reply: @escaping ([UInt8]) -> Void) {
             self.question = question
@@ -118,12 +168,22 @@ final class HostDNS {
 
         func arm(_ after: Duration) {
             timer?.cancel()
+            deadline = .now + after
             let t = DispatchSource.makeTimerSource(queue: queue)
             t.schedule(deadline: .now() + .milliseconds(Int(after.components.seconds) * 1000 + Int(after.components.attoseconds / 1_000_000_000_000_000)))
             t.setEventHandler { [weak self] in self?.end() }
             t.resume()
             timer = t
         }
+
+        /// For an AAAA lookup: the name has an IPv4 address. Ends the wait at `grace` from now,
+        /// never later than it would have ended.
+        func addressFound(grace: Duration) {
+            addressKnown = true
+            if .now + grace < deadline { arm(grace) }
+        }
+
+        var hasIPv4Address: Bool { records.contains { $0.type == 1 } }
 
         private func end() {
             guard !done else { return }
@@ -205,7 +265,8 @@ final class HostDNS {
             var m: [UInt8] = []
             m.be16(question.id)
             // QR, recursion desired as asked, recursion available, TC when cut.
-            var flags: UInt16 = 0x8080 | (question.recursionDesired ? 0x0100 : 0) | UInt16(rcode)
+            let code = rcode == 2 && addressKnown ? 0 : rcode
+            var flags: UInt16 = 0x8080 | (question.recursionDesired ? 0x0100 : 0) | UInt16(code)
             if truncated { flags |= 0x0200 }
             m.be16(flags)
             m.be16(1)

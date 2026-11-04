@@ -9,6 +9,7 @@ JSON object and exits non-zero if any check failed.
     python3 -I scripts/test-daemon.py [path/to/dmx]
 """
 
+import ctypes
 import hashlib
 import http.server
 import json
@@ -456,6 +457,27 @@ try:
     # Addresses after the first "answer:" (the lines before it name the server).
     got = {line.split()[1].decode() for line in r.stdout.partition(b"answer:")[2].splitlines() if line.startswith(b"Address:")}
     check("dns_host_resolver", r.returncode == 0 and bool(want) and got == want, f"mac {sorted(mac)}, guest {sorted(got)}")
+    # Some networks never answer AAAA queries. A record registered as shared (so multicast DNS
+    # sends no "no such record" for its other types) has an A answer and an AAAA query that hangs,
+    # with no network setting changed. The AAAA must end soon after the A, without a failure: musl
+    # (a static uv in a container) fails a whole lookup when either family's query fails.
+    dnssd = ctypes.CDLL("/usr/lib/libSystem.dylib")
+    dnssd_ref, record = ctypes.c_void_p(), ctypes.c_void_p()
+    registered = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_int32, ctypes.c_void_p)(lambda *_: None)
+    name = f"dmx-daemontest-{os.getpid()}.local"
+    if dnssd.DNSServiceCreateConnection(ctypes.byref(dnssd_ref)) == 0:
+        error = dnssd.DNSServiceRegisterRecord(dnssd_ref, ctypes.byref(record), ctypes.c_uint32(0x10), ctypes.c_uint32(0), f"{name}.".encode(),
+                                               ctypes.c_uint16(1), ctypes.c_uint16(1), ctypes.c_uint16(4), bytes([192, 168, 127, 254]),
+                                               ctypes.c_uint32(60), registered, None)
+        time.sleep(0.5)
+        started = time.time()
+        r = dmx("exec", "--", "nslookup", name, "192.168.127.1")
+        results["dns_aaaa_unanswered_ms"] = int((time.time() - started) * 1000)
+        check("dns_aaaa_unanswered", error == 0 and r.returncode == 0 and b"Address: 192.168.127.254" in r.stdout and results["dns_aaaa_unanswered_ms"] < 3000,
+              f"{results['dns_aaaa_unanswered_ms']} ms, error {error}, {r.stdout[-200:] + r.stderr[-200:]!r}")
+        dnssd.DNSServiceRefDeallocate(dnssd_ref)
+    else:
+        check("dns_aaaa_unanswered", False, "no connection to mDNSResponder")
     # IPv6: DNS from the gateway's IPv6 address, the Mac's names as its IPv6 address, and UDP to
     # the Mac's ::1 (UDP over IPv6 must carry a checksum).
     r = dmx("exec", "--", "nslookup", "-type=AAAA", "host.docker.internal", "fd64:646d:7800::1")

@@ -63,6 +63,14 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-11-04: "It works here" says little when the failure depends on the network. A diagnostic the
+  affected Mac could run settled what no test here could, and a real client on the failing path matters:
+  `pip` and `getaddrinfo` on glibc hid a failure that musl turns fatal. Compare clients on that path.
+- 2026-11-04: Look before `rm -rf .build`: PLAN and HANDOFF can name preserved references inside it. In
+  zsh an unmatched glob aborts the whole command, so a failed `ls` proves nothing. Run test-daemon.py
+  from a path with no symlink (`/tmp` resolves to `/private/tmp` and its daemon lookup finds nothing),
+  and stop a crashed run's daemon: it keeps the suite's ports and breaks the next run.
+
 - 2026-10-29: Frozen formal properties can still be made tautological by ghost updates tied
   to a fix selector. Observe actual bindings/events and mutate guards, ownership, atomicity,
   error paths and replay independently. A progress test must assert before teardown supplies

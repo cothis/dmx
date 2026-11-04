@@ -283,6 +283,59 @@ import Testing
         #expect(query("example.com", type: 1).withUnsafeBytes { LocalDNS.answer($0) } == nil)
     }
 
+    @Test func unansweredAAAAIsEmptyOnceTheNameHasAnAddress() throws {
+        let question = try #require(query("Pypi.org", type: 28).withUnsafeBytes { HostDNS.Question($0) })
+        #expect(question.isAAAA && !question.isA && question.key == "pypi.org.")
+        let queue = DispatchQueue(label: "dns-test")
+        let lookup = HostDNS.Lookup(question: question, queue: queue) { _ in }
+        // Nothing known: no answer is still a failure, which the client may retry.
+        #expect(lookup.response()[3] & 0x0f == 2)
+        queue.sync {
+            lookup.arm(.seconds(30))
+            lookup.addressFound(grace: .seconds(30))
+        }
+        let reply = lookup.response()
+        #expect(reply[3] & 0x0f == 0 && Array(reply[6..<8]) == [0, 0])
+        queue.sync { lookup.timer?.cancel() }
+
+        // An A lookup with no address never gets this treatment and keeps its failure.
+        let a = try #require(query("pypi.org", type: 1).withUnsafeBytes { HostDNS.Question($0) })
+        let plain = HostDNS.Lookup(question: a, queue: queue) { _ in }
+        #expect(a.isA && a.key == question.key && !plain.hasIPv4Address && plain.response()[3] & 0x0f == 2)
+        let add = DNSServiceFlags(kDNSServiceFlagsAdd)
+        plain.received(flags: add | DNSServiceFlags(kDNSServiceFlagsMoreComing), error: 0, name: "pypi.org.", type: 1, qclass: 1, rdata: Data([151, 101, 0, 223]), ttl: 60)
+        #expect(plain.hasIPv4Address)
+    }
+
+    @Test func addressFoundShortensTheWaitButNeverExtendsIt() throws {
+        let question = try #require(query("pypi.org", type: 28).withUnsafeBytes { HostDNS.Question($0) })
+        let queue = DispatchQueue(label: "dns-test")
+        func ended(arm: Duration, grace: Duration) -> Bool {
+            let lookup = HostDNS.Lookup(question: question, queue: queue) { _ in }
+            let done = DispatchSemaphore(value: 0)
+            lookup.finish = { done.signal() }
+            queue.sync {
+                lookup.arm(arm)
+                lookup.addressFound(grace: grace)
+            }
+            defer { queue.sync { lookup.timer?.cancel() } }
+            return done.wait(timeout: .now() + 5) == .success
+        }
+        #expect(ended(arm: .seconds(60), grace: .milliseconds(20)))
+        #expect(ended(arm: .milliseconds(20), grace: .seconds(60)))
+    }
+
+    @Test func recentAddressesExpireAndStayBounded() {
+        var recent = HostDNS.RecentAddresses()
+        let start = ContinuousClock.now
+        recent.note("pypi.org.", now: start)
+        #expect(recent.contains("pypi.org.", now: start + .seconds(1)))
+        #expect(!recent.contains("pypi.org.", now: start + HostDNS.RecentAddresses.horizon))
+        #expect(!recent.contains("example.org.", now: start))
+        for i in 0..<(HostDNS.RecentAddresses.capacity * 3) { recent.note("n\(i).", now: start + .seconds(i % 2)) }
+        #expect(recent.count <= HostDNS.RecentAddresses.capacity)
+    }
+
     @Test func hostResolverReplies() throws {
         let question = try #require(query("www.Example.com", type: 1).withUnsafeBytes { HostDNS.Question($0) })
         #expect(question.name == "www.Example.com." && question.type == 1 && question.udpLimit == 1232)
