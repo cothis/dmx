@@ -42,4 +42,4 @@ phase with its tasks, the next task, and the measurements so far.
 ## Source of truth and checks
 
 - Source of truth: `docs/PLAN.md` (goal, decisions, next task, measurements) wins over every other doc; maintainer preferences live in `docs/memory.md`; guest inputs are only what `scripts/build-guest.py` pins.
-- Check: `make selftest` on the real VM (after `make build && make guest`), `make test` or `swift test` for unit tests — run before committing code changes; docs-only changes skip them.
+- Check: `make selftest` on the real VM (after make build and make guest), `make test` or `swift test` for unit tests — run before committing code changes; docs-only changes skip them.
