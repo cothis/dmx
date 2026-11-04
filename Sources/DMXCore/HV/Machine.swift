@@ -337,6 +337,10 @@ public final class Machine: @unchecked Sendable {
         // Per-CPU free page lists are invisible to free page reporting and by default may hold
         // up to 38 MB per vCPU at 8 GB. This caps them at 60 guest pages each.
         "sysctl.vm.percpu_pagelist_high_fraction=100000",
+        // MemTotal is what virtio-mem has plugged so far, far below the ceiling, so the default heuristic
+        // refuses any single mapping larger than that: a 2 GiB mmap failed in a VM that could reach 8 GiB,
+        // and so did fork under FEX, whose copy of a large mapping counts the same way. As LinuxKit does.
+        "sysctl.vm.overcommit_memory=1",
         // A transparent huge page is 32 MB with 16K pages, and Alpine's default is "always": one
         // byte touched per 32 MB of a 1 GB mapping cost 1 GB. Not even for programs that ask:
         // qemu-x86_64 madvises its 128 MB code buffer, so each x86 process cost 32 MB more.

@@ -62,7 +62,8 @@ dmx.app (AppKit) ── short-lived control calls; passive run/engine.json + pro
 | Drop dmx's own mappings of guest RAM after device traffic (2026-10-24) | macOS charges a page to `ri_phys_footprint` once per mapping; guest RAM is mapped by dmx and by stage 2, so pages a device filled counted twice (1 GB read = +2 GB). Remapping dmx's view onto itself (`mach_vm_remap` overwrite) after traffic leaves one mapping; devices fault pages back in. |
 | Transparent huge pages off in the guest (2026-10-24) | With 16K pages a huge page is 32 MB. `madvise` (2026-10-23) still let qemu's 128 MB code buffer take 32 MB per x86 process (`sleep` 38 MB RSS, 5.4 MB without); nothing in dmx needs huge pages. Replaces the `madvise` choice. |
 | Guest network is a user space NAT inside dmx, not vmnet (2026-10-24) | vmnet needs root or `com.apple.vm.networking`, which Apple grants on request (verified: an ad-hoc process gets VMNET_FAILURE, the entitlement gets it killed). Guest flows map onto host sockets like passt: no TCP stack, no second process, bounded buffers, and traffic is dmx's own so VPNs and firewalls apply. Costs: IPv4 only, no ICMP errors; inbound goes through vsock port forwarding. |
-| FEX holds a signal for a guest handler until the guest state is exact (2026-11-04) | Handlers may move the guest, and FEX can only show an exact state at checks at block entries, loop edges and system call starts. So the signal goes back to the kernel, blocked, until a check; the kernel keeps its mask and payload. Costs a store per block entry and loop edge, plus a few system calls per signal: not measured yet. |
+| `vm.overcommit_memory=1` (2026-11-04) | With memory plugged on demand, MemTotal says nothing about what the VM can reach, so the default heuristic refused mappings the VM could serve. LinuxKit sets the same value. |
+| FEX holds a signal for a guest handler until the guest state is exact (2026-11-04) | Handlers may move the guest, and FEX can only show an exact state at checks at block entries, loop edges and system call starts. So the signal goes back to the kernel, blocked, until a check; the kernel keeps its mask and payload. Costs a store per block entry and loop edge, plus a few system calls per signal: 1-4% in the measured workloads. |
 | The engine asks for macOS's local network permission when the VM starts (2026-11-04) | A launchd-started process has no terminal to inherit it from, and Apple offers no way around the prompt. Asking at VM start means the answer holds before the first real connection; waiting for a container to need the LAN made that connection fail with nothing saying why. The usage description gives the reason, and `dmx status`, `dmx doctor` and the log report the state. Blocked is not a doctor failure: images, the public internet and the Mac itself work, and the owner may have said no on purpose. |
 | Guest IPv6 is a unique local prefix behind dmx's NAT (2026-10-25) | The guest cannot have the Mac's own prefix without a bridge (vmnet, which needs root). With fd64:646d:7800::/64 the guest's resolvers keep IPv4 first for names with both families (RFC 6724 label matching), so IPv6 adds IPv6-only destinations without making anything that works over IPv4 depend on the Mac's IPv6. AAAA records the Mac cannot route to are left out, as Docker Desktop does on a Mac without IPv6. |
 | An unanswered AAAA does not fail a name that has an A record (2026-11-04) | Some networks never answer AAAA queries. macOS apps do not notice, but musl fails a whole lookup when either family's query fails, so a static uv in a container could not resolve `pypi.org`. Once a name's A lookup has found an address, its AAAA lookup waits 300 ms more and then reports no records. RFC 8305 waits for AAAA after A in the same way (50 ms). The guest prefers IPv4 for names with both families, so a late AAAA costs it nothing. Without an A answer nothing changes: SERVFAIL after 5 s, which the client may retry. |
@@ -585,12 +586,9 @@ launchd and the signed app, `dmx status`, `dmx doctor` and the log all say `bloc
 allowed it, below), 386 reports `LONG_BIT` 32, and the unchanged guest was not downloaded again. No community
 announcement was made.
 
-**Next, first: finish qualifying `fex-2610-dmx12`, on a quiet Mac.** The amd64 crashes under load are found
-and fixed on `main` (see Findings), not released. Still to run, none of them yet on this emulator: `make imagetest`,
-`make javatest`, `make dockertest`, a long-running Go program (the spill stack fix has never run for
-long, for example `go build` in an amd64 `golang` image), and a cost comparison against dmx11 in alternating blocks.
-The measurement was stopped while the Mac was busy: nothing is known about the cost yet. A new
-release needs the maintainer's decision.
+**Next: a release for `fex-2610-dmx12` and the overcommit fix is the maintainer's decision.** Both are on `main`, qualified (see
+Findings), not released. Guest suites ran on this emulator, and Core and the image matrix again after the overcommit change. A release also needs
+`make formaltest`, `make menutest`, `make apptest` and `make localnettest` on its final source.
 
 **Also open:** the AAAA fix has not run on the network that showed the failure. FEX defects left as they were, all
 older than this work: a handler's edit to `uc_sigmask` is ignored (musl's `pthread_cancel` of a busy thread should spin, by
@@ -827,6 +825,29 @@ The 123/200 figure above came from an interim dmx12. Reviewed by Opus 5.5 (three
 that were not older behaviour went in without a further pass.
 Accepted limits: two realtime signals of one number queued to one thread can swap order, `siginfo` is lost if the kernel's queue is exhausted, and asynchronous copies of SIGSEGV and
 similar signals are still delivered inexactly.
+
+### dmx12 qualification and cost (2026-11-04)
+
+Cost against dmx11 at a load of about 2, eight rounds alternating in both orders, each the best of 4-6 runs, medians of those:
+
+| Measure | dmx11 | dmx12 | Change |
+|---|---|---|---|
+| Tightest loop, `dec; jnz`, 3e9 times | 1359 ms | 1380 ms | +1.5% |
+| Compile storm (262144 new blocks) | 241 ms | 244 ms | +1.2% |
+| Python loop | 655 ms | 679 ms | +3.7% |
+| Python start | 99 ms | 104 ms | within the 10 ms timer |
+| sha256 of 100 MB | 390 ms | 399 ms | within the 10 ms timer |
+
+Suites on dmx12 (`d8a53dcb5c75`, live hash checked): selftest 23, x86 61, images 24 with 200 `gosu` runs per platform, Java 100/100, Docker 69, sandbox 44, daemon 59, MCP 33, storage 64.
+After the overcommit change below: unit 101, selftest 23 (97 MB), daemon 60, images 24. A Go 1.27 program with call-free loops on 4 goroutines and an allocator ran 480 s on 4 vCPUs:
+1225906 rounds, 238 collections, no arithmetic errors, no crash. On dmx11 the same image's `go version` itself segfaulted. Nothing here measures the spill stack directly; the run outlasting it is the evidence.
+
+### Large allocations refused by the overcommit heuristic (2026-11-04)
+
+`go build -a std` under FEX failed with `fork/exec ...: cannot allocate memory`. `MemTotal` is what virtio-mem has plugged so far (1.2-1.9 GB in a VM with an 8 GB ceiling), and the default heuristic refuses any
+single mapping larger than that. Not specific to FEX: in a native arm64 container at `MemTotal` 1244 MB, an anonymous mmap of 1 GiB worked and 2, 3, 4 and 6 GiB failed with ENOMEM. With `vm.overcommit_memory=1`, which LinuxKit also sets,
+all succeed, and `go build -a std` passed on 3 of 3 fresh boots in 42-44 s. It is a kernel command line setting, so the guest is unchanged by it. Too much memory now ends in the OOM killer rather than ENOMEM, as on Docker Desktop.
+Not done: LinuxKit's `vm.max_map_count = 262144` against the default 65530, which Elasticsearch-style images ask for.
 
 ### Local network permission allowed (2026-11-04)
 
@@ -1312,6 +1333,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-04: Qualified `fex-2610-dmx12` (see Findings: cost 1-4%, guest suites pass, a long Go program runs). `go build -a std` exposed a general bug: the overcommit heuristic refused mappings larger than the memory plugged so far, 2 GiB natively in a VM with an 8 GB ceiling; fixed with `vm.overcommit_memory=1`. Not released.
 - 2026-11-04: Found and fixed the amd64 crash under FEX, with five related FEX defects, in `fex-2610-dmx12` (see Findings); added x86test's `signal_moves_program`, `signal_blocking_syscall`, `signal_mask_preserved` and `vfork_grandchild`, and a 200-run `gosu` loop in the image matrix. `make localnettest`'s script passes in the allowed state on the signed app. Not released: images, Java, Docker, a long Go run and the cost are still to run on a quiet Mac.
 - 2026-11-04: Published signed/notarized v0.4.2 from `23193b3` and verified it from the public assets (see Next up); installed it on this Mac. Next: the amd64 crash under FEX.
 - 2026-11-04: Local network permission made visible: usage description, a probe in the daemon at VM start and on status while running, `dmx status`, `dmx doctor` and the log; `make localnettest` checks it under a real launchd job, in either state. Three review rounds by Opus 5.5 and two by Codex; the last Opus round approved. Qualification: formal, x86, Docker, sandbox and Java 100/100 passed on the source before the final doctor and test-script changes; unit 101, selftest 23, daemon 59, MCP 33, menu 25, app, storage 64 and localnet 13 on the final source. Image matrix 23/24: amd64 postgres crashed under FEX, explained as present in 0.4.1 with the same bytes and recorded as open, not fixed. For 0.4.2.

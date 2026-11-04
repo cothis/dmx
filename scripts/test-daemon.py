@@ -457,6 +457,9 @@ try:
     # Addresses after the first "answer:" (the lines before it name the server).
     got = {line.split()[1].decode() for line in r.stdout.partition(b"answer:")[2].splitlines() if line.startswith(b"Address:")}
     check("dns_host_resolver", r.returncode == 0 and bool(want) and got == want, f"mac {sorted(mac)}, guest {sorted(got)}")
+    # A large mapping must not be refused for being larger than the memory plugged in so far.
+    r = dmx("exec", "--", "cat", "/proc/sys/vm/overcommit_memory")
+    check("overcommit_ignores_plugged_memory", r.stdout.strip() == b"1", repr(r.stdout[:20]))
     # Some networks never answer AAAA queries. A record registered as shared (so multicast DNS
     # sends no "no such record" for its other types) has an A answer and an AAAA query that hangs,
     # with no network setting changed. The AAAA must end soon after the A, without a failure: musl
