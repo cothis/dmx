@@ -586,9 +586,13 @@ launchd and the signed app, `dmx status`, `dmx doctor` and the log all say `bloc
 allowed it, below), 386 reports `LONG_BIT` 32, and the unchanged guest was not downloaded again. No community
 announcement was made.
 
-**Next: a release for `fex-2610-dmx12` and the overcommit fix is the maintainer's decision.** Both are on `main`, qualified (see
-Findings), not released. Guest suites ran on this emulator, and Core and the image matrix again after the overcommit change. A release also needs
-`make formaltest`, `make menutest`, `make apptest` and `make localnettest` on its final source.
+**v0.4.3 is published** (2026-11-04, signed and notarized, tag commit `4076136`): `fex-2610-dmx12`, `vm.overcommit_memory=1` and `vm.max_map_count=262144`. A first
+`gh release create` got HTTP 502 before making anything; the retry worked. The 14 draft assets downloaded byte-identical to the qualified files before it went public, and the second packaging said `pin_changed: false`.
+From the public URLs 27 checks passed: a fresh install and selftest 23 (101 MB, guest fetched), the live emulator's hash and both sysctls, arm64, amd64 and 386 (`LONG_BIT` 32), `timeout`, 1000 `gosu` runs, `go build -a std`,
+6 GiB mapped and touched, and public 0.4.2 updated with a VM, container and volume running (same daemon pid, container kept, volume intact after restart, new guest fetched). This Mac's app, CLI and guest are 0.4.3. No community announcement was made.
+
+**Next: does the local network permission survive an update?** On this Mac 0.4.2 reported `allowed`; after `dmx update` to 0.4.3 the same launchd install reports `blocked`, and LAN TCP fails. macOS's `uuidcache` keeps the `dmx` signing identifier against an older binary UUID (`84153b77`, the new
+binary is `6FE8B5C6`), and the log has `Local network preference not yet set, prompting for dmx`. So a new binary looks like a new program, and the owner must answer again. That reading is not confirmed: nobody has answered since. If it holds, every release costs users a prompt and their LAN access until they answer, which belongs in README and the notes; a stable UUID or identity for the daemon is worth looking at. The bundle's own identifier and the helper's `dmx` signing identifier may also be two entries in System Settings.
 
 **Also open:** the AAAA fix has not run on the network that showed the failure. FEX defects left as they were, all
 older than this work: a handler's edit to `uc_sigmask` is ignored (musl's `pthread_cancel` of a busy thread should spin, by
@@ -1336,6 +1340,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-04: Published signed/notarized v0.4.3 from `4076136` and verified it from the public assets, 27/27; installed it on this Mac. Reviewed by Opus 5.5 and Codex: the final Codex pass found REP SCAS restarted after its match, fixed and measured; its remaining note, PF and AF during `rep cmps`, is recorded. Found after publishing: the local network permission reads `blocked` after the update (see Next up).
 - 2026-11-04: Qualified `fex-2610-dmx12` (see Findings: cost 1-4%, guest suites pass, a long Go program runs). `go build -a std` exposed a general bug: the overcommit heuristic refused mappings larger than the memory plugged so far, 2 GiB natively in a VM with an 8 GB ceiling; fixed with `vm.overcommit_memory=1`. Not released.
 - 2026-11-04: Found and fixed the amd64 crash under FEX, with five related FEX defects, in `fex-2610-dmx12` (see Findings); added x86test's `signal_moves_program`, `signal_blocking_syscall`, `signal_mask_preserved` and `vfork_grandchild`, and a 200-run `gosu` loop in the image matrix. `make localnettest`'s script passes in the allowed state on the signed app. Not released: images, Java, Docker, a long Go run and the cost are still to run on a quiet Mac.
 - 2026-11-04: Published signed/notarized v0.4.2 from `23193b3` and verified it from the public assets (see Next up); installed it on this Mac. Next: the amd64 crash under FEX.
