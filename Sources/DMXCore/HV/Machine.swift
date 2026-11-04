@@ -341,6 +341,8 @@ public final class Machine: @unchecked Sendable {
         // refuses any single mapping larger than that: a 2 GiB mmap failed in a VM that could reach 8 GiB,
         // and so did fork under FEX, whose copy of a large mapping counts the same way. As LinuxKit does.
         "sysctl.vm.overcommit_memory=1",
+        // As LinuxKit does too: images such as Elasticsearch refuse to start below this.
+        "sysctl.vm.max_map_count=262144",
         // A transparent huge page is 32 MB with 16K pages, and Alpine's default is "always": one
         // byte touched per 32 MB of a 1 GB mapping cost 1 GB. Not even for programs that ask:
         // qemu-x86_64 madvises its 128 MB code buffer, so each x86 process cost 32 MB more.

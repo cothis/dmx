@@ -758,7 +758,15 @@ FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
  struct ReadELFHeadersResult {
 --- a/FEXCore/Source/Interface/Context/Context.h
 +++ b/FEXCore/Source/Interface/Context/Context.h
-@@ -379,6 +379,11 @@
+@@ -152,6 +152,7 @@
+   uint64_t GetGuestBlockEntry(FEXCore::Core::InternalThreadState* Thread) override;
+ 
+   uint64_t RestoreRIPFromHostPC(FEXCore::Core::InternalThreadState* Thread, uint64_t HostPC) override;
++  uint32_t GetBlockStackBytesFromHostPC(FEXCore::Core::InternalThreadState* Thread, uint64_t HostPC) override;
+   uint32_t ReconstructCompactedEFLAGS(FEXCore::Core::InternalThreadState* Thread, bool WasInJIT, const uint64_t* HostGPRs, uint64_t PSTATE) override;
+   void SetFlagsFromCompactedEFLAGS(FEXCore::Core::InternalThreadState* Thread, uint32_t EFLAGS) override;
+ 
+@@ -379,6 +380,11 @@
    bool HostRNGAvailable {};
  
    FEXCore::Utils::WritePriorityMutex::Mutex CodeInvalidationMutex {};
@@ -770,9 +778,50 @@ FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
  
    uint32_t StrictSplitLockMutex {};
  
+--- a/FEXCore/Source/Interface/Core/CPUBackend.h
++++ b/FEXCore/Source/Interface/Core/CPUBackend.h
+@@ -92,6 +92,9 @@
+       // Shared-code modification spin-loop futex.
+       uint32_t SpinLockFutex;
+ 
++      // Host stack this block allocates for its spill slots.
++      uint32_t SpillStackBytes;
++
+       // If this block represents a single guest instruction.
+       bool SingleInst;
+ 
 --- a/FEXCore/Source/Interface/Core/Core.cpp
 +++ b/FEXCore/Source/Interface/Core/Core.cpp
-@@ -933,14 +933,23 @@
+@@ -183,6 +183,15 @@
+ 
+   // Fallback to what is stored in the RIP currently.
+   return Frame->State.rip;
++}
++
++uint32_t ContextImpl::GetBlockStackBytesFromHostPC(FEXCore::Core::InternalThreadState* Thread, uint64_t HostPC) {
++  const uint64_t BlockBegin = Thread->CurrentFrame->State.InlineJITBlockHeader;
++  auto [InlineHeader, InlineTail] = GetFrameBlockInfo(Thread->CurrentFrame);
++  if (InlineHeader && HostPC >= BlockBegin && HostPC < BlockBegin + InlineTail->Size) {
++    return InlineTail->SpillStackBytes;
++  }
++  return 0;
+ }
+ 
+ uint32_t ContextImpl::ReconstructCompactedEFLAGS(FEXCore::Core::InternalThreadState* Thread, bool WasInJIT, const uint64_t* HostGPRs,
+@@ -364,10 +373,8 @@
+   // Set up the SignalDelegator config since core is initialized.
+   SignalDelegation->SetConfig(Dispatcher->MakeSignalDelegatorConfig());
+ 
+-  if (Config.GdbServer) {
+-    // If gdbserver is enabled then this needs to be enabled.
+-    Config.NeedsPendingInterruptFaultCheck = true;
+-  }
++  // Guest signals that arrive outside a system call wait for these checks, where the guest state is exact.
++  Config.NeedsPendingInterruptFaultCheck = true;
+ 
+   if constexpr (BLOCK_DEBUGGING) {
+     // If the developer wants to do any single-stepping points or watch points.
+@@ -933,14 +940,23 @@
  
    // Another thread can write mutable code between decoding and the write protection below, and that
    // write does not fault, so the block would keep running the old bytes. Protect every page first,
@@ -798,7 +847,7 @@ FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
      }
      if (!Thread->FrontendDecoder->MutableCodeUnchanged()) {
        if (++DecodeAttempts < 8) {
-@@ -1076,6 +1085,11 @@
+@@ -1076,6 +1092,11 @@
    FEXCORE_PROFILE_SCOPED("InvalidateCodeBuffersCodeRange");
  
    LOGMAN_THROW_A_FMT(CodeInvalidationMutex.try_lock() == false, "CodeInvalidationMutex needs to be unique_locked here");
@@ -810,73 +859,76 @@ FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
    std::scoped_lock lk {CodeBufferListLock};
    auto it = CodeBufferList.begin();
    while (it != CodeBufferList.end()) {
---- a/FEXCore/Source/Interface/Context/Context.h
-+++ b/FEXCore/Source/Interface/Context/Context.h
-@@ -152,6 +152,7 @@
-   uint64_t GetGuestBlockEntry(FEXCore::Core::InternalThreadState* Thread) override;
- 
-   uint64_t RestoreRIPFromHostPC(FEXCore::Core::InternalThreadState* Thread, uint64_t HostPC) override;
-+  uint32_t GetBlockStackBytesFromHostPC(FEXCore::Core::InternalThreadState* Thread, uint64_t HostPC) override;
-   uint32_t ReconstructCompactedEFLAGS(FEXCore::Core::InternalThreadState* Thread, bool WasInJIT, const uint64_t* HostGPRs, uint64_t PSTATE) override;
-   void SetFlagsFromCompactedEFLAGS(FEXCore::Core::InternalThreadState* Thread, uint32_t EFLAGS) override;
- 
---- a/FEXCore/Source/Interface/Core/CPUBackend.h
-+++ b/FEXCore/Source/Interface/Core/CPUBackend.h
-@@ -92,6 +92,9 @@
-       // Shared-code modification spin-loop futex.
-       uint32_t SpinLockFutex;
- 
-+      // Host stack this block allocates for its spill slots.
-+      uint32_t SpillStackBytes;
-+
-       // If this block represents a single guest instruction.
-       bool SingleInst;
- 
---- a/FEXCore/Source/Interface/Core/Core.cpp
-+++ b/FEXCore/Source/Interface/Core/Core.cpp
-@@ -185,6 +185,15 @@
-   return Frame->State.rip;
- }
- 
-+uint32_t ContextImpl::GetBlockStackBytesFromHostPC(FEXCore::Core::InternalThreadState* Thread, uint64_t HostPC) {
-+  const uint64_t BlockBegin = Thread->CurrentFrame->State.InlineJITBlockHeader;
-+  auto [InlineHeader, InlineTail] = GetFrameBlockInfo(Thread->CurrentFrame);
-+  if (InlineHeader && HostPC >= BlockBegin && HostPC < BlockBegin + InlineTail->Size) {
-+    return InlineTail->SpillStackBytes;
-+  }
-+  return 0;
-+}
-+
- uint32_t ContextImpl::ReconstructCompactedEFLAGS(FEXCore::Core::InternalThreadState* Thread, bool WasInJIT, const uint64_t* HostGPRs,
-                                                  uint64_t PSTATE) {
-   const auto Frame = Thread->CurrentFrame;
-@@ -364,10 +373,8 @@
-   // Set up the SignalDelegator config since core is initialized.
-   SignalDelegation->SetConfig(Dispatcher->MakeSignalDelegatorConfig());
- 
--  if (Config.GdbServer) {
--    // If gdbserver is enabled then this needs to be enabled.
--    Config.NeedsPendingInterruptFaultCheck = true;
--  }
-+  // Guest signals that arrive outside a system call wait for these checks, where the guest state is exact.
-+  Config.NeedsPendingInterruptFaultCheck = true;
- 
-   if constexpr (BLOCK_DEBUGGING) {
-     // If the developer wants to do any single-stepping points or watch points.
 --- a/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp
 +++ b/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp
-@@ -250,6 +250,11 @@
+@@ -249,9 +249,18 @@
+   auto Op = IROp->C<IR::IROp_CondJump>();
  
    auto TrueTargetLabel = JumpTarget(Op->TrueBlock);
++
++  // A loop can close on a conditional branch and never reach another check, so a backward branch goes through one,
++  // only when taken. REP SCAS and REP CMPS branch inside the instruction: a guest restarted from a check on the path out
++  // would go on searching after a match, while on the way back round all the instruction's state is written and it can restart.
++  // Inverting the branch keeps the loop's path to one taken branch.
++  const bool Backward = TrueTargetLabel->Backward.Location != nullptr;
++  ARMEmitter::BiDirectionalLabel NotTaken;
++  auto BranchLabel = Backward ? &NotTaken : TrueTargetLabel;
  
-+  // A loop can close on a conditional branch and never reach another check.
-+  if (TrueTargetLabel->Backward.Location) {
+   if (Op->FromNZCV) {
+-    b_OrRestart(MapCC(Op->Cond), TrueTargetLabel);
++    const auto Condition = MapCC(Op->Cond);
++    b_OrRestart(Backward ? static_cast<ARMEmitter::Condition>(FEXCore::ToUnderlying(Condition) ^ 1) : Condition, BranchLabel);
+   } else {
+     uint64_t Const;
+     const bool isConst = IsInlineConstant(Op->Cmp2, &Const);
+@@ -264,21 +273,43 @@
+ 
+     if (Op->Cond == IR::CondClass::EQ) {
+       LOGMAN_THROW_A_FMT(Const == 0, "CondJump: Expected 0 source");
+-      cbz_OrRestart(Size, Reg, TrueTargetLabel);
++      if (Backward) {
++        cbnz_OrRestart(Size, Reg, BranchLabel);
++      } else {
++        cbz_OrRestart(Size, Reg, BranchLabel);
++      }
+     } else if (Op->Cond == IR::CondClass::NEQ) {
+       LOGMAN_THROW_A_FMT(Const == 0, "CondJump: Expected 0 source");
+-      cbnz_OrRestart(Size, Reg, TrueTargetLabel);
++      if (Backward) {
++        cbz_OrRestart(Size, Reg, BranchLabel);
++      } else {
++        cbnz_OrRestart(Size, Reg, BranchLabel);
++      }
+     } else if (Op->Cond == IR::CondClass::TSTZ) {
+       LOGMAN_THROW_A_FMT(Const < 64, "CondJump: Expected valid bit source");
+-      tbz_OrRestart(Reg, Const, TrueTargetLabel);
++      if (Backward) {
++        tbnz_OrRestart(Reg, Const, BranchLabel);
++      } else {
++        tbz_OrRestart(Reg, Const, BranchLabel);
++      }
+     } else if (Op->Cond == IR::CondClass::TSTNZ) {
+       LOGMAN_THROW_A_FMT(Const < 64, "CondJump: Expected valid bit source");
+-      tbnz_OrRestart(Reg, Const, TrueTargetLabel);
++      if (Backward) {
++        tbz_OrRestart(Reg, Const, BranchLabel);
++      } else {
++        tbnz_OrRestart(Reg, Const, BranchLabel);
++      }
+     } else {
+       LOGMAN_THROW_A_FMT(false, "CondJump expected simple condition");
+     }
+   }
+ 
++  if (Backward) {
 +    EmitSuspendInterruptCheck();
++    b_OrRestart(TrueTargetLabel);
++    BindOrRestart(&NotTaken);
 +  }
 +
-   if (Op->FromNZCV) {
-     b_OrRestart(MapCC(Op->Cond), TrueTargetLabel);
-   } else {
+   PendingTargetLabel = JumpTarget(Op->FalseBlock);
+ }
+ 
 --- a/FEXCore/Source/Interface/Core/JIT/JIT.cpp
 +++ b/FEXCore/Source/Interface/Core/JIT/JIT.cpp
 @@ -1081,6 +1081,7 @@

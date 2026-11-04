@@ -460,6 +460,8 @@ try:
     # A large mapping must not be refused for being larger than the memory plugged in so far.
     r = dmx("exec", "--", "cat", "/proc/sys/vm/overcommit_memory")
     check("overcommit_ignores_plugged_memory", r.stdout.strip() == b"1", repr(r.stdout[:20]))
+    r = dmx("exec", "--", "cat", "/proc/sys/vm/max_map_count")
+    check("max_map_count_as_linuxkit", r.stdout.strip() == b"262144", repr(r.stdout[:20]))
     # Some networks never answer AAAA queries. A record registered as shared (so multicast DNS
     # sends no "no such record" for its other types) has an A answer and an AAAA query that hangs,
     # with no network setting changed. The AAAA must end soon after the A, without a failure: musl

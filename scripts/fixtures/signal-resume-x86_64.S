@@ -25,7 +25,7 @@ _start:
     movabs $0x0123456789abcdef, %r12
     xor %r13d, %r13d
     xor %r14d, %r14d
-    mov $300, %r11d
+    mov $30, %r11d
 outer:
     mov $20000, %ecx
 inner:
@@ -45,6 +45,21 @@ inner:
     adc $0, %r13
     lea 1(%r14), %r14
     xchg %rax, %rdx
+    /* A string search ends at its first match, whenever the program is moved. */
+    mov %rcx, %r9
+    mov %rdi, %r10
+    lea haystack(%rip), %rdi
+    mov $200, %ecx
+    mov $0x41, %al
+    repne scasb
+    jne fail
+    cmp $149, %rcx
+    jne fail
+    lea haystack+51(%rip), %rax
+    cmp %rax, %rdi
+    jne fail
+    mov %r9, %rcx
+    mov %r10, %rdi
     /* LOOP counts down in the instruction that branches, so rerunning it would count twice. */
     loop inner
     dec %r11d
@@ -55,7 +70,7 @@ inner:
     xor %edx, %edx
     mov $8, %r10d
     syscall
-    mov $6000000, %eax
+    mov $600000, %eax
     cmp %rax, %r13
     jne fail
     cmp %rax, %r14
@@ -156,6 +171,10 @@ fail:
 .align 8
 moved:
     .quad 0
+haystack:
+    .fill 50, 1, 0x42
+    .byte 0x41
+    .fill 149, 1, 0x42
 block_mask:
     .quad 8192
 action:
