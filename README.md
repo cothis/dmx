@@ -46,7 +46,7 @@ slower than Colima's because dmx keeps write ordering on the data disk across a 
 Requires macOS 15 or later on Apple Silicon. Intel Macs are not supported.
 
 ```sh
-curl -fsSL https://github.com/cothis/dmx/releases/download/v0.4.1/install.sh | sh
+curl -fsSL https://github.com/cothis/dmx/releases/download/v0.4.2/install.sh | sh
 dmx install                      # launchd starts dmx on demand; installs docker, compose, buildx
                                  # and selects the docker context "dmx"
 docker run --rm hello-world      # the first run downloads the Linux guest (~62 MB, sha256-checked)
@@ -208,7 +208,13 @@ BuildKit in the VM, as on Docker Desktop. Certificates handed out as a file go i
 `~/.dmx/ca-certificates.pem`. Both apply at the VM's next start.
 
 **DNS** in the VM goes through macOS's resolver, so names only a VPN's DNS servers know (split
-DNS) and `.local` names resolve in containers as they do on the Mac.
+DNS) resolve in containers as they do on the Mac. A network that never answers IPv6 (AAAA) queries
+does not break names that have an IPv4 address.
+
+**Local network.** macOS asks once for permission to reach the local network (Privacy & Security >
+Local Network). Without it, containers cannot reach LAN addresses and `.local` names may not resolve;
+images, the public internet and the Mac itself work regardless. `dmx doctor` and
+`dmx status` say when it is blocked while the VM runs.
 
 **Known gaps:** PAC proxy configuration, shared-file ACLs, and connecting to arbitrary Mac Unix
 sockets from containers. IPv6 is implemented in the VM network and published ports; external

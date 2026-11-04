@@ -62,6 +62,7 @@ dmx.app (AppKit) ── short-lived control calls; passive run/engine.json + pro
 | Drop dmx's own mappings of guest RAM after device traffic (2026-10-24) | macOS charges a page to `ri_phys_footprint` once per mapping; guest RAM is mapped by dmx and by stage 2, so pages a device filled counted twice (1 GB read = +2 GB). Remapping dmx's view onto itself (`mach_vm_remap` overwrite) after traffic leaves one mapping; devices fault pages back in. |
 | Transparent huge pages off in the guest (2026-10-24) | With 16K pages a huge page is 32 MB. `madvise` (2026-10-23) still let qemu's 128 MB code buffer take 32 MB per x86 process (`sleep` 38 MB RSS, 5.4 MB without); nothing in dmx needs huge pages. Replaces the `madvise` choice. |
 | Guest network is a user space NAT inside dmx, not vmnet (2026-10-24) | vmnet needs root or `com.apple.vm.networking`, which Apple grants on request (verified: an ad-hoc process gets VMNET_FAILURE, the entitlement gets it killed). Guest flows map onto host sockets like passt: no TCP stack, no second process, bounded buffers, and traffic is dmx's own so VPNs and firewalls apply. Costs: IPv4 only, no ICMP errors; inbound goes through vsock port forwarding. |
+| The engine asks for macOS's local network permission when the VM starts (2026-11-04) | A launchd-started process has no terminal to inherit it from, and Apple offers no way around the prompt. Asking at VM start means the answer holds before the first real connection; waiting for a container to need the LAN made that connection fail with nothing saying why. The usage description gives the reason, and `dmx status`, `dmx doctor` and the log report the state. Blocked is not a doctor failure: images, the public internet and the Mac itself work, and the owner may have said no on purpose. |
 | Guest IPv6 is a unique local prefix behind dmx's NAT (2026-10-25) | The guest cannot have the Mac's own prefix without a bridge (vmnet, which needs root). With fd64:646d:7800::/64 the guest's resolvers keep IPv4 first for names with both families (RFC 6724 label matching), so IPv6 adds IPv6-only destinations without making anything that works over IPv4 depend on the Mac's IPv6. AAAA records the Mac cannot route to are left out, as Docker Desktop does on a Mac without IPv6. |
 | An unanswered AAAA does not fail a name that has an A record (2026-11-04) | Some networks never answer AAAA queries. macOS apps do not notice, but musl fails a whole lookup when either family's query fails, so a static uv in a container could not resolve `pypi.org`. Once a name's A lookup has found an address, its AAAA lookup waits 300 ms more and then reports no records. RFC 8305 waits for AAAA after A in the same way (50 ms). The guest prefers IPv4 for names with both families, so a late AAAA costs it nothing. Without an A answer nothing changes: SERVFAIL after 5 s, which the client may retry. |
 | No host file I/O directly on guest RAM (2026-10-26) | Direct I/O (`F_NOCACHE`) between the disk image and guest pages corrupted guest memory while macOS was short of memory: zeroed page tables, stacks and lists crashed the guest kernel, and files were lost (18 of 28 fsck boots under swap, 0 of 36 after). macOS presumably moves or copies a page under a direct transfer, and the guest's stage-2 mapping then sees another page than the one it wrote once the page is compressed and comes back. virtio-blk copies through a buffer of its own (reads got faster: 0.9 → 1.8 GB/s for 1 MB reads); virtio-fs no longer passes the guest's O_DIRECT on as `F_NOCACHE`. `make pressuretest` reproduces the old bug. |
@@ -572,13 +573,14 @@ separate from Core/VM tests and the completed public distribution checks.
 
 ## Next up
 
-**Unreleased on `main` (2026-11-04):** the AAAA fix below. A Mac on a network that does not answer
-AAAA gets it only with a new release, which is the maintainer's decision.
+**Next, first: amd64 crashes under FEX when the Mac is busy** (see Findings). Present in published
+0.4.1, not caused by 0.4.2, cause unknown. Start with the crash's own record, per the 2026-10-27
+lesson, and with `x86_emulator qemu` as a control; `test-images.py --image postgres --platform
+linux/amd64 --repeat 25` reproduces it on a loaded Mac, and a quiet one barely does.
 
-**Open defect, not fixed: the installed app cannot reach the local network until macOS grants it.**
-Measured on 0.4.1 (see Findings). `Info.plist` has no `NSLocalNetworkUsageDescription`, nothing
-in dmx reports the state, daemontest only exercises a standalone binary, and README's claim that
-`.local` names resolve in containers does not hold for the app install. Waiting on the maintainer.
+**Also open:** nobody has answered macOS's prompt for the signed app, so the allowed state of a
+launchd engine and `.local` after allowing are unmeasured. Once the owner has, run `make localnettest`
+on a real install. The AAAA fix has not run on the network that showed the failure.
 
 **`.build/storage-review/qualified-v0.4.1` no longer exists.** `.build` was already absent on
 2026-11-03 before any build that day (`git check-ignore .build` failed, which it does only when the
@@ -773,22 +775,64 @@ resolvers answer AAAA. The fix has not yet run on the affected network.
 
 A cause ruled out on the way: file descriptors stayed at 32 through those builds.
 
-### Local network privacy blocks the app-installed engine (2026-11-03, open)
+### amd64 crashes under FEX on a busy Mac (2026-11-04, open)
 
-macOS attributes the CLI and daemon inside `dmx.app` to `io.github.cothis.dmx.menu`; mDNSResponder logs
-`Local network access to query policy 'pending'` and the system logs `Local network preference not
-yet set, prompting for dmx`. Same 0.4.1 source, policy undecided on the test Mac:
+The 0.4.2 image matrix failed once: `postgres` on `linux/amd64` exited 139 about 0.3 s after starting,
+with no output. Looping that image, 25 at a time, candidate always first, while other work on the Mac
+pushed the load from 4 to 149:
 
-| From the guest | App binary | Standalone build | The Mac itself |
-|---|---|---|---|
-| The Mac's own `.local` name | SERVFAIL after 5 s | ok | ok |
-| `pypi.org` through a LAN DNS server directly | timeout | ok | ok |
-| TCP to a LAN host | fails | ok | ok |
-| Public names through the gateway | ok | ok | ok |
+| Round (candidate first) | 0.4.2 | 0.4.1 |
+|---|---|---|
+| 1 (load up to 149, then 40) | 9/25 | 7/25 |
+| 2 (20, then 9) | 10/25 | 4/25 |
+| 3 (8, then 4) | 6/25 | 1/25 |
 
-launchd is not the cause: the app binary started from a shell behaves the same. Not measured: other
-versions, what happens after the prompt is answered, and a Mac whose first DNS server is on the LAN
-(DNS over TCP goes straight to that server, so it should fail the same way).
+Candidate 25/75 against 12/75 looked like a regression, with load falling through each pair. So the
+order was reversed, in short blocks of 15 at a load of 3 to 6, published version first:
+
+| Round (published first) | 0.4.1 | 0.4.2 |
+|---|---|---|
+| 1-2 | 0/30 | 0/30 |
+| 3 | 2/15 | 0/15 |
+| 4 | 3/15 | 0/15 |
+| `linux/arm64` control | 0/15 | 0/15 |
+
+Not a regression: same guest and emulator bytes (`ade3c89d...`), and the difference followed the order.
+Of the 37 crashes in the first set: 30 exit 139, 18 of them with no output at all; 6 exit 2, among them
+Go's `all goroutines are asleep` from a recursive `internal/godebug.update` during `gosu`'s
+start-up; and one exit 1, `mkdir: can't create directory ''`. That reads as x86 code or data going
+wrong under FEX, not as Postgres. `dmesg` reported nothing. Java's 100/100 in the same qualification
+came while the load was also about 10, so this is not simply load. The cause is unknown; a single
+matrix run passes most of the time, which is why earlier releases show 24/24.
+
+### Local network privacy under launchd (2026-11-03 to 11-04)
+
+A launchd-started process has no app to inherit macOS's permission from. A shell-started one inherits
+the terminal's, which is why daemontest never saw this. Measured with a small probe, undecided state,
+on the same Mac and network:
+
+| Process | Multicast and LAN UDP `send` | LAN TCP `connect` | Own `.local` through mDNSResponder | Public UDP |
+|---|---|---|---|---|
+| launchd, inside a bundle | EPIPE | EHOSTUNREACH at once | no answer | ok |
+| launchd, no bundle | EPIPE | EHOSTUNREACH at once | answered | ok |
+| shell, inside a bundle | ok | connects | no answer | ok |
+| shell, no bundle | ok | connects | answered | ok |
+
+So this is not a v0.4.0 regression for LAN addresses: a launchd-started binary is blocked with or
+without a bundle (older releases were not run). The bundle adds the `.local` gate, and an earlier entry
+here that called launchd irrelevant had measured only `.local`. On the installed 0.4.1 the permission
+stayed pending overnight with the prompt raised, and nothing told the user why LAN access failed.
+macOS shows the prompt ("Showing local network alert ... even though not in the foreground").
+
+The first run of a newly signed build answered `.local` with its sockets blocked, later runs did not,
+so a blocked report does not promise that a `.local` lookup fails. The probe sees sockets only; a
+shell-started daemon inside the bundle reports `allowed` while mDNSResponder still holds its `.local`
+queries, and the doctor text says so. `make localnettest` holds in either state: the report against a
+real TCP connection from the guest, under a real launchd job.
+
+Not measured: the allowed state of a launchd engine, what happens the moment the prompt is answered,
+denial, older releases, and a Mac whose first DNS server is on the LAN (DNS over TCP goes straight to
+that server, so it should fail the same way). Answering macOS's prompt takes the Mac's owner.
 
 ### Storage preflight (2026-10-30)
 
@@ -1209,6 +1253,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-04: Local network permission made visible: usage description, a probe in the daemon at VM start and on status while running, `dmx status`, `dmx doctor` and the log; `make localnettest` checks it under a real launchd job, in either state. Three review rounds by Opus 5.5 and two by Codex; the last Opus round approved. Qualification: formal, x86, Docker, sandbox and Java 100/100 passed on the source before the final doctor and test-script changes; unit 101, selftest 23, daemon 59, MCP 33, menu 25, app, storage 64 and localnet 13 on the final source. Image matrix 23/24: amd64 postgres crashed under FEX, explained as present in 0.4.1 with the same bytes and recorded as open, not fixed. For 0.4.2.
 - 2026-11-04: Fixed name lookups on networks that do not answer AAAA: once a name has an A answer its AAAA ends after 300 ms as an empty NOERROR, so musl clients such as uv no longer fail with `Try again`. Reproduced first on a real VM with a multicast record whose AAAA never answers; daemontest gained `dns_aaaa_unanswered`, which fails on the old code (58/59, then 59/59), unit 100, selftest 23/23 with memory unchanged. Recorded, not fixed: the app-installed engine cannot reach the local network until macOS grants it. Not released.
 - 2026-10-30: Resumed authorized artifact cleanup and log growth hardening. Removed 4.394 GiB
   of regenerable outputs, added bounded diagnostic streams/default container rotation and

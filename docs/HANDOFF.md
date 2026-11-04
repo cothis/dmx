@@ -1,3 +1,15 @@
+# v0.4.2 AAAA·로컬 네트워크 수정 — 2026-11-04
+
+AAAA에 응답하지 않는 네트워크에서 musl 클라이언트(uv)가 `Try again`으로 실패하던 문제를 고쳤어요.
+launchd로 뜬 엔진의 로컬 네트워크 차단은 알림 설명과 `dmx status`·`doctor`·로그로 드러나요.
+측정과 판단은 [PLAN.md](PLAN.md)의 Findings에 있어요.
+
+다음 1순위는 amd64 이미지가 FEX에서 부하 시 간헐적으로 크래시하는 문제예요. 공개 0.4.1에도 있고 원인은
+아직 몰라요. 서명된 앱의 권한 허용 상태와 문제가 났던 회사망에서의 AAAA 수정은 아직 검증하지 못했어요.
+아래 v0.4.1이 보존했다고 적은 `.build/storage-review/qualified-v0.4.1`은 이제 없어요.
+
+---
+
 # v0.4.1 로그 보완·Opus 검수·공개 배포 완료 — 2026-10-30
 
 [공개 v0.4.1](https://github.com/cothis/dmx/releases/tag/v0.4.1)은 `241aaae` 태그 소스예요.

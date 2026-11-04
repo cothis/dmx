@@ -71,8 +71,20 @@ struct Doctor: AsyncParsableCommand {
                 daemonError = error
             }
             defer { client?.close() }
+            // Only the daemon can say: this process may have inherited a terminal's permission.
+            // Failure hints send people here, so a daemon that stopped answering must not hang it.
+            var localNetwork: LocalNetworkAccess?
+            do {
+                localNetwork = try await client?.status(timeout: .seconds(5)).localNetwork
+            } catch let error as DMXError where error.code == "daemon_timeout" {
+                let hello = client?.hello
+                daemonError = DMXError("daemon_timeout", "dmx \(hello?.version ?? "?") (pid \(hello?.pid ?? 0)) answered its greeting but not status within 5 s",
+                                       hint: "see \(paths.daemonLog.path), or end it with `kill \(hello?.pid ?? 0)`")
+            } catch {
+                // Advisory: the daemon left between the two calls, or sent what this dmx cannot read.
+            }
             let result = runDoctor(paths: paths, daemon: client.map { ($0.hello.version, $0.hello.pid) },
-                                   daemonError: daemonError)
+                                   daemonError: daemonError, localNetwork: localNetwork)
             let text = result.checks.map { check in
                 var line = "\(check.ok ? "ok  " : "FAIL") \(check.name): \(check.detail)"
                 if let hint = check.hint { line += "\n     hint: \(hint)" }

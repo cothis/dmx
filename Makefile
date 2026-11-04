@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build app install-app apptest menutest install kernel qemu fex guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest javatest storagetest pressuretest benchmark test formaltest release clean
+.PHONY: build app install-app apptest localnettest menutest install kernel qemu fex guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest javatest storagetest pressuretest benchmark test formaltest release clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -20,6 +20,11 @@ install-app: build
 apptest: app
 	DMX_APP_TEST_BUNDLE="$(abspath .build/dmx.app)" swift test --filter AppInstallationTests
 	python3 -I scripts/test-app-install.py $(BIN) .build/dmx.app
+
+# A launchd-started engine inside the app: what it reports about macOS's local network permission
+# against what a container gets. Holds in either state; may raise macOS's prompt for this app.
+localnettest: app
+	python3 -I scripts/test-local-network.py .build/dmx.app
 
 # Copies dmx to $(PREFIX)/bin (default ~/.local/bin, no sudo). If the launchd agent is installed,
 # points it at the new copy. The guest stays in ~/.dmx/guest (`make guest`).

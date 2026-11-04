@@ -68,7 +68,9 @@ the VM), `socket`, `console_log`, `memory` (below), and `disk` (the data disk `~
 `path`, `size_mb` as the guest sees it, `allocated_mb` it takes on the host; null before the first
 boot). Optional `log_warnings` lists diagnostic sinks disabled at startup; engine operations
 continue. The next VM boot retries disabled sinks and clears resolved warnings after the user
-repairs the log path/free space. `console_log` is bounded history with boot markers; `.1`/`.2`
+repairs the log path/free space. `local_network` (`allowed`, `blocked`, `unknown`; absent while the VM
+is not running and from older daemons) is whether macOS lets this daemon's sockets reach the local network, asked of the kernel on each
+call. It does not cover `.local` names, which mDNSResponder decides separately. `console_log` is bounded history with boot markers; `.1`/`.2`
 are size rotations, not previous-boot files. See [Docker storage and logging](docker.md). `dmx status` prints `state: not_running` when no daemon answers.
 
 `memory` fields: `host_pressure` (`normal`, `warning`, `critical`: macOS's level, as the controller

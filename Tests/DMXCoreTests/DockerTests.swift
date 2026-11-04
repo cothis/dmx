@@ -283,6 +283,35 @@ import Testing
         #expect(query("example.com", type: 1).withUnsafeBytes { LocalDNS.answer($0) } == nil)
     }
 
+    @Test func localNetworkAccessReadsTheSocketErrors() {
+        #expect(LocalNetworkAccess.classify(connectError: 0, sendError: 0) == .allowed)
+        #expect(LocalNetworkAccess.classify(connectError: 0, sendError: EPIPE) == .blocked)
+        // No route is not the permission, and neither is anything else.
+        #expect(LocalNetworkAccess.classify(connectError: ENETUNREACH, sendError: 0) == .unknown)
+        #expect(LocalNetworkAccess.classify(connectError: EHOSTUNREACH, sendError: 0) == .unknown)
+        #expect(LocalNetworkAccess.classify(connectError: 0, sendError: ENOBUFS) == .unknown)
+
+        #expect(localNetworkCheck(nil) == nil)
+        #expect(localNetworkCheck(.allowed)?.hint == nil)
+        // Blocked names what to do but is not a failure: the engine works.
+        let blocked = localNetworkCheck(.blocked)
+        #expect(blocked?.ok == true && blocked?.hint?.contains("Local Network") == true)
+
+        // The field survives the socket, and an older daemon that lacks it still decodes.
+        var status = DaemonStatus.notRunning(Paths(environment: ["DMX_HOME": "/tmp/dmx-unused"]), config: Config())
+        status.localNetwork = .blocked
+        let encoder = JSONEncoder(), decoder = JSONDecoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let data = try! encoder.encode(status)
+        #expect(String(decoding: data, as: UTF8.self).contains("\"local_network\":\"blocked\""))
+        #expect(try! decoder.decode(DaemonStatus.self, from: data).localNetwork == .blocked)
+        // A state a newer daemon adds does not make the status unreadable.
+        #expect(try! decoder.decode(LocalNetworkAccess.self, from: Data("\"later\"".utf8)) == .unknown)
+        status.localNetwork = nil
+        #expect(try! decoder.decode(DaemonStatus.self, from: encoder.encode(status)).localNetwork == nil)
+    }
+
     @Test func unansweredAAAAIsEmptyOnceTheNameHasAnAddress() throws {
         let question = try #require(query("Pypi.org", type: 28).withUnsafeBytes { HostDNS.Question($0) })
         #expect(question.isAAAA && !question.isA && question.key == "pypi.org.")
@@ -334,6 +363,13 @@ import Testing
         #expect(!recent.contains("example.org.", now: start))
         for i in 0..<(HostDNS.RecentAddresses.capacity * 3) { recent.note("n\(i).", now: start + .seconds(i % 2)) }
         #expect(recent.count <= HostDNS.RecentAddresses.capacity)
+        // Full of live names: a repeat answer evicts nothing, and a new name evicts only the oldest.
+        var full = HostDNS.RecentAddresses()
+        for i in 0..<HostDNS.RecentAddresses.capacity { full.note("n\(i).", now: start + .milliseconds(i)) }
+        full.note("n5.", now: start + .seconds(1))
+        #expect(full.count == HostDNS.RecentAddresses.capacity && full.contains("n0.", now: start + .seconds(1)))
+        full.note("new.", now: start + .seconds(1))
+        #expect(full.contains("new.", now: start + .seconds(1)) && !full.contains("n0.", now: start + .seconds(1)) && full.contains("n1.", now: start + .seconds(1)))
     }
 
     @Test func hostResolverReplies() throws {

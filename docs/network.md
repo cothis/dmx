@@ -53,6 +53,17 @@ the agent):
 | 192.168.127.254, fd64:646d:7800::254 | the host: connections go to the host's 127.0.0.1 and ::1 (`host.dmx.internal` and `host.docker.internal` in the guest's /etc/hosts, IPv4 only) |
 | anything else | the outside world, through host sockets |
 
+macOS's local network privacy applies to the daemon when launchd started it (`dmx install`), which
+has no terminal to inherit the permission from. Until the owner allows it, sockets to LAN and multicast
+addresses fail (TCP `connect` with EHOSTUNREACH, UDP `send` with EPIPE) and mDNSResponder may leave
+`.local` queries from dmx.app unanswered; the gateway then gives SERVFAIL after 5 s. Public addresses
+and the Mac itself are not affected. The daemon probes at VM start, which is what raises macOS's
+prompt with the reason from `NSLocalNetworkUsageDescription`, logs when blocked, and reports the
+state in `dmx status` and `dmx doctor` (`LocalNetworkAccess.swift`, `make localnettest`).
+
+An AAAA query the Mac's resolver does not answer stops failing once the name's A lookup has found an
+address: 300 ms later it ends as an empty NOERROR. musl clients otherwise fail the whole lookup.
+
 - **ARP**: answered for .1 and .254 with the gateway's MAC.
 - **IPv6**: the prefix is unique local (fd64:646d:7800::/64), so the guest's resolvers sort by
   RFC 6724 as they would behind any NAT66: a name with both A and AAAA records is reached over

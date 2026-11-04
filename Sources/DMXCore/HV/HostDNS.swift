@@ -84,9 +84,11 @@ final class HostDNS {
         static let capacity = HostDNS.maxPending
 
         mutating func note(_ key: String, now: ContinuousClock.Instant) {
-            if found.count >= Self.capacity {
+            if found[key] == nil, found.count >= Self.capacity {
                 found = found.filter { now - $0.value < Self.horizon }
-                if found.count >= Self.capacity { found.removeAll() }
+                if found.count >= Self.capacity, let oldest = found.min(by: { $0.value < $1.value })?.key {
+                    found[oldest] = nil
+                }
             }
             found[key] = now
         }

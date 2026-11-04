@@ -63,6 +63,9 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-11-04: Comparing two builds, alternate them in short blocks and swap which goes first. A loop
+  that always ran the candidate first made it look twice as crash-prone (25/75 vs 12/75) while other
+  work's load fell; swapped, at a steady load, the same builds gave 0/60 and 5/60.
 - 2026-11-04: "It works here" says little when the failure depends on the network. A diagnostic the
   affected Mac could run settled what no test here could, and a real client on the failing path matters:
   `pip` and `getaddrinfo` on glibc hid a failure that musl turns fatal. Compare clients on that path.

@@ -473,7 +473,8 @@ try:
         started = time.time()
         r = dmx("exec", "--", "nslookup", name, "192.168.127.1")
         results["dns_aaaa_unanswered_ms"] = int((time.time() - started) * 1000)
-        check("dns_aaaa_unanswered", error == 0 and r.returncode == 0 and b"Address: 192.168.127.254" in r.stdout and results["dns_aaaa_unanswered_ms"] < 3000,
+        check("dns_aaaa_unanswered", error == 0 and r.returncode == 0 and b"Address: 192.168.127.254" in r.stdout and results["dns_aaaa_unanswered_ms"] < 3000
+              and b"timed out" not in r.stdout + r.stderr,  # how busybox nslookup reports SERVFAIL
               f"{results['dns_aaaa_unanswered_ms']} ms, error {error}, {r.stdout[-200:] + r.stderr[-200:]!r}")
         dnssd.DNSServiceRefDeallocate(dnssd_ref)
     else:

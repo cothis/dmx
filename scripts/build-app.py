@@ -50,6 +50,7 @@ def main():
             "LSUIElement": True,
             "LSApplicationCategoryType": "public.app-category.developer-tools",
             "NSHighResolutionCapable": True,
+            "NSLocalNetworkUsageDescription": "Containers use this to reach devices and .local names on your network. Images and the public internet work without it.",
             "NSPrincipalClass": "NSApplication",
         }
         (contents / "Info.plist").write_bytes(plistlib.dumps(info))

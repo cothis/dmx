@@ -7,7 +7,7 @@ maintainer's Mac by `make release`; nothing is uploaded by a script.
 ## What a user gets
 
 ```sh
-curl -fsSL https://github.com/cothis/dmx/releases/download/v0.4.1/install.sh | sh
+curl -fsSL https://github.com/cothis/dmx/releases/download/v0.4.2/install.sh | sh
 dmx install            # optional: launchd and the docker context
 dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks it
 ```
@@ -69,8 +69,11 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
    make build && make formaltest && make selftest
    make daemontest && make mcptest && make x86test && make dockertest
    make sandboxtest && make imagetest
-   make javatest && make menutest && make apptest && make storagetest
+   make javatest && make menutest && make apptest && make storagetest && make localnettest
    ```
+
+   `localnettest` compares against a real LAN only with a default route through `en*`: for a
+   release its output must say `"lan": true` and `"compared": true`.
 
 4. Write what changed since the last release in `docs/release-notes/<version>.md`, starting with
    a `## Changes since <previous>` heading. `make release` folds it into NOTES.md and refuses to

@@ -254,7 +254,7 @@ public final class Daemon {
             guestUsedMb: used, hostFootprintMb: host?.footprintMb, hostPeakFootprintMb: host?.peakFootprintMb,
             clients: others, execs: execs, containers: docker.containers, idleTimeoutS: idleTimeout, idleStopInS: idleStopIn,
             socket: paths.controlSocket.path, consoleLog: paths.consoleLog.path,
-            memory: memory.status(guest: guest), disk: DataDisk.usage(paths.dataDisk), dockerSocket: paths.dockerSocket.path, logWarnings: diagnosticLogs.warnings.isEmpty ? nil : diagnosticLogs.warnings)
+            memory: memory.status(guest: guest), disk: DataDisk.usage(paths.dataDisk), dockerSocket: paths.dockerSocket.path, logWarnings: diagnosticLogs.warnings.isEmpty ? nil : diagnosticLogs.warnings, localNetwork: state == .running ? LocalNetworkAccess.probe() : nil)
     }
 
     // MARK: VM lifecycle
@@ -323,6 +323,7 @@ public final class Daemon {
                 state = .running
                 idleSince = .now
                 log("VM up in \(milliseconds(ContinuousClock.now - started)) ms (\(spec.cpus) cpus, \(formatSize(machine.spec.maxMemory)) max)")
+                if LocalNetworkAccess.probe() == .blocked { log("local network: \(LocalNetworkAccess.blockedDetail); \(LocalNetworkAccess.blockedHint)") }
                 watch(machine)
                 memory.attach(machine: machine, agent: agent)
                 scheduleIdleCheck()

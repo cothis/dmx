@@ -18,7 +18,7 @@ public struct DoctorReport: Encodable, Sendable {
 /// `daemon` is the version and pid of a daemon that answers, which only an async caller can ask
 /// for: after an update the old daemon keeps serving, and that is worth saying here too.
 public func runDoctor(paths: Paths, daemon: (version: String, pid: Int32)? = nil,
-                      daemonError: DMXError? = nil) -> DoctorReport {
+                      daemonError: DMXError? = nil, localNetwork: LocalNetworkAccess? = nil) -> DoctorReport {
     var checks: [Check] = []
     let info = ProcessInfo.processInfo
 
@@ -56,7 +56,20 @@ public func runDoctor(paths: Paths, daemon: (version: String, pid: Int32)? = nil
         ))
     }
 
+    if let check = localNetworkCheck(localNetwork) { checks.append(check) }
+
     return DoctorReport(ok: checks.allSatisfy(\.ok), home: paths.home.path, checks: checks)
+}
+
+/// What the running VM's network may reach, nil while no VM can say. Not a failure when blocked:
+/// images, the public internet and the Mac itself all work, and the owner may have said no on purpose.
+func localNetworkCheck(_ access: LocalNetworkAccess?) -> Check? {
+    switch access {
+    case nil: return nil
+    case .allowed: return Check(name: "local_network", ok: true, detail: LocalNetworkAccess.allowedDetail, hint: nil)
+    case .unknown: return Check(name: "local_network", ok: true, detail: "could not be determined: no usable local network, or the check itself failed", hint: nil)
+    case .blocked: return Check(name: "local_network", ok: true, detail: LocalNetworkAccess.blockedDetail, hint: LocalNetworkAccess.blockedHint)
+    }
 }
 
 /// Where the guest came from, whether it is intact, and whether the next boot downloads one.

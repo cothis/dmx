@@ -55,6 +55,10 @@ public struct DaemonStatus: Codable, Sendable {
     /// Startup diagnostic sinks that are disabled; VM operations continue normally.
     public var logWarnings: [String]? = nil
 
+    /// Whether macOS lets the VM's network reach the local network; nil while the VM is not running,
+    /// so asking about a stopped engine does not raise macOS's prompt.
+    public var localNetwork: LocalNetworkAccess? = nil
+
     public static func notRunning(_ paths: Paths, config: Config) -> DaemonStatus {
         DaemonStatus(state: "not_running", pid: nil, version: nil, launchd: nil, uptimeS: nil, cpus: nil,
                      maxMemory: nil, guestUsedMb: nil, hostFootprintMb: nil, hostPeakFootprintMb: nil,

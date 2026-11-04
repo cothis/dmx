@@ -74,7 +74,7 @@ public final class DaemonClient: Sendable {
         }
     }
 
-    public func status() async throws -> DaemonStatus { try await call("status") }
+    public func status(timeout: Duration? = nil) async throws -> DaemonStatus { try await call("status", timeout: timeout) }
     /// Boots the VM if it is not running and returns once the guest agent answers.
     public func start(timeout: Duration? = nil) async throws -> DaemonStatus { try await call("start", timeout: timeout) }
     /// First boot includes a potentially slow guest download. Quit cancels this owned
