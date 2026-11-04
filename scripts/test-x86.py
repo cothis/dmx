@@ -252,6 +252,25 @@ def suite(emulator):
     r = sh(f"cat >{DIR}/signal-frame && chmod +x {DIR}/signal-frame && "
            f"for i in 1 2 3; do {DIR}/signal-frame || exit; done", stdin=fixtures["signal-frame"], timeout=30)
     check_("signal_frame_integrity", r.returncode == 0 and r.stdout == b"signal-frames-ok\n" * 3, out(r))
+    # Go's asynchronous preemption: a handler pushes the interrupted RIP on the interrupted stack and
+    # resumes elsewhere, so what it reads must be an exact state between two instructions.
+    r = sh(f"cat >{DIR}/signal-resume && chmod +x {DIR}/signal-resume && "
+           f"for i in 1 2 3; do timeout -s KILL 30 {DIR}/signal-resume || exit; done", stdin=fixtures["signal-resume"], timeout=120)
+    check_("signal_moves_program", r.returncode == 0 and r.stdout == b"signal-resume-ok\n" * 3, out(r))
+    # Signals around blocking system calls: none may stay masked across the call, each one that
+    # arrives during a call is taken, and none may run a handler during the exit.
+    r = sh(f"cat >{DIR}/signal-syscall && chmod +x {DIR}/signal-syscall && "
+           f"for i in 1 2 3; do timeout -s KILL 30 {DIR}/signal-syscall || exit; done", stdin=fixtures["signal-syscall"], timeout=120)
+    check_("signal_blocking_syscall", r.returncode == 0 and r.stdout == b"signal-syscall-ok\n" * 3, out(r))
+    # Faults while a signal waits, and a handler that abandons a blocking read: the mask and the
+    # registers stay as a real kernel leaves them.
+    r = sh(f"cat >{DIR}/signal-mask && chmod +x {DIR}/signal-mask && "
+           f"for i in 1 2 3; do timeout -s KILL 60 {DIR}/signal-mask || exit; done", stdin=fixtures["signal-mask"], timeout=200)
+    check_("signal_mask_preserved", r.returncode == 0 and r.stdout == b"signal-mask-ok\n" * 3, out(r))
+    # A vfork child that forks and exits, as busybox's timeout does to leave a watcher behind: the
+    # parent goes on when the child exits, not when the watcher does.
+    r = sh(f"s=$(date +%s); {DIR}/busybox timeout 20 {DIR}/busybox true; rc=$?; echo $rc $(($(date +%s)-s))", timeout=40)
+    check_("vfork_grandchild", r.returncode == 0 and r.stdout.split()[:1] == [b"0"] and int(r.stdout.split()[1]) < 10, out(r))
     # HotSpot rewrites a method entry with one aligned eight-byte store while other threads run
     # it: the decoder must not take the opcode from one version and the operand from the other.
     r = sh(f"cat >{DIR}/entry-patch && chmod +x {DIR}/entry-patch && "
@@ -436,7 +455,7 @@ try:
     with tarfile.open(guest.fetch("i386-busybox-static", cache32), "r:gz", ignore_zeros=True) as tar:
         busybox32 = tar.extractfile("bin/busybox.static").read()
     rootfs32 = guest.fetch("i386-minirootfs", cache32).read_bytes()
-    fixtures = {name: fixture(name) for name in ("signal-frame", "entry-patch", "code-stale")}
+    fixtures = {name: fixture(name) for name in ("signal-frame", "signal-resume", "signal-syscall", "signal-mask", "entry-patch", "code-stale")}
 
     dmx("config", "set", "shares", "none")
     for emulator in EMULATORS:

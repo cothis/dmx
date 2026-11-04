@@ -810,6 +810,543 @@ FEX_PATCH = r"""--- a/FEXCore/Source/Utils/FileUtils.cpp
    std::scoped_lock lk {CodeBufferListLock};
    auto it = CodeBufferList.begin();
    while (it != CodeBufferList.end()) {
+--- a/FEXCore/Source/Interface/Context/Context.h
++++ b/FEXCore/Source/Interface/Context/Context.h
+@@ -152,6 +152,7 @@
+   uint64_t GetGuestBlockEntry(FEXCore::Core::InternalThreadState* Thread) override;
+ 
+   uint64_t RestoreRIPFromHostPC(FEXCore::Core::InternalThreadState* Thread, uint64_t HostPC) override;
++  uint32_t GetBlockStackBytesFromHostPC(FEXCore::Core::InternalThreadState* Thread, uint64_t HostPC) override;
+   uint32_t ReconstructCompactedEFLAGS(FEXCore::Core::InternalThreadState* Thread, bool WasInJIT, const uint64_t* HostGPRs, uint64_t PSTATE) override;
+   void SetFlagsFromCompactedEFLAGS(FEXCore::Core::InternalThreadState* Thread, uint32_t EFLAGS) override;
+ 
+--- a/FEXCore/Source/Interface/Core/CPUBackend.h
++++ b/FEXCore/Source/Interface/Core/CPUBackend.h
+@@ -92,6 +92,9 @@
+       // Shared-code modification spin-loop futex.
+       uint32_t SpinLockFutex;
+ 
++      // Host stack this block allocates for its spill slots.
++      uint32_t SpillStackBytes;
++
+       // If this block represents a single guest instruction.
+       bool SingleInst;
+ 
+--- a/FEXCore/Source/Interface/Core/Core.cpp
++++ b/FEXCore/Source/Interface/Core/Core.cpp
+@@ -185,6 +185,15 @@
+   return Frame->State.rip;
+ }
+ 
++uint32_t ContextImpl::GetBlockStackBytesFromHostPC(FEXCore::Core::InternalThreadState* Thread, uint64_t HostPC) {
++  const uint64_t BlockBegin = Thread->CurrentFrame->State.InlineJITBlockHeader;
++  auto [InlineHeader, InlineTail] = GetFrameBlockInfo(Thread->CurrentFrame);
++  if (InlineHeader && HostPC >= BlockBegin && HostPC < BlockBegin + InlineTail->Size) {
++    return InlineTail->SpillStackBytes;
++  }
++  return 0;
++}
++
+ uint32_t ContextImpl::ReconstructCompactedEFLAGS(FEXCore::Core::InternalThreadState* Thread, bool WasInJIT, const uint64_t* HostGPRs,
+                                                  uint64_t PSTATE) {
+   const auto Frame = Thread->CurrentFrame;
+@@ -364,10 +373,8 @@
+   // Set up the SignalDelegator config since core is initialized.
+   SignalDelegation->SetConfig(Dispatcher->MakeSignalDelegatorConfig());
+ 
+-  if (Config.GdbServer) {
+-    // If gdbserver is enabled then this needs to be enabled.
+-    Config.NeedsPendingInterruptFaultCheck = true;
+-  }
++  // Guest signals that arrive outside a system call wait for these checks, where the guest state is exact.
++  Config.NeedsPendingInterruptFaultCheck = true;
+ 
+   if constexpr (BLOCK_DEBUGGING) {
+     // If the developer wants to do any single-stepping points or watch points.
+--- a/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp
++++ b/FEXCore/Source/Interface/Core/JIT/BranchOps.cpp
+@@ -250,6 +250,11 @@
+ 
+   auto TrueTargetLabel = JumpTarget(Op->TrueBlock);
+ 
++  // A loop can close on a conditional branch and never reach another check.
++  if (TrueTargetLabel->Backward.Location) {
++    EmitSuspendInterruptCheck();
++  }
++
+   if (Op->FromNZCV) {
+     b_OrRestart(MapCC(Op->Cond), TrueTargetLabel);
+   } else {
+--- a/FEXCore/Source/Interface/Core/JIT/JIT.cpp
++++ b/FEXCore/Source/Interface/Core/JIT/JIT.cpp
+@@ -1081,6 +1081,7 @@
+     .RIP = Entry,
+     .GuestSize = Size,
+     .SpinLockFutex = 0,
++    .SpillStackBytes = static_cast<uint32_t>(SpillSlots * MaxSpillSlotSize),
+     .SingleInst = SingleInst,
+   };
+ 
+--- a/FEXCore/Source/Interface/Core/OpcodeDispatcher.cpp
++++ b/FEXCore/Source/Interface/Core/OpcodeDispatcher.cpp
+@@ -799,7 +799,9 @@
+     auto CondJump_ = CondJump(CondReg);
+ 
+     // Taking branch block
+-    if (TrueBlock != JumpTargets.end()) {
++    // Backward leaves through the target's entry: a check at this branch would see RCX already
++    // decremented with RIP still at this instruction, which a handler that moves the guest would rerun.
++    if (TrueBlock != JumpTargets.end() && Target > Op->PC) {
+       SetTrueJumpTarget(CondJump_, TrueBlock->second.BlockEntry);
+     } else {
+       // Make sure to start a new block after ending this one
+--- a/FEXCore/include/FEXCore/Core/Context.h
++++ b/FEXCore/include/FEXCore/Core/Context.h
+@@ -86,6 +86,7 @@
+   ///< State reconstruction helpers
+   ///< Reconstructs the guest RIP from the passed in thread context and related Host PC.
+   FEX_DEFAULT_VISIBILITY virtual uint64_t RestoreRIPFromHostPC(FEXCore::Core::InternalThreadState* Thread, uint64_t HostPC) = 0;
++  FEX_DEFAULT_VISIBILITY virtual uint32_t GetBlockStackBytesFromHostPC(FEXCore::Core::InternalThreadState* Thread, uint64_t HostPC) = 0;
+   /**
+    * @brief Reconstructs a compacted EFLAGS from FEX's internal EFLAG representation.
+    *
+--- a/Source/Tools/LinuxEmulation/ArchHelpers/MContext.h
++++ b/Source/Tools/LinuxEmulation/ArchHelpers/MContext.h
+@@ -40,6 +40,8 @@
+   FEXCore::x86_64::_libc_fpstate FPRState;
+   uint64_t sa_mask;
+   uint16_t InSyscallInfo;
++  // Host stack the interrupted JIT block has allocated.
++  uint32_t JITStackBytes;
+   bool FaultToTopAndGeneratedException;
+ 
+   // Guest state
+@@ -67,6 +69,8 @@
+   __uint128_t FPRs[32];
+   uint64_t sa_mask;
+   uint16_t InSyscallInfo;
++  // Host stack the interrupted JIT block has allocated.
++  uint32_t JITStackBytes;
+   bool FaultToTopAndGeneratedException;
+ 
+   // Guest state
+@@ -182,16 +186,20 @@
+ static inline uint64_t GetArmESR(void* ucontext) {
+   auto MContext = GetMContext(ucontext);
+ 
+-  size_t i = 0;
+-  auto HostState = reinterpret_cast<HostCTXHeader*>(&MContext->__reserved[i]);
+-  do {
+-    if (HostState->Magic == ESR1_MAGIC) {
+-      auto ESR = reinterpret_cast<HostESRState*>(HostState);
+-      return ESR->ESR;
++  // Record sizes are in bytes and __reserved's elements are not. Stepping by index walks out of the signal
++  // frame, into whatever the stack last held, and past the end of the stack when it finds no terminator.
++  auto Records = reinterpret_cast<const uint8_t*>(&MContext->__reserved[0]);
++  size_t Offset = 0;
++  while (Offset + sizeof(HostCTXHeader) <= sizeof(MContext->__reserved)) {
++    auto HostState = reinterpret_cast<const HostCTXHeader*>(Records + Offset);
++    if (HostState->Magic == ESR1_MAGIC && Offset + sizeof(HostESRState) <= sizeof(MContext->__reserved)) {
++      return reinterpret_cast<const HostESRState*>(HostState)->ESR;
+     }
+-    i += HostState->Size;
+-    HostState = reinterpret_cast<HostCTXHeader*>(&MContext->__reserved[i]);
+-  } while (HostState->Size != 0);
++    if (HostState->Size == 0) {
++      break;
++    }
++    Offset += HostState->Size;
++  }
+ 
+   return 0;
+ }
+@@ -223,10 +231,8 @@
+                      ESR1_EC_DataAbort, GetESRName(ESR));
+ 
+   uint32_t ProtectFlags {};
+-  if ((ESR & ESR1_DataAbort_Level) == ESR1_DataAbort_Level_EL0) {
+-    // Always a user error for us.
+-    ProtectFlags |= FEXCore::X86State::X86_PF_USER;
+-  }
++  // Always a user error for us, at any level of the page tables.
++  ProtectFlags |= FEXCore::X86State::X86_PF_USER;
+ 
+   if (ESR & ESR1_WNR) {
+     // Fault was due to a write
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator/GuestFramesManagement.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator/GuestFramesManagement.cpp
+@@ -134,6 +134,9 @@
+ 
+     // Hack! Go back to the top of the dispatcher top
+     // This is only safe inside the JIT rather than anything outside of it
++    // The guest goes elsewhere: an interrupted syscall won't finish, and an interrupted block won't free its stack.
++    Frame->InSyscallInfo = 0;
++    ArchHelpers::Context::SetSp(ucontext, ArchHelpers::Context::GetSp(ucontext) + Context->JITStackBytes);
+     ArchHelpers::Context::SetPc(ucontext, Config.AbsoluteLoopTopAddressFillSRA);
+     ArchHelpers::Context::SetFillSRASingleInst(ucontext, false);
+     // Set our state register to point to our guest thread data
+@@ -213,6 +216,9 @@
+   if (Context->OriginalRIP != guest_uctx->sc.ip || Context->FaultToTopAndGeneratedException) {
+     // Hack! Go back to the top of the dispatcher top
+     // This is only safe inside the JIT rather than anything outside of it
++    // The guest goes elsewhere: an interrupted syscall won't finish, and an interrupted block won't free its stack.
++    Frame->InSyscallInfo = 0;
++    ArchHelpers::Context::SetSp(ucontext, ArchHelpers::Context::GetSp(ucontext) + Context->JITStackBytes);
+     ArchHelpers::Context::SetPc(ucontext, Config.AbsoluteLoopTopAddressFillSRA);
+     ArchHelpers::Context::SetFillSRASingleInst(ucontext, false);
+     // Set our state register to point to our guest thread data
+@@ -291,6 +297,9 @@
+ 
+     // Hack! Go back to the top of the dispatcher top
+     // This is only safe inside the JIT rather than anything outside of it
++    // The guest goes elsewhere: an interrupted syscall won't finish, and an interrupted block won't free its stack.
++    Frame->InSyscallInfo = 0;
++    ArchHelpers::Context::SetSp(ucontext, ArchHelpers::Context::GetSp(ucontext) + Context->JITStackBytes);
+     ArchHelpers::Context::SetPc(ucontext, Config.AbsoluteLoopTopAddressFillSRA);
+     ArchHelpers::Context::SetFillSRASingleInst(ucontext, false);
+     // Set our state register to point to our guest thread data
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.cpp
+@@ -81,12 +81,34 @@
+                       FHU::Syscalls::gettid());
+   } else {
+     SignalHandler& Handler = HostHandlers[Signal];
++    // These handlers enter signal-deferring sections, whose ends touch the page a waiting signal has protected,
++    // and the fault that would make cannot be taken in here.
++    // A required signal can nest in one of these, so only the outermost closes the page again.
++    auto& Exact = Thread->SignalInfo;
++    const bool OpenCheckPage = (Exact.WaitingForExactState || !Exact.DeferredSignalFrames.empty()) &&
++                               static_cast<siginfo_t*>(Info)->si_addr != reinterpret_cast<void*>(&Thread->Thread->InterruptFaultPage);
++    if (OpenCheckPage && Exact.CheckPageOpenDepth++ == 0) {
++      mprotect(reinterpret_cast<void*>(&Thread->Thread->InterruptFaultPage), sizeof(Thread->Thread->InterruptFaultPage), PROT_READ | PROT_WRITE);
++    }
++    bool Handled = false;
+     for (auto& HandlerFunc : Handler.Handlers) {
+       if (HandlerFunc(Thread->Thread, Signal, Info, UContext)) {
+         // If the host handler handled the fault then we can continue now
+-        return;
++        Handled = true;
++        break;
+       }
++    }
++    if (OpenCheckPage && --Exact.CheckPageOpenDepth == 0 && (Exact.WaitingForExactState || !Exact.DeferredSignalFrames.empty()) &&
++        mprotect(reinterpret_cast<void*>(&Thread->Thread->InterruptFaultPage), sizeof(Thread->Thread->InterruptFaultPage), PROT_NONE) != 0 &&
++        Exact.WaitingForExactState) {
++      // Nothing would end the wait now, so it ends here, and the signal comes back wherever this resumes.
++      auto& [HostMaskValues] = static_cast<ucontext_t*>(UContext)->uc_sigmask;
++      HostMaskValues[0] = Exact.MaskBeforeWaiting;
++      Exact.WaitingForExactState = false;
+     }
++    if (Handled) {
++      return;
++    }
+ 
+     if (Handler.FrontendHandler && Handler.FrontendHandler(Thread->Thread, Signal, Info, UContext)) {
+       return;
+@@ -136,6 +158,8 @@
+ #endif
+ }
+ 
++static bool IsAsyncSignal(const siginfo_t* Info, int Signal);
++
+ ArchHelpers::Context::ContextBackup* SignalDelegator::StoreThreadState(FEXCore::Core::InternalThreadState* Thread, int Signal, void* ucontext) {
+   // We can end up getting a signal at any point in our host state
+   // Jump to a handler that saves all state so we can safely return
+@@ -171,6 +195,7 @@
+   Context->UContextLocation = 0;
+   Context->SigInfoLocation = 0;
+   Context->InSyscallInfo = 0;
++  Context->JITStackBytes = 0;
+ 
+   // Store fault to top status and then reset it
+   Context->FaultToTopAndGeneratedException = Thread->CurrentFrame->SynchronousFaultData.FaultToTopAndGeneratedException;
+@@ -316,10 +341,12 @@
+     SpillSRA(Thread, ucontext, IgnoreMask);
+ 
+     ContextBackup->Flags |= ArchHelpers::Context::ContextFlags::CONTEXT_FLAG_INJIT;
+-
+-    // We are leaving the syscall information behind. Make sure to store the previous state.
+-    ContextBackup->InSyscallInfo = Thread->CurrentFrame->InSyscallInfo;
+-    Thread->CurrentFrame->InSyscallInfo = 0;
++    // At a check or a synchronous fault the block has its stack. Anywhere else it may not, as in its first
++    // or last instructions, where only an undelivered signal's fallback can land.
++    if (Frame->InSyscallInfo == 0 && (FEX::HLE::ThreadManager::GetStateObjectFromFEXCoreThread(Thread)->SignalInfo.AtCheck ||
++                                      !IsAsyncSignal(static_cast<const siginfo_t*>(info), Signal))) {
++      ContextBackup->JITStackBytes = CTX->GetBlockStackBytesFromHostPC(Thread, OldPC);
++    }
+   } else {
+     if (!IsAddressInDispatcher(OldPC)) {
+       // This is likely to cause issues but in some cases it isn't fatal
+@@ -333,6 +360,12 @@
+     }
+   }
+ 
++  // We are leaving the syscall information behind. Make sure to store the previous state, also for a signal
++  // that arrived in the syscall handler rather than the JIT: the guest handler runs outside the syscall, and
++  // the interrupted syscall is still in progress after it returns.
++  ContextBackup->InSyscallInfo = Thread->CurrentFrame->InSyscallInfo;
++  Thread->CurrentFrame->InSyscallInfo = 0;
++
+   uint64_t OldGuestSP = Frame->State.gregs[FEXCore::X86State::REG_RSP];
+   uint64_t NewGuestSP = OldGuestSP;
+ 
+@@ -407,6 +440,8 @@
+   if (ArchHelpers::Context::GetPc(ucontext) == Config.SignalHandlerReturnAddress ||
+       ArchHelpers::Context::GetPc(ucontext) == Config.SignalHandlerReturnAddressRT) {
+     auto ThreadObject = FEX::HLE::ThreadManager::GetStateObjectFromFEXCoreThread(Thread);
++    // This restores the interrupted context's mask, and whatever was waiting comes back under that.
++    FEX::HLE::ThreadManager::GetStateObjectFromFEXCoreThread(Thread)->SignalInfo.WaitingForExactState = false;
+     RestoreThreadState(Thread, ucontext,
+                        ArchHelpers::Context::GetPc(ucontext) == Config.SignalHandlerReturnAddressRT ? RestoreType::TYPE_REALTIME :
+                                                                                                       RestoreType::TYPE_NONREALTIME);
+@@ -547,6 +582,19 @@
+   return true;
+ }
+ 
++uint64_t SignalDelegator::GetWaitBlockableSignals() const {
++  // Signals that can be synchronous stay unblocked: the kernel kills a thread for a blocked synchronous one.
++  // So do the ones FEX requires, whichever have registered by now: this also runs while they register.
++  uint64_t Mask = ~((1ULL << (SIGILL - 1)) | (1ULL << (SIGSEGV - 1)) | (1ULL << (SIGBUS - 1)) | (1ULL << (SIGTRAP - 1)) |
++                    (1ULL << (SIGFPE - 1)) | (1ULL << (SIGSYS - 1)) | (1ULL << (SIGNAL_FOR_PAUSE - 1)));
++  for (size_t i = 0; i < MAX_SIGNALS; ++i) {
++    if (HostHandlers[i + 1].Required.load(std::memory_order_relaxed)) {
++      Mask &= ~(1ULL << i);
++    }
++  }
++  return Mask;
++}
++
+ uint64_t SignalDelegator::GetNewSigMask(int Signal) const {
+   const SignalHandler& Handler = HostHandlers[Signal];
+   // Set up a new mask based on this signals signal mask
+@@ -595,6 +643,62 @@
+   auto SigInfo = *static_cast<siginfo_t*>(Info);
+ 
+   auto MustDeferSignal = (Thread->CurrentFrame->State.DeferredSignalRefCount.Load() != 0);
++  // Outside a system call the guest state FEX can show a handler is not exact. Inside a block it can only
++  // name the instruction a signal interrupted, and that instruction may be half done. In the dispatcher
++  // the guest registers are in host registers and the saved copies are stale, and a linked block's RIP is not
++  // written yet. That is enough for a handler that returns, since the host context resumes exactly, but not
++  // for one that moves the guest, as Go's asynchronous preemption does.
++  //
++  // So such a signal goes back to the kernel, stays blocked, and arrives again at the next check at a block
++  // entry or loop edge, or at the start of a system call. The kernel keeps its payload and mask. Only two
++  // realtime signals of one number queued to this thread can change order: the first goes behind the second.
++  auto& Exact = ThreadObject->SignalInfo;
++  const uint64_t HostPC = ArchHelpers::Context::GetPc(UContext);
++  // Good for one delivery: the code buffer can be reused, and any further signal comes through the check again.
++  Exact.AtCheck = HostPC == Exact.ExactStatePC;
++  Exact.ExactStatePC = 0;
++  auto& [HostMaskValues] = _context->uc_sigmask;
++  static_assert(sizeof(HostMaskValues[0]) == sizeof(uint64_t), "Unknown sigset_t layout");
++  if (Exact.WaitingForExactState && Signal == SIGSEGV && SigInfo.si_code == SEGV_ACCERR &&
++      SigInfo.si_addr == reinterpret_cast<void*>(&Thread->InterruptFaultPage)) {
++    // The end of a signal-deferring section in the dispatcher or in FEX itself also lands here.
++    if (MustDeferSignal || (Thread->CurrentFrame->InSyscallInfo == 0 && !CTX->IsAddressInCodeBuffer(Thread, HostPC))) {
++      ArchHelpers::Context::SetPc(UContext, HostPC + 4);
++      return;
++    }
++    HostMaskValues[0] = Exact.MaskBeforeWaiting;
++    Exact.WaitingForExactState = false;
++    // A signal that arrives here, as the kernel returns to this check, sees the exact state.
++    Exact.ExactStatePC = HostPC;
++    mprotect(reinterpret_cast<void*>(&Thread->InterruptFaultPage), sizeof(Thread->InterruptFaultPage), PROT_READ | PROT_WRITE);
++    return;
++  }
++  const uint64_t Blockable = GetWaitBlockableSignals();
++  // Already waiting and still unblocked means the mask was replaced since, so the new mask is the one to keep.
++  if (IsAsyncSignal(&SigInfo, Signal) && (Blockable & (1ULL << (Signal - 1)))) {
++    const auto TargetFunction = HostHandlers[Signal].GuestAction.sigaction_handler.handler;
++    const bool GuestWillRunHandler = TargetFunction != SIG_DFL && TargetFunction != SIG_IGN &&
++                                     !(ThreadObject->SignalInfo.CurrentSignalMask.Val & (1ULL << (Signal - 1)));
++    if (MustDeferSignal || (GuestWillRunHandler && Thread->CurrentFrame->InSyscallInfo == 0 && !Exact.AtCheck)) {
++      const int SavedErrno = errno;
++      // The page first: once the signal is queued it must not be handled here as well, and without a protected
++      // page nothing would ever end the wait.
++      if (mprotect(reinterpret_cast<void*>(&Thread->InterruptFaultPage), sizeof(Thread->InterruptFaultPage), PROT_NONE) == 0) {
++        if (::syscall(SYS_rt_tgsigqueueinfo, ::getpid(), FHU::Syscalls::gettid(), Signal, &SigInfo) == 0) {
++          Exact.MaskBeforeWaiting = HostMaskValues[0];
++          HostMaskValues[0] |= Blockable;
++          Exact.WaitingForExactState = true;
++          return;
++        }
++        if (!Exact.WaitingForExactState) {
++          mprotect(reinterpret_cast<void*>(&Thread->InterruptFaultPage), sizeof(Thread->InterruptFaultPage), PROT_READ | PROT_WRITE);
++        }
++      }
++      // No memory for the page's mapping, or the kernel's queue is full. What follows handles it as before,
++      // inexact as that may be.
++      errno = SavedErrno;
++    }
++  }
+   if (Signal == SIGSEGV && SigInfo.si_code == SEGV_ACCERR && SigInfo.si_addr == reinterpret_cast<void*>(&Thread->InterruptFaultPage)) {
+     if (!MustDeferSignal) {
+       // We just reached the end of the outermost signal-deferring section and faulted to check for pending signals.
+@@ -648,6 +752,11 @@
+     auto& [sigmask_val] = _context->uc_sigmask;
+     static_assert(sizeof(sigmask_val[0]) == sizeof(uint64_t), "Unknown sigset_t layout");
+ 
++    if (Exact.WaitingForExactState) {
++      // The mask that frame saves must be the guest's, and the check below now serves both.
++      sigmask_val[0] = Exact.MaskBeforeWaiting;
++      Exact.WaitingForExactState = false;
++    }
+     ThreadObject->SignalInfo.DeferredSignalFrames.emplace_back(ThreadStateObject::DeferredSignalState {
+       .Info = SigInfo,
+       .Signal = Signal,
+@@ -688,6 +797,13 @@
+   } else if (Handler.GuestAction.sigaction_handler.handler == SIG_IGN) {
+     return;
+   } else {
++    if (Exact.WaitingForExactState) {
++      // A synchronous fault cannot wait for the check. Its handler must see the mask the guest set, and the
++      // signal that was waiting comes back through the kernel as this handler's mask allows.
++      HostMaskValues[0] = Exact.MaskBeforeWaiting;
++      Exact.WaitingForExactState = false;
++      mprotect(reinterpret_cast<void*>(&Thread->InterruptFaultPage), sizeof(Thread->InterruptFaultPage), PROT_READ | PROT_WRITE);
++    }
+     if (Handler.GuestHandler &&
+         Handler.GuestHandler(Thread, Signal, &SigInfo, UContext, &Handler.GuestAction, &ThreadObject->SignalInfo.GuestAltStack)) {
+       uint64_t NewMask = GetNewSigMask(Signal);
+@@ -796,6 +912,10 @@
+ 
+   // Walk the signals we have that are required and make sure to remove it from the mask
+   // This'll likely be SIGILL, SIGBUS, SIG63
++
++  // Nothing nests in a host handler but a synchronous fault: a signal that did would see the handler's mask as the
++  // guest's, and could interrupt the signal state it is changing. The guest's sa_mask applies from GetNewSigMask.
++  SignalHandler.HostAction.sa_mask = GetWaitBlockableSignals();
+ 
+   // If the guest has masked some signals then we need to also mask those signals
+   for (size_t i = 1; i < HostHandlers.size(); ++i) {
+@@ -1020,6 +1140,9 @@
+   // Copy the thread object to the start of the alt-stack
+   memcpy(Thread->SignalInfo.AltStackPtr, &Thread, sizeof(void*));
+ 
++  // Get the current host signal mask, before a signal can arrive on the alt stack and change it.
++  ::syscall(SYS_rt_sigprocmask, 0, nullptr, &Thread->SignalInfo.CurrentSignalMask.Val, 8);
++
+   // Protect the first page of the alt-stack for overflow protection.
+   mprotect(Thread->SignalInfo.AltStackPtr, FEXCore::Utils::FEX_PAGE_SIZE, PROT_READ);
+ 
+@@ -1029,9 +1152,6 @@
+     LogMan::Msg::EFmt("Failed to install alternative signal stack {}", strerror(errno));
+   }
+ 
+-  // Get the current host signal mask
+-  ::syscall(SYS_rt_sigprocmask, 0, nullptr, &Thread->SignalInfo.CurrentSignalMask.Val, 8);
+-
+   if (Thread->Thread) {
+     // Reserve a small amount of deferred signal frames. Usually the stack won't be utilized beyond
+     // 1 or 2 signals but add a few more just in case.
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.h
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/SignalDelegator.h
+@@ -292,6 +292,7 @@
+   bool HandleSIGILL(FEXCore::Core::InternalThreadState* Thread, int Signal, void* info, void* ucontext);
+ 
+   uint64_t GetNewSigMask(int Signal) const;
++  uint64_t GetWaitBlockableSignals() const;
+ };
+ 
+ fextl::unique_ptr<FEX::HLE::SignalDelegator>
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls/Thread.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls/Thread.cpp
+@@ -32,6 +32,7 @@
+ #include <linux/sched.h>
+ #include <stdint.h>
+ #include <sched.h>
++#include <sys/stat.h>
+ #include <sys/personality.h>
+ #include <poll.h>
+ #include <sys/prctl.h>
+@@ -204,6 +205,9 @@
+     // Frame->Thread is /ONLY/ safe to access when CLONE_THREAD flag is not set
+     // Unlock the mutexes on both sides of the fork
+     FEX::HLE::_SyscallHandler->UnlockAfterFork(Frame->Thread, true);
++
++    // The clone call that was in progress ends here, in the child.
++    Thread->Thread->CurrentFrame->InSyscallInfo = 0;
+ 
+     ::syscall(SYS_rt_sigprocmask, SIG_SETMASK, &CloneArgs->SignalMask, nullptr, sizeof(CloneArgs->SignalMask));
+ 
+@@ -308,6 +312,27 @@
+   const bool IsChild = Result == 0;
+ 
+   if (IsChild) {
++    // Only a vfork child ends its parent's wait, not a process it forks in turn: busybox's `timeout` runs
++    // its watcher that way, and the parent would wait for the watcher. The guest may have closed the pipe
++    // already, and its descriptor number may mean something else by now.
++    static struct {
++      int FD {-1};
++      dev_t Device;
++      ino_t Inode;
++    } VForkWriteEnd;
++    struct stat Pipe {};
++    // A child that shares the descriptor table would close it for the vfork child too.
++    if (!(flags & CLONE_FILES)) {
++      if (VForkWriteEnd.FD != -1 && ::fstat(VForkWriteEnd.FD, &Pipe) == 0 && Pipe.st_dev == VForkWriteEnd.Device &&
++          Pipe.st_ino == VForkWriteEnd.Inode) {
++        ::close(VForkWriteEnd.FD);
++      }
++      VForkWriteEnd.FD = -1;
++    }
++    if (IsVFork && ::fstat(VForkFDs[1], &Pipe) == 0) {
++      VForkWriteEnd = {VForkFDs[1], Pipe.st_dev, Pipe.st_ino};
++    }
++
+     auto ThreadObject = static_cast<FEX::HLE::ThreadStateObject*>(Thread->FrontendPtr);
+     // Unlock the mutexes on both sides of the fork
+     FEX::HLE::_SyscallHandler->UnlockAfterFork(Frame->Thread, IsChild);
+@@ -449,6 +474,10 @@
+                         }));
+ 
+   REGISTER_SYSCALL_IMPL(exit, [](FEXCore::Core::CpuStateFrame* Frame, int status) -> uint64_t {
++    // No guest handler runs from here on, as with the kernel's own exit, and the state it needs goes away.
++    // Faults stay unblocked: FEX recovers from one when a write lands on a code page it protects.
++    const uint64_t AllSignals = ~((1ULL << (SIGSEGV - 1)) | (1ULL << (SIGBUS - 1)) | (1ULL << (SIGILL - 1)));
++    ::syscall(SYS_rt_sigprocmask, SIG_SETMASK, &AllSignals, nullptr, sizeof(AllSignals));
+     // TLS/DTV teardown is something FEX can't control. Disable glibc checking when we leave a pthread.
+     // Since this thread is hard stopping, we can't track the TLS/DTV teardown in FEX's thread handling.
+     FEXCore::Allocator::YesIKnowImNotSupposedToUseTheGlibcAllocator::HardDisable();
+@@ -566,6 +595,10 @@
+   });
+ 
+   REGISTER_SYSCALL_IMPL(exit_group, [](FEXCore::Core::CpuStateFrame* Frame, int status) -> uint64_t {
++    // No guest handler runs from here on, as with the kernel's own exit, and the state it needs goes away.
++    // Faults stay unblocked: FEX recovers from one when a write lands on a code page it protects.
++    const uint64_t AllSignals = ~((1ULL << (SIGSEGV - 1)) | (1ULL << (SIGBUS - 1)) | (1ULL << (SIGILL - 1)));
++    ::syscall(SYS_rt_sigprocmask, SIG_SETMASK, &AllSignals, nullptr, sizeof(AllSignals));
+     Frame->Thread->CTX->FlushAndCloseCodeMap();
+ 
+     // Save telemetry if we're exiting.
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls.cpp
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/Syscalls.cpp
+@@ -897,6 +897,10 @@
+ void SyscallHandler::HandleSyscall(FEXCore::Core::CpuStateFrame* Frame) {
+   // Grab the return address which will be inside the JIT.
+   const uint64_t JITPC = reinterpret_cast<uint64_t>(__builtin_extract_return_addr(__builtin_return_address(0)));
++  // Take any signal still waiting for an exact state: the guest state is written back here, and the
++  // call may block with that signal masked.
++  reinterpret_cast<FEXCore::Core::NonAtomicRefCounter<uint64_t>*>(&FEX::HLE::ThreadManager::GetStateObjectFromCPUState(Frame)->Thread->InterruptFaultPage)
++    ->Store(0);
+   const auto Is64Bit = Is64BitMode();
+ 
+   // TODO: At some point these will be runtime selectable based on `syscall` versus `int 0x80` entrypoint.
+--- a/Source/Tools/LinuxEmulation/LinuxSyscalls/ThreadManager.h
++++ b/Source/Tools/LinuxEmulation/LinuxSyscalls/ThreadManager.h
+@@ -83,6 +83,12 @@
+     // Queue of thread local signal frames that have been deferred.
+     // Async signals aren't guaranteed to be delivered in any particular order, but FEX treats them as FILO.
+     fextl::vector<DeferredSignalState> DeferredSignalFrames;
++    // A signal went back to the kernel until the guest state is exact. See HandleGuestSignal.
++    bool WaitingForExactState {};
++    bool AtCheck {};
++    uint32_t CheckPageOpenDepth {};
++    uint64_t MaskBeforeWaiting {};
++    uint64_t ExactStatePC {};
+   } SignalInfo {};
+ 
+   // Seccomp thread specific data.
 """
 
 TOOLCHAIN_ROOTS = [

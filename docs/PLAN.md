@@ -62,6 +62,7 @@ dmx.app (AppKit) ── short-lived control calls; passive run/engine.json + pro
 | Drop dmx's own mappings of guest RAM after device traffic (2026-10-24) | macOS charges a page to `ri_phys_footprint` once per mapping; guest RAM is mapped by dmx and by stage 2, so pages a device filled counted twice (1 GB read = +2 GB). Remapping dmx's view onto itself (`mach_vm_remap` overwrite) after traffic leaves one mapping; devices fault pages back in. |
 | Transparent huge pages off in the guest (2026-10-24) | With 16K pages a huge page is 32 MB. `madvise` (2026-10-23) still let qemu's 128 MB code buffer take 32 MB per x86 process (`sleep` 38 MB RSS, 5.4 MB without); nothing in dmx needs huge pages. Replaces the `madvise` choice. |
 | Guest network is a user space NAT inside dmx, not vmnet (2026-10-24) | vmnet needs root or `com.apple.vm.networking`, which Apple grants on request (verified: an ad-hoc process gets VMNET_FAILURE, the entitlement gets it killed). Guest flows map onto host sockets like passt: no TCP stack, no second process, bounded buffers, and traffic is dmx's own so VPNs and firewalls apply. Costs: IPv4 only, no ICMP errors; inbound goes through vsock port forwarding. |
+| FEX holds a signal for a guest handler until the guest state is exact (2026-11-04) | Handlers may move the guest, and FEX can only show an exact state at checks at block entries, loop edges and system call starts. So the signal goes back to the kernel, blocked, until a check; the kernel keeps its mask and payload. Costs a store per block entry and loop edge, plus a few system calls per signal: not measured yet. |
 | The engine asks for macOS's local network permission when the VM starts (2026-11-04) | A launchd-started process has no terminal to inherit it from, and Apple offers no way around the prompt. Asking at VM start means the answer holds before the first real connection; waiting for a container to need the LAN made that connection fail with nothing saying why. The usage description gives the reason, and `dmx status`, `dmx doctor` and the log report the state. Blocked is not a doctor failure: images, the public internet and the Mac itself work, and the owner may have said no on purpose. |
 | Guest IPv6 is a unique local prefix behind dmx's NAT (2026-10-25) | The guest cannot have the Mac's own prefix without a bridge (vmnet, which needs root). With fd64:646d:7800::/64 the guest's resolvers keep IPv4 first for names with both families (RFC 6724 label matching), so IPv6 adds IPv6-only destinations without making anything that works over IPv4 depend on the Mac's IPv6. AAAA records the Mac cannot route to are left out, as Docker Desktop does on a Mac without IPv6. |
 | An unanswered AAAA does not fail a name that has an A record (2026-11-04) | Some networks never answer AAAA queries. macOS apps do not notice, but musl fails a whole lookup when either family's query fails, so a static uv in a container could not resolve `pypi.org`. Once a name's A lookup has found an address, its AAAA lookup waits 300 ms more and then reports no records. RFC 8305 waits for AAAA after A in the same way (50 ms). The guest prefers IPv4 for names with both families, so a late AAAA costs it nothing. Without an A answer nothing changes: SERVFAIL after 5 s, which the client may retry. |
@@ -580,17 +581,22 @@ guest fetched), containers on arm64 and amd64 and 386, public 0.4.1 updated with
 volume running (same daemon pid, `stop_to_switch`, container kept; after a restart 0.4.2 serves and the
 volume's data is there), and the published signed standalone binary resolving a stalled-AAAA name with
 `uv` in 0.385 s and installing real packages from PyPI. This Mac's app, CLI and guest are 0.4.2: with
-launchd and the signed app, `dmx status`, `dmx doctor` and the log all say `blocked`, 386 reports
-`LONG_BIT` 32, and the unchanged guest was not downloaded again. No community announcement was made.
+launchd and the signed app, `dmx status`, `dmx doctor` and the log all say `blocked` (`allowed` once the owner
+allowed it, below), 386 reports `LONG_BIT` 32, and the unchanged guest was not downloaded again. No community
+announcement was made.
 
-**Next, first: amd64 crashes under FEX when the Mac is busy** (see Findings). Present in published
-0.4.1, not caused by 0.4.2, cause unknown. Start with the crash's own record, per the 2026-10-27
-lesson, and with `x86_emulator qemu` as a control; `test-images.py --image postgres --platform
-linux/amd64 --repeat 25` reproduces it on a loaded Mac, and a quiet one barely does.
+**Next, first: finish qualifying `fex-2610-dmx12`, on a quiet Mac.** The amd64 crashes under load are found
+and fixed on `main` (see Findings), not released. Still to run, none of them yet on this emulator: `make imagetest`,
+`make javatest`, `make dockertest`, a long-running Go program (the spill stack fix has never run for
+long, for example `go build` in an amd64 `golang` image), and a cost comparison against dmx11 in alternating blocks.
+The measurement was stopped while the Mac was busy: nothing is known about the cost yet. A new
+release needs the maintainer's decision.
 
-**Also open:** nobody has answered macOS's prompt for the signed app, so the allowed state of a
-launchd engine and `.local` after allowing are unmeasured. Once the owner has, run `make localnettest`
-on a real install. The AAAA fix has not run on the network that showed the failure.
+**Also open:** the AAAA fix has not run on the network that showed the failure. FEX defects left as they were, all
+older than this work: a handler's edit to `uc_sigmask` is ignored (musl's `pthread_cancel` of a busy thread should spin, by
+reading, not measured); `GetNewSigMask` replaces the mask rather than adding to it, which can use up a guest-masked
+signal before `sigsuspend`; repeated `siglongjmp` out of handlers uses up the host stack; and a vfork child that clones with `CLONE_NEW*`
+or `CLONE_FILES` still holds its parent's wait.
 
 **`.build/storage-review/qualified-v0.4.1` no longer exists.** `.build` was already absent on
 2026-11-03 before any build that day (`git check-ignore .build` failed, which it does only when the
@@ -785,7 +791,50 @@ resolvers answer AAAA. The fix has not yet run on the affected network.
 
 A cause ruled out on the way: file descriptors stayed at 32 through those builds.
 
-### amd64 crashes under FEX on a busy Mac (2026-11-04, open)
+### FEX: signals and an exact guest state (2026-11-04, fixed on main, not released)
+
+The amd64 `postgres` crash below is `gosu`, a Go program, and not Postgres: `gosu postgres true` failed about 14% of runs under
+FEX and none under QEMU (600/600), with `true`, `busybox`, `bash` and `psql` at 0/400. `GODEBUG=asyncpreemptoff=1` made it 0/300. Load
+raised the rate because a slower start gives Go more time to preempt. So this hits amd64 Go programs generally.
+
+Go's handler pushes the interrupted RIP on the interrupted stack and resumes at `asyncPreempt`. It needs an exact state, and FEX could not
+show one: inside a block only the instruction's RIP, with that instruction half done; in the dispatcher, stale saved registers. A handler that
+returns never notices, because the host context resumes exactly. A handler that moves the guest restarts from that state.
+Splitting blocks with `FEX_MAXINST=1` made it worse (123/200), which pointed at the dispatcher rather than RIP reconstruction.
+
+`fex-2610-dmx12` sends such a signal back to the kernel, keeps it blocked, and takes it at the next check at a block entry, loop edge or system
+call start. A first version queued it in FEX's own deferred frames. Review found that design wrong outside short C++ sections (masks inverted by a synchronous
+fault, reentrancy, loss), and it would have hung: the InSyscallInfo bug below, seen as a `gosu` spinning for 30 minutes with three threads asleep in `futex` with signals masked.
+
+Five more defects came up on the way, all fixed in dmx12: `InSyscallInfo` was lost on a signal during a system call (our dmx9 restored 0 while the call was still in progress); busybox's `timeout` always ran to its limit, because a vfork
+child's forked watcher inherited the pipe the parent waits on (`timeout 3 true` exited 143 after 3 s); a signal during `exit_group` ran its handler with the thread's state gone (10/10 crashes with a timer armed);
+`GetArmESR` stepped through signal frame records 16 bytes per byte, reading off the end of the stack (a guest SIGSEGV could crash FEX itself, also in upstream main); and a moved RIP leaked the block's spill stack.
+
+| Check | dmx11 | dmx12 |
+|---|---|---|
+| `gosu postgres true` | 96 of 700 failed | 0 of 1000 |
+| `gosu root true` | 81 of 300 failed | 0 of 1000 |
+| `FEX_MAXINST=1 gosu postgres true` | not run | 0 of 1000 |
+| `signal-resume` fixture | 0 of 10 passed | 10 of 10 |
+| `signal-syscall` fixture, its first version | 0 of 10 passed | 10 of 10 |
+| `signal-mask` fixture, without its code page phase | 0 of 6 passed | 10 of 10 |
+| `timeout 3 true` | exit 143 after 3 s | exit 0 at once |
+| x86test | failed the 3 checks it had gained by then, in each of 3 runs | 61/61 with QEMU too |
+
+Load was 3-20 for those. The final candidate is `d8a53dcb5c75`; selftest 23 (95 MB). `signal-mask` catches the code page
+case: a build without the page opening passed 1 of 10, after a first version of the fixture let that build pass 10 of 10.
+The 123/200 figure above came from an interim dmx12. Reviewed by Opus 5.5 (three passes) and Codex (two complete passes): the last of each asked for changes, and those
+that were not older behaviour went in without a further pass.
+Accepted limits: two realtime signals of one number queued to one thread can swap order, `siginfo` is lost if the kernel's queue is exhausted, and asynchronous copies of SIGSEGV and
+similar signals are still delivered inexactly.
+
+### Local network permission allowed (2026-11-04)
+
+After the owner allowed dmx on the Mac that measured `blocked`: on the installed signed 0.4.2 under launchd, `dmx status` says `allowed`, the Mac's own
+`.local` name resolves in 0.24 s, a LAN DNS server answers, and `make localnettest`'s script passes 12/12 with `compared: true`. Measured with a VM started after allowing, so
+the moment of the change itself is still unmeasured.
+
+### amd64 crashes under FEX on a busy Mac (2026-11-04, cause found above)
 
 The 0.4.2 image matrix failed once: `postgres` on `linux/amd64` exited 139 about 0.3 s after starting,
 with no output. Looping that image, 25 at a time, candidate always first, while other work on the Mac
@@ -813,7 +862,7 @@ Go's `all goroutines are asleep` from a recursive `internal/godebug.update` duri
 start-up; and one exit 1, `mkdir: can't create directory ''`. That reads as x86 code or data going
 wrong under FEX, not as Postgres. `dmesg` reported nothing. Java's 100/100 in the same qualification
 came while the load was also about 10, so this is not simply load. The cause is unknown; a single
-matrix run passes most of the time, which is why earlier releases show 24/24.
+matrix run passes most of the time, which is why earlier releases show 24/24. Written before the cause was found: see above.
 
 ### Local network privacy under launchd (2026-11-03 to 11-04)
 
@@ -1263,6 +1312,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-04: Found and fixed the amd64 crash under FEX, with five related FEX defects, in `fex-2610-dmx12` (see Findings); added x86test's `signal_moves_program`, `signal_blocking_syscall`, `signal_mask_preserved` and `vfork_grandchild`, and a 200-run `gosu` loop in the image matrix. `make localnettest`'s script passes in the allowed state on the signed app. Not released: images, Java, Docker, a long Go run and the cost are still to run on a quiet Mac.
 - 2026-11-04: Published signed/notarized v0.4.2 from `23193b3` and verified it from the public assets (see Next up); installed it on this Mac. Next: the amd64 crash under FEX.
 - 2026-11-04: Local network permission made visible: usage description, a probe in the daemon at VM start and on status while running, `dmx status`, `dmx doctor` and the log; `make localnettest` checks it under a real launchd job, in either state. Three review rounds by Opus 5.5 and two by Codex; the last Opus round approved. Qualification: formal, x86, Docker, sandbox and Java 100/100 passed on the source before the final doctor and test-script changes; unit 101, selftest 23, daemon 59, MCP 33, menu 25, app, storage 64 and localnet 13 on the final source. Image matrix 23/24: amd64 postgres crashed under FEX, explained as present in 0.4.1 with the same bytes and recorded as open, not fixed. For 0.4.2.
 - 2026-11-04: Fixed name lookups on networks that do not answer AAAA: once a name has an A answer its AAAA ends after 300 ms as an empty NOERROR, so musl clients such as uv no longer fail with `Try again`. Reproduced first on a real VM with a multicast record whose AAAA never answers; daemontest gained `dns_aaaa_unanswered`, which fails on the old code (58/59, then 59/59), unit 100, selftest 23/23 with memory unchanged. Recorded, not fixed: the app-installed engine cannot reach the local network until macOS grants it. Not released.

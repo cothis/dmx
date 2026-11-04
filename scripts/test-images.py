@@ -268,6 +268,10 @@ class Matrix:
                      "--network", "none", "--memory", "1g", "--cpus", "2", "--pids-limit", "256",
                      "--ulimit", "core=0:0", "-e", "POSTGRES_PASSWORD=matrix-test", image)
             self.ready("pg_isready", "-U", "postgres")
+            # gosu is a Go program that starts in milliseconds and changes user, which interrupts all
+            # its threads. Asynchronous preemption made a run crash one time in seven under FEX.
+            out = self.cli("exec", self.case, "sh", "-c", "i=0; while [ $i -lt 200 ]; do i=$((i+1)); gosu postgres true || exit $?; done; echo $i")
+            assert out.strip() == "200", out
             sql = "begin; create table if not exists matrix(n int); truncate matrix; insert into matrix select generate_series(1,10000); commit; checkpoint; select sum(n) from matrix;"
             out = self.ready("psql", "-U", "postgres", "-At", "-v", "ON_ERROR_STOP=1", "-c", sql)
             assert out.splitlines()[-1] == "50005000", out

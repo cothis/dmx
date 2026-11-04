@@ -63,6 +63,10 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-11-04: A crash that matches a reviewer's finding is not that finding. I called a code-write crash "confirmed" before reading its core, which showed
+  a different bug; a build without the reviewed fix then passed, so the fixture was not testing it. Read the crash record, then test the fix by removing it.
+- 2026-11-04: A wider use of an existing mechanism inherits limits it never needed. FEX's deferred frames were safe around short C++ sections and wrong
+  around guest code: two rounds of green fixtures did not show that, a review did. Use the kernel's own queue where it can do the job.
 - 2026-11-04: Comparing two builds, alternate them in short blocks and swap which goes first. A loop
   that always ran the candidate first made it look twice as crash-prone (25/75 vs 12/75) while other
   work's load fell; swapped, at a steady load, the same builds gave 0/60 and 5/60.
