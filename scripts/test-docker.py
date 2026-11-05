@@ -176,6 +176,18 @@ print("family", len(socket.getaddrinfo(fits, 443, type=socket.SOCK_STREAM)), len
 """
 
 
+DNS_AF_INET6_PROBE = r"""
+import socket, sys, time
+started = time.time()
+try:
+    socket.getaddrinfo(sys.argv[1], 443, socket.AF_INET6, socket.SOCK_STREAM)
+    outcome = "addresses"
+except socket.gaierror as error:
+    outcome = "no_address" if error.errno == socket.EAI_NODATA else f"error_{error.errno}"
+print(outcome, round(time.time() - started, 2))
+"""
+
+
 def check_dns_large_answers():
     """A reply that must not be cut needlessly, and one that must: the retry over TCP has to reach
     macOS's resolver and treat a silent AAAA as UDP does. An S3 bucket's name took this path, and
@@ -224,6 +236,13 @@ def check_dns_large_answers():
             check(f"dns_glibc_{label}_{network}", r.returncode == 0 and r2.returncode == 0 and len(v4) == want and len(both) == want,
                   f"v4 {len(v4)} both {len(both)} of {want}, {time.time() - started:.1f} s, {r2.stderr[-200:]!r}")
     docker("network", "rm", "dmx-test-dns")
+    # glibc's AF_INET6 alone: no address of that family after the wait, rather than a failure after
+    # 10 s. Not `getent ahostsv6`: its AI_ADDRCONFIG sends nothing on a network without IPv6.
+    time.sleep(5.5)
+    r = docker("run", "--rm", "python:3-slim", "python3", "-c", DNS_AF_INET6_PROBE, fits)
+    answer = r.stdout.decode().split()
+    check("dns_glibc_aaaa_alone", len(answer) == 2 and answer[0] == "no_address" and 0.8 < float(answer[1]) < 4.5,
+          f"{r.stdout!r} {r.stderr[-200:]!r}")
     lib.DNSServiceRefDeallocate(connection)
 
 

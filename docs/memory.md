@@ -16,6 +16,9 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Maintainer preferences
 
+- 2026-11-05: Fix dmx's own misbehaviour even when nothing seen uses that path ("고쳐야하지 않아? dmx의 버그라면말이야"). I had recommended
+  leaving `AF_INET6` lookups failing because no program in one workload called them. Ask whether it is dmx's fault, not whether anyone noticed.
+
 - 2026-11-05: Authorized publishing v0.4.5 ("릴리즈 배포해"). As before, this does not include community announcements.
 
 - 2026-10-30: Authorized deleting regenerable development/release artifacts, hardening log
@@ -65,6 +68,8 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-11-05: Read a passing check's timing. A new check on a path that waits 1 s passed in 0.2 s, because `getent ahostsv6` sends no
+  query without IPv6. Run a new check against the old build too: this one has to fail there.
 - 2026-11-05: Keep the script that verifies a release in the repository. v0.4.4's 32-check proof lived in a temporary
   folder and only its logs survived, so v0.4.5 had to rewrite it. A check you run for every release is code.
 - 2026-11-05: A fix on one path says nothing about the retry path beside it. The AAAA rule covered UDP; a reply

@@ -481,6 +481,19 @@ try:
         check("dns_aaaa_unanswered", error == 0 and r.returncode == 0 and b"Address: 192.168.127.254" in r.stdout and results["dns_aaaa_unanswered_ms"] < 3000
               and b"timed out" not in r.stdout + r.stderr,  # how busybox nslookup reports SERVFAIL
               f"{results['dns_aaaa_unanswered_ms']} ms, error {error}, {r.stdout[-200:] + r.stderr[-200:]!r}")
+        # AAAA alone (AF_INET6), with no A query to end its wait: the name has an address, so it is
+        # empty, not a failure. Past the 5 s in which the A query above still counts.
+        time.sleep(5.5)
+        started = time.time()
+        r = dmx("exec", "--", "nslookup", "-type=AAAA", name, "192.168.127.1")
+        results["dns_aaaa_alone_ms"] = int((time.time() - started) * 1000)
+        check("dns_aaaa_alone", r.returncode == 0 and 800 < results["dns_aaaa_alone_ms"] < 3000 and b"timed out" not in r.stdout + r.stderr,
+              f"{results['dns_aaaa_alone_ms']} ms, {r.stdout[-200:] + r.stderr[-200:]!r}")
+        # A name with no address at all still fails after the timeout, which the client may retry.
+        started = time.time()
+        r = dmx("exec", "--", "nslookup", "-type=AAAA", f"dmx-daemontest-none-{os.getpid()}.local", "192.168.127.1")
+        ms = int((time.time() - started) * 1000)
+        check("dns_aaaa_alone_no_address", ms > 4500, f"{ms} ms, {r.stdout[-200:] + r.stderr[-200:]!r}")
         dnssd.DNSServiceRefDeallocate(dnssd_ref)
     else:
         check("dns_aaaa_unanswered", False, "no connection to mDNSResponder")

@@ -16,6 +16,11 @@ import dnssd
 /// could not resolve a name whose A record was fine. Once a name's A lookup has found an address,
 /// its AAAA lookup waits only `aaaaGrace` longer and then reports no AAAA records. The guest
 /// prefers IPv4 for names with both families, so a late AAAA costs it nothing.
+///
+/// An AAAA query with no A query beside it (`AF_INET6`) has no such answer to end its wait, and would
+/// fail after `timeout` on a name that exists. So it starts an A lookup of its own. When that finds an
+/// address the AAAA waits `loneAAAAGrace` longer and then reports no AAAA records. This client asked
+/// for IPv6 alone, so a real AAAA that comes late is its only answer: hence the longer wait.
 final class HostDNS {
     private let queue: DispatchQueue
     private var pending: [ObjectIdentifier: Lookup] = [:]
@@ -24,6 +29,8 @@ final class HostDNS {
     static let timeout: Duration = .seconds(5)
     /// How long an AAAA lookup waits once the name is known to have an IPv4 address.
     static let aaaaGrace: Duration = .milliseconds(300)
+    /// The same, for an AAAA query with no A query beside it.
+    static let loneAAAAGrace: Duration = .seconds(1)
     static let maxPending = 256
 
     init(queue: DispatchQueue) { self.queue = queue }
@@ -37,6 +44,17 @@ final class HostDNS {
         // A client that asks for AAAA after its A query was answered (or whose queries the
         // answer overtook) gets the same bound as one with both in flight.
         let addressKnown = question.isAAAA && addresses.contains(question.key, now: .now)
+        guard start(lookup) else { return false }
+        if addressKnown {
+            lookup.addressFound(grace: Self.aaaaGrace)
+        } else if question.isAAAA, !pending.values.contains(where: { $0.question.isA && $0.question.key == question.key }) {
+            lookForAddress(of: question)
+        }
+        return true
+    }
+
+    private func start(_ lookup: Lookup) -> Bool {
+        let question = lookup.question
         var ref: DNSServiceRef?
         let flags = DNSServiceFlags(kDNSServiceFlagsReturnIntermediates)
         let context = Unmanaged.passUnretained(lookup).toOpaque()
@@ -52,19 +70,31 @@ final class HostDNS {
         pending[ObjectIdentifier(lookup)] = lookup
         DNSServiceSetDispatchQueue(ref, queue)
         lookup.arm(Self.timeout)
-        if addressKnown { lookup.addressFound(grace: Self.aaaaGrace) }
         return true
+    }
+
+    /// An A lookup no client asked for, on behalf of an AAAA query with none beside it. Nothing
+    /// depends on it starting: without it the AAAA ends as it would have.
+    private func lookForAddress(of question: Question) {
+        guard pending.count < Self.maxPending, let address = question.addressQuestion else { return }
+        _ = start(Lookup(question: address, isOwn: true, queue: queue, reply: { _ in }))
     }
 
     private func finish(_ lookup: Lookup) {
         guard pending.removeValue(forKey: ObjectIdentifier(lookup)) != nil else { return }
         lookup.timer?.cancel()
         if let ref = lookup.ref { DNSServiceRefDeallocate(ref) }
+        let key = lookup.question.key
         if lookup.question.isA, lookup.hasIPv4Address {
-            addresses.note(lookup.question.key, now: .now)
-            for other in pending.values where other.question.isAAAA && other.question.key == lookup.question.key {
-                other.addressFound(grace: Self.aaaaGrace)
+            // Only a client's own A query says what it will do next.
+            if !lookup.isOwn { addresses.note(key, now: .now) }
+            for other in pending.values where other.question.isAAAA && other.question.key == key {
+                other.addressFound(grace: lookup.isOwn ? Self.loneAAAAGrace : Self.aaaaGrace)
             }
+        }
+        // The last AAAA for a name has its answer: its own A lookup has no one left to tell.
+        if lookup.question.isAAAA, !pending.values.contains(where: { $0.question.isAAAA && $0.question.key == key }) {
+            for other in Array(pending.values) where other.isOwn && other.question.key == key { other.stop() }
         }
         lookup.reply(lookup.response())
     }
@@ -119,6 +149,13 @@ final class HostDNS {
         var isAAAA: Bool { type == 28 && qclass == 1 }
         /// DNS names compare without regard to case.
         var key: String { name.lowercased() }
+        /// The same name's A question.
+        var addressQuestion: Question? {
+            var message: [UInt8] = [0, 0, 0x01, 0, 0, 1, 0, 0, 0, 0, 0, 0] + wire
+            message[message.count - 4] = 0
+            message[message.count - 3] = 1
+            return message.withUnsafeBytes { Question($0) }
+        }
 
         init?(_ m: UnsafeRawBufferPointer) {
             guard m.count >= 17, m[2] & 0xf8 == 0, m.u16(4) == 1, m.u16(6) == 0, m.u16(8) == 0 else { return nil }
@@ -153,6 +190,8 @@ final class HostDNS {
     final class Lookup {
         let question: Question
         let limit: Int
+        /// Started here on behalf of an AAAA query; no client waits for its reply.
+        let isOwn: Bool
         let queue: DispatchQueue
         let reply: ([UInt8]) -> Void
         var ref: DNSServiceRef?
@@ -165,9 +204,10 @@ final class HostDNS {
         /// The name's A lookup found an address, so having no AAAA answer is not a failure.
         private var addressKnown = false
 
-        init(question: Question, limit: Int? = nil, queue: DispatchQueue, reply: @escaping ([UInt8]) -> Void) {
+        init(question: Question, limit: Int? = nil, isOwn: Bool = false, queue: DispatchQueue, reply: @escaping ([UInt8]) -> Void) {
             self.question = question
             self.limit = limit ?? question.udpLimit
+            self.isOwn = isOwn
             self.queue = queue
             self.reply = reply
         }
@@ -190,6 +230,8 @@ final class HostDNS {
         }
 
         var hasIPv4Address: Bool { records.contains { $0.type == 1 } }
+
+        func stop() { end() }
 
         private func end() {
             guard !done else { return }

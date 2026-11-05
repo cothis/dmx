@@ -530,6 +530,16 @@ import Testing
         #expect(full.contains("new.", now: start + .seconds(1)) && !full.contains("n0.", now: start + .seconds(1)) && full.contains("n1.", now: start + .seconds(1)))
     }
 
+    @Test func aLoneAAAAQuestionHasAnAQuestionForTheSameName() throws {
+        let aaaa = try #require(query("Pypi.org", type: 28).withUnsafeBytes { HostDNS.Question($0) })
+        let a = try #require(aaaa.addressQuestion)
+        #expect(a.isA && !a.isAAAA && a.key == aaaa.key && a.name == aaaa.name && a.qclass == 1)
+        #expect(Array(a.wire.dropLast(4)) == Array(aaaa.wire.dropLast(4)))
+        #expect(HostDNS.Lookup(question: a, isOwn: true, queue: .main) { _ in }.isOwn)
+        #expect(!HostDNS.Lookup(question: a, queue: .main) { _ in }.isOwn)
+        #expect(HostDNS.loneAAAAGrace > HostDNS.aaaaGrace && HostDNS.loneAAAAGrace < HostDNS.timeout)
+    }
+
     @Test func hostResolverReplies() throws {
         let question = try #require(query("www.Example.com", type: 1).withUnsafeBytes { HostDNS.Question($0) })
         #expect(question.name == "www.Example.com." && question.type == 1 && question.udpLimit == 1232)

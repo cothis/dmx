@@ -66,7 +66,7 @@ dmx.app (AppKit) ── short-lived control calls; passive run/engine.json + pro
 | FEX holds a signal for a guest handler until the guest state is exact (2026-11-04) | Handlers may move the guest, and FEX can only show an exact state at checks at block entries, loop edges and system call starts. So the signal goes back to the kernel, blocked, until a check; the kernel keeps its mask and payload. Costs a store per block entry and loop edge, plus a few system calls per signal: 1-4% in the measured workloads. |
 | The engine asks for macOS's local network permission when the VM starts (2026-11-04) | A launchd-started process has no terminal to inherit it from, and Apple offers no way around the prompt. Asking at VM start means the answer holds before the first real connection; waiting for a container to need the LAN made that connection fail with nothing saying why. The usage description gives the reason, and `dmx status`, `dmx doctor` and the log report the state. Blocked is not a doctor failure: images, the public internet and the Mac itself work, and the owner may have said no on purpose. |
 | Guest IPv6 is a unique local prefix behind dmx's NAT (2026-10-25) | The guest cannot have the Mac's own prefix without a bridge (vmnet, which needs root). With fd64:646d:7800::/64 the guest's resolvers keep IPv4 first for names with both families (RFC 6724 label matching), so IPv6 adds IPv6-only destinations without making anything that works over IPv4 depend on the Mac's IPv6. AAAA records the Mac cannot route to are left out, as Docker Desktop does on a Mac without IPv6. |
-| An unanswered AAAA does not fail a name that has an A record (2026-11-04) | Some networks never answer AAAA queries. macOS apps do not notice, but musl fails a whole lookup when either family's query fails, so a static uv in a container could not resolve `pypi.org`. Once a name's A lookup has found an address, its AAAA lookup waits 300 ms more and then reports no records. RFC 8305 waits for AAAA after A in the same way (50 ms). The guest prefers IPv4 for names with both families, so a late AAAA costs it nothing. Without an A answer nothing changes: SERVFAIL after 5 s, which the client may retry. |
+| An unanswered AAAA does not fail a name that has an A record (2026-11-04) | Some networks never answer AAAA queries. macOS apps do not notice, but musl fails a whole lookup when either family's query fails, so a static uv in a container could not resolve `pypi.org`. Once a name's A lookup has found an address, its AAAA lookup waits 300 ms more and then reports no records. RFC 8305 waits for AAAA after A in the same way (50 ms). The guest prefers IPv4 for names with both families, so a late AAAA costs it nothing. Without an A answer nothing changes: SERVFAIL after 5 s, which the client may retry. An AAAA query with no A query beside it (`AF_INET6`, 2026-11-05) starts an A lookup of its own and waits 1 s after an address is found, longer because a real AAAA that comes late is that client's only answer. |
 | DNS over TCP gets the same answers as DNS over UDP (2026-11-05) | A client retries over TCP when a reply comes back truncated, and that retry went to the first `nameserver` of `/etc/resolv.conf`, so it skipped macOS's resolver (split DNS, `.local`, the current network, the AAAA rule above). glibc sends both families on the retry and fails the lookup if the connection breaks waiting for one. The gateway now answers TCP itself through `HostDNS`, on a socket pair behind the guest's TCP flow, so no flow reaches the network and no permission applies. Replies go in the order asked, which every client takes. Over TCP, what `HostDNS` does not take (zone transfers, the root name, several questions, another opcode) gets NOTIMP rather than a server the Mac did not choose; a client that needs one can name the server. UDP still forwards those. Names in replies are compressed, as a resolver's are, so answers such as an S3 bucket's fit UDP and take no retry. |
 | No host file I/O directly on guest RAM (2026-10-26) | Direct I/O (`F_NOCACHE`) between the disk image and guest pages corrupted guest memory while macOS was short of memory: zeroed page tables, stacks and lists crashed the guest kernel, and files were lost (18 of 28 fsck boots under swap, 0 of 36 after). macOS presumably moves or copies a page under a direct transfer, and the guest's stage-2 mapping then sees another page than the one it wrote once the page is compressed and comes back. virtio-blk copies through a buffer of its own (reads got faster: 0.9 → 1.8 GB/s for 1 MB reads); virtio-fs no longer passes the guest's O_DIRECT on as `F_NOCACHE`. `make pressuretest` reproduces the old bug. |
 | Defaults and security follow Docker Desktop (2026-10-24) | Maintainer's rule: Docker must just work, and security choices match standard tools. So: host directories shared read-write at the same path (/Users, /Volumes, /private, /tmp, /var/folders), containers reach host services through `host.docker.internal` (`host.dmx.internal` also works), dmx port forwards bind 127.0.0.1 unless asked (Docker published ports follow their bindings), host user ↔ guest root on shares, `init_on_alloc` on as in stock kernels, no TLS tools in the base guest (dockerd does its own TLS). Port forwards persist and keep the 4 MB daemon up while they exist. MCP tools are `dmx_*`, argv-based, 8 KiB/120 s defaults. |
@@ -607,8 +607,11 @@ a new UUID read `blocked` and `allowed` about a second later, with no answer giv
 with glibc's `no-aaaa`: the AAAA grace, so that network does not answer AAAA. `AF_INET6`-only lookups still fail at
 times there, one host taking 95 s for 10; see the finding.
 
-**Next:** documented FEX compatibility limits remain separate follow-ups. Open choices for the maintainer: an AAAA
-query with no A lookup behind it, and the length of the AAAA grace (same finding).
+**`AF_INET6` alone: fixed, not released (2026-11-05).** Silence on AAAA became a failure after 5 to 10 s even for a
+name with an address; now it is "no such address" in 1 s. See the finding. A release is the maintainer's decision.
+
+**Next:** documented FEX compatibility limits remain separate follow-ups. Open choice for the maintainer: the length
+of the AAAA grace (0.3 s on each lookup where a network never answers AAAA; RFC 8305 uses 50 ms).
 
 **v0.4.4 is published** (2026-11-05, signed, notarized and stapled, tag commit `387f171`).
 All required release gates passed on version 0.4.4 and the new guest pin. The final packaging said
@@ -948,16 +951,24 @@ rounds each in the order base, new, new, base, base, new, new, base:
 
 No cost. The 415 is that test's order and timing, not this change.
 
-On the network that showed the failure, as reported above: `AF_INET6` alone still fails at times, 95 s for 10 lookups of
-one host. The code explains it, though nobody has traced it there: the AAAA grace needs an A lookup in flight or within
-the last 5 s. Alone, a silent AAAA gets SERVFAIL after 5 s, and glibc's default two attempts make about 10 s and
-`Temporary failure`. This is the decision of 2026-11-04 working as written. No program in that workload uses it. If one
-does, the gateway could start an A lookup of its own for a lone AAAA and answer empty once it finds an address.
+On the network that showed the failure, as reported above: `AF_INET6` alone still failed at times, 95 s for 10 lookups of
+one host. Reproduced here with a multicast record that answers A and leaves AAAA silent: the AAAA rule needed an A lookup
+in flight or within the last 5 s, so alone it got SERVFAIL after 5 s, and glibc's two attempts made about 10 s and
+`Temporary failure`. Now it starts an A lookup of its own:
 
-An independent review found one real defect, fixed before release: a connection whose client left with part of a query
-behind stayed open until the next flow's tick, descriptors a hostile container could pile up. Known limit: a socket pair
-reports no queued bytes (`SO_NWRITE`), so the window it advertises does not shrink; past its 8 KB buffer a query waits for
-the guest's retransmit (some 250 pipelined queries, or one over 8 KB). Slower, never wrong.
+| Lookup alone, glibc in a container | 0.4.5 | Fixed |
+|---|---|---|
+| A answered, AAAA silent: raw AAAA | SERVFAIL 5.06 s | empty NOERROR 1.01 s |
+| The same: `AF_INET6` | `Temporary failure`, 5.06 and 10.03 s | no address, 1.04 and 1.01 s |
+| The same: `AF_UNSPEC` | ok 0.31 s | ok 0.31 s |
+| A and AAAA both answered: `AF_INET6` | ok 0.01 s | ok 0.00 s |
+| Neither answered: raw AAAA | SERVFAIL 5.02 s | SERVFAIL 5.00 s |
+
+daemontest's `dns_aaaa_alone` and dockertest's `dns_glibc_aaaa_alone` are the only new failures on 0.4.5 (63 and 81 checks;
+daemontest's `update_*` also fail there, since an installed binary is not a source build). The fix passes 63/63 and 81/81, unit
+106. selftest 96-99 MB; dockertest with one container 310 MB, 318 MB on 0.4.5, idle 84 MB both. It has not yet run on that
+network. The first version of the dockertest check passed on nothing: `getent ahostsv6` asks with `AI_ADDRCONFIG`, which sends
+no query on a network without IPv6. It finished in 0.2 s where the wait is 1 s, which gave it away.
 
 ### DNS on a network that does not answer AAAA (2026-11-04)
 
@@ -1594,6 +1605,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-05: Fixed `AF_INET6` lookups on networks that do not answer AAAA: a lone AAAA now starts its own A lookup, and a name with an address gets "no such address" in 1 s, not a failure after 5 to 10 s. Daemon 63/63, Docker 81/81, unit 106; the new checks fail on 0.4.5. Not released.
 - 2026-11-05: Published signed/notarized/stapled v0.4.5 from `93da890` and verified it from the public assets, 28/28; installed it on this Mac. Fixed a review finding first (a connection left with part of a query stayed open). The signed update on this Mac read `blocked`, then `allowed` about a second later. Added `scripts/test-release.py`, since the earlier proof script had not been kept.
 - 2026-11-05: Fixed S3 bucket lookups failing under glibc: names in DNS replies are compressed, so the answer fits UDP, and DNS over TCP is answered through macOS's resolver instead of the first `nameserver`. Unit 105, daemon 61/61, Docker 80/80 (ten new checks fail on 0.4.3), selftest 97-102 MB, footprint unchanged by an alternating comparison. Not released.
 - 2026-11-05: Published signed/notarized/stapled v0.4.4 from `387f171`. Final packaging kept the pin; all 14 draft assets and all 14 anonymous public downloads matched the qualified bytes. Public fresh-install/update verification passed 32 checks, including the final FEX and managed exceptions, with VM/container/volume retention. Both signed update paths reproduced LAN permission `allowed -> blocked`; recorded in the release notes. The personal CLI remains 0.4.3. Next: diagnose permission continuity across signed updates.
