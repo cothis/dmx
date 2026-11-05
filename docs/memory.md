@@ -16,6 +16,8 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Maintainer preferences
 
+- 2026-11-05: Authorized publishing v0.4.6 and correcting v0.4.5's public notes. Keep the AAAA grace at 300 ms. Community announcements stay out of scope.
+
 - 2026-11-05: Fix dmx's own misbehaviour even when nothing seen uses that path ("고쳐야하지 않아? dmx의 버그라면말이야"). I had recommended
   leaving `AF_INET6` lookups failing because no program in one workload called them. Ask whether it is dmx's fault, not whether anyone noticed.
 

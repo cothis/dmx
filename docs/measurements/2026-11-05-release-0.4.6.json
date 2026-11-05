@@ -1,0 +1,517 @@
+{
+  "schema": 1,
+  "version": "0.4.6",
+  "phase": "published_verified",
+  "tag_commit": "f0b293b",
+  "url": "https://github.com/cothis/dmx/releases/tag/v0.4.6",
+  "published_at": "2026-11-05T06:07:48Z",
+  "qualification": [
+    {
+      "task": "build",
+      "exit": 0,
+      "seconds": 23.4
+    },
+    {
+      "task": "tools",
+      "exit": 0,
+      "seconds": 11.4,
+      "ok": true
+    },
+    {
+      "task": "unit",
+      "exit": 0,
+      "seconds": 6.7,
+      "tests": 106
+    },
+    {
+      "task": "formal_check",
+      "exit": 0,
+      "seconds": 3.4
+    },
+    {
+      "task": "formal_code",
+      "exit": 0,
+      "seconds": 16.7
+    },
+    {
+      "task": "selftest",
+      "exit": 0,
+      "seconds": 25.6,
+      "ok": true,
+      "checks": 23,
+      "footprint_mb": 97
+    },
+    {
+      "task": "daemontest",
+      "exit": 0,
+      "seconds": 186.8,
+      "ok": true,
+      "checks": 63
+    },
+    {
+      "task": "mcptest",
+      "exit": 0,
+      "seconds": 7.3,
+      "ok": true,
+      "checks": 33
+    },
+    {
+      "task": "x86test",
+      "exit": 0,
+      "seconds": 77.5,
+      "ok": true,
+      "checks": 77
+    },
+    {
+      "task": "dockertest",
+      "exit": 0,
+      "seconds": 255.9,
+      "ok": true,
+      "checks": 81
+    },
+    {
+      "task": "sandboxtest",
+      "exit": 0,
+      "seconds": 33.5,
+      "ok": true,
+      "checks": 44
+    },
+    {
+      "task": "imagetest",
+      "exit": 0,
+      "seconds": 213.6,
+      "ok": true,
+      "results": 24
+    },
+    {
+      "task": "javatest",
+      "exit": 0,
+      "seconds": 250.5,
+      "ok": true,
+      "results": 100
+    },
+    {
+      "task": "menutest",
+      "exit": 0,
+      "seconds": 68.3
+    },
+    {
+      "task": "apptest",
+      "exit": 0,
+      "seconds": 57.6,
+      "ok": true,
+      "checks": 14
+    },
+    {
+      "task": "storagetest",
+      "exit": 0,
+      "seconds": 76.9,
+      "ok": true,
+      "checks": 64
+    },
+    {
+      "task": "localnettest",
+      "exit": 0,
+      "seconds": 7.2,
+      "ok": true,
+      "checks": 12,
+      "access": "allowed",
+      "lan": true,
+      "compared": true
+    }
+  ],
+  "qualification_notes": {
+    "version_and_pin": "Run on version 0.4.6 before packaging rewrote the guest pin, so the signed build has a Mach-O UUID no launchd test had seen.",
+    "formal": "formal/check.py and check-code.py ran in an export of HEAD, leaving the checkout's evidence logs alone."
+  },
+  "first_packaging_pin_changed": true,
+  "final_packaging": {
+    "ok": true,
+    "out": "/Users/cothis/dev/dockermax/.build/dist/v0.4.6",
+    "tag": "v0.4.6",
+    "pin_changed": false,
+    "guest": {
+      "name": "dmx-guest-0.4.6.tar.gz",
+      "bytes": 62904244,
+      "sha256": "8a7613469b5d50912525f8c2460d397fbe2b2b8d4e05193e029be95f6a12aa07"
+    },
+    "binary": {
+      "name": "dmx-0.4.6-darwin-arm64.tar.gz",
+      "bytes": 5500647,
+      "sha256": "c0594b39e8d2bd0aafc4bccd21f0102bb6954d0a9a846b35f45fcac6a2cea9d4"
+    },
+    "sources": {
+      "name": "dmx-sources-0.4.6.tar",
+      "bytes": 496465920,
+      "packages": 21
+    },
+    "licenses": [
+      "0BSD",
+      "Apache-2.0",
+      "BSD-2-Clause",
+      "BSD-3-Clause",
+      "BSL-1.0",
+      "GPL-2.0-only",
+      "GPL-2.0-or-later",
+      "GPL-3.0-or-later",
+      "LGPL-2.0-or-later",
+      "LGPL-2.1-only",
+      "LGPL-2.1-or-later",
+      "Linux-syscall-note",
+      "MIT",
+      "MPL-2.0",
+      "Unlicense"
+    ],
+    "packages": 52
+  },
+  "guest_boot_files_unchanged_from": "0.4.5",
+  "draft_assets_downloaded_identically": 14,
+  "anonymous_public_assets_identical": 14,
+  "assets_sha256": {
+    "NOTES.md": "c855670b3f880c04cdc16aa42c973a0250b1ed43dc04b0bdea492cb671d0d245",
+    "SHA256SUMS": "4933d3c99abc111fff02fefca1dc6995ffe73aedea6bec6136290de9e26b5cc0",
+    "dmx-0.4.6-darwin-arm64.tar.gz": "c0594b39e8d2bd0aafc4bccd21f0102bb6954d0a9a846b35f45fcac6a2cea9d4",
+    "dmx-0.4.6-darwin-arm64.tar.gz.sha256": "2b2b338276752867867a9ad9f0108326307ab4c27b3852ac099dee19295ce996",
+    "dmx-guest-0.4.6.tar.gz": "8a7613469b5d50912525f8c2460d397fbe2b2b8d4e05193e029be95f6a12aa07",
+    "dmx-guest-0.4.6.tar.gz.sha256": "f4a9700d77dfb003036ed04ae133c5dfa319501478bd024fb6a67dc2f1f62cc0",
+    "dmx-sources-0.4.6.tar": "b56c08157d9f0bf980506629115803e418397e92949f9fdbaa2426cd1347aa8f",
+    "dmx-sources-0.4.6.tar.sha256": "a99e81bbe30dfaa4be138fa02f6b7c4fc3910116ca5b112d41f30e19893ab698",
+    "fex-2610-dmx13.build.py": "5eedd34c399b8105feca2cff478e7ee816b9bb5a29232c0fa25c63b82a401490",
+    "install.sh": "6804a22dd3e9ce02d4cabda78e88176a0b5781fadffb5ad7649956357f5f9536",
+    "kernel-6.18.58-dmx-4k.build.py": "8c130d00d9a267ac91e68e8b47d326cd0755d1cd36ea9446bcc3bdc51b6fe107",
+    "kernel-6.18.58-dmx-4k.config": "4a1315db472ec88e6857dac27afb49db310abb69ac5cde98af16d5211ffbf60e",
+    "qemu-x86_64-11.0.3-dmx1.build.py": "029608626a77b62fed86f67579150905bf3589e4cc3735b132475ec2e7e23202",
+    "third-party.json": "46b9ab110cc47b1a4930987ad37e9fa34a92bcb9752a31c97aee9e128c7ca081"
+  },
+  "upload_attempts": 1,
+  "local_proof": {
+    "mode": "local",
+    "version": "0.4.6",
+    "previous": "0.4.5",
+    "ok": true,
+    "total": 30,
+    "failed": [],
+    "checks": [
+      {
+        "name": "fresh_install",
+        "ok": true,
+        "detail": "b'downloading docker 29.9.2 (18 MB) from download.docker.com\\ndownloading docker-credential-osxkeychain 0.9.12 (2 MB) fr"
+      },
+      {
+        "name": "fresh_version",
+        "ok": true,
+        "detail": "0.4.6"
+      },
+      {
+        "name": "fresh_signed_notarized_stapled",
+        "ok": true,
+        "detail": "{'codesign': True, 'stapled': True, 'gatekeeper': True, 'team': True}"
+      },
+      {
+        "name": "fresh_guest_starts_missing",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "fresh_selftest",
+        "ok": true,
+        "detail": "{'checks': 23, 'footprint_mb': 98}"
+      },
+      {
+        "name": "fresh_guest_from_release",
+        "ok": true,
+        "detail": "v0.4.6"
+      },
+      {
+        "name": "fresh_container_linux_arm64",
+        "ok": true,
+        "detail": "b'aarch64\\nd complete\\nd3531b7a4f21: Pull complete\\n2a02c517eb64: Download complete\\nDigest: sha256:be2656061b536c1883c4"
+      },
+      {
+        "name": "fresh_container_linux_amd64",
+        "ok": true,
+        "detail": "b'x86_64\\nload complete\\n3ec36f3670df: Download complete\\n7b229517ed22: Pull complete\\nDigest: sha256:be2656061b536c1883"
+      },
+      {
+        "name": "fresh_container_linux_386",
+        "ok": true,
+        "detail": "b'x86_64\\nload complete\\nf89afe85a29e: Pull complete\\n33edc3e95bba: Download complete\\nDigest: sha256:be2656061b536c1883"
+      },
+      {
+        "name": "fix_s3_name_slim",
+        "ok": true,
+        "detail": "b'tc 0 bytes 211 inet 8 unspec 8\\n Pull complete\\nf8fee3cb2e4a: Pull complete\\ndfd973b63774: Pull complete\\nDigest: sha2"
+      },
+      {
+        "name": "fix_boto3_slim_amd64",
+        "ok": true,
+        "detail": "us-east-1 404\nap-northeast-2 404\na6: Pull complete\n8507a056af74: Pull complete\nbc0f6764aa5f: Pull complete\nDigest: sha25"
+      },
+      {
+        "name": "fix_boto3_slim",
+        "ok": true,
+        "detail": "us-east-1 404\nap-northeast-2 404\n"
+      },
+      {
+        "name": "fix_s3_name_alpine",
+        "ok": true,
+        "detail": "b'tc 0 bytes 211 inet 8 unspec 8\\noad complete\\n5357b35191ba: Pull complete\\n751c374ac992: Pull complete\\nDigest: sha256"
+      },
+      {
+        "name": "fix_boto3_alpine",
+        "ok": true,
+        "detail": "us-east-1 404\nap-northeast-2 404\n"
+      },
+      {
+        "name": "fix_boto3_alpine",
+        "ok": true,
+        "detail": "us-east-1 404\nap-northeast-2 404\n"
+      },
+      {
+        "name": "fix_af_inet6_alone",
+        "ok": true,
+        "detail": "b'no_address 1.15\\n'"
+      },
+      {
+        "name": "previous_install",
+        "ok": true,
+        "detail": "b'downloading docker 29.9.2 (18 MB) from download.docker.com\\ndownloading docker-credential-osxkeychain 0.9.12 (2 MB) fr"
+      },
+      {
+        "name": "previous_version",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "previous_container",
+        "ok": true,
+        "detail": "b' complete\\n55d2dadd4bbc: Pull complete\\n622159812b01: Download complete\\nDigest: sha256:a46257e06c82ad85242d0d38077d0a"
+      },
+      {
+        "name": "update_ok",
+        "ok": true,
+        "detail": "{'version': None, 'handover': None, 'installed': None}"
+      },
+      {
+        "name": "update_to_version",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "update_signed_notarized_stapled",
+        "ok": true,
+        "detail": "{'codesign': True, 'stapled': True, 'gatekeeper': True, 'team': True}"
+      },
+      {
+        "name": "update_keeps_vm",
+        "ok": true,
+        "detail": "{'before': 91740, 'after': 91740, 'version': '0.4.5'}"
+      },
+      {
+        "name": "update_keeps_container",
+        "ok": true,
+        "detail": "b'kept\\n'"
+      },
+      {
+        "name": "restart_serves_new_version",
+        "ok": true,
+        "detail": "{'version': '0.4.6', 'state': 'running'}"
+      },
+      {
+        "name": "restart_keeps_container",
+        "ok": true,
+        "detail": "b'2467fe68e220cc2c335f53efb703884dbd9bd8ae9b09d86872848f1ffdf62993\\n'"
+      },
+      {
+        "name": "restart_keeps_volume",
+        "ok": true,
+        "detail": "b'kept\\n'"
+      },
+      {
+        "name": "update_guest_receipt",
+        "ok": true,
+        "detail": "v0.4.6"
+      },
+      {
+        "name": "update_fix_s3_name",
+        "ok": true,
+        "detail": "b'tc 0 bytes 211 inet 8 unspec 8\\n Pull complete\\nf8fee3cb2e4a: Pull complete\\ndfd973b63774: Pull complete\\nDigest: sha2"
+      },
+      {
+        "name": "update_fix_af_inet6_alone",
+        "ok": true,
+        "detail": "b'no_address 1.24\\n'"
+      }
+    ]
+  },
+  "public_proof": {
+    "mode": "public",
+    "version": "0.4.6",
+    "previous": "0.4.5",
+    "ok": true,
+    "total": 30,
+    "failed": [],
+    "checks": [
+      {
+        "name": "fresh_install",
+        "ok": true,
+        "detail": "b'downloading docker 29.9.2 (18 MB) from download.docker.com\\ndownloading docker-credential-osxkeychain 0.9.12 (2 MB) fr"
+      },
+      {
+        "name": "fresh_version",
+        "ok": true,
+        "detail": "0.4.6"
+      },
+      {
+        "name": "fresh_signed_notarized_stapled",
+        "ok": true,
+        "detail": "{'codesign': True, 'stapled': True, 'gatekeeper': True, 'team': True}"
+      },
+      {
+        "name": "fresh_guest_starts_missing",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "fresh_selftest",
+        "ok": true,
+        "detail": "{'checks': 23, 'footprint_mb': 101}"
+      },
+      {
+        "name": "fresh_guest_from_release",
+        "ok": true,
+        "detail": "v0.4.6"
+      },
+      {
+        "name": "fresh_container_linux_arm64",
+        "ok": true,
+        "detail": "b'aarch64\\nmplete\\n2a02c517eb64: Download complete\\n4f276f238bfa: Download complete\\nDigest: sha256:be2656061b536c1883c4"
+      },
+      {
+        "name": "fresh_container_linux_amd64",
+        "ok": true,
+        "detail": "b'x86_64\\nload complete\\n7b229517ed22: Download complete\\n7b229517ed22: Pull complete\\nDigest: sha256:be2656061b536c1883"
+      },
+      {
+        "name": "fresh_container_linux_386",
+        "ok": true,
+        "detail": "b'x86_64\\nload complete\\n33edc3e95bba: Download complete\\nf89afe85a29e: Pull complete\\nDigest: sha256:be2656061b536c1883"
+      },
+      {
+        "name": "fix_s3_name_slim",
+        "ok": true,
+        "detail": "b'tc 0 bytes 195 inet 7 unspec 7\\n Pull complete\\nf8fee3cb2e4a: Pull complete\\ndfd973b63774: Pull complete\\nDigest: sha2"
+      },
+      {
+        "name": "fix_boto3_slim_amd64",
+        "ok": true,
+        "detail": "us-east-1 404\nap-northeast-2 404\na6: Pull complete\nbc0f6764aa5f: Pull complete\n8507a056af74: Pull complete\nDigest: sha25"
+      },
+      {
+        "name": "fix_boto3_slim",
+        "ok": true,
+        "detail": "us-east-1 404\nap-northeast-2 404\n"
+      },
+      {
+        "name": "fix_s3_name_alpine",
+        "ok": true,
+        "detail": "b'tc 0 bytes 211 inet 8 unspec 8\\noad complete\\n751c374ac992: Pull complete\\n5357b35191ba: Pull complete\\nDigest: sha256"
+      },
+      {
+        "name": "fix_boto3_alpine",
+        "ok": true,
+        "detail": "us-east-1 404\nap-northeast-2 404\n"
+      },
+      {
+        "name": "fix_boto3_alpine",
+        "ok": true,
+        "detail": "us-east-1 404\nap-northeast-2 404\n"
+      },
+      {
+        "name": "fix_af_inet6_alone",
+        "ok": true,
+        "detail": "b'no_address 1.22\\n'"
+      },
+      {
+        "name": "previous_install",
+        "ok": true,
+        "detail": "b'downloading docker 29.9.2 (18 MB) from download.docker.com\\ndownloading docker-credential-osxkeychain 0.9.12 (2 MB) fr"
+      },
+      {
+        "name": "previous_version",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "previous_container",
+        "ok": true,
+        "detail": "b' complete\\n55d2dadd4bbc: Pull complete\\n622159812b01: Download complete\\nDigest: sha256:a46257e06c82ad85242d0d38077d0a"
+      },
+      {
+        "name": "update_ok",
+        "ok": true,
+        "detail": "{'version': None, 'handover': None, 'installed': None}"
+      },
+      {
+        "name": "update_to_version",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "update_signed_notarized_stapled",
+        "ok": true,
+        "detail": "{'codesign': True, 'stapled': True, 'gatekeeper': True, 'team': True}"
+      },
+      {
+        "name": "update_keeps_vm",
+        "ok": true,
+        "detail": "{'before': 92701, 'after': 92701, 'version': '0.4.5'}"
+      },
+      {
+        "name": "update_keeps_container",
+        "ok": true,
+        "detail": "b'kept\\n'"
+      },
+      {
+        "name": "restart_serves_new_version",
+        "ok": true,
+        "detail": "{'version': '0.4.6', 'state': 'running'}"
+      },
+      {
+        "name": "restart_keeps_container",
+        "ok": true,
+        "detail": "b'81e552dadeb9c8748ce5fb5f35ec3307b2b368e48c6703c2d72147690684422b\\n'"
+      },
+      {
+        "name": "restart_keeps_volume",
+        "ok": true,
+        "detail": "b'kept\\n'"
+      },
+      {
+        "name": "update_guest_receipt",
+        "ok": true,
+        "detail": "v0.4.6"
+      },
+      {
+        "name": "update_fix_s3_name",
+        "ok": true,
+        "detail": "b'tc 0 bytes 211 inet 8 unspec 8\\n Pull complete\\nf8fee3cb2e4a: Pull complete\\ndfd973b63774: Pull complete\\nDigest: sha2"
+      },
+      {
+        "name": "update_fix_af_inet6_alone",
+        "ok": true,
+        "detail": "b'no_address 1.17\\n'"
+      }
+    ]
+  },
+  "installed_update_on_this_mac": {
+    "from": "0.4.5",
+    "to": "0.4.6",
+    "launchd": true,
+    "permission_first_read": "blocked",
+    "permission_about_1s_later": "allowed",
+    "prompt_answered": false
+  },
+  "also_corrected": "v0.4.5's public notes, which said the S3 fix had not yet run where the failure was seen. Its assets and tag are unchanged.",
+  "community_announcement": false
+}
