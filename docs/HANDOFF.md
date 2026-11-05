@@ -5,7 +5,7 @@
 허용된 설치본도 답할 때까지 막혀요. `AssociatedBundleIdentifiers`는 측정해 보니 효과가 없어 넣지 않았어요.
 [측정](measurements/2026-11-05-local-network-update.json)과 판단은 PLAN에 있고, 재검사는 `make localnetupdatetest`예요.
 개발자 ID로 서명한 실제 dmx의 새 릴리즈 제자리 업데이트는 아직 재지 못했어요. 다음 릴리즈 때 launchd 테스트로 승인창을 띄우기 전에 확인하세요.
-GitHub 공개 릴리즈 본문의 0.4.4 안내는 아직 고치지 않았어요.
+GitHub 공개 릴리즈 v0.4.4 본문의 안내도 같은 내용으로 고쳤어요(유지보수자 승인). 14개 파일과 태그는 그대로예요.
 
 ---
 
