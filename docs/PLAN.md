@@ -602,9 +602,13 @@ container and volume kept. No community announcement was made. This Mac's app, C
 a new UUID read `blocked` and `allowed` about a second later, with no answer given. See
 [the finding](#local-network-permission-across-updates-2026-11-05).
 
-**Next:** the fix has not run on the network that showed the failure, whose TCP behaviour is inferred from the
-symptom: confirm there, with the 0.4.2 AAAA fix, which is in the same position. Documented FEX compatibility limits
-remain separate follow-ups.
+**Confirmed where it failed (2026-11-05, reported by the maintainer):** S3 `AF_UNSPEC` went from 10/10 failures on
+0.4.4 to 25/25 successes on 0.4.5, and five other hosts passed 110/110. A lookup takes about 0.3 s, and about none
+with glibc's `no-aaaa`: the AAAA grace, so that network does not answer AAAA. `AF_INET6`-only lookups still fail at
+times there, one host taking 95 s for 10; see the finding.
+
+**Next:** documented FEX compatibility limits remain separate follow-ups. Open choices for the maintainer: an AAAA
+query with no A lookup behind it, and the length of the AAAA grace (same finding).
 
 **v0.4.4 is published** (2026-11-05, signed, notarized and stapled, tag commit `387f171`).
 All required release gates passed on version 0.4.4 and the new guest pin. The final packaging said
@@ -943,6 +947,12 @@ rounds each in the order base, new, new, base, base, new, new, base:
 | After 200 lookups of a bucket's name | 322.5 (321-325) | 322.75 (320-327) |
 
 No cost. The 415 is that test's order and timing, not this change.
+
+On the network that showed the failure, as reported above: `AF_INET6` alone still fails at times, 95 s for 10 lookups of
+one host. The code explains it, though nobody has traced it there: the AAAA grace needs an A lookup in flight or within
+the last 5 s. Alone, a silent AAAA gets SERVFAIL after 5 s, and glibc's default two attempts make about 10 s and
+`Temporary failure`. This is the decision of 2026-11-04 working as written. No program in that workload uses it. If one
+does, the gateway could start an A lookup of its own for a lone AAAA and answer empty once it finds an address.
 
 An independent review found one real defect, fixed before release: a connection whose client left with part of a query
 behind stayed open until the next flow's tick, descriptors a hostile container could pile up. Known limit: a socket pair

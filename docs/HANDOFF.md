@@ -4,7 +4,7 @@
 boto3가 쓰는 S3 버킷 이름은 CNAME과 주소 8개라 dmx 답이 512바이트를 넘어 잘렸고, glibc의 TCP 재시도는 macOS 리졸버를 벗어나
 첫 `nameserver`로 갔어요. TCP AAAA가 무응답이거나 끊기면 `AF_UNSPEC`만 실패해요(가짜 리졸버로 glibc 동작 확인). 이름 압축과 TCP DNS의 `HostDNS` 응답으로 고쳤어요.
 `scripts/test-release.py public` 28/28, 메모리 차이 없음. 이 맥의 앱·CLI·게스트는 0.4.5이고, 서명본 제자리 업데이트에서 권한은 `blocked` 후 약 1초 뒤 `allowed`로 풀렸어요.
-실패한 네트워크에서는 아직 확인하지 못했어요. 작업 트리의 `formal/evidence/v0.3.12/*/tlc.log` 15개는 `formaltest`가 다시 쓴 것으로 커밋하지 않았어요.
+실패하던 환경에서 확인됐어요(S3 `AF_UNSPEC` 0.4.4 10회 실패 → 0.4.5 25회 성공, 유지보수자 보고). `AF_INET6` 단독 조회의 일시 실패는 PLAN에 원인 추정과 선택지를 적었어요. 작업 트리의 `formal/evidence/v0.3.12/*/tlc.log` 15개는 `formaltest`가 다시 쓴 것으로 커밋하지 않았어요.
 
 ---
 
