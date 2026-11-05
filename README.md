@@ -208,8 +208,8 @@ BuildKit in the VM, as on Docker Desktop. Certificates handed out as a file go i
 `~/.dmx/ca-certificates.pem`. Both apply at the VM's next start.
 
 **DNS** in the VM goes through macOS's resolver, so names only a VPN's DNS servers know (split
-DNS) resolve in containers as they do on the Mac. A network that never answers IPv6 (AAAA) queries
-does not break names that have an IPv4 address.
+DNS) resolve in containers as they do on the Mac, over UDP and TCP. A network that never answers
+IPv6 (AAAA) queries does not break names that have an IPv4 address.
 
 **Local network.** macOS asks once for permission to reach the local network (Privacy & Security >
 Local Network). Without it, containers cannot reach LAN addresses and `.local` names may not resolve;

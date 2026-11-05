@@ -266,6 +266,156 @@ import Testing
         return q
     }
 
+    /// Reads a name at `offset`, following pointers, as a resolver's parser does; `offset` ends
+    /// just past the name where it first appears. Pointers must lead backwards.
+    func readName(_ m: [UInt8], _ offset: inout Int) throws -> String {
+        var labels: [String] = []
+        var at = offset, jumped = false
+        while true {
+            let length = Int(m[at])
+            if length & 0xc0 == 0xc0 {
+                let target = (length & 0x3f) << 8 | Int(m[at + 1])
+                try #require(target < at)
+                if !jumped { offset = at + 2 }
+                jumped = true
+                at = target
+            } else if length == 0 {
+                if !jumped { offset = at + 1 }
+                return labels.joined(separator: ".")
+            } else {
+                labels.append(String(decoding: m[(at + 1)..<(at + 1 + length)], as: UTF8.self))
+                at += 1 + length
+            }
+        }
+    }
+
+    /// One DNS over TCP connection driven through a socket pair with a scripted resolver.
+    final class DNSPipe {
+        let queue = DispatchQueue(label: "dns-tcp-test")
+        let client: Int32
+        var connection: DNSConnection?
+        var finished = false
+        var waiting: [(id: UInt16, reply: ([UInt8]) -> Void)] = []
+
+        /// `immediate` answers every query at once; otherwise replies wait for `release`.
+        init(immediate: Bool) {
+            var pair: [Int32] = [0, 0]
+            socketpair(AF_UNIX, SOCK_STREAM, 0, &pair)
+            client = pair[0]
+            queue.sync {
+                connection = DNSConnection(fd: pair[1], queue: queue, answer: { [unowned self] query, reply in
+                    let response = DNSConnection.failure(query, code: 0)
+                    if immediate { reply(response) } else { self.waiting.append((query.u16(0), { _ in reply(response) })) }
+                }, finished: { [unowned self] _ in self.finished = true })
+            }
+        }
+
+        /// Ends the connection, whose socket events would otherwise outlive it.
+        func finish() {
+            queue.sync { connection?.close() }
+            close(client)
+        }
+
+        func send(_ bytes: [UInt8]) { bytes.withUnsafeBytes { _ = write(client, $0.baseAddress, $0.count) } }
+
+        func frame(id: UInt16) -> [UInt8] {
+            var q: [UInt8] = []
+            q.be16(14)
+            q.be16(id)
+            q += [0x01, 0x00, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0]
+            return q
+        }
+
+        /// The ids of the next `count` replies.
+        func replies(_ count: Int) -> [UInt16] {
+            var ids: [UInt16] = []
+            var timeout = timeval(tv_sec: 5, tv_usec: 0)
+            setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
+            for _ in 0..<count {
+                var head = [UInt8](repeating: 0, count: 2 + 12)
+                var got = 0
+                while got < head.count {
+                    let n = head.withUnsafeMutableBytes { read(client, $0.baseAddress! + got, $0.count - got) }
+                    if n <= 0 { return ids }
+                    got += n
+                }
+                ids.append(UInt16(head[2]) << 8 | UInt16(head[3]))
+            }
+            return ids
+        }
+
+        func waitUntil(_ condition: () -> Bool) -> Bool {
+            for _ in 0..<500 {
+                if queue.sync(execute: condition) { return true }
+                usleep(10_000)
+            }
+            return false
+        }
+    }
+
+    @Test func dnsOverTCPAnswersInOrderAcrossSplitWrites() throws {
+        let pipe = DNSPipe(immediate: true)
+        defer { pipe.finish() }
+        // Two queries in one write, then one split across three.
+        pipe.send(pipe.frame(id: 1) + pipe.frame(id: 2))
+        #expect(pipe.replies(2) == [1, 2])
+        let third = pipe.frame(id: 3)
+        pipe.send(Array(third[..<1]))
+        usleep(20_000)
+        pipe.send(Array(third[1..<5]))
+        usleep(20_000)
+        pipe.send(Array(third[5...]))
+        #expect(pipe.replies(1) == [3])
+    }
+
+    @Test func dnsOverTCPKeepsReplyOrderAndItsLimit() throws {
+        let pipe = DNSPipe(immediate: false)
+        defer { pipe.finish() }
+        for id in 1...UInt16(DNSConnection.maxInFlight + 2) { pipe.send(pipe.frame(id: id)) }
+        // No more than the limit starts until a reply goes out.
+        #expect(pipe.waitUntil { pipe.waiting.count == DNSConnection.maxInFlight })
+        usleep(50_000)
+        #expect(pipe.queue.sync { pipe.waiting.count } == DNSConnection.maxInFlight)
+        // Answered last to first, the replies still go out as asked.
+        pipe.queue.sync {
+            let started = pipe.waiting
+            pipe.waiting.removeAll()
+            for entry in started.reversed() { entry.reply([]) }
+        }
+        #expect(pipe.replies(DNSConnection.maxInFlight) == Array(1...UInt16(DNSConnection.maxInFlight)))
+        // Those that waited start now.
+        #expect(pipe.waitUntil { pipe.waiting.count == 2 })
+        pipe.queue.sync {
+            let started = pipe.waiting
+            pipe.waiting.removeAll()
+            for entry in started { entry.reply([]) }
+        }
+        #expect(pipe.replies(2) == [UInt16(DNSConnection.maxInFlight + 1), UInt16(DNSConnection.maxInFlight + 2)])
+    }
+
+    @Test func dnsOverTCPFinishesWhatWasAskedBeforeTheClientClosedItsSide() throws {
+        let pipe = DNSPipe(immediate: false)
+        defer { pipe.finish() }
+        pipe.send(pipe.frame(id: 7))
+        shutdown(pipe.client, SHUT_WR)
+        #expect(pipe.waitUntil { pipe.waiting.count == 1 })
+        usleep(20_000)
+        #expect(pipe.queue.sync { !pipe.finished })
+        pipe.queue.sync { pipe.waiting.removeFirst().reply([]) }
+        #expect(pipe.replies(1) == [7])
+        #expect(pipe.waitUntil { pipe.finished })
+        // A length too short to hold a header ends the connection.
+        let bad = DNSPipe(immediate: true)
+        defer { bad.finish() }
+        bad.send([0, 3, 1, 2, 3])
+        #expect(bad.waitUntil { bad.finished })
+    }
+
+    @Test func dnsFailureKeepsTheQuerysIdAndRecursionFlag() {
+        let reply = query("a.b", type: 252).withUnsafeBytes { DNSConnection.failure($0, code: 4) }
+        #expect(reply == [0x12, 0x34, 0x81, 0x84, 0, 0, 0, 0, 0, 0, 0, 0])
+    }
+
     @Test func localNames() {
         let a = query("Host.Docker.Internal", type: 1).withUnsafeBytes { LocalDNS.answer($0) }
         #expect(a != nil)
@@ -410,6 +560,45 @@ import Testing
         for _ in 0..<5 { txt.received(flags: add | more, error: 0, name: "big.example.com.", type: 16, qclass: 1, rdata: Data(repeating: 0x41, count: 200), ttl: 60) }
         let cut = txt.response()
         #expect(cut.count <= 512 && cut[2] & 0x02 != 0)
+
+        // An S3 bucket's name: a CNAME and eight addresses fit once names are compressed, and a
+        // parser that follows the pointers reads the names back.
+        var plainBucket = query("my-bucket.s3.ap-northeast-2.amazonaws.com", type: 1)
+        plainBucket[11] = 0
+        plainBucket.removeLast(11)
+        let bucketQuestion = try #require(plainBucket.withUnsafeBytes { HostDNS.Question($0) })
+        let bucket = HostDNS.Lookup(question: bucketQuestion, queue: .main) { _ in }
+        var target: [UInt8] = []
+        for label in ["s3-r-w", "ap-northeast-2", "amazonaws", "com"] { target.append(UInt8(label.count)); target += Array(label.utf8) }
+        target.append(0)
+        bucket.received(flags: add | more, error: 0, name: "my-bucket.s3.ap-northeast-2.amazonaws.com.", type: 5, qclass: 1, rdata: Data(target), ttl: 60)
+        for i in 1...8 { bucket.received(flags: add | more, error: 0, name: "S3-r-w.ap-northeast-2.amazonaws.com.", type: 1, qclass: 1, rdata: Data([3, 5, 189, UInt8(i)]), ttl: 5) }
+        let fits = bucket.response()
+        #expect(fits.count < 300 && fits[2] & 0x02 == 0 && Array(fits[6..<8]) == [0, 9])
+        var at = 12 + bucketQuestion.wire.count
+        #expect(try readName(fits, &at) == "my-bucket.s3.ap-northeast-2.amazonaws.com")
+        at += 10
+        var data = at
+        #expect(try readName(fits, &data) == "s3-r-w.ap-northeast-2.amazonaws.com")
+        #expect(Int(fits[at - 2]) << 8 | Int(fits[at - 1]) == data - at)
+        at = data
+        for i in 1...8 {
+            #expect(try readName(fits, &at).lowercased() == "s3-r-w.ap-northeast-2.amazonaws.com")
+            at += 10
+            #expect(Array(fits[at..<at + 4]) == [3, 5, 189, UInt8(i)])
+            at += 4
+        }
+        #expect(at == fits.count)
+
+        // What is cut is whole records, and a larger limit (DNS over TCP) keeps them all.
+        let many = HostDNS.Lookup(question: small, queue: .main) { _ in }
+        let wide = HostDNS.Lookup(question: small, limit: DNSConnection.maxReply, queue: .main) { _ in }
+        for lookup in [many, wide] {
+            for i in 0..<200 { lookup.received(flags: add | more, error: 0, name: "big.example.com.", type: 16, qclass: 1, rdata: Data([1, UInt8(i)]), ttl: 60) }
+        }
+        let shortened = many.response(), whole = wide.response()
+        #expect(shortened.count <= 512 && shortened[2] & 0x02 != 0 && (shortened.count - 12 - small.wire.count) % 14 == 0)
+        #expect(whole[2] & 0x02 == 0 && Array(whole[6..<8]) == [0, 200])
 
         // No such record (or name): an empty NOERROR.
         let none = HostDNS.Lookup(question: question, queue: .main) { _ in }

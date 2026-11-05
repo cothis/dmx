@@ -63,6 +63,12 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-11-05: A fix on one path says nothing about the retry path beside it. The AAAA rule covered UDP; a reply
+  over 512 bytes sent glibc to TCP, which went elsewhere, and only names with long answers hit it, so PyPI passed and
+  S3 failed. When a client has a fallback, test the fallback too, with a name large enough to take it.
+- 2026-11-05: A footprint difference between suites run on different builds and guests is not a measurement.
+  dockertest read 415 vs 281 MB; the same guest and alternating rounds gave 295.25 vs 295.75. Isolate before concluding either way.
+
 - 2026-11-05: Before fixing a permission, check the test can see it. A release check ran from a new temporary
   path each time, so `allowed -> blocked` was certain whatever updates did; I then proposed a launchd key on a
   log-based theory, and probes under identifiers macOS had never seen refuted both. Isolate from the state

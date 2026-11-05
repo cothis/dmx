@@ -8,8 +8,8 @@ import Foundation
 ///
 /// Addresses, as the guest sees them (static, set by guest/init):
 /// - 192.168.127.2, fd64:646d:7800::2: the guest.
-/// - 192.168.127.1, fd64:646d:7800::1: the gateway. DNS on port 53 is answered by macOS's resolver
-///   (HostDNS); DNS over TCP goes to the host's DNS server (from /etc/resolv.conf).
+/// - 192.168.127.1, fd64:646d:7800::1: the gateway. DNS on port 53, over UDP and TCP, is answered by
+///   macOS's resolver (HostDNS).
 /// - 192.168.127.254, fd64:646d:7800::254: the host itself; connections go to the host's
 ///   127.0.0.1 and ::1.
 /// Everything else is the outside world, reached from the host's sockets. The IPv6 prefix is a
@@ -40,11 +40,13 @@ final class UserNet: @unchecked Sendable {
     /// Echo sockets by address family.
     private var icmp: [Int32: (socket: NetSocket, lastUsed: ContinuousClock.Instant)] = [:]
     private var timer: DispatchSourceTimer?
-    /// The host's DNS server, read when the device is created (each boot), for DNS over TCP and
-    /// queries `dns` does not take.
+    /// The host's DNS server, read when the device is created (each boot), for UDP queries `dns`
+    /// does not take.
     private let resolver: HostEndpoint?
-    /// UDP queries to the gateway, answered by macOS's resolver.
+    /// Queries to the gateway, answered by macOS's resolver.
     private lazy var dns = HostDNS(queue: queue)
+    /// DNS over TCP connections to the gateway.
+    private var dnsConnections: [ObjectIdentifier: DNSConnection] = [:]
     /// Scratch space for what is read from host sockets.
     var scratch = [UInt8](repeating: 0, count: 65536)
 
@@ -96,6 +98,7 @@ final class UserNet: @unchecked Sendable {
         udp.removeAll()
         for echo in icmp.values { echo.socket.close() }
         icmp.removeAll()
+        for connection in Array(dnsConnections.values) { connection.close() }
         dns.reset()
         timer?.cancel()
         timer = nil
@@ -120,6 +123,28 @@ final class UserNet: @unchecked Sendable {
                 return nil
             }
             return .v6(address, port)
+        }
+    }
+
+    /// Starts answering DNS over TCP on a new socket pair and returns the end for the guest's flow.
+    func dnsConnection() -> Int32? {
+        var pair: [Int32] = [0, 0]
+        guard socketpair(AF_UNIX, SOCK_STREAM, 0, &pair) == 0 else { return nil }
+        let connection = DNSConnection(fd: pair[1], queue: queue, answer: { [unowned self] query, reply in
+            self.answerOverTCP(query, reply: reply)
+        }, finished: { [unowned self] in self.dnsConnections[ObjectIdentifier($0)] = nil })
+        dnsConnections[ObjectIdentifier(connection)] = connection
+        return pair[0]
+    }
+
+    private func answerOverTCP(_ query: UnsafeRawBufferPointer, reply: @escaping ([UInt8]) -> Void) {
+        if let answer = LocalDNS.answer(query) { return reply(answer) }
+        // What macOS's resolver cannot represent: a zone transfer, or not a plain query.
+        guard let question = HostDNS.Question(query), question.type != 251, question.type != 252 else {
+            return reply(DNSConnection.failure(query, code: 4))  // not implemented
+        }
+        if !dns.resolve(query, limit: DNSConnection.maxReply, reply: reply) {
+            reply(DNSConnection.failure(query, code: 2))  // server failure: the client may retry
         }
     }
 
@@ -426,6 +451,9 @@ final class UserNet: @unchecked Sendable {
         for (family, echo) in icmp where now - echo.lastUsed > Self.icmpIdle {
             echo.socket.close()
             icmp[family] = nil
+        }
+        for connection in Array(dnsConnections.values) where connection.idle && now - connection.lastUsed > Self.dnsIdle {
+            connection.close()  // RFC 7766: the client asks again on a new connection
         }
         tcpTick(now)
         if udp.isEmpty && tcp.isEmpty && icmp.isEmpty {

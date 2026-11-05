@@ -145,7 +145,9 @@ extension UserNet {
     private func open(_ key: FlowKey, seq: UInt32, options: UnsafeRawBufferPointer) {
         let flow = TCPFlow(key: key, irs: seq)
         guard tcp.count < Self.maxTCP else { return send(key, seq: 0, ack: seq &+ 1, flags: Self.rst | Self.ack, window: 0) }
-        guard let endpoint = endpoint(for: key.remote, port: key.remotePort) else { return refuse(flow, error: nowhere(key.remote)) }
+        let answeredHere = key.remotePort == 53 && (key.remote == Self.gateway || key.remote == Self.gateway6)
+        let endpoint = answeredHere ? nil : endpoint(for: key.remote, port: key.remotePort)
+        guard answeredHere || endpoint != nil else { return refuse(flow, error: nowhere(key.remote)) }
         // Options: MSS and window scale; SACK and timestamps are left off.
         var i = 0
         while i < options.count {
@@ -162,19 +164,22 @@ extension UserNet {
         }
         flow.mss = max(64, min(flow.mss, Self.mss(key)))
 
-        let fd = Darwin.socket(endpoint.family, SOCK_STREAM, IPPROTO_TCP)
+        let fd = endpoint.map { Darwin.socket($0.family, SOCK_STREAM, IPPROTO_TCP) } ?? dnsConnection() ?? -1
         guard fd >= 0 else { return send(key, seq: 0, ack: seq &+ 1, flags: Self.rst | Self.ack, window: 0) }
-        var on: Int32 = 1, size = Self.socketBuffer, low = Self.socketBuffer / 2
-        let intSize = socklen_t(MemoryLayout<Int32>.size)
-        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, intSize)  // the guest's stack already batches
-        setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &size, intSize)
-        setsockopt(fd, SOL_SOCKET, SO_SNDLOWAT, &low, intSize)  // window updates in large steps
+        if endpoint != nil {
+            var on: Int32 = 1, size = Self.socketBuffer, low = Self.socketBuffer / 2
+            let intSize = socklen_t(MemoryLayout<Int32>.size)
+            setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, intSize)  // the guest's stack already batches
+            setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &size, intSize)
+            setsockopt(fd, SOL_SOCKET, SO_SNDLOWAT, &low, intSize)  // window updates in large steps
+        }
         flow.socket = NetSocket(fd: fd, queue: queue,
                                 onRead: { [unowned self, unowned flow] in self.readHost(flow) },
                                 onWrite: { [unowned self, unowned flow] in self.hostWritable(flow) })
         tcp[key] = flow
         startTimer()
-        if endpoint.withSockaddr({ Darwin.connect(fd, $0, $1) }) == 0 || errno == EINPROGRESS {
+        // A socket pair is connected already; its write source fires at once, like a finished connect.
+        if endpoint?.withSockaddr({ Darwin.connect(fd, $0, $1) }) ?? 0 == 0 || errno == EINPROGRESS {
             flow.socket.writing = true  // fires once connected, or failed
         } else {
             refuse(flow, error: errno)

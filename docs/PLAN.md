@@ -67,6 +67,7 @@ dmx.app (AppKit) ── short-lived control calls; passive run/engine.json + pro
 | The engine asks for macOS's local network permission when the VM starts (2026-11-04) | A launchd-started process has no terminal to inherit it from, and Apple offers no way around the prompt. Asking at VM start means the answer holds before the first real connection; waiting for a container to need the LAN made that connection fail with nothing saying why. The usage description gives the reason, and `dmx status`, `dmx doctor` and the log report the state. Blocked is not a doctor failure: images, the public internet and the Mac itself work, and the owner may have said no on purpose. |
 | Guest IPv6 is a unique local prefix behind dmx's NAT (2026-10-25) | The guest cannot have the Mac's own prefix without a bridge (vmnet, which needs root). With fd64:646d:7800::/64 the guest's resolvers keep IPv4 first for names with both families (RFC 6724 label matching), so IPv6 adds IPv6-only destinations without making anything that works over IPv4 depend on the Mac's IPv6. AAAA records the Mac cannot route to are left out, as Docker Desktop does on a Mac without IPv6. |
 | An unanswered AAAA does not fail a name that has an A record (2026-11-04) | Some networks never answer AAAA queries. macOS apps do not notice, but musl fails a whole lookup when either family's query fails, so a static uv in a container could not resolve `pypi.org`. Once a name's A lookup has found an address, its AAAA lookup waits 300 ms more and then reports no records. RFC 8305 waits for AAAA after A in the same way (50 ms). The guest prefers IPv4 for names with both families, so a late AAAA costs it nothing. Without an A answer nothing changes: SERVFAIL after 5 s, which the client may retry. |
+| DNS over TCP gets the same answers as DNS over UDP (2026-11-05) | A client retries over TCP when a reply comes back truncated, and that retry went to the first `nameserver` of `/etc/resolv.conf`, so it skipped macOS's resolver (split DNS, `.local`, the current network, the AAAA rule above). glibc sends both families on the retry and fails the lookup if the connection breaks waiting for one. The gateway now answers TCP itself through `HostDNS`, on a socket pair behind the guest's TCP flow, so no flow reaches the network and no permission applies. Replies go in the order asked, which every client takes. Zone transfers, which `DNSServiceQueryRecord` cannot represent, get NOTIMP rather than a server the Mac did not choose; a client that needs one can name the server. Names in replies are compressed, as a resolver's are, so answers such as an S3 bucket's fit UDP and take no retry. |
 | No host file I/O directly on guest RAM (2026-10-26) | Direct I/O (`F_NOCACHE`) between the disk image and guest pages corrupted guest memory while macOS was short of memory: zeroed page tables, stacks and lists crashed the guest kernel, and files were lost (18 of 28 fsck boots under swap, 0 of 36 after). macOS presumably moves or copies a page under a direct transfer, and the guest's stage-2 mapping then sees another page than the one it wrote once the page is compressed and comes back. virtio-blk copies through a buffer of its own (reads got faster: 0.9 → 1.8 GB/s for 1 MB reads); virtio-fs no longer passes the guest's O_DIRECT on as `F_NOCACHE`. `make pressuretest` reproduces the old bug. |
 | Defaults and security follow Docker Desktop (2026-10-24) | Maintainer's rule: Docker must just work, and security choices match standard tools. So: host directories shared read-write at the same path (/Users, /Volumes, /private, /tmp, /var/folders), containers reach host services through `host.docker.internal` (`host.dmx.internal` also works), dmx port forwards bind 127.0.0.1 unless asked (Docker published ports follow their bindings), host user ↔ guest root on shares, `init_on_alloc` on as in stock kernels, no TLS tools in the base guest (dockerd does its own TLS). Port forwards persist and keep the 4 MB daemon up while they exist. MCP tools are `dmx_*`, argv-based, 8 KiB/120 s defaults. |
 | No GitHub CI, no Homebrew dependency (2026-10-24) | Maintainer's choice: GitHub is only for distribution (source and releases). Checks run locally before a release (`make build`, `swift test`, selftest, daemontest, dockertest). dmx ships its own pinned Docker CLI tools instead of relying on Homebrew. |
@@ -325,6 +326,8 @@ Follow-ups beyond the completed acceptance criteria:
 - [x] Network: split DNS (2026-10-25): guest DNS over UDP is answered by macOS's resolver
       (`DNSServiceQueryRecord`, `HostDNS.swift`): VPN per-domain servers, `.local` names, network
       changes. Missing names get an empty NOERROR (mDNSResponder does not tell them apart).
+- [x] Network: DNS replies as a resolver sends them (2026-11-05): names compressed, so an S3 bucket's
+      answer fits UDP; DNS over TCP answered through `HostDNS`, not the first `nameserver`.
 - [x] Network: IPv6 (2026-10-25): the guest has fd64:646d:7800::2/64 next to its IPv4 address;
       the gateway answers neighbor solicitations and ping on ::1, DNS on ::1 port 53, and ::254 is
       the Mac's ::1. TCP, UDP and ICMPv6 echo map onto the Mac's IPv6 sockets. AAAA records the
@@ -585,6 +588,12 @@ separate from Core/VM tests and the completed public distribution checks.
 - [x] Publish v0.4.4 after approval, with signed/notarized assets and verification from public URLs.
 
 ## Next up
+
+**S3 lookups through boto: fixed, committed, not released (2026-11-05).** A bucket's name came back
+truncated, and glibc's retry over TCP left macOS's resolver, so `AF_UNSPEC` failed where `AF_INET`
+worked: see [the finding](#s3-bucket-names-and-dns-over-tcp-2026-11-05). The published 0.4.4 and the
+0.4.3 on this Mac still have it; a release is the maintainer's decision. The fix has not run on the
+network that showed the failure, whose TCP behaviour is inferred from the symptom. Confirm it there.
 
 **v0.4.4 is published** (2026-11-05, signed, notarized and stapled, tag commit `387f171`).
 All required release gates passed on version 0.4.4 and the new guest pin. The final packaging said
@@ -874,6 +883,60 @@ to a protected code alias gets EFAULT, and splitting an alias by protection can 
 mremap. An inherited ignored SIGSEGV can also still bypass an asynchronous re-raise after a guest
 restores SIG_DFL (observed on both dmx12 and dmx13); the synchronous-fault fix preserves that older
 host-action behavior. These are recorded limits, not covered by the successful managed workloads.
+
+### S3 bucket names and DNS over TCP (2026-11-05)
+
+Reported: boto3 S3 calls fail with name resolution errors, an IPv4-only lookup succeeds, after the
+PyPI lookup fix had shipped. boto3 addresses a bucket as `<bucket>.s3.<region>.amazonaws.com`, a CNAME
+and eight addresses. dmx did not compress names, so that reply took more than 512 bytes and was
+truncated; the same records from a real server over TCP took 211. PyPI's replies fit, so the AAAA rule
+of 2026-11-04, which is on the UDP path, was all they ever needed. Measured on this Mac, whose network
+answers everything, so no client failed on real names here:
+
+| `dmx-dns-test.s3.ap-northeast-2.amazonaws.com` | 0.4.3 | Fixed |
+|---|---|---|
+| UDP A | TC, 8 of 9 records, 512 bytes | whole, 9 records, 211 bytes |
+| UDP AAAA | 155 bytes | 83 bytes |
+| Server answering TCP | first `nameserver` of `/etc/resolv.conf` | macOS's resolver |
+
+What real clients do on the retry, against a fake resolver that truncates UDP A and answers TCP A
+(the same in the container with `--network=none`, UDP AAAA empty):
+
+| TCP AAAA | glibc 2.41 `AF_INET` | glibc 2.41 `AF_UNSPEC` | musl `AF_INET` / `AF_UNSPEC` |
+|---|---|---|---|
+| answered, or SERVFAIL | ok | ok | ok / ok |
+| no answer | ok | still blocked at 25 s | ok / ok |
+| connection closed or reset | ok | `Temporary failure in name resolution` | ok / ok |
+| TCP refused | fails | fails | `Try again` / `Try again` |
+
+glibc sends both families on the retry. The second and third rows match the reported symptom, and an
+earlier report came from a network that drops AAAA; that this one does the same is inferred. amd64 under FEX and arm64 gave the same results on real names, so
+the x86 work is not involved. Reproduced on a real VM with no network setting changed: multicast
+records registered as shared answer A and leave AAAA silent, and macOS alone knows the name.
+
+| 4 and 40 records, A answered, AAAA silent | 0.4.3 | Fixed |
+|---|---|---|
+| UDP A, 40 records | TC | TC, the only one still cut |
+| TCP A / AAAA, 40 records | NXDOMAIN / NXDOMAIN (another server) | all records / empty in 0.31 s |
+| glibc and musl, default bridge and user network | fail | ok, glibc `AF_UNSPEC` at most 0.96 s |
+
+dockertest's 11 new checks: on released 0.4.3 ten fail and the other 70 checks pass (`dns_large_udp_cut`
+passes on both, as it should); the fix passes 80/80. Real boto3 `head_bucket` on a missing bucket reaches
+S3's 404 in glibc and musl, default bridge and user network, and amd64. daemontest 61/61, unit 105,
+selftest 23/23 three times at 102, 97 and 100 MB. 1000 TCP connections to the gateway: 1000 answers in
+0.4 s, descriptors 30 before and 30 after; 50 left open were closed by the gateway when idle.
+
+Memory: dockertest read `one_container` at 415 MB here and 281 MB on 0.4.3, with guest use 138 and 137,
+on different guests. Pre-fix source of the same version against the fix, same guest and data disk, four
+rounds each in the order base, new, new, base, base, new, new, base:
+
+| Host footprint, average MB (range) | Before the fix | With the fix |
+|---|---|---|
+| dockerd idle | 270.75 (269-273) | 270.75 (268-276) |
+| One container | 295.75 (294-298) | 295.25 (293-300) |
+| After 200 lookups of a bucket's name | 322.5 (321-325) | 322.75 (320-327) |
+
+No cost. The 415 is that test's order and timing, not this change.
 
 ### DNS on a network that does not answer AAAA (2026-11-04)
 
@@ -1506,6 +1569,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-05: Fixed S3 bucket lookups failing under glibc: names in DNS replies are compressed, so the answer fits UDP, and DNS over TCP is answered through macOS's resolver instead of the first `nameserver`. Unit 105, daemon 61/61, Docker 80/80 (ten new checks fail on 0.4.3), selftest 97-102 MB, footprint unchanged by an alternating comparison. Not released.
 - 2026-11-05: Published signed/notarized/stapled v0.4.4 from `387f171`. Final packaging kept the pin; all 14 draft assets and all 14 anonymous public downloads matched the qualified bytes. Public fresh-install/update verification passed 32 checks, including the final FEX and managed exceptions, with VM/container/volume retention. Both signed update paths reproduced LAN permission `allowed -> blocked`; recorded in the release notes. The personal CLI remains 0.4.3. Next: diagnose permission continuity across signed updates.
 - 2026-11-05: The maintainer approved v0.4.4. Completed every required release qualification gate on version 0.4.4 and the new guest pin; initial CLI/app Developer ID signing, notarization and stapling passed. Prepared release notes and install links. Next: second packaging, signed rehearsal, tag/publication and public-asset verification.
 - 2026-11-05: Qualified the v0.4.4 candidate with `fex-2610-dmx13` (`a75324c3ee1e`). Actual Opus 5.5 approved the final delta and two follow-ups; its inherited-ignored-fault finding was reproduced and fixed, including default SIGFPE and SIGSEGV. Rebuilt FEX/guest, verified the live hash, reran unit 101, selftest 23, x86 77 and .NET/Java exception workloads three times each. Final-build paired performance and boot-footprint measurements are recorded above. Updated handoff and retained sanitized review/evidence records. Not released: ask the maintainer about v0.4.4.

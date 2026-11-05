@@ -12,6 +12,7 @@ links go into a throwaway HOME; ~/.docker and ~/.local/bin are not touched. Host
     python3 -I scripts/test-docker.py [path/to/dmx]
 """
 
+import ctypes
 import http.server
 import json
 import os
@@ -143,6 +144,87 @@ def udp_echo(port, payload, tries=20, host="127.0.0.1"):
             except socket.timeout:
                 continue
     return None
+
+
+DNS_ANSWERS_PROBE = r"""
+import socket, struct, sys
+def ask(name, qtype, tcp):
+    question = b"".join(bytes([len(p)]) + p.encode() for p in name.split(".")) + b"\0" + struct.pack(">HH", qtype, 1)
+    message = struct.pack(">HHHHHH", 0x1234, 0x100, 1, 0, 0, 0) + question
+    if tcp:
+        s = socket.create_connection((GATEWAY, 53), 10)
+        s.sendall(struct.pack(">H", len(message)) + message)
+        length = struct.unpack(">H", s.recv(2))[0]
+        reply = b""
+        while len(reply) < length:
+            reply += s.recv(length - len(reply))
+    else:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(10)
+        s.sendto(message, (GATEWAY, 53))
+        reply = s.recv(65535)
+    flags, _, answers = struct.unpack(">HHH", reply[2:8])
+    return f"{flags & 15} {flags >> 9 & 1} {answers}"
+GATEWAY, fits, large = sys.argv[1:4]
+print("fits", ask(fits, 1, False))
+print("large", ask(large, 1, False))
+print("large_tcp", ask(large, 1, True))
+print("large_tcp_aaaa", ask(large, 28, True))
+print("local_tcp", ask("host.docker.internal", 1, True))
+print("transfer", ask("example.com", 252, True))
+print("family", len(socket.getaddrinfo(fits, 443, type=socket.SOCK_STREAM)), len(socket.getaddrinfo(large, 443, type=socket.SOCK_STREAM)))
+"""
+
+
+def check_dns_large_answers():
+    """A reply that must not be cut needlessly, and one that must: the retry over TCP has to reach
+    macOS's resolver and treat a silent AAAA as UDP does. An S3 bucket's name took this path, and
+    glibc, which sends both families on the retry, failed the lookup when the AAAA went unanswered.
+    Records registered as shared answer A and leave AAAA silent, with no network setting changed."""
+    lib = ctypes.CDLL("/usr/lib/libSystem.dylib")
+    connection = ctypes.c_void_p()
+    registered = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_int32, ctypes.c_void_p)(lambda *_: None)
+    if lib.DNSServiceCreateConnection(ctypes.byref(connection)) != 0:
+        check("dns_large_answers", False, "no connection to mDNSResponder")
+        return
+    names = {}
+    for label, count in (("fits", 4), ("large", 40)):
+        names[label] = f"dmx-{label}-" + "x" * 40 + f"-{os.getpid()}.local"
+        for i in range(count):
+            record = ctypes.c_void_p()
+            lib.DNSServiceRegisterRecord(connection, ctypes.byref(record), ctypes.c_uint32(0x10), ctypes.c_uint32(0), f"{names[label]}.".encode(),
+                                         ctypes.c_uint16(1), ctypes.c_uint16(1), ctypes.c_uint16(4), bytes([192, 0, 2, i + 1]),
+                                         ctypes.c_uint32(60), registered, None)
+    time.sleep(2)
+    fits, large = names["fits"], names["large"]
+    r = docker("run", "--rm", "python:3-alpine", "python3", "-c", DNS_ANSWERS_PROBE, "192.168.127.1", fits, large)
+    lines = dict(line.split(" ", 1) for line in r.stdout.decode().splitlines())
+    # Compression's own effect on the size is in the unit tests; here the large reply is cut over
+    # UDP alone, and everything else arrives whole.
+    check("dns_large_udp_cut", lines.get("large", "").startswith("0 1 "), f"{lines} {r.stderr[-300:]!r}")
+    tcp = lines.get("large_tcp", "").split()
+    check("dns_large_tcp_whole", tcp[:2] == ["0", "0"] and len(tcp) == 3 and int(tcp[2]) >= 40, str(lines))
+    check("dns_large_tcp_silent_aaaa", lines.get("large_tcp_aaaa") == "0 0 0", str(lines))
+    check("dns_tcp_local_name", lines.get("local_tcp") == "0 0 1", str(lines))
+    check("dns_tcp_zone_transfer", lines.get("transfer") == "4 0 0", str(lines))
+    check("dns_fits_whole", lines.get("fits", "").startswith("0 0 "), str(lines))
+    counts = lines.get("family", "0 0").split()
+    check("dns_large_musl", len(counts) == 2 and all(int(n) >= 4 for n in counts), str(lines))
+    # glibc on the path that failed: both families at once, on the default bridge and through
+    # dockerd's DNS on a user network, and over TCP once UDP says the answer was cut.
+    docker("network", "create", "dmx-test-dns")
+    for network in ("bridge", "dmx-test-dns"):
+        for name, want in ((fits, 4), (large, 40)):
+            started = time.time()
+            r = docker("run", "--rm", "--network", network, "debian:13-slim", "getent", "ahostsv4", name)
+            v4 = {line.split()[0] for line in r.stdout.decode().splitlines()}
+            r2 = docker("run", "--rm", "--network", network, "debian:13-slim", "getent", "ahosts", name)
+            both = {line.split()[0] for line in r2.stdout.decode().splitlines()}
+            label = "large" if name == large else "fits"
+            check(f"dns_glibc_{label}_{network}", r.returncode == 0 and r2.returncode == 0 and len(v4) == want and len(both) == want,
+                  f"v4 {len(v4)} both {len(both)} of {want}, {time.time() - started:.1f} s, {r2.stderr[-200:]!r}")
+    docker("network", "rm", "dmx-test-dns")
+    lib.DNSServiceRefDeallocate(connection)
 
 
 def check_udp():
@@ -565,6 +647,7 @@ try:
                "python:3-alpine", "python3", "-c", SSH_AGENT_LIST)
     check("ssh_agent", r.stdout == b"12 1 True\n", f"{r.stdout!r} {r.stderr[-300:]!r}")
 
+    check_dns_large_answers()
     check_udp()
     check_port_taken()
     check_amd64()
