@@ -615,8 +615,9 @@ after a signed 0.4.5-to-0.4.6 update with the VM, container and volume kept. Thi
 `blocked`, then `allowed` about a second later, with no answer given. No community announcement was made.
 [Record](measurements/2026-11-05-release-0.4.6.json). v0.4.5's public notes were corrected (assets and tag unchanged).
 
-**Next:** confirm `AF_INET6` on the network that showed the failure. Documented FEX compatibility limits remain
-separate follow-ups. The AAAA grace stays at 300 ms (the maintainer's decision, 2026-11-05).
+**Reported working on the network that showed the failure (2026-11-05, by the maintainer, without numbers).**
+
+**Next:** documented FEX compatibility limits remain separate follow-ups. The AAAA grace stays at 300 ms (the maintainer's decision, 2026-11-05).
 
 **v0.4.4 is published** (2026-11-05, signed, notarized and stapled, tag commit `387f171`).
 All required release gates passed on version 0.4.4 and the new guest pin. The final packaging said
@@ -971,8 +972,8 @@ in flight or within the last 5 s, so alone it got SERVFAIL after 5 s, and glibc'
 
 daemontest's `dns_aaaa_alone` and dockertest's `dns_glibc_aaaa_alone` are the only new failures on 0.4.5 (63 and 81 checks;
 daemontest's `update_*` also fail there, since an installed binary is not a source build). The fix passes 63/63 and 81/81, unit
-106. selftest 96-99 MB; dockertest with one container 310 MB, 318 MB on 0.4.5, idle 84 MB both. Shipped in 0.4.6; it has not yet
-run on that network. The first version of the dockertest check passed on nothing: `getent ahostsv6` asks with `AI_ADDRCONFIG`, which sends
+106. selftest 96-99 MB; dockertest with one container 310 MB, 318 MB on 0.4.5, idle 84 MB both. Shipped in 0.4.6, and the maintainer
+reports it works on that network (no numbers). The first version of the dockertest check passed on nothing: `getent ahostsv6` asks with `AI_ADDRCONFIG`, which sends
 no query on a network without IPv6. It finished in 0.2 s where the wait is 1 s, which gave it away.
 
 ### DNS on a network that does not answer AAAA (2026-11-04)
@@ -1610,6 +1611,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-05: The maintainer reports v0.4.6 works on the network that showed the failure.
 - 2026-11-05: Published signed/notarized/stapled v0.4.6 from `f0b293b` and verified it from the public assets, 30/30; installed it on this Mac. Corrected v0.4.5's public notes. Kept the AAAA grace at 300 ms.
 - 2026-11-05: Fixed `AF_INET6` lookups on networks that do not answer AAAA: a lone AAAA now starts its own A lookup, and a name with an address gets "no such address" in 1 s, not a failure after 5 to 10 s. Daemon 63/63, Docker 81/81, unit 106; the new checks fail on 0.4.5. Not released.
 - 2026-11-05: Published signed/notarized/stapled v0.4.5 from `93da890` and verified it from the public assets, 28/28; installed it on this Mac. Fixed a review finding first (a connection left with part of a query stayed open). The signed update on this Mac read `blocked`, then `allowed` about a second later. Added `scripts/test-release.py`, since the earlier proof script had not been kept.
