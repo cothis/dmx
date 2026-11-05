@@ -1004,7 +1004,7 @@ Small launchd probes under identifiers macOS had never seen, so one rule each as
 | Same, with `AssociatedBundleIdentifiers` | identical (2/2); the rule stays on the helper's identifier and path |
 | Standalone CLI, update at the same path | identical (4/4) |
 | Same identifier at a new path | blocked, prompt raised, no repair |
-| Allowed path while another copy's prompt is open | blocked, no system log; still blocked 4 minutes after the copy was deleted; allowed within 1 s of the answer |
+| Allowed path while another copy's prompt is open | blocked, no system log; still blocked 4 minutes after the copy was deleted; allowed within 2 s of the answer |
 | Started from a shell | allowed at once, same unapproved build (an agent's shell, not Terminal.app) |
 
 So 0.4.4's three-second recheck is enough for an update in place, and moving the permission to the app's

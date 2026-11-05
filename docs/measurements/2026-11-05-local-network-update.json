@@ -12,7 +12,7 @@
   "allowed_path_while_another_copys_prompt_is_open": {
     "blocked_s_while_copy_exists": 53,
     "blocked_s_after_copy_removed": 242,
-    "unblocked": "when the owner answered the prompt, within 1 s"
+    "unblocked": "when the owner answered the prompt, within 2 s"
   },
   "started_from_a_shell": {"same_unapproved_build": "allowed at once", "parent": "agent shell, not Terminal.app"},
   "ad_hoc_builds": {"identifier": "dmx-55554944<macho uuid>", "rules_at_one_path": 5, "note": "each build is a new program to macOS"},
