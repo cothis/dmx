@@ -63,6 +63,11 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-11-05: A local release mirror is the daemon's environment too. A signed-update rehearsal
+  passed DMX_RELEASE_URL only to the CLI; launchd tried the unpublished public guest URL, got 404,
+  and correctly booted the previous guest. Forward the mirror into the job and verify both the
+  receipt and live emulator hash before calling a run evidence for the new release.
+
 - 2026-11-05: Keep a shell parent when testing `timeout` in a container: `sh -c 'timeout 1 sleep 5'`
   can exec sleep as PID 1, which does not take the default SIGTERM termination. It returned 0 after
   five seconds on both native arm64 and FEX; adding a command after timeout made both return 143

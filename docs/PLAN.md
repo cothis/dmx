@@ -582,17 +582,28 @@ separate from Core/VM tests and the completed public distribution checks.
 - [x] Implement x86 DIV/IDIV faults, preserving registers, flags and x87 state; exercise managed exceptions on the final emulator.
 - [x] Rebuild host/guest, run unit tests and real-VM selftest, and compare dmx12/dmx13 on a quiet host.
 - [x] Obtain actual Opus 5.5 approval of the final delta and both inherited-fault follow-ups; reproduce and resolve its low-severity finding.
-- [ ] Publish v0.4.4 only after the maintainer approves the release.
+- [x] Publish v0.4.4 after approval, with signed/notarized assets and verification from public URLs.
 
 ## Next up
 
-**The v0.4.4 candidate is qualified locally, not published.** `fex-2610-dmx13` fixes the signal/context,
-wait-mask, abandoned-frame, vfork, writable-code-alias and divide-error defects described below. Final
-emulator `a75324c3ee1e` passed the managed exception checks again after the last review fixes. The
-eight-round comparison with released dmx12 differs by less than 0.5% in each measured workload; boot
-footprint medians are both 96.5 MiB. The maintainer approved v0.4.4 on November 5. Release qualification is green on version 0.4.4
-and its new guest pin (see below). Next: verify the second packaging, rehearse the signed install
-and update, then tag and publish; the installed public app is still v0.4.3.
+**v0.4.4 is published** (2026-11-05, signed, notarized and stapled, tag commit `387f171`).
+All required release gates passed on version 0.4.4 and the new guest pin. The final packaging said
+`pin_changed: false`; all 14 draft assets downloaded byte-identical, and the same 14 files matched
+again from anonymous public URLs. Public install/update verification passed 32 checks: fresh
+install and selftest 23 (98 MiB, guest fetched), live FEX `a75324c3ee1e`, arm64/amd64/386,
+division state, signed 0.4.3-to-0.4.4 update with the VM/container/volume kept, data and container
+identity after restart, and .NET/Java managed exceptions three times each. No community
+announcement was made. The existing personal CLI on this Mac is 0.4.3; only isolated
+installations were upgraded by this release task.
+
+**Next: preserve local-network permission across a signed update.** On this Mac both the local
+rehearsal and public signed update showed `allowed -> blocked`, with LAN TCP matching the block.
+The release notes tell users to check the macOS prompt or Local Network settings and allow dmx
+again if LAN access stops. The three-second retry does not establish permission continuity.
+Use the retained signed-update reproduction to diagnose the program identity/permission cache;
+the cause and a stable native solution remain unconfirmed. Preserve the public release and user
+data while investigating. The affected-network AAAA check and documented FEX compatibility limits
+remain separate follow-ups.
 
 **v0.4.2 is published** (2026-11-04, signed and notarized, tag commit `23193b3`). The 14 draft assets
 downloaded byte-identical to the qualified files before it went public; second packaging said
@@ -783,7 +794,10 @@ live VM/container/data preservation and the final managed workloads. It also rep
 state that users may need to allow dmx again. The initial mirror rehearsal omitted the local
 base URL from its launchd fixture and intentionally fell back after a public HTTP 404; forwarding
 the mirror setting fixed that test setup, with no product change. Raw logs stay local; the [release record](measurements/2026-11-05-release-0.4.4.json)
-contains sanitized results. Publication and verification from public URLs are still pending.
+contains sanitized results. Publication is complete: 14 public assets match and all 32 public
+install/update checks pass. Both signed update paths reproduced the LAN permission change
+`allowed -> blocked`; the release notes document it. The public fresh selftest used 98 MiB.
+The installed personal CLI is 0.4.3; these update tests used isolated installations.
 
 ### dmx13: signal contexts, writable code aliases and divide errors (2026-11-05, candidate)
 
@@ -1454,6 +1468,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-05: Published signed/notarized/stapled v0.4.4 from `387f171`. Final packaging kept the pin; all 14 draft assets and all 14 anonymous public downloads matched the qualified bytes. Public fresh-install/update verification passed 32 checks, including the final FEX and managed exceptions, with VM/container/volume retention. Both signed update paths reproduced LAN permission `allowed -> blocked`; recorded in the release notes. The personal CLI remains 0.4.3. Next: diagnose permission continuity across signed updates.
 - 2026-11-05: The maintainer approved v0.4.4. Completed every required release qualification gate on version 0.4.4 and the new guest pin; initial CLI/app Developer ID signing, notarization and stapling passed. Prepared release notes and install links. Next: second packaging, signed rehearsal, tag/publication and public-asset verification.
 - 2026-11-05: Qualified the v0.4.4 candidate with `fex-2610-dmx13` (`a75324c3ee1e`). Actual Opus 5.5 approved the final delta and two follow-ups; its inherited-ignored-fault finding was reproduced and fixed, including default SIGFPE and SIGSEGV. Rebuilt FEX/guest, verified the live hash, reran unit 101, selftest 23, x86 77 and .NET/Java exception workloads three times each. Final-build paired performance and boot-footprint measurements are recorded above. Updated handoff and retained sanitized review/evidence records. Not released: ask the maintainer about v0.4.4.
 - 2026-11-04: Published signed/notarized v0.4.3 from `4076136` and verified it from the public assets, 27/27; installed it on this Mac. Reviewed by Opus 5.5 and Codex: the final Codex pass found REP SCAS restarted after its match, fixed and measured; its remaining note, PF and AF during `rep cmps`, is recorded. Found after publishing: the local network permission reads `blocked` after the update (see Next up).

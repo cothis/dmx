@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "version": "0.4.4",
-  "phase": "qualified_before_publication",
+  "phase": "published_verified",
   "source_base": "1eee2f9",
   "fex_sha256": "a75324c3ee1e228ead62b88a71c7b42734e8ce7420fdeb592366217af19c7682",
   "qualification": [
@@ -127,5 +127,556 @@
     "cause": "Local rehearsal launchd fixture omitted DMX_RELEASE_URL. Daemon log showed HTTP 404 from the unpublished public v0.4.4 guest URL and intentional fallback to v0.4.3.",
     "correction": "Pass the same release base URL to the isolated launchd job. No product source or release artifact changed.",
     "evidence_preserved": true
-  }
+  },
+  "source_tag_commit": "387f1719ba3fe8e177d01efa81d1c76ec5c36690",
+  "url": "https://github.com/cothis/dmx/releases/tag/v0.4.4",
+  "published_at": "2026-11-04T23:59:58Z",
+  "latest_tag": "v0.4.4",
+  "final_packaging": {
+    "ok": true,
+    "tag": "v0.4.4",
+    "pin_changed": false,
+    "guest": {
+      "name": "dmx-guest-0.4.4.tar.gz",
+      "bytes": 62904244,
+      "sha256": "fbf309abc46eaaf5ad5b0fc2983f88248aa80423829cc5639f71e7bdb0885d86"
+    },
+    "binary": {
+      "name": "dmx-0.4.4-darwin-arm64.tar.gz",
+      "bytes": 5466436,
+      "sha256": "a9aabbc1eb5f879e69162fd0e2bc5fa1c813cad8c517cd900d7740dfb34b781e"
+    },
+    "sources": {
+      "name": "dmx-sources-0.4.4.tar",
+      "bytes": 496465920,
+      "packages": 21
+    },
+    "licenses": [
+      "0BSD",
+      "Apache-2.0",
+      "BSD-2-Clause",
+      "BSD-3-Clause",
+      "BSL-1.0",
+      "GPL-2.0-only",
+      "GPL-2.0-or-later",
+      "GPL-3.0-or-later",
+      "LGPL-2.0-or-later",
+      "LGPL-2.1-only",
+      "LGPL-2.1-or-later",
+      "Linux-syscall-note",
+      "MIT",
+      "MPL-2.0",
+      "Unlicense"
+    ],
+    "packages": 52
+  },
+  "draft_assets_downloaded_identically": true,
+  "anonymous_public_assets": [
+    {
+      "name": "dmx-0.4.4-darwin-arm64.tar.gz.sha256",
+      "sha256": "12c821f6849d391f835f9c889e217031a06265fc04783003133cd60cd134bb8c",
+      "anonymous_public_url": true,
+      "attempts": 1
+    },
+    {
+      "name": "SHA256SUMS",
+      "sha256": "aa434347a77f7739d05c6ad0d26dc576e652b89139e5662957edd2695823ede0",
+      "anonymous_public_url": true,
+      "attempts": 1
+    },
+    {
+      "name": "NOTES.md",
+      "sha256": "f4305b330f9ead38d9bfabf6d7264b3b4a80d812dc616dbcf4d4ba489899167c",
+      "anonymous_public_url": true,
+      "attempts": 1
+    },
+    {
+      "name": "dmx-guest-0.4.4.tar.gz.sha256",
+      "sha256": "4b6b1f253ed5dac342c4534d7f1ffa8a8ceb66f57b4aef5035e820972b948dee",
+      "anonymous_public_url": true,
+      "attempts": 1
+    },
+    {
+      "name": "dmx-0.4.4-darwin-arm64.tar.gz",
+      "sha256": "a9aabbc1eb5f879e69162fd0e2bc5fa1c813cad8c517cd900d7740dfb34b781e",
+      "anonymous_public_url": true,
+      "attempts": 1
+    },
+    {
+      "name": "dmx-sources-0.4.4.tar.sha256",
+      "sha256": "1177616a2ef8e6e56cdcebf521eea306f1c367d4ca767556d20446980b3b578e",
+      "anonymous_public_url": true,
+      "attempts": 1
+    },
+    {
+      "name": "fex-2610-dmx13.build.py",
+      "sha256": "5eedd34c399b8105feca2cff478e7ee816b9bb5a29232c0fa25c63b82a401490",
+      "anonymous_public_url": true,
+      "attempts": 1
+    },
+    {
+      "name": "install.sh",
+      "sha256": "bfc516e0cb58186bde87a70268b75dc2854855dc24cfe08b0c114b28c9d484d5",
+      "anonymous_public_url": true,
+      "attempts": 1
+    },
+    {
+      "name": "kernel-6.18.58-dmx-4k.build.py",
+      "sha256": "8c130d00d9a267ac91e68e8b47d326cd0755d1cd36ea9446bcc3bdc51b6fe107",
+      "anonymous_public_url": true,
+      "attempts": 1
+    },
+    {
+      "name": "kernel-6.18.58-dmx-4k.config",
+      "sha256": "4a1315db472ec88e6857dac27afb49db310abb69ac5cde98af16d5211ffbf60e",
+      "anonymous_public_url": true,
+      "attempts": 1
+    },
+    {
+      "name": "qemu-x86_64-11.0.3-dmx1.build.py",
+      "sha256": "029608626a77b62fed86f67579150905bf3589e4cc3735b132475ec2e7e23202",
+      "anonymous_public_url": true,
+      "attempts": 1
+    },
+    {
+      "name": "third-party.json",
+      "sha256": "46b9ab110cc47b1a4930987ad37e9fa34a92bcb9752a31c97aee9e128c7ca081",
+      "anonymous_public_url": true,
+      "attempts": 1
+    },
+    {
+      "name": "dmx-guest-0.4.4.tar.gz",
+      "sha256": "fbf309abc46eaaf5ad5b0fc2983f88248aa80423829cc5639f71e7bdb0885d86",
+      "anonymous_public_url": true,
+      "attempts": 1
+    },
+    {
+      "name": "dmx-sources-0.4.4.tar",
+      "sha256": "5e0a94e9eedb0a649e7cc75c88de495d266552f848ded0c4f6eca17c11380427",
+      "anonymous_public_url": true,
+      "attempts": 1
+    }
+  ],
+  "assets_sha256": {
+    "NOTES.md": "f4305b330f9ead38d9bfabf6d7264b3b4a80d812dc616dbcf4d4ba489899167c",
+    "SHA256SUMS": "aa434347a77f7739d05c6ad0d26dc576e652b89139e5662957edd2695823ede0",
+    "dmx-0.4.4-darwin-arm64.tar.gz": "a9aabbc1eb5f879e69162fd0e2bc5fa1c813cad8c517cd900d7740dfb34b781e",
+    "dmx-0.4.4-darwin-arm64.tar.gz.sha256": "12c821f6849d391f835f9c889e217031a06265fc04783003133cd60cd134bb8c",
+    "dmx-guest-0.4.4.tar.gz": "fbf309abc46eaaf5ad5b0fc2983f88248aa80423829cc5639f71e7bdb0885d86",
+    "dmx-guest-0.4.4.tar.gz.sha256": "4b6b1f253ed5dac342c4534d7f1ffa8a8ceb66f57b4aef5035e820972b948dee",
+    "dmx-sources-0.4.4.tar": "5e0a94e9eedb0a649e7cc75c88de495d266552f848ded0c4f6eca17c11380427",
+    "dmx-sources-0.4.4.tar.sha256": "1177616a2ef8e6e56cdcebf521eea306f1c367d4ca767556d20446980b3b578e",
+    "fex-2610-dmx13.build.py": "5eedd34c399b8105feca2cff478e7ee816b9bb5a29232c0fa25c63b82a401490",
+    "install.sh": "bfc516e0cb58186bde87a70268b75dc2854855dc24cfe08b0c114b28c9d484d5",
+    "kernel-6.18.58-dmx-4k.build.py": "8c130d00d9a267ac91e68e8b47d326cd0755d1cd36ea9446bcc3bdc51b6fe107",
+    "kernel-6.18.58-dmx-4k.config": "4a1315db472ec88e6857dac27afb49db310abb69ac5cde98af16d5211ffbf60e",
+    "qemu-x86_64-11.0.3-dmx1.build.py": "029608626a77b62fed86f67579150905bf3589e4cc3735b132475ec2e7e23202",
+    "third-party.json": "46b9ab110cc47b1a4930987ad37e9fa34a92bcb9752a31c97aee9e128c7ca081"
+  },
+  "local_proof": {
+    "mode": "local",
+    "version": "0.4.4",
+    "previous": "0.4.3",
+    "checks": [
+      {
+        "name": "fresh_installed_version",
+        "ok": true,
+        "detail": "0.4.4"
+      },
+      {
+        "name": "fresh_single_app_cli",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "fresh_signed_notarized_stapled",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "fresh_guest_starts_missing",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "fresh_selftest",
+        "ok": true,
+        "detail": {
+          "checks": 23,
+          "footprint_mb": 100
+        }
+      },
+      {
+        "name": "fresh_guest_fetched_from_release",
+        "ok": true,
+        "detail": "v0.4.4"
+      },
+      {
+        "name": "fresh_live_emulator",
+        "ok": true,
+        "detail": "a75324c3ee1e228ead62b88a71c7b42734e8ce7420fdeb592366217af19c7682"
+      },
+      {
+        "name": "fresh_container_linux_arm64",
+        "ok": true,
+        "detail": {
+          "machine": "aarch64",
+          "elf_class": 2
+        }
+      },
+      {
+        "name": "fresh_container_linux_amd64",
+        "ok": true,
+        "detail": {
+          "machine": "x86_64",
+          "elf_class": 2
+        }
+      },
+      {
+        "name": "fresh_container_linux_386",
+        "ok": true,
+        "detail": {
+          "machine": "x86_64",
+          "elf_class": 1
+        }
+      },
+      {
+        "name": "fresh_x86_divide_state",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "upgrade_installed_version",
+        "ok": true,
+        "detail": "0.4.3"
+      },
+      {
+        "name": "upgrade_single_app_cli",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "upgrade_signed_notarized_stapled",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "previous_launchd_engine",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "previous_live_emulator",
+        "ok": true,
+        "detail": "60c150a89c4414b9803ecff4041eb111cabab1d6350c423a8c0f9ead0030c401"
+      },
+      {
+        "name": "update_keeps_vm_pid",
+        "ok": true,
+        "detail": {
+          "handover": "stop_to_switch",
+          "version": "0.4.3",
+          "vm_running": true
+        }
+      },
+      {
+        "name": "updated_app_version",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "update_keeps_container",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "update_keeps_volume",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "update_keeps_guest_data",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "new_launchd_engine",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "updated_live_emulator",
+        "ok": true,
+        "detail": "a75324c3ee1e228ead62b88a71c7b42734e8ce7420fdeb592366217af19c7682"
+      },
+      {
+        "name": "restarted_guest_data",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "restarted_container_identity",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "restarted_volume_data",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "updated_guest_receipt",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "permission_state_after_signed_update",
+        "ok": true,
+        "detail": {
+          "before": "allowed",
+          "after": "blocked"
+        }
+      },
+      {
+        "name": "lan_available",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "signed_update_lan_matches_state",
+        "ok": true,
+        "detail": {
+          "state": "blocked",
+          "exit": 1
+        }
+      },
+      {
+        "name": "release_managed_dotnet",
+        "ok": true,
+        "detail": {
+          "expected": "dotnet-ok 320000",
+          "repeats": 3,
+          "machine": "x86_64"
+        }
+      },
+      {
+        "name": "release_managed_java",
+        "ok": true,
+        "detail": {
+          "expected": "java c=400000 v=0 min/-1=-2147483648 -9223372036854775808",
+          "repeats": 3,
+          "machine": "x86_64"
+        }
+      }
+    ],
+    "local_network_continuity_proven": false,
+    "ok": true
+  },
+  "public_proof": {
+    "mode": "public",
+    "version": "0.4.4",
+    "previous": "0.4.3",
+    "checks": [
+      {
+        "name": "fresh_installed_version",
+        "ok": true,
+        "detail": "0.4.4"
+      },
+      {
+        "name": "fresh_single_app_cli",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "fresh_signed_notarized_stapled",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "fresh_guest_starts_missing",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "fresh_selftest",
+        "ok": true,
+        "detail": {
+          "checks": 23,
+          "footprint_mb": 98
+        }
+      },
+      {
+        "name": "fresh_guest_fetched_from_release",
+        "ok": true,
+        "detail": "v0.4.4"
+      },
+      {
+        "name": "fresh_live_emulator",
+        "ok": true,
+        "detail": "a75324c3ee1e228ead62b88a71c7b42734e8ce7420fdeb592366217af19c7682"
+      },
+      {
+        "name": "fresh_container_linux_arm64",
+        "ok": true,
+        "detail": {
+          "machine": "aarch64",
+          "elf_class": 2
+        }
+      },
+      {
+        "name": "fresh_container_linux_amd64",
+        "ok": true,
+        "detail": {
+          "machine": "x86_64",
+          "elf_class": 2
+        }
+      },
+      {
+        "name": "fresh_container_linux_386",
+        "ok": true,
+        "detail": {
+          "machine": "x86_64",
+          "elf_class": 1
+        }
+      },
+      {
+        "name": "fresh_x86_divide_state",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "upgrade_installed_version",
+        "ok": true,
+        "detail": "0.4.3"
+      },
+      {
+        "name": "upgrade_single_app_cli",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "upgrade_signed_notarized_stapled",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "previous_launchd_engine",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "previous_live_emulator",
+        "ok": true,
+        "detail": "60c150a89c4414b9803ecff4041eb111cabab1d6350c423a8c0f9ead0030c401"
+      },
+      {
+        "name": "update_keeps_vm_pid",
+        "ok": true,
+        "detail": {
+          "handover": "stop_to_switch",
+          "version": "0.4.3",
+          "vm_running": true
+        }
+      },
+      {
+        "name": "updated_app_version",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "update_keeps_container",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "update_keeps_volume",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "update_keeps_guest_data",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "new_launchd_engine",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "updated_live_emulator",
+        "ok": true,
+        "detail": "a75324c3ee1e228ead62b88a71c7b42734e8ce7420fdeb592366217af19c7682"
+      },
+      {
+        "name": "restarted_guest_data",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "restarted_container_identity",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "restarted_volume_data",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "updated_guest_receipt",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "permission_state_after_signed_update",
+        "ok": true,
+        "detail": {
+          "before": "allowed",
+          "after": "blocked"
+        }
+      },
+      {
+        "name": "lan_available",
+        "ok": true,
+        "detail": null
+      },
+      {
+        "name": "signed_update_lan_matches_state",
+        "ok": true,
+        "detail": {
+          "state": "blocked",
+          "exit": 1
+        }
+      },
+      {
+        "name": "release_managed_dotnet",
+        "ok": true,
+        "detail": {
+          "expected": "dotnet-ok 320000",
+          "repeats": 3,
+          "machine": "x86_64"
+        }
+      },
+      {
+        "name": "release_managed_java",
+        "ok": true,
+        "detail": {
+          "expected": "java c=400000 v=0 min/-1=-2147483648 -9223372036854775808",
+          "repeats": 3,
+          "machine": "x86_64"
+        }
+      }
+    ],
+    "local_network_continuity_proven": false,
+    "ok": true
+  },
+  "upload_attempts": [
+    {
+      "attempt": 1,
+      "exit": 0
+    }
+  ],
+  "personal_installed_cli_version": "0.4.3",
+  "personal_installation_changed_by_this_release_task": false
 }
