@@ -7,7 +7,7 @@ maintainer's Mac by `make release`; nothing is uploaded by a script.
 ## What a user gets
 
 ```sh
-curl -fsSL https://github.com/cothis/dmx/releases/download/v0.4.5/install.sh | sh
+curl -fsSL https://github.com/cothis/dmx/releases/download/v0.4.6/install.sh | sh
 dmx install            # optional: launchd and the docker context
 dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks it
 ```
@@ -117,7 +117,7 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
   `docker` against the installed engine before updating it: that wakes the VM, and the old daemon then
   answers until `dmx stop`.
 - **`formaltest` rewrites `formal/evidence/v0.3.12/*/tlc.log`** with new seeds and temporary paths.
-  Stage release files by name; these do not belong in a commit.
+  Run its two formal scripts in an export of HEAD (`git archive`), so the checkout stays clean.
 - **Never chain a step after a pipe.** `make release | tail && git commit` commits even when
   `make release` failed, because the pipeline returns `tail`'s status. 0.3.9's release commit was
   made without its guest pin that way, and was amended before the push. Check the command's own

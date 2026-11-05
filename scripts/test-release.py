@@ -4,10 +4,10 @@ a running VM, container and volume, and the release's own fix. Isolated from ~/.
     test-release.py local <dist-root>   a local mirror of the release directory (DMX_RELEASE_URL)
     test-release.py public            the public GitHub URLs
 """
-import http.server, json, os, plistlib, shutil, socketserver, subprocess, sys, tempfile, threading, time
+import ctypes, http.server, json, os, plistlib, shutil, socketserver, subprocess, sys, tempfile, threading, time
 from pathlib import Path
 
-VERSION, PREVIOUS = "0.4.5", "0.4.4"
+VERSION, PREVIOUS = "0.4.6", "0.4.5"
 mode = sys.argv[1]
 PUBLIC = "https://github.com/cothis/dmx/releases/download"
 checks = []
@@ -82,6 +82,26 @@ flags = struct.unpack('>H', r[2:4])[0]
 print('tc', flags >> 9 & 1, 'bytes', len(r), 'inet', len(socket.getaddrinfo(name, 443, socket.AF_INET, socket.SOCK_STREAM)), 'unspec', len(socket.getaddrinfo(name, 443, type=socket.SOCK_STREAM)))
 """
 
+AF_INET6_ALONE = r"""
+import socket, sys, time
+started = time.time()
+try:
+    socket.getaddrinfo(sys.argv[1], 443, socket.AF_INET6, socket.SOCK_STREAM)
+    outcome = "addresses"
+except socket.gaierror as error:
+    outcome = "no_address" if error.errno == socket.EAI_NODATA else f"error_{error.errno}"
+print(outcome, round(time.time() - started, 2))
+"""
+# A record registered as shared answers A and leaves AAAA silent, with no network setting changed.
+dnssd = ctypes.CDLL("/usr/lib/libSystem.dylib")
+dnssd_ref, record = ctypes.c_void_p(), ctypes.c_void_p()
+registered = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_int32, ctypes.c_void_p)(lambda *_: None)
+SILENT = f"dmx-release-aaaa-{os.getpid()}.local"
+assert dnssd.DNSServiceCreateConnection(ctypes.byref(dnssd_ref)) == 0
+assert dnssd.DNSServiceRegisterRecord(dnssd_ref, ctypes.byref(record), ctypes.c_uint32(0x10), ctypes.c_uint32(0), f"{SILENT}.".encode(),
+                                      ctypes.c_uint16(1), ctypes.c_uint16(1), ctypes.c_uint16(4), bytes([192, 0, 2, 1]), ctypes.c_uint32(60), registered, None) == 0
+time.sleep(2)
+
 try:
     # A fresh install.
     area = ROOT / "fresh"
@@ -112,6 +132,9 @@ try:
                        "pip install -q --root-user-action=ignore --disable-pip-version-check boto3 >/dev/null 2>&1; python -u -", stdin=BOTO.encode(), timeout=300)
             text = r.stdout.decode()
             check(f"fix_boto3_{tag}{'_amd64' if platform else ''}", r.returncode == 0 and text.count("404") == 2, text + r.stderr.decode()[-200:])
+    r = docker(env, area, "run", "--rm", "python:3-slim", "python", "-u", "-c", AF_INET6_ALONE, SILENT, timeout=100)
+    out = r.stdout.decode().split()
+    check("fix_af_inet6_alone", len(out) >= 2 and out[0] == "no_address" and 0.8 < float(out[1]) < 4.5, r.stdout[:40] + r.stderr[-200:])
     dmx(area, env, "stop", "--json")
     time.sleep(12)
 
@@ -160,10 +183,14 @@ try:
     r = docker(env, area, "run", "--rm", "-i", "python:3-slim", "python", "-u", "-c", GAI, timeout=300)
     out = r.stdout.decode().split()
     check("update_fix_s3_name", r.returncode == 0 and out[:2] == ["tc", "0"] and int(out[7]) > 0, r.stdout + r.stderr[-200:])
+    r = docker(env, area, "run", "--rm", "python:3-slim", "python", "-u", "-c", AF_INET6_ALONE, SILENT, timeout=100)
+    out = r.stdout.decode().split()
+    check("update_fix_af_inet6_alone", len(out) >= 2 and out[0] == "no_address" and 0.8 < float(out[1]) < 4.5, r.stdout[:40] + r.stderr[-200:])
     docker(env, area, "rm", "-f", "kept")
     dmx(area, env, "stop", "--json")
     time.sleep(12)
 finally:
     if server: server.shutdown()
+    dnssd.DNSServiceRefDeallocate(dnssd_ref)
     failed = [c["name"] for c in checks if not c["ok"]]
     print(json.dumps({"mode": mode, "version": VERSION, "previous": PREVIOUS, "ok": not failed and len(checks) > 0, "total": len(checks), "failed": failed, "root": str(ROOT), "checks": checks}, default=str))
