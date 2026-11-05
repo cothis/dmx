@@ -404,6 +404,14 @@ import Testing
         pipe.queue.sync { pipe.waiting.removeFirst().reply([]) }
         #expect(pipe.replies(1) == [7])
         #expect(pipe.waitUntil { pipe.finished })
+        // A client that leaves with part of a query behind ends the connection too.
+        let partial = DNSPipe(immediate: true)
+        defer { partial.finish() }
+        partial.send([0, 100, 0xaa])
+        usleep(20_000)
+        #expect(partial.queue.sync { !partial.finished })
+        shutdown(partial.client, SHUT_WR)
+        #expect(partial.waitUntil { partial.finished })
         // A length too short to hold a header ends the connection.
         let bad = DNSPipe(immediate: true)
         defer { bad.finish() }

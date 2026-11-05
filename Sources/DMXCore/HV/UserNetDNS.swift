@@ -171,7 +171,8 @@ final class DNSConnection {
         }
         socket.writing = output.count > 0
         socket.reading = !ended && hasRoom
-        if ended && idle && input.count < 2 { close() }
+        // With nothing waiting every whole query has started, so what is left of the input is part of one.
+        if ended && idle { close() }
     }
 
     /// The reply to a query that cannot be resolved: its id, `code` and nothing else.

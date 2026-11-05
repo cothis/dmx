@@ -139,7 +139,7 @@ final class UserNet: @unchecked Sendable {
 
     private func answerOverTCP(_ query: UnsafeRawBufferPointer, reply: @escaping ([UInt8]) -> Void) {
         if let answer = LocalDNS.answer(query) { return reply(answer) }
-        // What macOS's resolver cannot represent: a zone transfer, or not a plain query.
+        // What `HostDNS` does not take: a zone transfer, the root name, several questions, another opcode.
         guard let question = HostDNS.Question(query), question.type != 251, question.type != 252 else {
             return reply(DNSConnection.failure(query, code: 4))  // not implemented
         }
@@ -456,7 +456,7 @@ final class UserNet: @unchecked Sendable {
             connection.close()  // RFC 7766: the client asks again on a new connection
         }
         tcpTick(now)
-        if udp.isEmpty && tcp.isEmpty && icmp.isEmpty {
+        if udp.isEmpty && tcp.isEmpty && icmp.isEmpty && dnsConnections.isEmpty {
             timer?.cancel()
             timer = nil
         }
