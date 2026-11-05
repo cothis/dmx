@@ -109,6 +109,15 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
   `DMX_HOME` at it with `guest` and `cache` symlinks. Pass it to every suite and to `make release`.
   **Keep that directory until the second packaging is done**: removing it early made 0.3.9's
   first packaging fail.
+  That home also needs Docker tools: run `dmx tools install` in it, or `menutest` fails with
+  `install_failed` on links to folders it does not have.
+- **Keep the signed build's UUID new.** Run the suites, `localnettest` included, before packaging
+  rewrites the pin: the pin changes the binary's UUID, so the first launchd run of the signed build
+  on this Mac is the installed update, the only evidence for keeping macOS's permission. Don't run
+  `docker` against the installed engine before updating it: that wakes the VM, and the old daemon then
+  answers until `dmx stop`.
+- **`formaltest` rewrites `formal/evidence/v0.3.12/*/tlc.log`** with new seeds and temporary paths.
+  Stage release files by name; these do not belong in a commit.
 - **Never chain a step after a pipe.** `make release | tail && git commit` commits even when
   `make release` failed, because the pipeline returns `tail`'s status. 0.3.9's release commit was
   made without its guest pin that way, and was amended before the push. Check the command's own
@@ -119,6 +128,9 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
   not an explanation. 0.3.8 shipped after daemontest's network checks failed once and a rerun
   passed; it was a real one-in-a-hundred receive deadlock that a user then hit (fixed in 0.3.9).
   Loop the failing step in isolation first.
+- **Before tagging and after publishing**, run `scripts/test-release.py` (set `VERSION` and
+  `PREVIOUS` at its top): `local .build/dist` against the release directory, then `public`. Put the
+  release's own fix in it.
 - **After publishing**, verify from the downloaded assets: a fresh install, an update from the
   previous release with a running VM and data, containers on arm64, amd64 and 386. Then exercise
   the release's own fix with the published binary (0.3.8: `dmx install` with the VM up;

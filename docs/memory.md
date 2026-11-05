@@ -16,6 +16,8 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Maintainer preferences
 
+- 2026-11-05: Authorized publishing v0.4.5 ("릴리즈 배포해"). As before, this does not include community announcements.
+
 - 2026-10-30: Authorized deleting regenerable development/release artifacts, hardening log
   growth, actual Opus 5.5 review and release after resolving defects. Preserve user VM data
   and pinned build inputs. Paused during preflight, then explicitly resumed. This authorization
@@ -63,6 +65,8 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-11-05: Keep the script that verifies a release in the repository. v0.4.4's 32-check proof lived in a temporary
+  folder and only its logs survived, so v0.4.5 had to rewrite it. A check you run for every release is code.
 - 2026-11-05: A fix on one path says nothing about the retry path beside it. The AAAA rule covered UDP; a reply
   over 512 bytes sent glibc to TCP, which went elsewhere, and only names with long answers hit it, so PyPI passed and
   S3 failed. When a client has a fallback, test the fallback too, with a name large enough to take it.

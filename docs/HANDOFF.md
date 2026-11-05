@@ -1,9 +1,10 @@
-# S3 버킷 이름 조회 실패 수정, 미공개 — 2026-11-05
+# v0.4.5 공개 릴리즈·공개 파일 검증 완료 — 2026-11-05
 
-boto3가 쓰는 버킷 이름은 CNAME과 주소 8개라 dmx 답이 512바이트를 넘어 잘렸고, glibc의 TCP 재시도는 macOS 리졸버를 벗어나
-첫 `nameserver`로 갔어요. TCP AAAA가 무응답이거나 끊기면 `AF_UNSPEC`만 실패해요(가짜 리졸버로 glibc 동작 확인).
-이름 압축과 TCP DNS의 `HostDNS` 응답으로 고쳤고, `dockertest`의 새 검사 11개 중 10개가 0.4.3에서 실패하고 수정본은 80/80이에요.
-메모리 차이는 없어요. 공개 0.4.4와 이 맥의 0.4.3에는 아직 없고, 릴리즈는 유지보수자 결정이에요. 실패한 네트워크에서는 아직 확인하지 못했어요.
+[v0.4.5](https://github.com/cothis/dmx/releases/tag/v0.4.5)를 `93da890` 태그 소스로 공개했어요. 서명·공증·스테이플을 통과했고, 14개 파일이 초안과 공개 URL 모두 원본과 일치해요.
+boto3가 쓰는 S3 버킷 이름은 CNAME과 주소 8개라 dmx 답이 512바이트를 넘어 잘렸고, glibc의 TCP 재시도는 macOS 리졸버를 벗어나
+첫 `nameserver`로 갔어요. TCP AAAA가 무응답이거나 끊기면 `AF_UNSPEC`만 실패해요(가짜 리졸버로 glibc 동작 확인). 이름 압축과 TCP DNS의 `HostDNS` 응답으로 고쳤어요.
+`scripts/test-release.py public` 28/28, 메모리 차이 없음. 이 맥의 앱·CLI·게스트는 0.4.5이고, 서명본 제자리 업데이트에서 권한은 `blocked` 후 약 1초 뒤 `allowed`로 풀렸어요.
+실패한 네트워크에서는 아직 확인하지 못했어요. 작업 트리의 `formal/evidence/v0.3.12/*/tlc.log` 15개는 `formaltest`가 다시 쓴 것으로 커밋하지 않았어요.
 
 ---
 

@@ -589,11 +589,22 @@ separate from Core/VM tests and the completed public distribution checks.
 
 ## Next up
 
-**S3 lookups through boto: fixed, committed, not released (2026-11-05).** A bucket's name came back
-truncated, and glibc's retry over TCP left macOS's resolver, so `AF_UNSPEC` failed where `AF_INET`
-worked: see [the finding](#s3-bucket-names-and-dns-over-tcp-2026-11-05). The published 0.4.4 and the
-0.4.3 on this Mac still have it; a release is the maintainer's decision. The fix has not run on the
-network that showed the failure, whose TCP behaviour is inferred from the symptom. Confirm it there.
+**v0.4.5 is published** (2026-11-05, signed, notarized and stapled, tag commit `93da890`). It fixes S3
+lookups through boto: a bucket's name came back truncated, and glibc's retry over TCP left macOS's resolver, so
+`AF_UNSPEC` failed where `AF_INET` worked: see [the finding](#s3-bucket-names-and-dns-over-tcp-2026-11-05). All
+gates passed on version 0.4.5; second packaging said `pin_changed: false`; the 14 draft assets and the same 14 from
+anonymous public URLs matched byte for byte. `scripts/test-release.py public` passed 28/28: fresh install and
+selftest 23 (102 MB), arm64, amd64 and 386, the fix and real boto3 calls, signed 0.4.4-to-0.4.5 update with the VM,
+container and volume kept. No community announcement was made. This Mac's app, CLI and guest are 0.4.5.
+[Record](measurements/2026-11-05-release-0.4.5.json).
+
+**Local-network check on the real thing: passed.** Updating this Mac's signed app in place, the first launchd run of
+a new UUID read `blocked` and `allowed` about a second later, with no answer given. See
+[the finding](#local-network-permission-across-updates-2026-11-05).
+
+**Next:** the fix has not run on the network that showed the failure, whose TCP behaviour is inferred from the
+symptom: confirm there, with the 0.4.2 AAAA fix, which is in the same position. Documented FEX compatibility limits
+remain separate follow-ups.
 
 **v0.4.4 is published** (2026-11-05, signed, notarized and stapled, tag commit `387f171`).
 All required release gates passed on version 0.4.4 and the new guest pin. The final packaging said
@@ -609,11 +620,6 @@ installations were upgraded by this release task.
 `allowed -> blocked` recorded for 0.4.4 came from test copies at new temporary paths, not from an
 update in place: see [the finding](#local-network-permission-across-updates-2026-11-05). On a stable
 path, app and standalone CLI recover by themselves in about a second, with no prompt.
-
-**Next:** on the next release, check the real thing: update the installed app on this Mac and read
-`dmx status` after the first boot, before any launchd test of that build raises a prompt, because the
-new UUID is what makes it evidence. The affected-network AAAA check and documented FEX compatibility
-limits remain separate follow-ups.
 
 **v0.4.2 is published** (2026-11-04, signed and notarized, tag commit `23193b3`). The 14 draft assets
 downloaded byte-identical to the qualified files before it went public; second packaging said
@@ -1052,6 +1058,10 @@ all succeed, and `go build -a std` passed on 3 of 3 fresh boots in 42-44 s. It i
 `vm.max_map_count=262144`, also from LinuxKit and asked for by images such as Elasticsearch, went in with it (maintainer, 2026-11-04). It raises a limit and reserves nothing.
 
 ### Local network permission across updates (2026-11-05)
+
+The real thing, measured with v0.4.5: this Mac's signed app updated in place from 0.4.3, on a UUID no launchd test had
+run. `dmx status` read `blocked` at the first look and `allowed` about a second later, with no answer given. The
+probes below predicted it.
 
 Why the owner had to answer again at 09:06 after publishing 0.4.4: the prompt came from
 `prove-release.py`, whose launchd job runs from a new temporary folder every time. 0.4.3 read `allowed`
@@ -1574,6 +1584,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-05: Published signed/notarized/stapled v0.4.5 from `93da890` and verified it from the public assets, 28/28; installed it on this Mac. Fixed a review finding first (a connection left with part of a query stayed open). The signed update on this Mac read `blocked`, then `allowed` about a second later. Added `scripts/test-release.py`, since the earlier proof script had not been kept.
 - 2026-11-05: Fixed S3 bucket lookups failing under glibc: names in DNS replies are compressed, so the answer fits UDP, and DNS over TCP is answered through macOS's resolver instead of the first `nameserver`. Unit 105, daemon 61/61, Docker 80/80 (ten new checks fail on 0.4.3), selftest 97-102 MB, footprint unchanged by an alternating comparison. Not released.
 - 2026-11-05: Published signed/notarized/stapled v0.4.4 from `387f171`. Final packaging kept the pin; all 14 draft assets and all 14 anonymous public downloads matched the qualified bytes. Public fresh-install/update verification passed 32 checks, including the final FEX and managed exceptions, with VM/container/volume retention. Both signed update paths reproduced LAN permission `allowed -> blocked`; recorded in the release notes. The personal CLI remains 0.4.3. Next: diagnose permission continuity across signed updates.
 - 2026-11-05: The maintainer approved v0.4.4. Completed every required release qualification gate on version 0.4.4 and the new guest pin; initial CLI/app Developer ID signing, notarization and stapling passed. Prepared release notes and install links. Next: second packaging, signed rehearsal, tag/publication and public-asset verification.
