@@ -61,6 +61,11 @@ and the Mac itself are not affected. The daemon probes at VM start, which is wha
 prompt with the reason from `NSLocalNetworkUsageDescription`, logs when blocked, and reports the
 state in `dmx status` and `dmx doctor` (`LocalNetworkAccess.swift`, `make localnettest`).
 
+The answer belongs to a signing identifier and a path, so an update in place keeps it: macOS refuses the
+new binary's first try and repairs that within about a second, which is why the daemon checks again after
+3 s (`make localnetupdatetest`). A new path asks again, ad-hoc signed builds are a new program each time,
+and while any copy's prompt is open every copy stays blocked, however long it was allowed before.
+
 An AAAA query the Mac's resolver does not answer stops failing once the name's A lookup has found an
 address: 300 ms later it ends as an empty NOERROR. musl clients otherwise fail the whole lookup.
 

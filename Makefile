@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build app install-app apptest localnettest menutest install kernel qemu fex guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest javatest storagetest pressuretest benchmark test formaltest release clean
+.PHONY: build app install-app apptest localnettest localnetupdatetest menutest install kernel qemu fex guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest javatest storagetest pressuretest benchmark test formaltest release clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -25,6 +25,11 @@ apptest: app
 # against what a container gets. Holds in either state; may raise macOS's prompt for this app.
 localnettest: app
 	python3 -I scripts/test-local-network.py .build/dmx.app
+
+# Whether that permission survives an update at the same path, for an app and for a standalone CLI.
+# Needs an Apple-issued signing identity; the first run on a Mac raises two prompts.
+localnetupdatetest:
+	python3 -I scripts/test-local-network-update.py
 
 # Copies dmx to $(PREFIX)/bin (default ~/.local/bin, no sudo). If the launchd agent is installed,
 # points it at the new copy. The guest stays in ~/.dmx/guest (`make guest`).

@@ -1,0 +1,21 @@
+{
+  "date": "2026-11-05",
+  "macos": "26.6.1 (25G76)",
+  "method": "Small probes, launchd-started, signed with an Apple Development identity under identifiers macOS had never seen, so each identifier had one rule as on an ordinary Mac. Each update replaced the file at the same path with a new Mach-O UUID: the whole app exchanged with RENAME_SWAP, the CLI renamed over.",
+  "same_path_updates": {
+    "app_engine_no_associated_bundle": {"updates": 2, "first_probe": "blocked", "allowed_after_s": 1, "new_prompts": 0},
+    "app_engine_with_associated_bundle_identifiers": {"updates": 2, "first_probe": "blocked", "allowed_after_s": 1, "new_prompts": 0, "rule_still_keyed_by": "helper signing identifier and path"},
+    "standalone_cli": {"updates": 2, "first_probe": "blocked", "allowed_after_s": 1, "new_prompts": 0},
+    "make_localnetupdatetest": {"updates_app": 2, "updates_cli": 2, "first_probe": "blocked", "allowed_after_s": 1, "new_prompts": 0, "ran_after_private_tmp_was_emptied": true}
+  },
+  "same_identifier_new_path": {"state": "blocked, prompt raised", "self_repair": false},
+  "allowed_path_while_another_copys_prompt_is_open": {
+    "blocked_s_while_copy_exists": 53,
+    "blocked_s_after_copy_removed": 242,
+    "unblocked": "when the owner answered the prompt, within 1 s"
+  },
+  "started_from_a_shell": {"same_unapproved_build": "allowed at once", "parent": "agent shell, not Terminal.app"},
+  "ad_hoc_builds": {"identifier": "dmx-55554944<macho uuid>", "rules_at_one_path": 5, "note": "each build is a new program to macOS"},
+  "system_log": "Each repair logs: Local network allowed by preference for <id>, but received prompt. Clearing cached UUIDs and restarting session.",
+  "not_measured": ["a Developer ID signed dmx through a new release on a stable path", "an engine started by the menu app across an update", "a denied answer"]
+}

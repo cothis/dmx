@@ -214,7 +214,8 @@ does not break names that have an IPv4 address.
 **Local network.** macOS asks once for permission to reach the local network (Privacy & Security >
 Local Network). Without it, containers cannot reach LAN addresses and `.local` names may not resolve;
 images, the public internet and the Mac itself work regardless. `dmx doctor` and
-`dmx status` say when it is blocked while the VM runs.
+`dmx status` say when it is blocked while the VM runs. Updating keeps the answer. Moving dmx.app asks
+again, and a build from source asks after each build, since macOS treats it as a new program.
 
 **Known gaps:** PAC proxy configuration, shared-file ACLs, and connecting to arbitrary Mac Unix
 sockets from containers. IPv6 is implemented in the VM network and published ports; external

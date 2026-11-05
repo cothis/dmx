@@ -596,14 +596,15 @@ identity after restart, and .NET/Java managed exceptions three times each. No co
 announcement was made. The existing personal CLI on this Mac is 0.4.3; only isolated
 installations were upgraded by this release task.
 
-**Next: preserve local-network permission across a signed update.** On this Mac both the local
-rehearsal and public signed update showed `allowed -> blocked`, with LAN TCP matching the block.
-The release notes tell users to check the macOS prompt or Local Network settings and allow dmx
-again if LAN access stops. The three-second retry does not establish permission continuity.
-Use the retained signed-update reproduction to diagnose the program identity/permission cache;
-the cause and a stable native solution remain unconfirmed. Preserve the public release and user
-data while investigating. The affected-network AAAA check and documented FEX compatibility limits
-remain separate follow-ups.
+**Local-network permission across updates: diagnosed, no product change needed (2026-11-05).** The
+`allowed -> blocked` recorded for 0.4.4 came from test copies at new temporary paths, not from an
+update in place: see [the finding](#local-network-permission-across-updates-2026-11-05). On a stable
+path, app and standalone CLI recover by themselves in about a second, with no prompt.
+
+**Next:** on the next release, check the real thing: update the installed app on this Mac and read
+`dmx status` after the first boot, before any launchd test of that build raises a prompt, because the
+new UUID is what makes it evidence. The affected-network AAAA check and documented FEX compatibility
+limits remain separate follow-ups.
 
 **v0.4.2 is published** (2026-11-04, signed and notarized, tag commit `23193b3`). The 14 draft assets
 downloaded byte-identical to the qualified files before it went public; second packaging said
@@ -789,14 +790,12 @@ Java JIT 100/100, menu 25, app installation 14, storage 64, and local network 13
 (real LAN compared, blocked). Both image runs verified live emulator `a75324c3ee1e`.
 The first signed/notarized packaging updated GuestPin.swift; the second retained it
 (`pin_changed: false`). Signed local installation/update rehearsal passed 32 checks, including
-live VM/container/data preservation and the final managed workloads. It also reproduced
-`allowed -> blocked` for LAN permission after the signed update on this Mac; the release notes
-state that users may need to allow dmx again. The initial mirror rehearsal omitted the local
+live VM/container/data preservation and the final managed workloads. It also read
+`allowed -> blocked` for LAN permission from a new temporary path (later diagnosed as a test artifact, see the finding below). The initial mirror rehearsal omitted the local
 base URL from its launchd fixture and intentionally fell back after a public HTTP 404; forwarding
 the mirror setting fixed that test setup, with no product change. Raw logs stay local; the [release record](measurements/2026-11-05-release-0.4.4.json)
 contains sanitized results. Publication is complete: 14 public assets match and all 32 public
-install/update checks pass. Both signed update paths reproduced the LAN permission change
-`allowed -> blocked`; the release notes document it. The public fresh selftest used 98 MiB.
+install/update checks pass. Both runs read `allowed -> blocked` from new temporary paths, the same test artifact. The public fresh selftest used 98 MiB.
 The installed personal CLI is 0.4.3; these update tests used isolated installations.
 
 ### dmx13: signal contexts, writable code aliases and divide errors (2026-11-05, candidate)
@@ -983,6 +982,45 @@ Touching memory at 5-8 GiB/s right after boot, 6 and 7 GiB of an 8 GiB ceiling: 
 single mapping larger than that. Not specific to FEX: in a native arm64 container at `MemTotal` 1244 MB, an anonymous mmap of 1 GiB worked and 2, 3, 4 and 6 GiB failed with ENOMEM. With `vm.overcommit_memory=1`, which LinuxKit also sets,
 all succeed, and `go build -a std` passed on 3 of 3 fresh boots in 42-44 s. It is a kernel command line setting, so the guest is unchanged by it. Too much memory now ends in the OOM killer rather than ENOMEM, as on Docker Desktop.
 `vm.max_map_count=262144`, also from LinuxKit and asked for by images such as Elasticsearch, went in with it (maintainer, 2026-11-04). It raises a limit and reserves nothing.
+
+### Local network permission across updates (2026-11-05)
+
+Why the owner had to answer again at 09:06 after publishing 0.4.4: the prompt came from
+`prove-release.py`, whose launchd job runs from a new temporary folder every time. 0.4.3 read `allowed`
+there only because its UUID was already allowed for the installed copy; 0.4.4 had a new UUID and no rule
+for that path. So that check could not show whether an update in place keeps the permission, and the
+release notes' wording overstated it. [Raw results](measurements/2026-11-05-local-network-update.json).
+
+How macOS decides, from `nehelper`'s log and `com.apple.networkextension.plist`: an answer is stored by
+signing identifier and path, and the kernel's policy lists Mach-O UUIDs read from that path. A release
+changes the UUID, so its first local network operation is refused. macOS then logs `allowed by preference
+... but received prompt. Clearing cached UUIDs`, re-reads the path and allows the next one, with no prompt.
+
+Small launchd probes under identifiers macOS had never seen, so one rule each as on an ordinary Mac:
+
+| Situation | Result |
+|---|---|
+| App engine, update at the same path | first probe blocked, allowed 1 s later, no prompt (4/4) |
+| Same, with `AssociatedBundleIdentifiers` | identical (2/2); the rule stays on the helper's identifier and path |
+| Standalone CLI, update at the same path | identical (4/4) |
+| Same identifier at a new path | blocked, prompt raised, no repair |
+| Allowed path while another copy's prompt is open | blocked, no system log; still blocked 4 minutes after the copy was deleted; allowed within 1 s of the answer |
+| Started from a shell | allowed at once, same unapproved build (an agent's shell, not Terminal.app) |
+
+So 0.4.4's three-second recheck is enough for an update in place, and moving the permission to the app's
+bundle is not needed; the earlier idea that a stale UUID cache would block one-rule Macs for long was wrong.
+The open-prompt row is consistent with the installed 0.4.3 staying blocked from 19:43 to 19:58 on November
+4 while a test copy's prompt waited, and 19:59:15's repair is the same log line on real dmx.
+
+What this means for each installation: a legacy CLI moving to the app, or a moved app, asks once more (new
+path). `make install` and `make app` builds are ad-hoc signed, which macOS names `dmx-55554944<uuid>`: each
+build is a new program and asks again; five such rules had piled up at `.build/dmx.app`. A rule for a
+deleted path stays in Settings, and this macOS has no way to remove it.
+
+Not measured: a Developer ID signed dmx through a new release on a stable path (the probes used an Apple
+Development identity), an engine started by the menu app across an update, and a denied answer. `make
+localnetupdatetest` repeats the probe rows; after two prompts on first use it needs no answers, even after
+`/private/tmp` was emptied, and passed 4/4 here with 1 s recoveries.
 
 ### Local network permission allowed (2026-11-04)
 
@@ -1637,3 +1675,4 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 - 2026-10-27: v0.3.10 qualified (`~/.docker/run/docker.sock` link; guest boot files byte-identical to 0.3.9): unit 62, selftest 23 (96 MiB, 1122 → 101 MiB in 214 ms), daemon 58 (64 MB at 501 MB/s), MCP 33, x86 53, Docker 69, sandbox 44, images 24, Java 100. Next: publish and verify v0.3.10.
 - 2026-10-27: Published signed/notarized v0.3.10 from aa061fc. Second packaging kept the pin; local rehearsal (selftest 23/23, 101 MiB) and install.sh from it; 14 uploaded and re-downloaded files byte-identical to the local ones; a fresh install from GitHub (selftest 23/23, 101 MiB, guest v0.3.10 downloaded); `dmx update` of a running 0.3.9 with a container (stop_to_switch, container kept, volume data kept, the unchanged guest not downloaded); arm64, amd64 and 386 (LONG_BIT 32) containers; the published `dmx install` made the link on a free path and replaced a dangling one, and docker and curl `_ping` answered through it. The guest receipt still names v0.3.6 (recorded in Next up). Next: the maintainer's call on the community announcement.
 - 2026-10-27: A boot now records the new tag when a release keeps the boot files (the receipt had stayed at v0.3.6 through 0.3.7-0.3.10). Unit 63 (the new test fails without the change); a copy of this Mac's v0.3.6 guest booted with downloads blocked: selftest 23/23 (97 MiB), receipt, `dmx guest` and `dmx doctor` say v0.3.10. Not released.
+- 2026-11-05: Diagnosed the repeated local network prompt: test copies at new paths raised it, and an open prompt blocks every copy; updates in place recover in 1 s with no prompt for app and CLI (no product change, `AssociatedBundleIdentifiers` measured and rejected). Added `make localnetupdatetest`; corrected the 0.4.4 note in the repository.

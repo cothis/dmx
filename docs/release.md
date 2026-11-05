@@ -126,6 +126,13 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
 - **Release notes quote measurements, not expectations.** Fill in the qualification numbers only
   after the suites have run.
 
+### Local network permission
+
+A launchd test from a new temporary path raises macOS's prompt for a new UUID, and says nothing about an
+update in place. While that prompt is open every copy is blocked, including the installed one, and answering
+it allows the UUID everywhere. So update the installed app and read `dmx status` before any such test of the
+build. `make localnetupdatetest` checks macOS's behaviour itself; run it on a new major macOS.
+
 ## What is in the release directory
 
 | File | What |

@@ -63,6 +63,11 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-11-05: Before fixing a permission, check the test can see it. A release check ran from a new temporary
+  path each time, so `allowed -> blocked` was certain whatever updates did; I then proposed a launchd key on a
+  log-based theory, and probes under identifiers macOS had never seen refuted both. Isolate from the state
+  this Mac has piled up, and let the measurement drop the fix.
+
 - 2026-11-05: A local release mirror is the daemon's environment too. A signed-update rehearsal
   passed DMX_RELEASE_URL only to the CLI; launchd tried the unpublished public guest URL, got 404,
   and correctly booted the previous guest. Forward the mirror into the job and verify both the
