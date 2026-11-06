@@ -16,6 +16,8 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Maintainer preferences
 
+- 2026-11-06: Authorized publishing v0.4.7 with the guest clock fix ("릴리즈해야지"). As before, no community announcements.
+
 - 2026-11-06: Declined a bug and feature report tool in `dmx mcp` that would file GitHub issues ("안할게"), after
   options (prefilled issue link, `gh` with the user's account, a relay bot) were offered. Do not propose it again unasked.
 

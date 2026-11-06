@@ -7,7 +7,7 @@ a running VM, container and volume, and the release's own fix. Isolated from ~/.
 import ctypes, http.server, json, os, plistlib, shutil, socketserver, subprocess, sys, tempfile, threading, time
 from pathlib import Path
 
-VERSION, PREVIOUS = "0.4.6", "0.4.5"
+VERSION, PREVIOUS = "0.4.7", "0.4.6"
 mode = sys.argv[1]
 PUBLIC = "https://github.com/cothis/dmx/releases/download"
 checks = []
@@ -15,7 +15,7 @@ def check(name, ok, detail=""):
     checks.append({"name": name, "ok": bool(ok), "detail": detail})
     print(name, bool(ok), str(detail)[:200], flush=True)
 
-ROOT = Path(tempfile.mkdtemp(prefix="dmx045-", dir="/private/tmp"))
+ROOT = Path(tempfile.mkdtemp(prefix="dmxrel-", dir="/private/tmp"))
 base = PUBLIC
 server = None
 if mode == "local":
@@ -92,6 +92,29 @@ except socket.gaierror as error:
     outcome = "no_address" if error.errno == socket.EAI_NODATA else f"error_{error.errno}"
 print(outcome, round(time.time() - started, 2))
 """
+# Sets the guest clock 50 ms ahead and watches it against CLOCK_MONOTONIC_RAW (scripts/test-clock.py).
+SLEW = r"""
+import json, time
+raw = lambda: time.clock_gettime(time.CLOCK_MONOTONIC_RAW)
+time.clock_settime(time.CLOCK_REALTIME, time.time() + 0.05)
+start = raw(); base = time.time() - start; prev = time.time(); back = 0.0
+while raw() - start < 130:
+    now = time.time(); back = max(back, prev - now); prev = now
+    time.sleep(0.001)
+print(json.dumps({"moved_ms": (time.time() - raw() - base) * 1000, "worst_back_ms": back * 1000}))
+"""
+
+def clock_follows(area, env):
+    """A guest clock set an hour back is put right by the daemon's periodic sync, within 90 s."""
+    dmx(area, env, "exec", "--", "date", "-s", f"@{int(time.time()) - 3600}")
+    began = time.time()
+    while time.time() - began < 90:
+        off = int(dmx(area, env, "exec", "--", "date", "+%s").stdout or 0) - int(time.time())
+        if abs(off) <= 1:
+            return True, f"set after {time.time() - began:.0f} s"
+        time.sleep(3)
+    return False, f"still {off} s off after 90 s"
+
 # A record registered as shared answers A and leaves AAAA silent, with no network setting changed.
 dnssd = ctypes.CDLL("/usr/lib/libSystem.dylib")
 dnssd_ref, record = ctypes.c_void_p(), ctypes.c_void_p()
@@ -135,6 +158,13 @@ try:
     r = docker(env, area, "run", "--rm", "python:3-slim", "python", "-u", "-c", AF_INET6_ALONE, SILENT, timeout=100)
     out = r.stdout.decode().split()
     check("fix_af_inet6_alone", len(out) >= 2 and out[0] == "no_address" and 0.8 < float(out[1]) < 4.5, r.stdout[:40] + r.stderr[-200:])
+    check("fix_clock_follows_host", *clock_follows(area, env))
+    r = docker(env, area, "run", "--rm", "--cap-add", "SYS_TIME", "python:3-alpine", "python3", "-c", SLEW, timeout=240)
+    try:
+        d = json.loads(r.stdout)
+    except ValueError:
+        d = {}
+    check("fix_clock_slews_without_going_back", d and d["worst_back_ms"] < 1 and -60 < d["moved_ms"] < -5, d or r.stderr[-200:])
     dmx(area, env, "stop", "--json")
     time.sleep(12)
 
@@ -186,6 +216,7 @@ try:
     r = docker(env, area, "run", "--rm", "python:3-slim", "python", "-u", "-c", AF_INET6_ALONE, SILENT, timeout=100)
     out = r.stdout.decode().split()
     check("update_fix_af_inet6_alone", len(out) >= 2 and out[0] == "no_address" and 0.8 < float(out[1]) < 4.5, r.stdout[:40] + r.stderr[-200:])
+    check("update_fix_clock_follows_host", *clock_follows(area, env))
     docker(env, area, "rm", "-f", "kept")
     dmx(area, env, "stop", "--json")
     time.sleep(12)
