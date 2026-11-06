@@ -1,0 +1,447 @@
+{
+  "version": "0.4.7",
+  "tag_commit": "d038460",
+  "date": "2026-11-06",
+  "qualification": {
+    "unit": 114,
+    "formal": "passed",
+    "selftest": 23,
+    "daemon": 63,
+    "mcp": 33,
+    "clock": 4,
+    "x86": 77,
+    "docker": 81,
+    "sandbox": 44,
+    "image_matrix": 24,
+    "java_jit": "100/100",
+    "menu": 25,
+    "app_installation": 14,
+    "storage": 64,
+    "local_network": {
+      "checks": 13,
+      "lan": true,
+      "compared": true
+    },
+    "selftest_footprint_mb": 97,
+    "clocktest_first_run": "stale failed once: macOS timed stepped the host back 1.86 s at 11:16:55 +0900 and the guest followed (1,871.7 ms); check now allows the host's own step; rerun 4/4"
+  },
+  "packaging": {
+    "second_pin_changed": false,
+    "binary_sha256": "5bf550b97596758c4a4a800b04df6421ea7e3d3c5b28629d93fb9bbc1c9c7182",
+    "guest_sha256": "f0e212a8384853121515b922eae8b2e80a711503786b6c2c2f64211926d1de72",
+    "guest_bytes": 62905747
+  },
+  "assets": {
+    "draft_identical": "14/14",
+    "public_anonymous_identical": "14/14"
+  },
+  "test_release_local": {
+    "mode": "local",
+    "version": "0.4.7",
+    "previous": "0.4.6",
+    "ok": true,
+    "total": 33,
+    "failed": [],
+    "checks": [
+      {
+        "name": "fresh_install",
+        "ok": true,
+        "detail": "b'downloading docker 29.9.2 (18 MB) from download.docker.com\\ndownloading docker-credential-osxkeychain 0.9.12 (2 MB) from github.com\\ndownloading compose 5.6.1 (29 MB) from github.com\\ndownloading buildx 0.38.1 (62 MB) from github.com\\n'"
+      },
+      {
+        "name": "fresh_version",
+        "ok": true,
+        "detail": "0.4.7"
+      },
+      {
+        "name": "fresh_signed_notarized_stapled",
+        "ok": true,
+        "detail": {
+          "codesign": true,
+          "stapled": true,
+          "gatekeeper": true,
+          "team": true
+        }
+      },
+      {
+        "name": "fresh_guest_starts_missing",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "fresh_selftest",
+        "ok": true,
+        "detail": {
+          "checks": 23,
+          "footprint_mb": 101
+        }
+      },
+      {
+        "name": "fresh_guest_from_release",
+        "ok": true,
+        "detail": "v0.4.7"
+      },
+      {
+        "name": "fresh_container_linux_arm64",
+        "ok": true,
+        "detail": "b'aarch64\\nd complete\\n417332e4182f: Download complete\\nb90627b8f429: Pull complete\\nDigest: sha256:3f4d6b32e26703c6082839234f43769d5046b3ac7c910033911d1e71d8cd630a\\nStatus: Downloaded newer image for alpine:latest\\n'"
+      },
+      {
+        "name": "fresh_container_linux_amd64",
+        "ok": true,
+        "detail": "b'x86_64\\nload complete\\nc35a7d82b8fa: Download complete\\n881fc932939e: Pull complete\\nDigest: sha256:3f4d6b32e26703c6082839234f43769d5046b3ac7c910033911d1e71d8cd630a\\nStatus: Image is up to date for alpine:latest\\n'"
+      },
+      {
+        "name": "fresh_container_linux_386",
+        "ok": true,
+        "detail": "b'x86_64\\n complete\\neabfd762c1d0: Download complete\\n17150332ccbf: Download complete\\nDigest: sha256:3f4d6b32e26703c6082839234f43769d5046b3ac7c910033911d1e71d8cd630a\\nStatus: Image is up to date for alpine:latest\\n'"
+      },
+      {
+        "name": "fix_s3_name_slim",
+        "ok": true,
+        "detail": "b'tc 0 bytes 211 inet 8 unspec 8\\n Pull complete\\n405d5f23d33f: Pull complete\\naa7731a0a627: Pull complete\\nDigest: sha256:e97b88e416c3c01eb427b21fd8cd3ebf006e6ee38afcfcc3cae1c54ee2ab0a75\\nStatus: Downloaded newer image for python:3-slim\\n'"
+      },
+      {
+        "name": "fix_boto3_slim_amd64",
+        "ok": true,
+        "detail": "us-east-1 404\nap-northeast-2 404\n63: Pull complete\nf01b8d07ba2a: Pull complete\nba56bf6127ad: Pull complete\nDigest: sha256:e97b88e416c3c01eb427b21fd8cd3ebf006e6ee38afcfcc3cae1c54ee2ab0a75\nStatus: Image is up to date for python:3-slim\n"
+      },
+      {
+        "name": "fix_boto3_slim",
+        "ok": true,
+        "detail": "us-east-1 404\nap-northeast-2 404\n"
+      },
+      {
+        "name": "fix_s3_name_alpine",
+        "ok": true,
+        "detail": "b'tc 0 bytes 211 inet 8 unspec 8\\noad complete\\n1c4457ee0114: Pull complete\\n297a5ceff0ed: Pull complete\\nDigest: sha256:d499023466546cd88a358f80b46fba4016f32597bc4482bb1c47b483a07d457d\\nStatus: Downloaded newer image for python:3-alpine\\n'"
+      },
+      {
+        "name": "fix_boto3_alpine",
+        "ok": true,
+        "detail": "us-east-1 404\nap-northeast-2 404\n"
+      },
+      {
+        "name": "fix_boto3_alpine",
+        "ok": true,
+        "detail": "us-east-1 404\nap-northeast-2 404\n"
+      },
+      {
+        "name": "fix_af_inet6_alone",
+        "ok": true,
+        "detail": "b'no_address 1.15\\n'"
+      },
+      {
+        "name": "fix_clock_follows_host",
+        "ok": true,
+        "detail": "set after 9 s"
+      },
+      {
+        "name": "fix_clock_slews_without_going_back",
+        "ok": true,
+        "detail": {
+          "moved_ms": -34.9431037902832,
+          "worst_back_ms": 0.0
+        }
+      },
+      {
+        "name": "previous_install",
+        "ok": true,
+        "detail": "b'downloading docker 29.9.2 (18 MB) from download.docker.com\\ndownloading docker-credential-osxkeychain 0.9.12 (2 MB) from github.com\\ndownloading compose 5.6.1 (29 MB) from github.com\\ndownloading buildx 0.38.1 (62 MB) from github.com\\n'"
+      },
+      {
+        "name": "previous_version",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "previous_container",
+        "ok": true,
+        "detail": "b' complete\\n55d2dadd4bbc: Pull complete\\n622159812b01: Download complete\\nDigest: sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4\\nStatus: Downloaded newer image for busybox:latest\\n'"
+      },
+      {
+        "name": "update_ok",
+        "ok": true,
+        "detail": {
+          "version": null,
+          "handover": null,
+          "installed": null
+        }
+      },
+      {
+        "name": "update_to_version",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "update_signed_notarized_stapled",
+        "ok": true,
+        "detail": {
+          "codesign": true,
+          "stapled": true,
+          "gatekeeper": true,
+          "team": true
+        }
+      },
+      {
+        "name": "update_keeps_vm",
+        "ok": true,
+        "detail": {
+          "before": 76745,
+          "after": 76745,
+          "version": "0.4.6"
+        }
+      },
+      {
+        "name": "update_keeps_container",
+        "ok": true,
+        "detail": "b'kept\\n'"
+      },
+      {
+        "name": "restart_serves_new_version",
+        "ok": true,
+        "detail": {
+          "version": "0.4.7",
+          "state": "running"
+        }
+      },
+      {
+        "name": "restart_keeps_container",
+        "ok": true,
+        "detail": "b'2b4afc6a63679d7d8ab854b838af690b8e8515aca4e52ccea7fcb76d524770f6\\n'"
+      },
+      {
+        "name": "restart_keeps_volume",
+        "ok": true,
+        "detail": "b'kept\\n'"
+      },
+      {
+        "name": "update_guest_receipt",
+        "ok": true,
+        "detail": "v0.4.7"
+      },
+      {
+        "name": "update_fix_s3_name",
+        "ok": true,
+        "detail": "b'tc 0 bytes 211 inet 8 unspec 8\\n Pull complete\\n405d5f23d33f: Pull complete\\naa7731a0a627: Pull complete\\nDigest: sha256:e97b88e416c3c01eb427b21fd8cd3ebf006e6ee38afcfcc3cae1c54ee2ab0a75\\nStatus: Downloaded newer image for python:3-slim\\n'"
+      },
+      {
+        "name": "update_fix_af_inet6_alone",
+        "ok": true,
+        "detail": "b'no_address 1.12\\n'"
+      },
+      {
+        "name": "update_fix_clock_follows_host",
+        "ok": true,
+        "detail": "set after 51 s"
+      }
+    ]
+  },
+  "test_release_public": {
+    "mode": "public",
+    "version": "0.4.7",
+    "previous": "0.4.6",
+    "ok": true,
+    "total": 33,
+    "failed": [],
+    "checks": [
+      {
+        "name": "fresh_install",
+        "ok": true,
+        "detail": "b'downloading docker 29.9.2 (18 MB) from download.docker.com\\ndownloading docker-credential-osxkeychain 0.9.12 (2 MB) from github.com\\ndownloading compose 5.6.1 (29 MB) from github.com\\ndownloading buildx 0.38.1 (62 MB) from github.com\\n'"
+      },
+      {
+        "name": "fresh_version",
+        "ok": true,
+        "detail": "0.4.7"
+      },
+      {
+        "name": "fresh_signed_notarized_stapled",
+        "ok": true,
+        "detail": {
+          "codesign": true,
+          "stapled": true,
+          "gatekeeper": true,
+          "team": true
+        }
+      },
+      {
+        "name": "fresh_guest_starts_missing",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "fresh_selftest",
+        "ok": true,
+        "detail": {
+          "checks": 23,
+          "footprint_mb": 102
+        }
+      },
+      {
+        "name": "fresh_guest_from_release",
+        "ok": true,
+        "detail": "v0.4.7"
+      },
+      {
+        "name": "fresh_container_linux_arm64",
+        "ok": true,
+        "detail": "b'aarch64\\nd complete\\nb90627b8f429: Pull complete\\n417332e4182f: Download complete\\nDigest: sha256:3f4d6b32e26703c6082839234f43769d5046b3ac7c910033911d1e71d8cd630a\\nStatus: Downloaded newer image for alpine:latest\\n'"
+      },
+      {
+        "name": "fresh_container_linux_amd64",
+        "ok": true,
+        "detail": "b'x86_64\\nload complete\\n881fc932939e: Pull complete\\n86ff264fe568: Download complete\\nDigest: sha256:3f4d6b32e26703c6082839234f43769d5046b3ac7c910033911d1e71d8cd630a\\nStatus: Image is up to date for alpine:latest\\n'"
+      },
+      {
+        "name": "fresh_container_linux_386",
+        "ok": true,
+        "detail": "b'x86_64\\nload complete\\n06411751d845: Pull complete\\n17150332ccbf: Download complete\\nDigest: sha256:3f4d6b32e26703c6082839234f43769d5046b3ac7c910033911d1e71d8cd630a\\nStatus: Image is up to date for alpine:latest\\n'"
+      },
+      {
+        "name": "fix_s3_name_slim",
+        "ok": true,
+        "detail": "b'tc 0 bytes 211 inet 8 unspec 8\\nnload complete\\n405d5f23d33f: Pull complete\\naa7731a0a627: Pull complete\\nDigest: sha256:e97b88e416c3c01eb427b21fd8cd3ebf006e6ee38afcfcc3cae1c54ee2ab0a75\\nStatus: Downloaded newer image for python:3-slim\\n'"
+      },
+      {
+        "name": "fix_boto3_slim_amd64",
+        "ok": true,
+        "detail": "us-east-1 404\nap-northeast-2 404\n67: Pull complete\nf01b8d07ba2a: Pull complete\nba56bf6127ad: Pull complete\nDigest: sha256:e97b88e416c3c01eb427b21fd8cd3ebf006e6ee38afcfcc3cae1c54ee2ab0a75\nStatus: Image is up to date for python:3-slim\n"
+      },
+      {
+        "name": "fix_boto3_slim",
+        "ok": true,
+        "detail": "us-east-1 404\nap-northeast-2 404\n"
+      },
+      {
+        "name": "fix_s3_name_alpine",
+        "ok": true,
+        "detail": "b'tc 0 bytes 211 inet 8 unspec 8\\noad complete\\n297a5ceff0ed: Pull complete\\n1c4457ee0114: Pull complete\\nDigest: sha256:d499023466546cd88a358f80b46fba4016f32597bc4482bb1c47b483a07d457d\\nStatus: Downloaded newer image for python:3-alpine\\n'"
+      },
+      {
+        "name": "fix_boto3_alpine",
+        "ok": true,
+        "detail": "us-east-1 404\nap-northeast-2 404\n"
+      },
+      {
+        "name": "fix_boto3_alpine",
+        "ok": true,
+        "detail": "us-east-1 404\nap-northeast-2 404\n"
+      },
+      {
+        "name": "fix_af_inet6_alone",
+        "ok": true,
+        "detail": "b'no_address 1.12\\n'"
+      },
+      {
+        "name": "fix_clock_follows_host",
+        "ok": true,
+        "detail": "set after 9 s"
+      },
+      {
+        "name": "fix_clock_slews_without_going_back",
+        "ok": true,
+        "detail": {
+          "moved_ms": -35.219430923461914,
+          "worst_back_ms": 0.0
+        }
+      },
+      {
+        "name": "previous_install",
+        "ok": true,
+        "detail": "b'downloading docker 29.9.2 (18 MB) from download.docker.com\\ndownloading docker-credential-osxkeychain 0.9.12 (2 MB) from github.com\\ndownloading compose 5.6.1 (29 MB) from github.com\\ndownloading buildx 0.38.1 (62 MB) from github.com\\n'"
+      },
+      {
+        "name": "previous_version",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "previous_container",
+        "ok": true,
+        "detail": "b' complete\\n55d2dadd4bbc: Pull complete\\n622159812b01: Download complete\\nDigest: sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4\\nStatus: Downloaded newer image for busybox:latest\\n'"
+      },
+      {
+        "name": "update_ok",
+        "ok": true,
+        "detail": {
+          "version": null,
+          "handover": null,
+          "installed": null
+        }
+      },
+      {
+        "name": "update_to_version",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "update_signed_notarized_stapled",
+        "ok": true,
+        "detail": {
+          "codesign": true,
+          "stapled": true,
+          "gatekeeper": true,
+          "team": true
+        }
+      },
+      {
+        "name": "update_keeps_vm",
+        "ok": true,
+        "detail": {
+          "before": 79435,
+          "after": 79435,
+          "version": "0.4.6"
+        }
+      },
+      {
+        "name": "update_keeps_container",
+        "ok": true,
+        "detail": "b'kept\\n'"
+      },
+      {
+        "name": "restart_serves_new_version",
+        "ok": true,
+        "detail": {
+          "version": "0.4.7",
+          "state": "running"
+        }
+      },
+      {
+        "name": "restart_keeps_container",
+        "ok": true,
+        "detail": "b'0a2fdb0aaf9f5e5fb14a62e49b2bf9e1c35f37d0b261c312e9719c14205ce649\\n'"
+      },
+      {
+        "name": "restart_keeps_volume",
+        "ok": true,
+        "detail": "b'kept\\n'"
+      },
+      {
+        "name": "update_guest_receipt",
+        "ok": true,
+        "detail": "v0.4.7"
+      },
+      {
+        "name": "update_fix_s3_name",
+        "ok": true,
+        "detail": "b'tc 0 bytes 211 inet 8 unspec 8\\n Pull complete\\n405d5f23d33f: Pull complete\\naa7731a0a627: Pull complete\\nDigest: sha256:e97b88e416c3c01eb427b21fd8cd3ebf006e6ee38afcfcc3cae1c54ee2ab0a75\\nStatus: Downloaded newer image for python:3-slim\\n'"
+      },
+      {
+        "name": "update_fix_af_inet6_alone",
+        "ok": true,
+        "detail": "b'no_address 1.11\\n'"
+      },
+      {
+        "name": "update_fix_clock_follows_host",
+        "ok": true,
+        "detail": "set after 52 s"
+      }
+    ]
+  },
+  "this_mac": {
+    "updated": "0.4.6 -> 0.4.7, stop_to_switch, guest v0.4.7 downloaded",
+    "local_network": "blocked, then allowed about 1 s later, no prompt answered",
+    "host_footprint_mb_after_boot": 81
+  }
+}
