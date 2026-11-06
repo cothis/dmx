@@ -852,6 +852,11 @@ before `dmx exec` (at most every 30 s); Docker requests go through docker.sock a
   offset lies in [arrival - round trip, arrival]; a slow measurement now corrects only by the end of that range
   nearest zero (never more than the real offset), nothing if it holds zero, and is measured again in 15 s.
   `GuestClockTests.estimates`; clocktest step, slew and stale pass again.
+- During v0.4.7 qualification `stale` failed once: the guest went back 1,871.7 ms because macOS's timed stepped this
+  Mac's clock back 1.86 s at 11:16:55 (`innv,-1.864527`, `ResetSynthesizer`), an hour after the 2.05 s step at
+  10:12:55, and the daemon followed it (`the Mac's clock moved by -2 s`). Correct behaviour; the check now watches the
+  Mac's own clock too and allows a guest step back only up to the host's plus 50 ms. Rerun on the release guest:
+  4/4 with no host step.
 
 ### v0.4.4 release qualification (2026-11-05)
 

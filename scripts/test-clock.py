@@ -25,6 +25,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -73,6 +74,34 @@ def guest_offset():
     return int(dmx("exec", "--", "date", "+%s").stdout) - int(host)
 
 
+class HostSteps:
+    """The Mac's own clock going back while a check runs: macOS's timed steps it after an NTP
+    answer (seen twice an hour apart on this Mac, -2.05 and -1.86 s), and the guest rightly
+    follows. A guest step back is dmx's fault only beyond what the host did."""
+
+    def __enter__(self):
+        self.back, self.done = 0.0, False
+        self.thread = threading.Thread(target=self.watch, daemon=True)
+        self.thread.start()
+        return self
+
+    def watch(self):
+        prev = time.time()
+        while not self.done:
+            now = time.time()
+            self.back = max(self.back, prev - now)
+            prev = now
+            time.sleep(0.001)
+
+    def __exit__(self, *_):
+        self.done = True
+        self.thread.join()
+
+    @property
+    def ms(self):
+        return self.back * 1000
+
+
 def clock_log():
     log = HOME / "logs" / "daemon.log"
     return [line for line in log.read_text().splitlines() if "clock:" in line] if log.exists() else []
@@ -96,28 +125,31 @@ try:
           f"guest {behind} s off before, set after {took:.0f} s; log: {logged[-1:] or 'none'}")
 
     pulled = subprocess.run(["docker", "pull", "-q", IMAGE], capture_output=True, text=True, timeout=300, env=ENV)
-    probe = subprocess.run(["docker", "run", "--rm", "--cap-add", "SYS_TIME", IMAGE, "python3", "-c", PROBE],
-                           capture_output=True, text=True, timeout=240, env=ENV)
+    with HostSteps() as host:
+        probe = subprocess.run(["docker", "run", "--rm", "--cap-add", "SYS_TIME", IMAGE, "python3", "-c", PROBE],
+                               capture_output=True, text=True, timeout=240, env=ENV)
     try:
         result = json.loads(probe.stdout)
     except ValueError:
         result = {}
     # Slewed: the clock ended earlier than where it was set, by 0.5 ms/s since the sync, and never stepped back.
-    ok = pulled.returncode == 0 and result and result["worst_back_ms"] < 1 and -60 < result["moved_ms"] < -5
-    check("slew", ok, json.dumps(result) if result else (probe.stderr or pulled.stderr).strip()[-300:])
+    ok = pulled.returncode == 0 and result and result["worst_back_ms"] < (host.ms + 50 if host.ms else 1) and (host.ms > 0 or -60 < result["moved_ms"] < -5)
+    check("slew", ok, (json.dumps(result) if result else (probe.stderr or pulled.stderr).strip()[-300:]) + f"; host stepped back {host.ms:.1f} ms")
 
-    watch = subprocess.Popen(["docker", "run", "--rm", IMAGE, "python3", "-c", WATCH],
-                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=ENV)
-    time.sleep(3)
-    paused = dmx("exec", "--", "sh", "-c", PAUSE, timeout=200)
-    out, err = watch.communicate(timeout=200)
+    with HostSteps() as host:
+        watch = subprocess.Popen(["docker", "run", "--rm", IMAGE, "python3", "-c", WATCH],
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=ENV)
+        time.sleep(3)
+        paused = dmx("exec", "--", "sh", "-c", PAUSE, timeout=200)
+        out, err = watch.communicate(timeout=200)
     try:
         result = json.loads(out)
     except ValueError:
         result = {}
     stale = [line for line in clock_log() if "ahead" in line or "behind" in line][-2:]
-    check("stale", paused.returncode == 0 and result and result["worst_back_ms"] < 1,
-          (json.dumps(result) if result else err.strip()[-300:]) + f"; log: {stale}")
+    # Following a host step back is right, plus a quick measurement's 50 ms; otherwise nothing may go back.
+    check("stale", paused.returncode == 0 and result and result["worst_back_ms"] < (host.ms + 50 if host.ms else 1),
+          (json.dumps(result) if result else err.strip()[-300:]) + f"; host stepped back {host.ms:.1f} ms; log: {stale}")
 finally:
     dmx("stop")
     shutil.rmtree(HOME, ignore_errors=True)
