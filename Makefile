@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build app install-app apptest localnettest localnetupdatetest menutest install kernel qemu fex guest selftest daemontest mcptest sandboxtest x86test dockertest imagetest javatest storagetest pressuretest benchmark test formaltest release clean
+.PHONY: build app install-app apptest localnettest localnetupdatetest menutest install kernel qemu fex guest selftest daemontest mcptest clocktest sandboxtest x86test dockertest imagetest javatest storagetest pressuretest benchmark test formaltest release clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -67,6 +67,10 @@ daemontest: build
 menutest: build
 	python3 -I scripts/test-menu.py $(BIN)
 	DMX_MENU_VM=1 DMX_MENU_EXECUTABLE="$(abspath $(BIN))" swift test --filter MenuEngineVMTests
+
+# The guest clock following the host's: an hour behind is set, 50 ms ahead is slewed (about 3 min).
+clocktest: build
+	python3 -I scripts/test-clock.py $(BIN)
 
 # `dmx mcp` driven over pipes like an MCP client: tools, output limits, timeouts (about 6 s).
 mcptest: build

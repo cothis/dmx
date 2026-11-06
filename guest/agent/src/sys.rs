@@ -295,18 +295,30 @@ pub fn trim_disk() -> io::Result<TrimDiskResult> {
 #[derive(Deserialize)]
 pub struct TimeSyncParams {
     pub unix_ns: i128,
+    /// Offsets smaller than this are slewed rather than stepped, as NTP clients do, so a
+    /// periodic sync never sets the clock back. 0 (the default, and older hosts) always steps.
+    #[serde(default)]
+    pub slew_below_ns: i128,
 }
 
 #[derive(Serialize)]
 pub struct TimeSyncResult {
     /// Guest clock minus host clock before the change.
     pub offset_ns: i128,
+    /// True if the kernel slews the clock by the offset instead of the clock being set.
+    pub slewed: bool,
 }
 
 pub fn time_sync(p: TimeSyncParams) -> io::Result<TimeSyncResult> {
     let mut now = libc::timespec { tv_sec: 0, tv_nsec: 0 };
     unsafe { libc::clock_gettime(libc::CLOCK_REALTIME, &mut now) };
     let guest = now.tv_sec as i128 * 1_000_000_000 + now.tv_nsec as i128;
+    let offset_ns = guest - p.unix_ns;
+    if offset_ns.abs() < p.slew_below_ns {
+        // Replaces any slew still in progress; the kernel catches up at 0.5 ms per second.
+        slew(-(offset_ns / 1000) as libc::c_long)?;
+        return Ok(TimeSyncResult { offset_ns, slewed: true });
+    }
     let set = libc::timespec {
         tv_sec: p.unix_ns.div_euclid(1_000_000_000) as _,
         tv_nsec: p.unix_ns.rem_euclid(1_000_000_000) as _,
@@ -314,7 +326,20 @@ pub fn time_sync(p: TimeSyncParams) -> io::Result<TimeSyncResult> {
     if unsafe { libc::clock_settime(libc::CLOCK_REALTIME, &set) } < 0 {
         return Err(io::Error::last_os_error());
     }
-    Ok(TimeSyncResult { offset_ns: guest - p.unix_ns })
+    // A slew left from an earlier sync would move the clock off the time just set.
+    slew(0)?;
+    Ok(TimeSyncResult { offset_ns, slewed: false })
+}
+
+/// Starts slewing CLOCK_REALTIME by `us` microseconds (adjtime(3)).
+fn slew(us: libc::c_long) -> io::Result<()> {
+    let mut tx: libc::timex = unsafe { std::mem::zeroed() };
+    tx.modes = libc::ADJ_OFFSET_SINGLESHOT;
+    tx.offset = us;
+    if unsafe { libc::adjtimex(&mut tx) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
 }
 
 /// Flushes filesystems and powers the VM off. Does not return on success.

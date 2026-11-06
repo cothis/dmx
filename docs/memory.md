@@ -16,6 +16,9 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Maintainer preferences
 
+- 2026-11-06: Declined a bug and feature report tool in `dmx mcp` that would file GitHub issues ("안할게"), after
+  options (prefilled issue link, `gh` with the user's account, a relay bot) were offered. Do not propose it again unasked.
+
 - 2026-11-05: Authorized publishing v0.4.6 and correcting v0.4.5's public notes. Keep the AAAA grace at 300 ms. Community announcements stay out of scope.
 
 - 2026-11-05: Fix dmx's own misbehaviour even when nothing seen uses that path ("고쳐야하지 않아? dmx의 버그라면말이야"). I had recommended
@@ -69,6 +72,9 @@ This repo is public: no private hostnames, IPs or personal details here.
   plan/progress/measurements in the same work, verify on a real VM, commit, push.
 
 ## Lessons
+
+- 2026-11-06: In zsh `log` is a builtin: `log show ...` prints nothing and looks like an empty log. Use `/usr/bin/log`.
+  And a slew of CLOCK_REALTIME moves CLOCK_MONOTONIC too; measure it against CLOCK_MONOTONIC_RAW, or it reads 0.
 
 - 2026-11-05: Read a passing check's timing. A new check on a path that waits 1 s passed in 0.2 s, because `getent ahostsv6` sends no
   query without IPv6. Run a new check against the old build too: this one has to fail there.

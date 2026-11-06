@@ -83,6 +83,7 @@ dmx.app (AppKit) ── short-lived control calls; passive run/engine.json + pro
 | Alpine Linux artifacts, pinned by sha256 | Small, musl, official signed packages. A custom kernel is allowed when needed (see phase 3). |
 | Apache-2.0 | Same as Docker/moby and containerd; includes a patent grant. |
 | State in `~/.dmx`, override with `DMX_HOME` | Simple for people and agents; easy to sandbox in tests. |
+| The daemon keeps the guest clock on the host's (2026-11-06) | The guest counter stops while the Mac sleeps and the guest has no other time source, so a locked Mac's guest stayed behind after waking (maintainer report). After sleep or a step of the Mac's clock the guest is stepped at once (seen every 15 s and before each Docker, port or exec request); every 60 s an offset under 128 ms is slewed, as NTP clients do, so a periodic sync never sets the clock back. Host-driven like the other engines' time sync, no NTP daemon in the guest. |
 
 ## Phases
 
@@ -617,6 +618,12 @@ after a signed 0.4.5-to-0.4.6 update with the VM, container and volume kept. Thi
 
 **Reported working on the network that showed the failure (2026-11-05, by the maintainer, without numbers).**
 
+**Guest clock follows the host (2026-11-06, not released).** A locked, sleeping Mac left the guest clock behind by the
+time it slept, and a step of the Mac's clock by macOS was never followed: the guest was set only at boot and before
+`dmx exec`, never for Docker. The daemon now sets it after sleep or a host clock step and slews drift once a minute;
+see [the finding](#guest-clock-after-sleep-and-host-clock-steps-2026-11-06). The slew needs the new agent, so this reaches
+users with the next release's guest; an older guest takes the same calls and steps instead.
+
 **Next:** documented FEX compatibility limits remain separate follow-ups. The AAAA grace stays at 300 ms (the maintainer's decision, 2026-11-05).
 
 **v0.4.4 is published** (2026-11-05, signed, notarized and stapled, tag commit `387f171`).
@@ -809,6 +816,27 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### Guest clock after sleep and host clock steps (2026-11-06)
+
+Reported by the maintainer: after locking the Mac the VM clock is behind and stays so. The guest's virtual counter
+runs with `mach_absolute_time`, which stops while the Mac sleeps, and the daemon set the guest clock only at boot and
+before `dmx exec` (at most every 30 s); Docker requests go through docker.sock and never set it.
+
+- A second cause showed up while testing: at 10:12:55 macOS `timed` stepped this Mac's clock back 2.05 s after an NTP
+  answer (`TDTF,RejectATime,innv,-2.053392`, then `ResetSynthesizer`). The installed v0.4.6 VM then read 2,070 ms
+  ahead of the host (best of 8 `docker exec date +%s.%N`, 23 ms round trip), and would have stayed so until a reboot or
+  `dmx exec`. The new daemon logged `the Mac's clock moved by -2 s; the guest was 2.1 s ahead` and stepped it.
+- `scripts/test-clock.py` (`make clocktest`, about 3 min): a guest set an hour back is corrected within 61 s by the
+  periodic sync on both guests. A guest set 50 ms ahead is slewed by the new agent: 38.7 ms recovered within the
+  130 s window, worst backward step of CLOCK_REALTIME 0.0 ms. The v0.4.6 agent ignores `slew_below_ns`: it stepped
+  back 48.7 ms and the check fails there, as it should.
+- Slew must be measured against CLOCK_MONOTONIC_RAW: CLOCK_MONOTONIC is slewed with CLOCK_REALTIME, and the
+  difference of the two stayed at 0.0 ms through a working slew.
+- Not exercised: a real sleep (it would sleep this Mac). Sleep is seen as ContinuousClock running ahead of
+  SuspendingClock, covered by `GuestClockTests`.
+- Memory: selftest `host.footprint_mb` 97 with the new guest, as before; the change adds one agent call a minute.
+  Unit 113, daemon 63/63 (v0.4.6 guest), MCP 33/33, selftest passed.
 
 ### v0.4.4 release qualification (2026-11-05)
 
@@ -1611,6 +1639,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-06: The daemon keeps the guest clock on the host's: stepped after the Mac sleeps or macOS steps its clock, drift slewed once a minute (new agent `slew_below_ns`). Added `make clocktest`; it fails on the v0.4.6 guest. Not released. The maintainer declined a bug-report tool in `dmx mcp`.
 - 2026-11-05: The maintainer reports v0.4.6 works on the network that showed the failure.
 - 2026-11-05: Published signed/notarized/stapled v0.4.6 from `f0b293b` and verified it from the public assets, 30/30; installed it on this Mac. Corrected v0.4.5's public notes. Kept the AAAA grace at 300 ms.
 - 2026-11-05: Fixed `AF_INET6` lookups on networks that do not answer AAAA: a lone AAAA now starts its own A lookup, and a name with an address gets "no such address" in 1 s, not a failure after 5 to 10 s. Daemon 63/63, Docker 81/81, unit 106; the new checks fail on 0.4.5. Not released.

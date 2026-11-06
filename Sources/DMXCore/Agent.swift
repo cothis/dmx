@@ -506,12 +506,16 @@ public final class AgentClient: @unchecked Sendable {
         return result.trimmed
     }
 
-    /// Sets the guest clock to the host clock and returns how far off it was, in nanoseconds.
-    public func syncTime() async throws -> Int64 {
-        struct Params: Encodable { let unixNs: Int64 }
+    /// Sets the guest clock to the host clock and returns how far off it was, in nanoseconds
+    /// (guest minus host). An offset under `slewBelow` is slewed instead, so the clock never steps
+    /// back; older agents ignore it and set the clock.
+    @discardableResult
+    public func syncTime(slewBelow: Duration = .zero) async throws -> Int64 {
+        struct Params: Encodable { let unixNs: Int64; let slewBelowNs: Int64 }
         struct Result: Decodable { let offsetNs: Int64 }
         let now = Int64(Date().timeIntervalSince1970 * 1e9)
-        let result: Result = try await call("time_sync", Params(unixNs: now))
+        let below = slewBelow.components.seconds * 1_000_000_000 + slewBelow.components.attoseconds / 1_000_000_000
+        let result: Result = try await call("time_sync", Params(unixNs: now, slewBelowNs: below))
         return result.offsetNs
     }
 

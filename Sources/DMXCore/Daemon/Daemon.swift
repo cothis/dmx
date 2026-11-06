@@ -30,7 +30,10 @@ public final class Daemon {
     private var booting: Task<AgentClient, Error>?
     private var stopping: Task<Void, Never>?
     private var bootedAt: ContinuousClock.Instant?
-    private var lastTimeSync = ContinuousClock.now
+    /// When the guest clock needs setting (GuestClock.swift), and the call setting it.
+    private var clock = GuestClockWatch()
+    private var clockSync: Task<Void, Never>?
+    private var clockFailing = false
     private var idleTimeout = Config.defaultIdleTimeout
 
     /// Open connections, and those among them that asked for the VM (start, exec).
@@ -98,8 +101,8 @@ public final class Daemon {
             memory.noteActivity()
             scheduleIdleCheck()
         }
-        ports.start(agent: { [unowned self] in try await running() }, using: using)
-        docker.start(agent: { [unowned self] in try await running() }, using: using) { [unowned self] in
+        ports.start(agent: { [unowned self] in try await runningInTime() }, using: using)
+        docker.start(agent: { [unowned self] in try await runningInTime() }, using: using) { [unowned self] in
             if dockerWasBusy && !docker.busy { idleSince = .now }
             dockerWasBusy = docker.busy
             sandboxReaper.update(agent: docker.containers == nil ? nil : agent)
@@ -214,12 +217,7 @@ public final class Daemon {
     /// Starts a process in the guest, then relays bytes between the client and the agent: both
     /// speak the same framing, so the daemon never parses the process's streams.
     private func exec(_ request: ExecRequest, id: UInt64, client: FrameConnection) async throws {
-        let agent = try await running()
-        // The guest clock stands still while the Mac sleeps; catch it up before running anything.
-        if ContinuousClock.now - lastTimeSync > .seconds(30) {
-            _ = try? await agent.syncTime()
-            lastTimeSync = .now
-        }
+        let agent = try await runningInTime()
         let session = try await agent.exec(request)
         defer { session.connection.close() }
         try client.send(DaemonReply(id: id, result: ExecStarted(pid: session.pid)))
@@ -316,8 +314,10 @@ public final class Daemon {
                 // Generous: on a loaded Mac a first boot that formats the data disk can take 30 s,
                 // and giving up then would cut the format short.
                 let agent = try await machine.connectAgent(timeout: .seconds(120))
+                let reading = GuestClockWatch.Reading.now
                 _ = try await agent.syncTime()
-                lastTimeSync = .now
+                clock.synced(reading)
+                clockFailing = false
                 self.agent = agent
                 bootedAt = .now
                 state = .running
@@ -333,6 +333,7 @@ public final class Daemon {
                     }
                 }
                 watch(machine)
+                keepClock(machine)
                 memory.attach(machine: machine, agent: agent)
                 scheduleIdleCheck()
                 docker.vmBooted()
@@ -359,6 +360,56 @@ public final class Daemon {
                 throw error
             }
         }
+    }
+
+    // MARK: Guest clock
+
+    /// The running VM's agent, with the guest clock set first if the Mac slept or its clock
+    /// changed since the last sync: a request right after the Mac wakes must not see the old time.
+    private func runningInTime() async throws -> AgentClient {
+        let agent = try await running()
+        if let reason = clock.due(), reason.known { await syncClock(agent, reason) }
+        return agent
+    }
+
+    /// Checks the clocks every 15 s while this VM runs, so the guest catches up soon after the Mac
+    /// wakes even when no request comes, and follows drift once a minute.
+    private func keepClock(_ machine: Machine) {
+        Task {
+            while true {
+                try? await Task.sleep(for: .seconds(15))
+                guard self.machine === machine, state == .running, let agent else { return }
+                if let reason = clock.due() { await syncClock(agent, reason) }
+            }
+        }
+    }
+
+    /// Sets the guest clock to the host's. Concurrent callers share one call; a guest that does
+    /// not answer within 2 s is left for the next check rather than holding up a request.
+    private func syncClock(_ agent: AgentClient, _ reason: GuestClockWatch.Reason) async {
+        if let clockSync { return await clockSync.value }
+        let task = Task {
+            defer { clockSync = nil }
+            let reading = GuestClockWatch.Reading.now
+            do {
+                guard let offset = try await firstOf(within: .seconds(2), {
+                    try await agent.syncTime(slewBelow: reason.known ? .zero : GuestClockWatch.slewBelow)
+                }) else {
+                    throw DMXError("agent_timeout", "no answer within 2 s")
+                }
+                clock.synced(reading)
+                clockFailing = false
+                let off = Double(offset) / 1e9
+                if reason.known || abs(off) >= GuestClockWatch.tolerance {
+                    log("clock: \(reason.description); the guest was \(String(format: "%.1f", abs(off))) s \(off < 0 ? "behind" : "ahead"), set to the host's time")
+                }
+            } catch {
+                if !clockFailing { log("clock: could not set the guest clock (\(reason.description)): \((error as? DMXError)?.message ?? "\(error)"); retrying every 15 s") }
+                clockFailing = true
+            }
+        }
+        clockSync = task
+        await task.value
     }
 
     /// Notices a VM that stopped by itself (guest poweroff or a VMM error).
