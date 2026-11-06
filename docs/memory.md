@@ -16,6 +16,10 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Maintainer preferences
 
+- 2026-11-06: The maintainer posted dmx 0.4.7 to GeekNews as Show GN (https://news.hada.io/topic?id=36695), from the
+  account cothis1030, after reviewing a draft and pressing submit themselves. GeekNews allows one Show GN per project for
+  a period, so do not post dmx there again. Hacker News (same account name) still restricts Show HN for new accounts.
+
 - 2026-11-06: Authorized publishing v0.4.7 with the guest clock fix ("릴리즈해야지"). As before, no community announcements.
 
 - 2026-11-06: Declined a bug and feature report tool in `dmx mcp` that would file GitHub issues ("안할게"), after

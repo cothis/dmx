@@ -623,8 +623,9 @@ Mac's after sleep and macOS clock steps. All gates passed on 0.4.7; second packa
 draft assets and the same 14 from anonymous public URLs matched byte for byte. `scripts/test-release.py` passed 33/33
 locally and from the public URLs (fresh install, selftest 23 at 102 MB, arm64/amd64/386, the clock fixes on a fresh
 install and after a signed 0.4.6-to-0.4.7 update with VM, container and volume kept). This Mac's app, CLI and guest
-are 0.4.7: `blocked`, then `allowed` about a second later, with no answer given. No community announcement was made.
-[Record](measurements/2026-11-06-release-0.4.7.json). A real Mac sleep is still to be seen on the released build.
+are 0.4.7: `blocked`, then `allowed` about a second later, with no answer given.
+[Record](measurements/2026-11-06-release-0.4.7.json). Announced on GeekNews afterwards (Show GN, 2026-11-06,
+https://news.hada.io/topic?id=36695), with dmx alone re-measured on 0.4.7 first (docs/benchmark.md). A real Mac sleep is still to be seen on the released build.
 
 **Guest clock follows the host (2026-11-06).** A locked, sleeping Mac left the guest clock behind by the
 time it slept, and a step of the Mac's clock by macOS was never followed: the guest was set only at boot and before
@@ -1667,6 +1668,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-06: Re-measured dmx alone on 0.4.7 (idle 225 MB, 2 GiB back to 348 MB in 2 s, docker run 96 ms; same range as 0.3.x). The maintainer posted Show GN on GeekNews.
 - 2026-11-06: Published signed/notarized/stapled v0.4.7 from `d038460` and verified it from the public assets, 33/33; installed it on this Mac (local network `blocked`, then `allowed` in about a second). Reviews by Sonnet 5.5 and Codex found three clock-sync defects before release, all fixed.
 - 2026-11-06: Fixed review findings in the clock sync: a sync that waited behind another agent call stepped the guest back by the wait (reproduced, 188 ms); now measured, then adjusted relatively. Docker keep-alive connections check the clock before process starts; failed syncs back off 15 s. `make clocktest` gained `stale`.
 - 2026-11-06: The daemon keeps the guest clock on the host's: stepped after the Mac sleeps or macOS steps its clock, drift slewed once a minute (new agent `slew_below_ns`). Added `make clocktest`; it fails on the v0.4.6 guest. Not released. The maintainer declined a bug-report tool in `dmx mcp`.
