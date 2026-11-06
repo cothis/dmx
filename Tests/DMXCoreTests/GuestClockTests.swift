@@ -43,6 +43,21 @@ import Testing
         #expect(watch.due(R(awake: 120, elapsed: 3720, wall: 1_800_003_620)) == nil)
     }
 
+    /// A quick call is taken at the middle of its round trip; a slow one never overcorrects.
+    @Test func estimates() {
+        let ms: Int64 = 1_000_000
+        // 10 ms round trip, guest read 105 ms past the send time: about 100 ms ahead.
+        #expect(GuestClockWatch.estimate(arrival: 105 * ms, roundTrip: 10 * ms)! == (100 * ms, true))
+        // Guest 100 ms ahead, the request waited 1.9 s on its way: back by 50 ms, not by the ~1 s the middle says.
+        #expect(GuestClockWatch.estimate(arrival: 2_000 * ms, roundTrip: 1_950 * ms)! == (50 * ms, false))
+        // A range [-1.0 s, +0.9 s] that holds zero: no change.
+        #expect(GuestClockWatch.estimate(arrival: 900 * ms, roundTrip: 1_900 * ms) == nil)
+        // An hour behind after sleep, 1.5 s wait: moved forward by what is certain, not by more.
+        #expect(GuestClockWatch.estimate(arrival: -3_600_000 * ms + 1_500 * ms, roundTrip: 1_500 * ms)! == (-3_598_500 * ms, false))
+        // 5 s ahead, 1 s wait: back by 4 s at most.
+        #expect(GuestClockWatch.estimate(arrival: 5_500 * ms, roundTrip: 1_000 * ms)! == (4_500 * ms, false))
+    }
+
     @Test func liveReadingsAgree() {
         let watch = GuestClockWatch()
         #expect(watch.due() == nil)

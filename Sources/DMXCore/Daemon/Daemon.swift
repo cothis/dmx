@@ -405,16 +405,23 @@ public final class Daemon {
                 guard let measured = try await firstOf(within: .seconds(2), { try await agent.measureClock() }) else {
                     throw DMXError("agent_timeout", "no answer within 2 s")
                 }
-                let off = Double(measured.offsetNs) / 1e9
+                var off = Double(measured.arrivalNs) / 1e9
                 if !measured.applied {
-                    guard measured.roundTripNs <= Int64(seconds(GuestClockWatch.trustedRoundTrip) * 1e9) || abs(off) > 1 else {
-                        // Waited behind another call: half the round trip could be most of the offset.
+                    let estimate = GuestClockWatch.estimate(arrival: measured.arrivalNs, roundTrip: measured.roundTripNs)
+                    if let estimate {
+                        off = Double(estimate.offset) / 1e9
+                        guard try await firstOf(within: .seconds(2), {
+                            try await agent.adjustClock(by: -estimate.offset, slewBelow: GuestClockWatch.slewBelow)
+                        }) != nil else { throw DMXError("agent_timeout", "no answer within 2 s") }
+                    }
+                    guard let estimate, estimate.exact else {
+                        // Waited behind another call: corrected as far as is certain, measured again in 15 s.
                         clockRetry = .now + GuestClockWatch.retryAfterFailure
+                        if let estimate, abs(off) >= GuestClockWatch.tolerance {
+                            log("clock: \(reason.description); the guest was at least \(String(format: "%.1f", abs(off))) s \(off < 0 ? "behind" : "ahead") (slow measurement), corrected that far")
+                        }
                         return
                     }
-                    guard try await firstOf(within: .seconds(2), {
-                        try await agent.adjustClock(by: -measured.offsetNs, slewBelow: GuestClockWatch.slewBelow)
-                    }) != nil else { throw DMXError("agent_timeout", "no answer within 2 s") }
                 }
                 clock.synced(reading)
                 clockFailing = false

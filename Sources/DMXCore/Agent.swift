@@ -516,16 +516,17 @@ public final class AgentClient: @unchecked Sendable {
         return result.offsetNs
     }
 
-    /// How far the guest clock is from the host's, guest minus host, without changing it: the
-    /// offset when the request arrived less half the round trip, as NTP estimates it, so off by at
-    /// most `roundTripNs / 2`. An agent older than 0.4.7 sets the clock instead; then `applied`.
-    public func measureClock() async throws -> (offsetNs: Int64, roundTripNs: Int64, applied: Bool) {
+    /// How far the guest clock is from the host's without changing it: guest minus host time
+    /// when the request was sent, read when it arrived, and the call's round trip. The true
+    /// offset lies between `arrivalNs - roundTripNs` and `arrivalNs` (GuestClockWatch.estimate).
+    /// An agent older than 0.4.7 sets the clock instead; then `applied`.
+    public func measureClock() async throws -> (arrivalNs: Int64, roundTripNs: Int64, applied: Bool) {
         struct Params: Encodable { let unixNs: Int64; let measure: Bool }
         let sent = ContinuousClock.now
         let result: TimeSyncReply = try await call("time_sync", Params(unixNs: Self.unixNs(), measure: true))
         let roundTrip = ContinuousClock.now - sent
         let rtt = roundTrip.components.seconds * 1_000_000_000 + roundTrip.components.attoseconds / 1_000_000_000
-        return (result.offsetNs - rtt / 2, rtt, result.measured != true)
+        return (result.offsetNs, rtt, result.measured != true)
     }
 
     /// Moves the guest clock by `ns` from wherever it is when the call arrives, so waiting does

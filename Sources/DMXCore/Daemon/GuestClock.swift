@@ -25,9 +25,8 @@ struct GuestClockWatch: Sendable {
     static let interval = 60.0
     /// Offsets slewed rather than stepped: ntpd's step threshold.
     static let slewBelow = Duration.milliseconds(128)
-    /// A measurement whose round trip took longer than this waited behind another call; it is
-    /// used only for an offset over a second, which half of it cannot make wrong in sign.
-    static let trustedRoundTrip = Duration.milliseconds(100)
+    /// A measurement whose round trip took longer than this waited behind another call.
+    static let trustedRoundTrip: Int64 = 100_000_000
     /// After a failed sync, requests do not wait for another one for this long; the 15 s check
     /// still tries.
     static let retryAfterFailure = Duration.seconds(15)
@@ -70,6 +69,20 @@ struct GuestClockWatch: Sendable {
     }
 
     mutating func synced(_ now: Reading = .now) { last = now }
+
+    /// The offset (guest minus host, ns) to correct, from a measurement that read `arrival` =
+    /// guest clock minus the host's send time, in a call taking `roundTrip`. The request spent
+    /// between 0 and `roundTrip` on its way, so the true offset lies in [arrival - roundTrip,
+    /// arrival]. A quick call is taken at its middle, as NTP does (off by at most 50 ms). A slow
+    /// one, which waited behind another call, is corrected only by the end of that range nearest
+    /// zero, so it never overcorrects, and nil if the range holds zero. `exact` is false then:
+    /// the daemon measures again soon.
+    static func estimate(arrival: Int64, roundTrip: Int64) -> (offset: Int64, exact: Bool)? {
+        if roundTrip <= trustedRoundTrip { return (arrival - roundTrip / 2, true) }
+        if arrival - roundTrip > 0 { return (arrival - roundTrip, false) }
+        if arrival < 0 { return (arrival, false) }
+        return nil
+    }
 }
 
 private let suspendingOrigin = SuspendingClock.now

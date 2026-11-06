@@ -847,6 +847,11 @@ before `dmx exec` (at most every 30 s); Docker requests go through docker.sock a
   another for 15 s; and a Docker connection kept open across sleep now has the clock checked before each request
   that runs a process (container start or restart, exec start), not only when it connects. An older agent ignores
   `measure` and sets the clock as before: with the v0.4.6 guest the step check passes, slew and stale fail.
+- Second review (Sonnet 5.5, on `5c3656e`): a slow measurement let through for an offset over 1 s was still taken
+  at its middle, which can be off by half a 2 s wait, and step a correct guest back by about a second. The true
+  offset lies in [arrival - round trip, arrival]; a slow measurement now corrects only by the end of that range
+  nearest zero (never more than the real offset), nothing if it holds zero, and is measured again in 15 s.
+  `GuestClockTests.estimates`; clocktest step, slew and stale pass again.
 
 ### v0.4.4 release qualification (2026-11-05)
 
