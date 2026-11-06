@@ -63,6 +63,24 @@ CPU is shown as a percentage of one core; the footprint peak is sampled every 10
 lifetime peak. `--cpus` and `--ceiling-gb` support other acceptance profiles, but comparisons
 must use the same profile for every engine; the container workload remains limited to 2 CPUs.
 
+## dmx re-check, 2026-11-06 (0.4.7)
+
+0.3.7 to 0.4.7 added the menu app, bounded logs, FEX, DNS and guest clock changes, so dmx alone was measured again
+with the same protocol on the same Mac: three rounds, host load 1.0 to 1.2, v0.4.7 guest, the installed engine
+stopped ([raw](measurements/2026-11-06-dmx-recheck-0.4.7.json)). Medians, with ranges in parentheses:
+
+| | dmx 0.3.6 (2026-10-27) | dmx 0.4.7 |
+|---|---|---|
+| Idle, steady state at 95 s, MB | 222 (220–224) | 225 (207–227) |
+| Idle, lowest reading in the window, MB | 193 (191–198) | 194 (176–203) |
+| Idle CPU, % of one core | 0.37 (0.37–0.38) | 0.38 (0.36–0.42) |
+| Holding 2 GiB in tmpfs, MB | 2389 (2388–2393) | 2390 (2385–2391) |
+| After freeing it, MB / time back within baseline +64 MB | 358 (352–358) / 2 s (2–2) | 348 (346–350) / 2 s (2–5) |
+| `docker run --rm alpine true`, ms | 102 (99–112) | 96 (93–108) |
+| SHA-256 of 256 MiB, ms | 839 (836–842) | 834 (823–843) |
+
+Every number is inside or next to the earlier ranges, so the README table still describes dmx.
+
 ## dmx re-check, 2026-10-27 (0.3.6)
 
 0.3.1 to 0.3.6 changed the update path, host/guest boundary checks, the x86 emulator and the
