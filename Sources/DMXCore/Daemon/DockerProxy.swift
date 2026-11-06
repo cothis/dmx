@@ -24,6 +24,9 @@ final class DockerProxy: @unchecked Sendable {
     private let client: Int32, server: Int32
     /// Asked before a container starts or restarts, with its name or id as the client gave it.
     private let starting: @Sendable (String) async -> Verdict
+    /// Awaited before a request that runs a process (start, restart, exec start): the daemon
+    /// sets the guest clock there if the Mac slept since, even on a connection opened before.
+    private let beforeRun: @Sendable () async -> Void
     private let lock = NSLock()
     /// Waits for the status of a start request that went to dockerd.
     private var answered: (@Sendable (Int?) -> Void)?
@@ -32,9 +35,11 @@ final class DockerProxy: @unchecked Sendable {
     /// Longer request heads are passed on unparsed (dockerd's own limit is 1 MB).
     static let headLimit = 64 << 10
 
-    init(client: Int32, server: Int32, starting: @escaping @Sendable (String) async -> Verdict) {
+    init(client: Int32, server: Int32, beforeRun: @escaping @Sendable () async -> Void = {},
+         starting: @escaping @Sendable (String) async -> Verdict) {
         self.client = client
         self.server = server
+        self.beforeRun = beforeRun
         self.starting = starting
     }
 
@@ -123,6 +128,9 @@ final class DockerProxy: @unchecked Sendable {
                 return raw(input)
             }
             let discard = false
+            if request.runsProcess {
+                _ = wait { await self.beforeRun(); return .pass(answered: nil) }
+            }
             if let container = request.startedContainer {
                 switch wait({ await self.starting(container) }) {
                 case .pass(let hook):
@@ -270,13 +278,23 @@ struct DockerRequest {
     /// The container a `POST /containers/{id}/start` (or `restart`) is for, with or without the
     /// API version prefix.
     var startedContainer: String? {
-        guard method == "POST" else { return nil }
+        guard method == "POST", let parts = pathParts, parts.count == 3, parts[0] == "containers", !parts[1].isEmpty,
+              ["start", "restart"].contains(parts[2]) else { return nil }
+        return parts[1]
+    }
+
+    /// A request that runs a process in the guest: a container start or restart, or an exec start.
+    var runsProcess: Bool {
+        guard method == "POST", let parts = pathParts else { return false }
+        return startedContainer != nil || parts.count == 3 && parts[0] == "exec" && !parts[1].isEmpty && parts[2] == "start"
+    }
+
+    /// The path's segments without the API version prefix (`/v1.47/containers/x/start`).
+    private var pathParts: [String]? {
         let path = target.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false)[0]
         var parts = path.split(separator: "/", omittingEmptySubsequences: false).dropFirst()
         if let first = parts.first, first.hasPrefix("v"), Double(first.dropFirst()) != nil { parts = parts.dropFirst() }
-        guard parts.count == 3, parts.first == "containers", !parts[parts.startIndex + 1].isEmpty,
-              ["start", "restart"].contains(parts.last!) else { return nil }
-        return String(parts[parts.startIndex + 1])
+        return parts.map(String.init)
     }
 }
 

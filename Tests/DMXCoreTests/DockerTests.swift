@@ -246,6 +246,13 @@ import Testing
         #expect(request("POST /build HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n")?.body == .chunked)
         let attach = try #require(request("POST /v1.51/containers/abc/attach?stream=1 HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: tcp\r\n\r\n"))
         #expect(attach.upgrades && attach.startedContainer == nil)
+        // Requests that run a process, before which the guest clock is checked.
+        #expect(start.runsProcess)
+        #expect(request("POST /v1.51/exec/9f2c/start HTTP/1.1\r\nConnection: Upgrade\r\nUpgrade: tcp\r\n\r\n")?.runsProcess == true)
+        #expect(request("POST /v1.51/containers/abc/exec HTTP/1.1\r\nContent-Length: 2\r\n\r\n")?.runsProcess == false)
+        #expect(request("GET /v1.51/exec/9f2c/start HTTP/1.1\r\n\r\n")?.runsProcess == false)
+        #expect(request("POST /v1.51/exec//start HTTP/1.1\r\n\r\n")?.runsProcess == false)
+        #expect(attach.runsProcess == false)
         #expect(request("POST /x HTTP/1.1\r\nTransfer-Encoding: gzip\r\n\r\n") == nil)
         #expect(request("not http\r\n\r\n") == nil)
     }

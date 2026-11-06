@@ -23,9 +23,14 @@ struct GuestClockWatch: Sendable {
 
     /// Regular resync period; one agent call, so cheap.
     static let interval = 60.0
-    /// Offsets a periodic sync slews rather than steps: ntpd's step threshold. After sleep or a
-    /// step of the host clock the guest is stepped at once, whatever the offset.
+    /// Offsets slewed rather than stepped: ntpd's step threshold.
     static let slewBelow = Duration.milliseconds(128)
+    /// A measurement whose round trip took longer than this waited behind another call; it is
+    /// used only for an offset over a second, which half of it cannot make wrong in sign.
+    static let trustedRoundTrip = Duration.milliseconds(100)
+    /// After a failed sync, requests do not wait for another one for this long; the 15 s check
+    /// still tries.
+    static let retryAfterFailure = Duration.seconds(15)
     /// A gap smaller than this between the clocks is measurement noise, not sleep or a step.
     static let tolerance = 1.0
 
@@ -41,6 +46,7 @@ struct GuestClockWatch: Sendable {
         case periodic
 
         /// Whether the guest clock is known to be off, which is worth a call before a request.
+        /// After sleep the guest is behind by the time slept, so the change is a step either way.
         var known: Bool { self != .periodic }
 
         var description: String {

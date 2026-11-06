@@ -24,6 +24,8 @@ final class DockerBridge {
     private var agent: (@MainActor () async throws -> AgentClient)?
     private var using: (@MainActor (Bool) -> Void)?
     private var changed: (@MainActor () -> Void)?
+    /// Sets the guest clock if the Mac slept or its clock moved (Daemon.syncClockIfKnown).
+    private var clock: (@MainActor () async -> Void)?
 
     /// dockerd has answered since the VM booted.
     private var up = false
@@ -55,8 +57,9 @@ final class DockerBridge {
 
     /// Listens on the socket launchd holds for us (`Sockets.Docker` in the plist), or binds it.
     func start(agent: @escaping @MainActor () async throws -> AgentClient, using: @escaping @MainActor (Bool) -> Void,
-               changed: @escaping @MainActor () -> Void) {
+               clock: @escaping @MainActor () async -> Void = {}, changed: @escaping @MainActor () -> Void) {
         self.agent = agent
+        self.clock = clock
         self.using = using
         self.changed = changed
         let fd: Int32
@@ -132,7 +135,7 @@ final class DockerBridge {
             refuse(client, failure)
             return
         }
-        let proxy = DockerProxy(client: client, server: stream.fd) { [weak self] container in
+        let proxy = DockerProxy(client: client, server: stream.fd, beforeRun: { [weak self] in await self?.clock?() }) { [weak self] container in
             await self?.reservePorts(container) ?? .pass(answered: nil)
         }
         await proxy.run()
@@ -146,7 +149,7 @@ final class DockerBridge {
             try await ensureDocker(agent)
             let stream = try await agent.connect(path: Self.guestSocket)
             defer { stream.close() }
-            let proxy = DockerProxy(client: client, server: stream.fd) { [weak self] container in
+            let proxy = DockerProxy(client: client, server: stream.fd, beforeRun: { [weak self] in await self?.clock?() }) { [weak self] container in
                 await self?.reservePorts(container, boundAgent: agent) ?? .pass(answered: nil)
             }
             await proxy.run()

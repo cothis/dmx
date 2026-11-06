@@ -837,6 +837,16 @@ before `dmx exec` (at most every 30 s); Docker requests go through docker.sock a
   SuspendingClock, covered by `GuestClockTests`.
 - Memory: selftest `host.footprint_mb` 97 with the new guest, as before; the change adds one agent call a minute.
   Unit 113, daemon 63/63 (v0.4.6 guest), MCP 33/33, selftest passed.
+- Review (Sonnet 5.5 and Codex gpt-6.1-sol, independently, on `e7dfaac`): both found that `time_sync` carries the
+  host time from before the call, which can wait behind other calls on the shared control connection (reclaim,
+  FITRIM), so a sync that waited set the guest back by the wait. Reproduced: with dmx-agent paused for 1.5 s at a
+  time for 94 s, `e7dfaac` stepped CLOCK_REALTIME back 188 ms. Now the daemon measures first (`measure`, nothing
+  changes; offset less half the round trip), drops a measurement that took over 100 ms unless the offset is over
+  1 s, and moves the clock relatively (`adjust_ns`), so the second call's wait does not matter: 0.0 ms back under
+  the same pauses (`make clocktest` `stale`). Also from the review: after a failed sync, requests do not wait for
+  another for 15 s; and a Docker connection kept open across sleep now has the clock checked before each request
+  that runs a process (container start or restart, exec start), not only when it connects. An older agent ignores
+  `measure` and sets the clock as before: with the v0.4.6 guest the step check passes, slew and stale fail.
 
 ### v0.4.4 release qualification (2026-11-05)
 
@@ -1639,6 +1649,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-06: Fixed review findings in the clock sync: a sync that waited behind another agent call stepped the guest back by the wait (reproduced, 188 ms); now measured, then adjusted relatively. Docker keep-alive connections check the clock before process starts; failed syncs back off 15 s. `make clocktest` gained `stale`.
 - 2026-11-06: The daemon keeps the guest clock on the host's: stepped after the Mac sleeps or macOS steps its clock, drift slewed once a minute (new agent `slew_below_ns`). Added `make clocktest`; it fails on the v0.4.6 guest. Not released. The maintainer declined a bug-report tool in `dmx mcp`.
 - 2026-11-05: The maintainer reports v0.4.6 works on the network that showed the failure.
 - 2026-11-05: Published signed/notarized/stapled v0.4.6 from `f0b293b` and verified it from the public assets, 30/30; installed it on this Mac. Corrected v0.4.5's public notes. Kept the AAAA grace at 300 ms.

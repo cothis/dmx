@@ -507,17 +507,38 @@ public final class AgentClient: @unchecked Sendable {
     }
 
     /// Sets the guest clock to the host clock and returns how far off it was, in nanoseconds
-    /// (guest minus host). An offset under `slewBelow` is slewed instead, so the clock never steps
-    /// back; older agents ignore it and set the clock.
+    /// (guest minus host). The host time is taken before the call, which can wait behind other
+    /// control calls, so this is for boot, when nothing else is asking; later use `measureClock`.
     @discardableResult
-    public func syncTime(slewBelow: Duration = .zero) async throws -> Int64 {
-        struct Params: Encodable { let unixNs: Int64; let slewBelowNs: Int64 }
-        struct Result: Decodable { let offsetNs: Int64 }
-        let now = Int64(Date().timeIntervalSince1970 * 1e9)
-        let below = slewBelow.components.seconds * 1_000_000_000 + slewBelow.components.attoseconds / 1_000_000_000
-        let result: Result = try await call("time_sync", Params(unixNs: now, slewBelowNs: below))
+    public func syncTime() async throws -> Int64 {
+        struct Params: Encodable { let unixNs: Int64 }
+        let result: TimeSyncReply = try await call("time_sync", Params(unixNs: Self.unixNs()))
         return result.offsetNs
     }
+
+    /// How far the guest clock is from the host's, guest minus host, without changing it: the
+    /// offset when the request arrived less half the round trip, as NTP estimates it, so off by at
+    /// most `roundTripNs / 2`. An agent older than 0.4.7 sets the clock instead; then `applied`.
+    public func measureClock() async throws -> (offsetNs: Int64, roundTripNs: Int64, applied: Bool) {
+        struct Params: Encodable { let unixNs: Int64; let measure: Bool }
+        let sent = ContinuousClock.now
+        let result: TimeSyncReply = try await call("time_sync", Params(unixNs: Self.unixNs(), measure: true))
+        let roundTrip = ContinuousClock.now - sent
+        let rtt = roundTrip.components.seconds * 1_000_000_000 + roundTrip.components.attoseconds / 1_000_000_000
+        return (result.offsetNs - rtt / 2, rtt, result.measured != true)
+    }
+
+    /// Moves the guest clock by `ns` from wherever it is when the call arrives, so waiting does
+    /// not matter. A change under `slewBelow` is slewed, so the clock never steps back. Needs an
+    /// agent from 0.4.7 (`measureClock` says whether it has one).
+    public func adjustClock(by ns: Int64, slewBelow: Duration) async throws {
+        struct Params: Encodable { let unixNs: Int64; let adjustNs: Int64; let slewBelowNs: Int64 }
+        let below = slewBelow.components.seconds * 1_000_000_000 + slewBelow.components.attoseconds / 1_000_000_000
+        let _: TimeSyncReply = try await call("time_sync", Params(unixNs: Self.unixNs(), adjustNs: ns, slewBelowNs: below))
+    }
+
+    private struct TimeSyncReply: Decodable { let offsetNs: Int64; let measured: Bool? }
+    private static func unixNs() -> Int64 { Int64(Date().timeIntervalSince1970 * 1e9) }
 
     /// Asks the guest to sync and power off. The VM stops shortly after this returns.
     public func shutdown() async throws {

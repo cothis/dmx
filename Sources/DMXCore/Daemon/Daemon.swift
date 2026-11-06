@@ -34,6 +34,7 @@ public final class Daemon {
     private var clock = GuestClockWatch()
     private var clockSync: Task<Void, Never>?
     private var clockFailing = false
+    private var clockRetry = ContinuousClock.now
     private var idleTimeout = Config.defaultIdleTimeout
 
     /// Open connections, and those among them that asked for the VM (start, exec).
@@ -102,7 +103,8 @@ public final class Daemon {
             scheduleIdleCheck()
         }
         ports.start(agent: { [unowned self] in try await runningInTime() }, using: using)
-        docker.start(agent: { [unowned self] in try await runningInTime() }, using: using) { [unowned self] in
+        docker.start(agent: { [unowned self] in try await runningInTime() }, using: using,
+                     clock: { [unowned self] in await syncClockIfKnown() }) { [unowned self] in
             if dockerWasBusy && !docker.busy { idleSince = .now }
             dockerWasBusy = docker.busy
             sandboxReaper.update(agent: docker.containers == nil ? nil : agent)
@@ -368,8 +370,15 @@ public final class Daemon {
     /// changed since the last sync: a request right after the Mac wakes must not see the old time.
     private func runningInTime() async throws -> AgentClient {
         let agent = try await running()
-        if let reason = clock.due(), reason.known { await syncClock(agent, reason) }
+        await syncClockIfKnown()
         return agent
+    }
+
+    /// Sets the guest clock now if the Mac slept or its clock moved since the last sync. Docker
+    /// requests that run a process ask too, since a client can keep one connection for hours.
+    private func syncClockIfKnown() async {
+        guard state == .running, let agent, let reason = clock.due(), reason.known, ContinuousClock.now >= clockRetry else { return }
+        await syncClock(agent, reason)
     }
 
     /// Checks the clocks every 15 s while this VM runs, so the guest catches up soon after the Mac
@@ -384,28 +393,38 @@ public final class Daemon {
         }
     }
 
-    /// Sets the guest clock to the host's. Concurrent callers share one call; a guest that does
-    /// not answer within 2 s is left for the next check rather than holding up a request.
+    /// Sets the guest clock to the host's: measures the offset, then moves the guest clock by it
+    /// (GuestClock.swift). Concurrent callers share one sync; a guest that does not answer within
+    /// 2 s is left for the next check rather than holding up a request.
     private func syncClock(_ agent: AgentClient, _ reason: GuestClockWatch.Reason) async {
         if let clockSync { return await clockSync.value }
         let task = Task {
             defer { clockSync = nil }
             let reading = GuestClockWatch.Reading.now
             do {
-                guard let offset = try await firstOf(within: .seconds(2), {
-                    try await agent.syncTime(slewBelow: reason.known ? .zero : GuestClockWatch.slewBelow)
-                }) else {
+                guard let measured = try await firstOf(within: .seconds(2), { try await agent.measureClock() }) else {
                     throw DMXError("agent_timeout", "no answer within 2 s")
+                }
+                let off = Double(measured.offsetNs) / 1e9
+                if !measured.applied {
+                    guard measured.roundTripNs <= Int64(seconds(GuestClockWatch.trustedRoundTrip) * 1e9) || abs(off) > 1 else {
+                        // Waited behind another call: half the round trip could be most of the offset.
+                        clockRetry = .now + GuestClockWatch.retryAfterFailure
+                        return
+                    }
+                    guard try await firstOf(within: .seconds(2), {
+                        try await agent.adjustClock(by: -measured.offsetNs, slewBelow: GuestClockWatch.slewBelow)
+                    }) != nil else { throw DMXError("agent_timeout", "no answer within 2 s") }
                 }
                 clock.synced(reading)
                 clockFailing = false
-                let off = Double(offset) / 1e9
                 if reason.known || abs(off) >= GuestClockWatch.tolerance {
-                    log("clock: \(reason.description); the guest was \(String(format: "%.1f", abs(off))) s \(off < 0 ? "behind" : "ahead"), set to the host's time")
+                    log("clock: \(reason.description); the guest was \(String(format: "%.1f", abs(off))) s \(off < 0 ? "behind" : "ahead"), \(abs(off) < seconds(GuestClockWatch.slewBelow) ? "slewing" : "set") to the host's time")
                 }
             } catch {
                 if !clockFailing { log("clock: could not set the guest clock (\(reason.description)): \((error as? DMXError)?.message ?? "\(error)"); retrying every 15 s") }
                 clockFailing = true
+                clockRetry = .now + GuestClockWatch.retryAfterFailure
             }
         }
         clockSync = task

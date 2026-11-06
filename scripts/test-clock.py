@@ -9,7 +9,10 @@ checks the two halves that do not need the Mac to sleep:
          checked every 15 s) and the daemon logs it;
   slew:  a guest 50 ms ahead is slewed back at 0.5 ms/s by the next periodic sync, with
          CLOCK_REALTIME never going backwards (needs an agent built from this source and a
-         Docker image pull; a guest from before the slew steps back, and this check fails).
+         Docker image pull; a guest from before the slew steps back, and this check fails);
+  stale: with dmx-agent stopped for 1.5 s at a time, a sync that waits behind it must not set
+         the clock to the time it was sent, which steps it back by the wait (0.4.7's first
+         version did; measuring, then moving the clock relatively does not).
 
 The guest files come from $DMX_HOME/guest (default ~/.dmx/guest). About 3 minutes.
 
@@ -28,6 +31,17 @@ from pathlib import Path
 DMX = Path(sys.argv[1] if len(sys.argv) > 1 else ".build/release/dmx").resolve()
 GUEST = Path(os.environ.get("DMX_HOME") or Path.home() / ".dmx") / "guest"
 IMAGE = "python:3-alpine"
+
+# Watches CLOCK_REALTIME for steps back while the agent is paused again and again.
+WATCH = r"""
+import json, time
+start = time.monotonic(); prev = time.time(); back = 0.0
+while time.monotonic() - start < 100:
+    now = time.time(); back = max(back, prev - now); prev = now
+    time.sleep(0.001)
+print(json.dumps({"worst_back_ms": back * 1000}))
+"""
+PAUSE = "a=$(pidof dmx-agent); i=0; while [ $i -lt 55 ]; do kill -STOP $a; sleep 1.5; kill -CONT $a; sleep 0.2; i=$((i+1)); done"
 
 # Runs in the container: sets the clock 50 ms ahead, then watches CLOCK_REALTIME against
 # CLOCK_MONOTONIC_RAW, which no slew touches (CLOCK_MONOTONIC is slewed with the realtime clock).
@@ -91,6 +105,19 @@ try:
     # Slewed: the clock ended earlier than where it was set, by 0.5 ms/s since the sync, and never stepped back.
     ok = pulled.returncode == 0 and result and result["worst_back_ms"] < 1 and -60 < result["moved_ms"] < -5
     check("slew", ok, json.dumps(result) if result else (probe.stderr or pulled.stderr).strip()[-300:])
+
+    watch = subprocess.Popen(["docker", "run", "--rm", IMAGE, "python3", "-c", WATCH],
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=ENV)
+    time.sleep(3)
+    paused = dmx("exec", "--", "sh", "-c", PAUSE, timeout=200)
+    out, err = watch.communicate(timeout=200)
+    try:
+        result = json.loads(out)
+    except ValueError:
+        result = {}
+    stale = [line for line in clock_log() if "ahead" in line or "behind" in line][-2:]
+    check("stale", paused.returncode == 0 and result and result["worst_back_ms"] < 1,
+          (json.dumps(result) if result else err.strip()[-300:]) + f"; log: {stale}")
 finally:
     dmx("stop")
     shutil.rmtree(HOME, ignore_errors=True)

@@ -294,41 +294,63 @@ pub fn trim_disk() -> io::Result<TrimDiskResult> {
 
 #[derive(Deserialize)]
 pub struct TimeSyncParams {
+    /// The host clock when the host sent this request.
     pub unix_ns: i128,
-    /// Offsets smaller than this are slewed rather than stepped, as NTP clients do, so a
-    /// periodic sync never sets the clock back. 0 (the default, and older hosts) always steps.
+    /// Changes nothing, only reports the offset: the host times the call and takes half its
+    /// round trip off, as NTP does, because this request can wait behind other control calls.
+    #[serde(default)]
+    pub measure: bool,
+    /// Moves the clock by this much from where it is when the request arrives, instead of
+    /// setting it to `unix_ns`, so a request that waited does not carry a stale time.
+    #[serde(default)]
+    pub adjust_ns: Option<i128>,
+    /// Changes smaller than this are slewed rather than stepped, as NTP clients do, so the
+    /// clock never goes back. 0 (the default, and older hosts) always steps.
     #[serde(default)]
     pub slew_below_ns: i128,
 }
 
 #[derive(Serialize)]
 pub struct TimeSyncResult {
-    /// Guest clock minus host clock before the change.
+    /// Guest clock minus `unix_ns` when the request arrived, before any change.
     pub offset_ns: i128,
-    /// True if the kernel slews the clock by the offset instead of the clock being set.
+    /// True if the kernel slews the clock instead of the clock being set.
     pub slewed: bool,
+    /// True if nothing changed (`measure`); older agents leave it out and set the clock.
+    pub measured: bool,
 }
 
 pub fn time_sync(p: TimeSyncParams) -> io::Result<TimeSyncResult> {
-    let mut now = libc::timespec { tv_sec: 0, tv_nsec: 0 };
-    unsafe { libc::clock_gettime(libc::CLOCK_REALTIME, &mut now) };
-    let guest = now.tv_sec as i128 * 1_000_000_000 + now.tv_nsec as i128;
+    let guest = realtime_ns();
     let offset_ns = guest - p.unix_ns;
-    if offset_ns.abs() < p.slew_below_ns {
-        // Replaces any slew still in progress; the kernel catches up at 0.5 ms per second.
-        slew(-(offset_ns / 1000) as libc::c_long)?;
-        return Ok(TimeSyncResult { offset_ns, slewed: true });
+    if p.measure {
+        return Ok(TimeSyncResult { offset_ns, slewed: false, measured: true });
     }
+    // The change to make: a relative one as given, or onto the host's time.
+    let change = p.adjust_ns.unwrap_or(-offset_ns);
+    if change.abs() < p.slew_below_ns {
+        // Replaces any slew still in progress; the kernel catches up at 0.5 ms per second.
+        slew((change / 1000) as libc::c_long)?;
+        return Ok(TimeSyncResult { offset_ns, slewed: true, measured: false });
+    }
+    // Read again: for a relative change, the time it applies to is now, not on arrival.
+    let target = if p.adjust_ns.is_some() { realtime_ns() + change } else { p.unix_ns };
     let set = libc::timespec {
-        tv_sec: p.unix_ns.div_euclid(1_000_000_000) as _,
-        tv_nsec: p.unix_ns.rem_euclid(1_000_000_000) as _,
+        tv_sec: target.div_euclid(1_000_000_000) as _,
+        tv_nsec: target.rem_euclid(1_000_000_000) as _,
     };
     if unsafe { libc::clock_settime(libc::CLOCK_REALTIME, &set) } < 0 {
         return Err(io::Error::last_os_error());
     }
     // A slew left from an earlier sync would move the clock off the time just set.
     slew(0)?;
-    Ok(TimeSyncResult { offset_ns, slewed: false })
+    Ok(TimeSyncResult { offset_ns, slewed: false, measured: false })
+}
+
+fn realtime_ns() -> i128 {
+    let mut now = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+    unsafe { libc::clock_gettime(libc::CLOCK_REALTIME, &mut now) };
+    now.tv_sec as i128 * 1_000_000_000 + now.tv_nsec as i128
 }
 
 /// Starts slewing CLOCK_REALTIME by `us` microseconds (adjtime(3)).
