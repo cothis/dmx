@@ -181,3 +181,7 @@ This repo is public: no private hostnames, IPs or personal details here.
   before ballooning.
 - A pushed main and a green test matrix are not a public release; release and notarization are maintainer decisions.
 - Guest agent: control and exec must use separate vsock connections, or you get `Broken pipe`.
+
+## 2026-11-11: 디자인 고착 방지
+
+- 사용자는 디자인 시스템이 잘못된 디자인을 고착시키는 문제를 전반적으로 수정하도록 요청했다. DESIGN.md는 현재 구현 참고이며 미적 선택은 변경 가능하다. 사용자 목적·접근성·플랫폼 동작·실제 화면 검증을 우선하고, 시스템 준수 자체를 품질로 판정하지 않는다.
