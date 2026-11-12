@@ -590,37 +590,37 @@ separate from Core/VM tests and the completed public distribution checks.
 
 ## Next up
 
-**Lifecycle review complete (2026-11-12): all 17 items resolved.** The first repair covered
-L1/L2/L4/G10; the remaining 12 defects are repaired and L6's pre-run cancellation concern is
-cleared by the SDK contract and an entitled Hypervisor check. See the
-[final dispositions](reviews/2026-11-12-lifecycle-bug-hunt.md) and
-[remaining repair measurements](measurements/2026-11-12-lifecycle-remaining.json).
+**v0.4.8 is published** (2026-11-12), signed, notarized and stapled, from tag commit `5cb05c3`.
+All 17 original lifecycle review items are resolved (16 repairs, L6 checked and cleared), including
+follow-up repairs found in four review rounds. Sonnet 5.5 and Codex Sol 6.1 high both ended with
+NO RELEASE BLOCKERS. See [review](reviews/2026-11-12-release-0.4.8.md) and
+[release measurements](measurements/2026-11-12-release-0.4.8.json).
 
-Default stdin byte credit keeps control/disconnect responsive; shutdown/clock control is
-independent; UDP/accept/TCP/listing/spawn retries are bounded; staged unpack data precedes its
-durable marker; ENOSPC waits instead of aborting ext4. A stuck host share causes a bounded
-process exit (20 s), preserving RAM ownership until process termination. Boot stop grace is
-30 s; launchd allows 75 s for boot grace, shutdown and device teardown.
+Real-VM qualification passed; final Swift tests: 137; entitled VM checks: 5 plus bounded fail-stop;
+fd/EMFILE probes: 9. Local signed install/update: 37/37; anonymous-public install/update: 37/37.
+Both include 19 lifecycle failure scenarios and 9 previous-guest fallback checks on the exact signed
+helper. All 14 draft and public assets match the local bytes. Second packaging kept the pin.
+Public fresh selftest: 23/23, 99 MiB; these per-run measurements are not a memory-saving claim.
+Running-VM PID, container and volume survive the update; restart serves the new guest.
 
-Validation: Swift 130, entitled VM 5 plus expected fail-stop exit, selftest 23/23; daemon 63/63; mcp 36/36; storage 64/64; clock 4/4; scenarios 19/19.
-Four same-process 2 GiB release/restarts pass; alternating selftest medians are 96.5 -> 97.0 MiB
-(four rounds each, not a memory-saving claim). Daemon idle/stopped: 99/9 MiB.
+The new guest provides negotiated stdin credit. If an offline update retains an old guest,
+small stdin works but more than 4 KiB fails with `guest_upgrade_required` and an upgrade hint.
+A stuck host share exits within the 20 s teardown budget; boot stop grace is 30 s and launchd
+allows 75 s. LAN checks matched macOS's blocked state; permission retention/granted LAN access
+is not claimed.
 
-**Next:** finish the authorized v0.4.8 release after Sonnet 5.5 and Codex Sol 6.1 high reviews,
-real-VM qualification, signed/notarized packaging and local install/update/fallback rehearsal.
-Follow-up review repairs cover UDP response framing, Docker retry/HTTP socket lifetime, stdin EOF
-and legacy limits, early process exit, clock timing and MCP cancellation ownership. See
-[release review](reviews/2026-11-12-release-0.4.8.md). Guest repairs require the rebuilt guest;
-source push alone does not replace the published 0.4.7 guest. Existing FEX compatibility limits
-remain outside this lifecycle scope.
+**Next:** no open lifecycle or release gate remains for v0.4.8. Resume the existing Phase 12
+direct GUI acceptance, or a maintainer-selected Apple container comparison. Existing FEX
+compatibility limits remain separate follow-ups. No community announcement is authorized by
+this release request.
 
-**v0.4.5 is published** (2026-11-05, signed, notarized and stapled, tag commit `93da890`). It fixes S3
+**Earlier release record — v0.4.5** (2026-11-05, signed, notarized and stapled, tag commit `93da890`). It fixes S3
 lookups through boto: a bucket's name came back truncated, and glibc's retry over TCP left macOS's resolver, so
 `AF_UNSPEC` failed where `AF_INET` worked: see [the finding](#s3-bucket-names-and-dns-over-tcp-2026-11-05). All
 gates passed on version 0.4.5; second packaging said `pin_changed: false`; the 14 draft assets and the same 14 from
 anonymous public URLs matched byte for byte. `scripts/test-release.py public` passed 28/28: fresh install and
 selftest 23 (102 MB), arm64, amd64 and 386, the fix and real boto3 calls, signed 0.4.4-to-0.4.5 update with the VM,
-container and volume kept. No community announcement was made. This Mac's app, CLI and guest are 0.4.5.
+container and volume kept. No community announcement was made. At that release this Mac's app, CLI and guest were 0.4.5.
 [Record](measurements/2026-11-05-release-0.4.5.json).
 
 **Local-network check on the real thing: passed.** Updating this Mac's signed app in place, the first launchd run of
@@ -849,6 +849,23 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### v0.4.8 release qualification (2026-11-12)
+
+Four independent-model review rounds finished clean on Sonnet 5.5 and Sol 6.1 high. Review
+repairs and isolated counterexamples are recorded in the [release review](reviews/2026-11-12-release-0.4.8.md).
+Swift 137; entitled VM 5 plus expected exit 70; fd/EMFILE 9; selftest 23; daemon 63; MCP 36;
+x86 77; Docker 81; sandbox 44; image workloads 24; amd64 Java 100; menu 25 plus VM interaction;
+app install 14 plus unit test; storage 64; LAN 13; lifecycle scenarios 19 and four restart/data cycles.
+Selftest/daemon/MCP were repeated after the final production repair; signed MCP: 36/36.
+Host selftest footprint: 97 MiB; local signed fresh: 99 MiB; public signed fresh: 99 MiB
+(single runs, not a controlled memory comparison).
+
+Signed local and public verification: 37/37 each, with 19 nested fault scenarios and 9 old-guest
+fallback checks each. Public fresh boots the pinned v0.4.8 guest; running-v0.4.7 update keeps
+its PID/container/volume and restart applies v0.4.8. All 14 uploaded/re-downloaded assets are
+byte-identical, including corresponding GPL sources. Exact helper hash, source hashes, commands,
+model settings and result bounds: [measurements](measurements/2026-11-12-release-0.4.8.json).
 
 ### Remaining lifecycle repairs (2026-11-12)
 
@@ -1732,6 +1749,8 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 | 2026-10-27 | Pre-announcement review of 0.3.3 | Six code findings fixed, stale docs corrected. Unit 59/59; selftest 23/23; daemon 57/57; MCP 33/33; x86 47/47; Docker 69/69; sandbox 44/44; image matrix 24/24; pressure 12/12 rounds (12 GiB host allocation). Selftest host footprint 97 MiB before, 94–97 after; final 1 GiB reclaim 1123 → 103 MiB in 329 ms (before 1122 → 102 in 214 ms). Published 0.3.3 installer, guest fetch, strict signature/notarization check, selftest (97 MiB) and signed same-version update pass; local guest hashes match published. [Review](review-2026-10-27.md), [bounded results](measurements/2026-10-27-preannouncement-review.json). These fixes are not released. |
 
 ## Progress log
+
+- 2026-11-12: Published signed/notarized/stapled v0.4.8 from `5cb05c3` after Sonnet 5.5 and Sol 6.1 high final reviews returned NO RELEASE BLOCKERS. Full real-VM qualification passed; local/public signed install/update 37/37 each, nested lifecycle faults 19 and old-guest fallback 9 each; all 14 draft/public assets byte-identical. Running VM, container and volume preserved, restart uses the pinned new guest. Second packaging kept the pin. Verification and source hashes are in the release measurement record. No community announcement.
 
 - 2026-11-12: Pre-release v0.4.8 review by actual Sonnet 5.5 and `codex exec` Sol 6.1 high: four rounds, final NO RELEASE BLOCKERS from both. Repaired UDP response EAGAIN, dockerd retry/socket lifetime, EOF/legacy stdin handling, early-exit result preservation, clock setup/deadlines and MCP late-cancellation fd reuse. Swift 137; entitled VM 5 plus bounded exit-70; core probes 9; full real-VM release matrix and 100 amd64 Java repeats passed. Developer ID signing, notarization and stapling passed; the new guest pin is generated. Local signed install/update/fallback rehearsal and publication remain.
 

@@ -7459,5 +7459,1340 @@
     ],
     "packages": 52
   },
-  "personal_guest_unchanged": true
+  "personal_guest_unchanged": true,
+  "packaging_second": {
+    "ok": true,
+    "tag": "v0.4.8",
+    "pin_changed": false,
+    "guest": {
+      "name": "dmx-guest-0.4.8.tar.gz",
+      "bytes": 62908315,
+      "sha256": "945df49c1aa5f534288d6660bd34a6d46b847a5e8f5f9bf8eb47c7b752e2919c"
+    },
+    "binary": {
+      "name": "dmx-0.4.8-darwin-arm64.tar.gz",
+      "bytes": 5703270,
+      "sha256": "09a3b7d53fed69aee13eb2b0d310ae49fda0d38dc508899539c923984964190a"
+    },
+    "sources": {
+      "name": "dmx-sources-0.4.8.tar",
+      "bytes": 496465920,
+      "packages": 21
+    },
+    "licenses": [
+      "0BSD",
+      "Apache-2.0",
+      "BSD-2-Clause",
+      "BSD-3-Clause",
+      "BSL-1.0",
+      "GPL-2.0-only",
+      "GPL-2.0-or-later",
+      "GPL-3.0-or-later",
+      "LGPL-2.0-or-later",
+      "LGPL-2.1-only",
+      "LGPL-2.1-or-later",
+      "Linux-syscall-note",
+      "MIT",
+      "MPL-2.0",
+      "Unlicense"
+    ],
+    "packages": 52
+  },
+  "publication": {
+    "assets": 14,
+    "draft": false,
+    "prerelease": false,
+    "published": "2026-11-12T06:12:32Z",
+    "tag": "v0.4.8",
+    "url": "https://github.com/cothis/dmx/releases/tag/v0.4.8"
+  },
+  "release_code_commit": "5cb05c3b1f868007c2fc6347bed0a00d90a57197",
+  "signed_helper_sha256": "7ba0c8939bcf15065409dbf06b1a26be3118ed5ff9167a3bd9788e41b13a09d4",
+  "signed_mcp": {
+    "ok": true,
+    "tools": [
+      "dmx_config_get",
+      "dmx_config_set",
+      "dmx_exec",
+      "dmx_logs",
+      "dmx_sandbox_checkpoint",
+      "dmx_sandbox_create",
+      "dmx_sandbox_exec",
+      "dmx_sandbox_fork",
+      "dmx_sandbox_list",
+      "dmx_sandbox_rm",
+      "dmx_sandbox_rollback",
+      "dmx_start",
+      "dmx_status",
+      "dmx_stop"
+    ],
+    "cold_exec_ms": 414,
+    "warm_exec_ms": 2,
+    "large_output_200mb_s": 0.65,
+    "mcp_rss_before_mb": 9,
+    "mcp_rss_peak_during_200mb_mb": 10,
+    "timeout_2s_returned_s": 2.06,
+    "footprint_running_mb": 92,
+    "mcp_max_rss_mb": 15,
+    "checks": [
+      {
+        "name": "initialize",
+        "ok": true,
+        "detail": "{'id': 1, 'jsonrpc': '2.0', 'result': {'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'capabilities': {'tools': {}}, 'instructions': 'dmx runs Linux commands in a small VM on this Mac. dmx_exec boots the VM on first use in well under a second; i"
+      },
+      {
+        "name": "initialize_unknown_version",
+        "ok": true,
+        "detail": "{'id': 2, 'jsonrpc': '2.0', 'result': {'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'capabilities': {'tools': {}}, 'instructions': 'dmx runs Linux commands in a small VM on this Mac. dmx_exec boots the VM on first use in well under a second; i"
+      },
+      {
+        "name": "ping",
+        "ok": true,
+        "detail": "{'id': 3, 'jsonrpc': '2.0', 'result': {'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'resultType': 'complete'}}"
+      },
+      {
+        "name": "tools_list",
+        "ok": true,
+        "detail": "['dmx_config_get', 'dmx_config_set', 'dmx_exec', 'dmx_logs', 'dmx_sandbox_checkpoint', 'dmx_sandbox_create', 'dmx_sandbox_exec', 'dmx_sandbox_fork', 'dmx_sandbox_list', 'dmx_sandbox_rm', 'dmx_sandbox_rollback', 'dmx_start', 'dmx_status', 'dmx_stop']"
+      },
+      {
+        "name": "discover",
+        "ok": true,
+        "detail": "{'id': 5, 'jsonrpc': '2.0', 'result': {'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'cacheScope': 'public', 'capabilities': {'tools': {}}, 'instructions': 'dmx runs Linux commands in a small VM on this Mac. dmx_exec boots the VM on first use i"
+      },
+      {
+        "name": "unsupported_version",
+        "ok": true,
+        "detail": "{'error': {'code': -32022, 'data': {'requested': '1900-01-01', 'supported': ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05']}, 'message': 'Unsupported protocol version'}, 'id': 6, 'jsonrpc': '2.0'}"
+      },
+      {
+        "name": "missing_capabilities",
+        "ok": true,
+        "detail": "{'error': {'code': -32602, 'message': '_meta is missing io.modelcontextprotocol/clientCapabilities'}, 'id': 7, 'jsonrpc': '2.0'}"
+      },
+      {
+        "name": "exec_uname",
+        "ok": true,
+        "detail": "{'duration_ms': 414, 'exit_code': 0, 'signal': None, 'stderr': '', 'stderr_bytes': 0, 'stderr_omitted_bytes': 0, 'stdout': 'Linux dmx 6.18.58-dmx-4k #1 SMP PREEMPT_DYNAMIC 2026-01-01 aarch64 Linux\\n', 'stdout_bytes': 73, 'stdout_omitted_bytes': 0, 'timed_out': False}"
+      },
+      {
+        "name": "exec_stdin_env_cwd",
+        "ok": true,
+        "detail": "{'duration_ms': 2, 'exit_code': 3, 'signal': None, 'stderr': 'err\\n', 'stderr_bytes': 4, 'stderr_omitted_bytes': 0, 'stdout': 'in\\nb /tmp\\n', 'stdout_bytes': 10, 'stdout_omitted_bytes': 0, 'timed_out': False}"
+      },
+      {
+        "name": "large_output_capped",
+        "ok": true,
+        "detail": "{'duration_ms': 645, 'exit_code': 0, 'signal': None, 'stderr_bytes': 0, 'stderr_omitted_bytes': 0, 'stdout_bytes': 200000009, 'stdout_omitted_bytes': 199991817, 'timed_out': False}"
+      },
+      {
+        "name": "large_output_bounded_memory",
+        "ok": true,
+        "detail": "rss 10080 -> peak 10976 KB"
+      },
+      {
+        "name": "utf8_boundaries",
+        "ok": true,
+        "detail": "{'duration_ms': 0, 'exit_code': 0, 'signal': None, 'stderr': '', 'stderr_bytes': 0, 'stderr_omitted_bytes': 0, 'stdout': 'xéééééééééééééééééééééééé\\n[... dmx: 102 bytes omitted ...]\\nééééééééééééééééééééééééé', 'stdout_bytes': 201, 'stdout_omitted_bytes': 102, 'timed_out': False}"
+      },
+      {
+        "name": "max_output_zero",
+        "ok": true,
+        "detail": "{'duration_ms': 0, 'exit_code': 0, 'signal': None, 'stderr': '', 'stderr_bytes': 0, 'stderr_omitted_bytes': 0, 'stdout': '\\n[... dmx: 6 bytes omitted ...]\\n', 'stdout_bytes': 6, 'stdout_omitted_bytes': 6, 'timed_out': False}"
+      },
+      {
+        "name": "credit_stdin_1m_lossless",
+        "ok": true,
+        "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': '{\"duration_ms\":4,\"exit_code\":0,\"signal\":null,\"stderr\":\"\",\"stderr_bytes\":0,\"stderr_omitted_bytes\":0,\"stdout\":\"1048576\\\\n\",\"stdout_bytes\":8,\"stdout_omitted_bytes\":0,\"timed_out\":"
+      },
+      {
+        "name": "timeout",
+        "ok": true,
+        "detail": "(2.06, {'duration_ms': 2058, 'exit_code': None, 'signal': None, 'stderr': '', 'stderr_bytes': 0, 'stderr_omitted_bytes': 0, 'stdout': 'before\\n', 'stdout_bytes': 7, 'stdout_omitted_bytes': 0, 'timed_out': True})"
+      },
+      {
+        "name": "timeout_killed_guest_processes",
+        "ok": true,
+        "detail": "gone"
+      },
+      {
+        "name": "blocked_stdin_timeout",
+        "ok": true,
+        "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': '{\"duration_ms\":2109,\"exit_code\":null,\"signal\":null,\"stderr\":\"\",\"stderr_bytes\":0,\"stderr_omitted_bytes\":0,\"stdout\":\"\",\"stdout_bytes\":0,\"stdout_omitted_bytes\":0,\"timed_out\":true"
+      },
+      {
+        "name": "blocked_stdin_timeout_reaped",
+        "ok": true,
+        "detail": "no stalled stdin child remains"
+      },
+      {
+        "name": "cancel",
+        "ok": true,
+        "detail": "process gone True, no reply True"
+      },
+      {
+        "name": "bad_argument",
+        "ok": true,
+        "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': 'error (bad_argument): dmx_exec: unknown argument \"timeout_s\"; it takes argv, cwd, env, max_output_bytes, stdin, timeout\\nhint: see the input schema of dmx_exec in tools/list',"
+      },
+      {
+        "name": "missing_binary",
+        "ok": true,
+        "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': 'error (agent_exec_failed): exec: nosuch-binary: No such file or directory (os error 2)', 'type': 'text'}], 'isError': True, 'resultType': 'complete'}"
+      },
+      {
+        "name": "unknown_tool",
+        "ok": true,
+        "detail": "{'error': {'code': -32602, 'message': 'Unknown tool: nosuch'}, 'id': 23, 'jsonrpc': '2.0'}"
+      },
+      {
+        "name": "unknown_method",
+        "ok": true,
+        "detail": "{'error': {'code': -32601, 'message': 'method not found: nosuch/method'}, 'id': 24, 'jsonrpc': '2.0'}"
+      },
+      {
+        "name": "parse_error",
+        "ok": true,
+        "detail": "{'error': {'code': -32700, 'message': 'parse error: not JSON'}, 'id': None, 'jsonrpc': '2.0'}"
+      },
+      {
+        "name": "config_set",
+        "ok": true,
+        "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': '{\"configured\":[\"idle_timeout\"],\"file\":\"/tmp/dmx-mcp-_wj3ojld/config.json\",\"settings\":{\"idle_timeout\":\"7m\"}}', 'type': 'text'}], 'isError': False, 'resultType': 'complete', 'st"
+      },
+      {
+        "name": "config_get",
+        "ok": true,
+        "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': '{\"configured\":[\"idle_timeout\"],\"file\":\"/tmp/dmx-mcp-_wj3ojld/config.json\",\"settings\":{\"cpus\":\"10\",\"disk_size\":\"64.0G\",\"idle_timeout\":\"7m\",\"memory\":\"8.0G\",\"release_url\":\"https:"
+      },
+      {
+        "name": "config_unset",
+        "ok": true,
+        "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': '{\"configured\":[],\"file\":\"/tmp/dmx-mcp-_wj3ojld/config.json\",\"settings\":{\"idle_timeout\":\"5m\"}}', 'type': 'text'}], 'isError': False, 'resultType': 'complete', 'structuredConten"
+      },
+      {
+        "name": "config_bad_value",
+        "ok": true,
+        "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': 'error (bad_config_value): memory must be at least 512M, not \"1M\"', 'type': 'text'}], 'isError': True, 'resultType': 'complete'}"
+      },
+      {
+        "name": "ttl_out_of_range_1e+100",
+        "ok": true,
+        "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': 'error (bad_argument): dmx_sandbox_create: ttl must be a whole number\\nhint: see the input schema of dmx_sandbox_create in tools/list', 'type': 'text'}], 'isError': True, 'resu"
+      },
+      {
+        "name": "ttl_out_of_range_-1e+100",
+        "ok": true,
+        "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': 'error (bad_argument): dmx_sandbox_create: ttl must be a whole number\\nhint: see the input schema of dmx_sandbox_create in tools/list', 'type': 'text'}], 'isError': True, 'resu"
+      },
+      {
+        "name": "config_size_overflow",
+        "ok": true,
+        "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': 'error (bad_size): size \"9223372036854775808\" is too large\\nhint: use a smaller size, e.g. 8G', 'type': 'text'}], 'isError': True, 'resultType': 'complete'}"
+      },
+      {
+        "name": "status_running",
+        "ok": true,
+        "detail": "{'clients': 0, 'console_log': '/tmp/dmx-mcp-_wj3ojld/logs/console.log', 'cpus': 10, 'disk': {'allocated_mb': 10, 'path': '/tmp/dmx-mcp-_wj3ojld/data.img', 'size_mb': 65536}, 'docker_socket': '/tmp/dmx-mcp-_wj3ojld/docker.sock', 'execs': 0, 'guest_used_mb': 41, 'host_footprint_mb': 92, 'host_peak_foo"
+      },
+      {
+        "name": "stop",
+        "ok": true,
+        "detail": "{'clients': 0, 'console_log': '/tmp/dmx-mcp-_wj3ojld/logs/console.log', 'disk': {'allocated_mb': 10, 'path': '/tmp/dmx-mcp-_wj3ojld/data.img', 'size_mb': 65536}, 'docker_socket': '/tmp/dmx-mcp-_wj3ojld/docker.sock', 'execs': 0, 'host_footprint_mb': 11, 'host_peak_footprint_mb': 106, 'idle_timeout_s'"
+      },
+      {
+        "name": "start",
+        "ok": true,
+        "detail": "{'clients': 0, 'console_log': '/tmp/dmx-mcp-_wj3ojld/logs/console.log', 'cpus': 10, 'disk': {'allocated_mb': 10, 'path': '/tmp/dmx-mcp-_wj3ojld/data.img', 'size_mb': 65536}, 'docker_socket': '/tmp/dmx-mcp-_wj3ojld/docker.sock', 'execs': 0, 'guest_used_mb': 35, 'host_footprint_mb': 86, 'host_peak_foo"
+      },
+      {
+        "name": "stdout_only_protocol",
+        "ok": true,
+        "detail": "[]"
+      },
+      {
+        "name": "exit_on_eof",
+        "ok": true,
+        "detail": "returncode 0"
+      }
+    ]
+  },
+  "release_verification": {
+    "local": {
+      "mode": "local",
+      "version": "0.4.8",
+      "previous": "0.4.7",
+      "ok": true,
+      "total": 37,
+      "failed": [],
+      "root": "/private/tmp/dmxrel-ele9uwor",
+      "checks": [
+        {
+          "name": "fresh_install",
+          "ok": true,
+          "detail": "b'downloading docker 29.9.2 (18 MB) from download.docker.com\\ndownloading docker-credential-osxkeychain 0.9.12 (2 MB) from github.com\\ndownloading compose 5.6.1 (29 MB) from github.com\\ndownloading buildx 0.38.1 (62 MB) from github.com\\n'"
+        },
+        {
+          "name": "fresh_version",
+          "ok": true,
+          "detail": "0.4.8"
+        },
+        {
+          "name": "fresh_signed_notarized_stapled",
+          "ok": true,
+          "detail": {
+            "codesign": true,
+            "stapled": true,
+            "gatekeeper": true,
+            "team": true
+          }
+        },
+        {
+          "name": "fresh_guest_starts_missing",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "fresh_selftest",
+          "ok": true,
+          "detail": {
+            "checks": 23,
+            "footprint_mb": 99
+          }
+        },
+        {
+          "name": "fresh_guest_from_release",
+          "ok": true,
+          "detail": "v0.4.8"
+        },
+        {
+          "name": "fresh_container_linux_arm64",
+          "ok": true,
+          "detail": "b'aarch64\\nmplete\\na1c67c46f05a: Download complete\\n417332e4182f: Download complete\\nDigest: sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf\\nStatus: Downloaded newer image for alpine:latest\\n'"
+        },
+        {
+          "name": "fresh_container_linux_amd64",
+          "ok": true,
+          "detail": "b'x86_64\\n complete\\n86ff264fe568: Download complete\\nc35a7d82b8fa: Download complete\\nDigest: sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf\\nStatus: Image is up to date for alpine:latest\\n'"
+        },
+        {
+          "name": "fresh_container_linux_386",
+          "ok": true,
+          "detail": "b'x86_64\\nload complete\\n06411751d845: Pull complete\\n17150332ccbf: Download complete\\nDigest: sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf\\nStatus: Image is up to date for alpine:latest\\n'"
+        },
+        {
+          "name": "fix_large_stdin_lossless",
+          "ok": true,
+          "detail": 1048576
+        },
+        {
+          "name": "fix_lifecycle_faults",
+          "ok": true,
+          "detail": "b'ers_after_unpack_crash_0.08\",\\n      \"ok\": true,\\n      \"detail\": \"26 06:00:36 GMT\\\\r\\\\nContent-Length: 2\\\\r\\\\nContent-Type: text/plain; charset=utf-8\\\\r\\\\nConnection: close\\\\r\\\\n\\\\r\\\\nOK\"\\n    },\\n    {\\n      \"name\": \"docker_recovers_after_unpack_crash_0.2\",\\n      \"ok\": true,\\n      \"detail\": \"26 06:00:38 GMT\\\\r\\\\nContent-Length: 2\\\\r\\\\nContent-Type: text/plain; charset=utf-8\\\\r\\\\nConnection: close\\\\r\\\\n\\\\r\\\\nOK\"\\n    },\\n    {\\n      \"name\": \"durable_markers_published\",\\n      \"ok\": true,\\n      \"detail\": null\\n    }\\n  ]\\n}\\n'"
+        },
+        {
+          "name": "fix_s3_name_slim",
+          "ok": true,
+          "detail": "b'tc 0 bytes 211 inet 8 unspec 8\\n Pull complete\\n405d5f23d33f: Pull complete\\naa7731a0a627: Pull complete\\nDigest: sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928\\nStatus: Downloaded newer image for python:3-slim\\n'"
+        },
+        {
+          "name": "fix_boto3_slim_amd64",
+          "ok": true,
+          "detail": "us-east-1 404\nap-northeast-2 404\n63: Pull complete\nf01b8d07ba2a: Pull complete\nba56bf6127ad: Pull complete\nDigest: sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928\nStatus: Image is up to date for python:3-slim\n"
+        },
+        {
+          "name": "fix_boto3_slim",
+          "ok": true,
+          "detail": "us-east-1 404\nap-northeast-2 404\n"
+        },
+        {
+          "name": "fix_s3_name_alpine",
+          "ok": true,
+          "detail": "b'tc 0 bytes 211 inet 8 unspec 8\\noad complete\\n297a5ceff0ed: Pull complete\\n1c4457ee0114: Pull complete\\nDigest: sha256:0f9552bb28711333da16915ec146f5e6bb44a7fdac9ced15dc17c2e0206346dd\\nStatus: Downloaded newer image for python:3-alpine\\n'"
+        },
+        {
+          "name": "fix_boto3_alpine",
+          "ok": true,
+          "detail": "us-east-1 404\nap-northeast-2 404\n"
+        },
+        {
+          "name": "fix_boto3_alpine",
+          "ok": true,
+          "detail": "us-east-1 404\nap-northeast-2 404\n"
+        },
+        {
+          "name": "fix_af_inet6_alone",
+          "ok": true,
+          "detail": "b'no_address 1.14\\n'"
+        },
+        {
+          "name": "fix_clock_follows_host",
+          "ok": true,
+          "detail": "set after 52 s"
+        },
+        {
+          "name": "fix_clock_slews_without_going_back",
+          "ok": true,
+          "detail": {
+            "moved_ms": -35.864830017089844,
+            "worst_back_ms": 0.0
+          }
+        },
+        {
+          "name": "previous_install",
+          "ok": true,
+          "detail": "b'downloading docker 29.9.2 (18 MB) from download.docker.com\\ndownloading docker-credential-osxkeychain 0.9.12 (2 MB) from github.com\\ndownloading compose 5.6.1 (29 MB) from github.com\\ndownloading buildx 0.38.1 (62 MB) from github.com\\n'"
+        },
+        {
+          "name": "previous_version",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "previous_container",
+          "ok": true,
+          "detail": "b' complete\\n55d2dadd4bbc: Pull complete\\n622159812b01: Download complete\\nDigest: sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4\\nStatus: Downloaded newer image for busybox:latest\\n'"
+        },
+        {
+          "name": "update_ok",
+          "ok": true,
+          "detail": {
+            "version": null,
+            "handover": null,
+            "installed": null
+          }
+        },
+        {
+          "name": "update_to_version",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "update_signed_notarized_stapled",
+          "ok": true,
+          "detail": {
+            "codesign": true,
+            "stapled": true,
+            "gatekeeper": true,
+            "team": true
+          }
+        },
+        {
+          "name": "update_keeps_vm",
+          "ok": true,
+          "detail": {
+            "before": 96706,
+            "after": 96706,
+            "version": "0.4.7"
+          }
+        },
+        {
+          "name": "update_keeps_container",
+          "ok": true,
+          "detail": "b'kept\\n'"
+        },
+        {
+          "name": "restart_serves_new_version",
+          "ok": true,
+          "detail": {
+            "version": "0.4.8",
+            "state": "running"
+          }
+        },
+        {
+          "name": "restart_keeps_container",
+          "ok": true,
+          "detail": "b'890b7ea336c236d675927dcedbadd9d260a8a1521b636e991ea2d95a93cdc934\\n'"
+        },
+        {
+          "name": "restart_keeps_volume",
+          "ok": true,
+          "detail": "b'kept\\n'"
+        },
+        {
+          "name": "update_guest_receipt",
+          "ok": true,
+          "detail": "v0.4.8"
+        },
+        {
+          "name": "update_fix_s3_name",
+          "ok": true,
+          "detail": "b'tc 0 bytes 211 inet 8 unspec 8\\n Pull complete\\naa7731a0a627: Pull complete\\n405d5f23d33f: Pull complete\\nDigest: sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928\\nStatus: Downloaded newer image for python:3-slim\\n'"
+        },
+        {
+          "name": "update_fix_af_inet6_alone",
+          "ok": true,
+          "detail": "b'no_address 1.09\\n'"
+        },
+        {
+          "name": "update_fix_clock_follows_host",
+          "ok": true,
+          "detail": "set after 52 s"
+        },
+        {
+          "name": "update_large_stdin_lossless",
+          "ok": true,
+          "detail": 1048576
+        },
+        {
+          "name": "update_previous_guest_fallback",
+          "ok": true,
+          "detail": "b'nhint: run `dmx stop`, then `dmx guest fetch --force`, then retry\\\\n\"\\n      }\\n    },\\n    {\\n      \"name\": \"legacy_bulk_reaped\",\\n      \"ok\": true,\\n      \"detail\": null\\n    },\\n    {\\n      \"name\": \"legacy_sigint_started\",\\n      \"ok\": true,\\n      \"detail\": null\\n    },\\n    {\\n      \"name\": \"legacy_sigint_returns\",\\n      \"ok\": true,\\n      \"detail\": {\\n        \"code\": 130,\\n        \"seconds\": 0.001\\n      }\\n    },\\n    {\\n      \"name\": \"legacy_sigint_reaped\",\\n      \"ok\": true,\\n      \"detail\": null\\n    }\\n  ]\\n}\\n'"
+        }
+      ],
+      "nested_checks": {
+        "lifecycle": {
+          "ok": true,
+          "binary_sha256": "7ba0c8939bcf15065409dbf06b1a26be3118ed5ff9167a3bd9788e41b13a09d4",
+          "checks": [
+            {
+              "name": "stalled_stdin_disconnect_returns",
+              "ok": true,
+              "detail": {
+                "seconds": 0.004,
+                "exit_code": -9
+              }
+            },
+            {
+              "name": "stalled_stdin_disconnect_reaped",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "stalled_stdin_sigint_returns",
+              "ok": true,
+              "detail": {
+                "seconds": 0.005,
+                "exit_code": 130
+              }
+            },
+            {
+              "name": "stalled_stdin_sigint_reaped",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "credit_stream_sha256",
+              "ok": true,
+              "detail": {
+                "code": 0,
+                "stdout": "79293821218138b9bfe4ce149ad32b53420903c4390101806072051db9660000  -\n",
+                "stderr": "",
+                "expected": "79293821218138b9bfe4ce149ad32b53420903c4390101806072051db9660000"
+              }
+            },
+            {
+              "name": "lost_spawn_lock_race_retries",
+              "ok": true,
+              "detail": {
+                "seconds": 1.313,
+                "stderr": ""
+              }
+            },
+            {
+              "name": "first_boot_daemon_listens",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "first_boot_disk_created",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "sigterm_during_first_boot_bounded",
+              "ok": true,
+              "detail": {
+                "seconds": 0.286,
+                "exit_code": 0
+              }
+            },
+            {
+              "name": "disk_usable_after_first_boot_sigterm",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "enospc_is_reported_as_waiting",
+              "ok": true,
+              "detail": {
+                "clients": 1,
+                "console_log": "/private/tmp/dmx-space-k_o7wqdr/mnt/dmx-rem-6vgnc18j/logs/console.log",
+                "cpus": 2,
+                "disk": {
+                  "allocated_mb": 6,
+                  "path": "/private/tmp/dmx-space-k_o7wqdr/mnt/dmx-rem-6vgnc18j/data.img",
+                  "size_mb": 1024
+                },
+                "disk_error": {
+                  "code": "disk_full",
+                  "hint": "free space on the volume holding data.img, then run `dmx status`; writes retry automatically",
+                  "message": "host disk is full; guest writes are waiting for space"
+                },
+                "docker_socket": "/private/tmp/dmx-space-k_o7wqdr/mnt/dmx-rem-6vgnc18j/docker.sock",
+                "execs": 1,
+                "guest_used_mb": 22,
+                "host_footprint_mb": 126,
+                "host_peak_footprint_mb": 126,
+                "idle_timeout_s": 300,
+                "launchd": false,
+                "local_network": "allowed",
+                "max_memory": "2.0G",
+                "memory": {
+                  "balloon_mb": 0,
+                  "balloon_target_mb": 0,
+                  "guest_cache_mb": 37,
+                  "guest_page_size": 4096,
+                  "guest_swap_mb": 0,
+                  "host_pressure": "normal",
+                  "plug": {
+                    "boot_mb": 1024,
+                    "plugged_mb": 128,
+                    "plugs": 1,
+                    "requested_mb": 128,
+                    "unplugs": 0
+                  },
+                  "pressure_simulated": false,
+                  "reported_mb": 0,
+                  "sweeps": 0,
+                  "trims": 0
+                },
+                "pid": 96210,
+                "socket": "/private/tmp/dmx-space-k_o7wqdr/mnt/dmx-rem-6vgnc18j/dmx.sock",
+                "state": "running",
+                "uptime_s": 0.8,
+                "version": "0.4.8"
+              }
+            },
+            {
+              "name": "enospc_request_still_pending",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "enospc_write_resumes",
+              "ok": true,
+              "detail": ""
+            },
+            {
+              "name": "enospc_status_clears",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "enospc_does_not_abort_guest_journal",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "docker_recovers_after_unpack_crash_0.02",
+              "ok": true,
+              "detail": "26 06:00:34 GMT\r\nContent-Length: 2\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\nOK"
+            },
+            {
+              "name": "docker_recovers_after_unpack_crash_0.08",
+              "ok": true,
+              "detail": "26 06:00:36 GMT\r\nContent-Length: 2\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\nOK"
+            },
+            {
+              "name": "docker_recovers_after_unpack_crash_0.2",
+              "ok": true,
+              "detail": "26 06:00:38 GMT\r\nContent-Length: 2\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\nOK"
+            },
+            {
+              "name": "durable_markers_published",
+              "ok": true,
+              "detail": null
+            }
+          ]
+        },
+        "legacy_fallback": {
+          "ok": true,
+          "binary_sha256": "7ba0c8939bcf15065409dbf06b1a26be3118ed5ff9167a3bd9788e41b13a09d4",
+          "checks": [
+            {
+              "name": "legacy_boots",
+              "ok": true,
+              "detail": ""
+            },
+            {
+              "name": "failed_download_retains_previous_guest",
+              "ok": true,
+              "detail": 1
+            },
+            {
+              "name": "legacy_small_stdin_works",
+              "ok": true,
+              "detail": ""
+            },
+            {
+              "name": "legacy_bulk_started",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "legacy_bulk_fails_with_upgrade_hint",
+              "ok": true,
+              "detail": {
+                "code": 1,
+                "stderr": "error: this guest cannot safely accept more than 4 KiB of exec stdin without byte credit\nhint: run `dmx stop`, then `dmx guest fetch --force`, then retry\n"
+              }
+            },
+            {
+              "name": "legacy_bulk_reaped",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "legacy_sigint_started",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "legacy_sigint_returns",
+              "ok": true,
+              "detail": {
+                "code": 130,
+                "seconds": 0.001
+              }
+            },
+            {
+              "name": "legacy_sigint_reaped",
+              "ok": true,
+              "detail": null
+            }
+          ]
+        }
+      }
+    },
+    "public": {
+      "mode": "public",
+      "version": "0.4.8",
+      "previous": "0.4.7",
+      "ok": true,
+      "total": 37,
+      "failed": [],
+      "root": "/private/tmp/dmxrel-vnlggi1f",
+      "checks": [
+        {
+          "name": "fresh_install",
+          "ok": true,
+          "detail": "b'downloading docker 29.9.2 (18 MB) from download.docker.com\\ndownloading docker-credential-osxkeychain 0.9.12 (2 MB) from github.com\\ndownloading compose 5.6.1 (29 MB) from github.com\\ndownloading buildx 0.38.1 (62 MB) from github.com\\n'"
+        },
+        {
+          "name": "fresh_version",
+          "ok": true,
+          "detail": "0.4.8"
+        },
+        {
+          "name": "fresh_signed_notarized_stapled",
+          "ok": true,
+          "detail": {
+            "codesign": true,
+            "stapled": true,
+            "gatekeeper": true,
+            "team": true
+          }
+        },
+        {
+          "name": "fresh_guest_starts_missing",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "fresh_selftest",
+          "ok": true,
+          "detail": {
+            "checks": 23,
+            "footprint_mb": 99
+          }
+        },
+        {
+          "name": "fresh_guest_from_release",
+          "ok": true,
+          "detail": "v0.4.8"
+        },
+        {
+          "name": "fresh_container_linux_arm64",
+          "ok": true,
+          "detail": "b'aarch64\\nd complete\\nb90627b8f429: Pull complete\\n417332e4182f: Download complete\\nDigest: sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf\\nStatus: Downloaded newer image for alpine:latest\\n'"
+        },
+        {
+          "name": "fresh_container_linux_amd64",
+          "ok": true,
+          "detail": "b'x86_64\\nload complete\\n881fc932939e: Pull complete\\n86ff264fe568: Download complete\\nDigest: sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf\\nStatus: Image is up to date for alpine:latest\\n'"
+        },
+        {
+          "name": "fresh_container_linux_386",
+          "ok": true,
+          "detail": "b'x86_64\\nload complete\\n06411751d845: Pull complete\\neabfd762c1d0: Download complete\\nDigest: sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf\\nStatus: Image is up to date for alpine:latest\\n'"
+        },
+        {
+          "name": "fix_large_stdin_lossless",
+          "ok": true,
+          "detail": 1048576
+        },
+        {
+          "name": "fix_lifecycle_faults",
+          "ok": true,
+          "detail": "b'ers_after_unpack_crash_0.08\",\\n      \"ok\": true,\\n      \"detail\": \"26 06:13:28 GMT\\\\r\\\\nContent-Length: 2\\\\r\\\\nContent-Type: text/plain; charset=utf-8\\\\r\\\\nConnection: close\\\\r\\\\n\\\\r\\\\nOK\"\\n    },\\n    {\\n      \"name\": \"docker_recovers_after_unpack_crash_0.2\",\\n      \"ok\": true,\\n      \"detail\": \"26 06:13:30 GMT\\\\r\\\\nContent-Length: 2\\\\r\\\\nContent-Type: text/plain; charset=utf-8\\\\r\\\\nConnection: close\\\\r\\\\n\\\\r\\\\nOK\"\\n    },\\n    {\\n      \"name\": \"durable_markers_published\",\\n      \"ok\": true,\\n      \"detail\": null\\n    }\\n  ]\\n}\\n'"
+        },
+        {
+          "name": "fix_s3_name_slim",
+          "ok": true,
+          "detail": "b'tc 0 bytes 211 inet 8 unspec 8\\nnload complete\\n405d5f23d33f: Pull complete\\naa7731a0a627: Pull complete\\nDigest: sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928\\nStatus: Downloaded newer image for python:3-slim\\n'"
+        },
+        {
+          "name": "fix_boto3_slim_amd64",
+          "ok": true,
+          "detail": "us-east-1 404\nap-northeast-2 404\n67: Pull complete\nf01b8d07ba2a: Pull complete\nba56bf6127ad: Pull complete\nDigest: sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928\nStatus: Image is up to date for python:3-slim\n"
+        },
+        {
+          "name": "fix_boto3_slim",
+          "ok": true,
+          "detail": "us-east-1 404\nap-northeast-2 404\n"
+        },
+        {
+          "name": "fix_s3_name_alpine",
+          "ok": true,
+          "detail": "b'tc 0 bytes 211 inet 8 unspec 8\\noad complete\\n297a5ceff0ed: Pull complete\\n1c4457ee0114: Pull complete\\nDigest: sha256:0f9552bb28711333da16915ec146f5e6bb44a7fdac9ced15dc17c2e0206346dd\\nStatus: Downloaded newer image for python:3-alpine\\n'"
+        },
+        {
+          "name": "fix_boto3_alpine",
+          "ok": true,
+          "detail": "us-east-1 404\nap-northeast-2 404\n"
+        },
+        {
+          "name": "fix_boto3_alpine",
+          "ok": true,
+          "detail": "us-east-1 404\nap-northeast-2 404\n"
+        },
+        {
+          "name": "fix_af_inet6_alone",
+          "ok": true,
+          "detail": "b'no_address 1.23\\n'"
+        },
+        {
+          "name": "fix_clock_follows_host",
+          "ok": true,
+          "detail": "set after 49 s"
+        },
+        {
+          "name": "fix_clock_slews_without_going_back",
+          "ok": true,
+          "detail": {
+            "moved_ms": -35.852670669555664,
+            "worst_back_ms": 0.0
+          }
+        },
+        {
+          "name": "previous_install",
+          "ok": true,
+          "detail": "b'downloading docker 29.9.2 (18 MB) from download.docker.com\\ndownloading docker-credential-osxkeychain 0.9.12 (2 MB) from github.com\\ndownloading compose 5.6.1 (29 MB) from github.com\\ndownloading buildx 0.38.1 (62 MB) from github.com\\n'"
+        },
+        {
+          "name": "previous_version",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "previous_container",
+          "ok": true,
+          "detail": "b' complete\\n55d2dadd4bbc: Pull complete\\n622159812b01: Download complete\\nDigest: sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4\\nStatus: Downloaded newer image for busybox:latest\\n'"
+        },
+        {
+          "name": "update_ok",
+          "ok": true,
+          "detail": {
+            "version": null,
+            "handover": null,
+            "installed": null
+          }
+        },
+        {
+          "name": "update_to_version",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "update_signed_notarized_stapled",
+          "ok": true,
+          "detail": {
+            "codesign": true,
+            "stapled": true,
+            "gatekeeper": true,
+            "team": true
+          }
+        },
+        {
+          "name": "update_keeps_vm",
+          "ok": true,
+          "detail": {
+            "before": 19563,
+            "after": 19563,
+            "version": "0.4.7"
+          }
+        },
+        {
+          "name": "update_keeps_container",
+          "ok": true,
+          "detail": "b'kept\\n'"
+        },
+        {
+          "name": "restart_serves_new_version",
+          "ok": true,
+          "detail": {
+            "version": "0.4.8",
+            "state": "running"
+          }
+        },
+        {
+          "name": "restart_keeps_container",
+          "ok": true,
+          "detail": "b'0343a0c81952390753f3d254fe5b74fb303116fa69790bfb29b3ee3b14ab96db\\n'"
+        },
+        {
+          "name": "restart_keeps_volume",
+          "ok": true,
+          "detail": "b'kept\\n'"
+        },
+        {
+          "name": "update_guest_receipt",
+          "ok": true,
+          "detail": "v0.4.8"
+        },
+        {
+          "name": "update_fix_s3_name",
+          "ok": true,
+          "detail": "b'tc 0 bytes 211 inet 8 unspec 8\\nnload complete\\n405d5f23d33f: Pull complete\\naa7731a0a627: Pull complete\\nDigest: sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928\\nStatus: Downloaded newer image for python:3-slim\\n'"
+        },
+        {
+          "name": "update_fix_af_inet6_alone",
+          "ok": true,
+          "detail": "b'no_address 1.18\\n'"
+        },
+        {
+          "name": "update_fix_clock_follows_host",
+          "ok": true,
+          "detail": "set after 52 s"
+        },
+        {
+          "name": "update_large_stdin_lossless",
+          "ok": true,
+          "detail": 1048576
+        },
+        {
+          "name": "update_previous_guest_fallback",
+          "ok": true,
+          "detail": "b'nhint: run `dmx stop`, then `dmx guest fetch --force`, then retry\\\\n\"\\n      }\\n    },\\n    {\\n      \"name\": \"legacy_bulk_reaped\",\\n      \"ok\": true,\\n      \"detail\": null\\n    },\\n    {\\n      \"name\": \"legacy_sigint_started\",\\n      \"ok\": true,\\n      \"detail\": null\\n    },\\n    {\\n      \"name\": \"legacy_sigint_returns\",\\n      \"ok\": true,\\n      \"detail\": {\\n        \"code\": 130,\\n        \"seconds\": 0.001\\n      }\\n    },\\n    {\\n      \"name\": \"legacy_sigint_reaped\",\\n      \"ok\": true,\\n      \"detail\": null\\n    }\\n  ]\\n}\\n'"
+        }
+      ],
+      "nested_checks": {
+        "lifecycle": {
+          "ok": true,
+          "binary_sha256": "7ba0c8939bcf15065409dbf06b1a26be3118ed5ff9167a3bd9788e41b13a09d4",
+          "checks": [
+            {
+              "name": "stalled_stdin_disconnect_returns",
+              "ok": true,
+              "detail": {
+                "seconds": 0.005,
+                "exit_code": -9
+              }
+            },
+            {
+              "name": "stalled_stdin_disconnect_reaped",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "stalled_stdin_sigint_returns",
+              "ok": true,
+              "detail": {
+                "seconds": 0.01,
+                "exit_code": 130
+              }
+            },
+            {
+              "name": "stalled_stdin_sigint_reaped",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "credit_stream_sha256",
+              "ok": true,
+              "detail": {
+                "code": 0,
+                "stdout": "16f65c9c1b90ad63d6aa2d5164f80ec48aa072d5a3f31062504d2fbfdd01f86b  -\n",
+                "stderr": "",
+                "expected": "16f65c9c1b90ad63d6aa2d5164f80ec48aa072d5a3f31062504d2fbfdd01f86b"
+              }
+            },
+            {
+              "name": "lost_spawn_lock_race_retries",
+              "ok": true,
+              "detail": {
+                "seconds": 1.355,
+                "stderr": ""
+              }
+            },
+            {
+              "name": "first_boot_daemon_listens",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "first_boot_disk_created",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "sigterm_during_first_boot_bounded",
+              "ok": true,
+              "detail": {
+                "seconds": 0.283,
+                "exit_code": 0
+              }
+            },
+            {
+              "name": "disk_usable_after_first_boot_sigterm",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "enospc_is_reported_as_waiting",
+              "ok": true,
+              "detail": {
+                "clients": 1,
+                "console_log": "/private/tmp/dmx-space-cozvd8fm/mnt/dmx-rem-38pyzj38/logs/console.log",
+                "cpus": 2,
+                "disk": {
+                  "allocated_mb": 6,
+                  "path": "/private/tmp/dmx-space-cozvd8fm/mnt/dmx-rem-38pyzj38/data.img",
+                  "size_mb": 1024
+                },
+                "disk_error": {
+                  "code": "disk_full",
+                  "hint": "free space on the volume holding data.img, then run `dmx status`; writes retry automatically",
+                  "message": "host disk is full; guest writes are waiting for space"
+                },
+                "docker_socket": "/private/tmp/dmx-space-cozvd8fm/mnt/dmx-rem-38pyzj38/docker.sock",
+                "execs": 1,
+                "guest_used_mb": 22,
+                "host_footprint_mb": 122,
+                "host_peak_footprint_mb": 122,
+                "idle_timeout_s": 300,
+                "launchd": false,
+                "local_network": "allowed",
+                "max_memory": "2.0G",
+                "memory": {
+                  "balloon_mb": 0,
+                  "balloon_target_mb": 0,
+                  "guest_cache_mb": 37,
+                  "guest_page_size": 4096,
+                  "guest_swap_mb": 0,
+                  "host_pressure": "normal",
+                  "plug": {
+                    "boot_mb": 1024,
+                    "plugged_mb": 128,
+                    "plugs": 1,
+                    "requested_mb": 128,
+                    "unplugs": 0
+                  },
+                  "pressure_simulated": false,
+                  "reported_mb": 1081,
+                  "sweeps": 0,
+                  "trims": 0
+                },
+                "pid": 19084,
+                "socket": "/private/tmp/dmx-space-cozvd8fm/mnt/dmx-rem-38pyzj38/dmx.sock",
+                "state": "running",
+                "uptime_s": 2,
+                "version": "0.4.8"
+              }
+            },
+            {
+              "name": "enospc_request_still_pending",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "enospc_write_resumes",
+              "ok": true,
+              "detail": ""
+            },
+            {
+              "name": "enospc_status_clears",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "enospc_does_not_abort_guest_journal",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "docker_recovers_after_unpack_crash_0.02",
+              "ok": true,
+              "detail": "26 06:13:26 GMT\r\nContent-Length: 2\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\nOK"
+            },
+            {
+              "name": "docker_recovers_after_unpack_crash_0.08",
+              "ok": true,
+              "detail": "26 06:13:28 GMT\r\nContent-Length: 2\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\nOK"
+            },
+            {
+              "name": "docker_recovers_after_unpack_crash_0.2",
+              "ok": true,
+              "detail": "26 06:13:30 GMT\r\nContent-Length: 2\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\nOK"
+            },
+            {
+              "name": "durable_markers_published",
+              "ok": true,
+              "detail": null
+            }
+          ]
+        },
+        "legacy_fallback": {
+          "ok": true,
+          "binary_sha256": "7ba0c8939bcf15065409dbf06b1a26be3118ed5ff9167a3bd9788e41b13a09d4",
+          "checks": [
+            {
+              "name": "legacy_boots",
+              "ok": true,
+              "detail": ""
+            },
+            {
+              "name": "failed_download_retains_previous_guest",
+              "ok": true,
+              "detail": 1
+            },
+            {
+              "name": "legacy_small_stdin_works",
+              "ok": true,
+              "detail": ""
+            },
+            {
+              "name": "legacy_bulk_started",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "legacy_bulk_fails_with_upgrade_hint",
+              "ok": true,
+              "detail": {
+                "code": 1,
+                "stderr": "error: this guest cannot safely accept more than 4 KiB of exec stdin without byte credit\nhint: run `dmx stop`, then `dmx guest fetch --force`, then retry\n"
+              }
+            },
+            {
+              "name": "legacy_bulk_reaped",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "legacy_sigint_started",
+              "ok": true,
+              "detail": null
+            },
+            {
+              "name": "legacy_sigint_returns",
+              "ok": true,
+              "detail": {
+                "code": 130,
+                "seconds": 0.001
+              }
+            },
+            {
+              "name": "legacy_sigint_reaped",
+              "ok": true,
+              "detail": null
+            }
+          ]
+        }
+      }
+    },
+    "draft_assets": {
+      "stage": "draft",
+      "ok": true,
+      "assets": [
+        {
+          "name": "NOTES.md",
+          "bytes": 4732,
+          "sha256": "2b49093eb652fd6ebc89734e43264c66fff6d9a51322155ad5f2784bb4ee60b5",
+          "identical": true
+        },
+        {
+          "name": "SHA256SUMS",
+          "bytes": 889,
+          "sha256": "9aca86f05449b8465a7917065794bdf9c0c38b60961737e6042cb9c90d244d04",
+          "identical": true
+        },
+        {
+          "name": "dmx-0.4.8-darwin-arm64.tar.gz",
+          "bytes": 5703270,
+          "sha256": "09a3b7d53fed69aee13eb2b0d310ae49fda0d38dc508899539c923984964190a",
+          "identical": true
+        },
+        {
+          "name": "dmx-0.4.8-darwin-arm64.tar.gz.sha256",
+          "bytes": 96,
+          "sha256": "ba21f7c7a55db0371f3437eae9b226173eb3a263b662fc592b0e37f20e57d3ec",
+          "identical": true
+        },
+        {
+          "name": "dmx-guest-0.4.8.tar.gz",
+          "bytes": 62908315,
+          "sha256": "945df49c1aa5f534288d6660bd34a6d46b847a5e8f5f9bf8eb47c7b752e2919c",
+          "identical": true
+        },
+        {
+          "name": "dmx-guest-0.4.8.tar.gz.sha256",
+          "bytes": 89,
+          "sha256": "0053bd98f4ed9d143c2637af41dfafe8d60b7c6d7760672395906d3647d9119a",
+          "identical": true
+        },
+        {
+          "name": "dmx-sources-0.4.8.tar",
+          "bytes": 496465920,
+          "sha256": "bdafb537aef8df22cb3de44fe44ce3d11ba314bae9628435d457e5405d4c82a8",
+          "identical": true
+        },
+        {
+          "name": "dmx-sources-0.4.8.tar.sha256",
+          "bytes": 88,
+          "sha256": "f27081f8d121b7a243f14051b11e511d258149b2f6480fcc1b70da1ee3e215fc",
+          "identical": true
+        },
+        {
+          "name": "fex-2610-dmx13.build.py",
+          "bytes": 174449,
+          "sha256": "5eedd34c399b8105feca2cff478e7ee816b9bb5a29232c0fa25c63b82a401490",
+          "identical": true
+        },
+        {
+          "name": "install.sh",
+          "bytes": 4295,
+          "sha256": "21aacd72f4848840532c86c8fe09e1e8a86bf618fbd2408d75afbc932c0b804b",
+          "identical": true
+        },
+        {
+          "name": "kernel-6.18.58-dmx-4k.build.py",
+          "bytes": 20141,
+          "sha256": "8c130d00d9a267ac91e68e8b47d326cd0755d1cd36ea9446bcc3bdc51b6fe107",
+          "identical": true
+        },
+        {
+          "name": "kernel-6.18.58-dmx-4k.config",
+          "bytes": 94622,
+          "sha256": "4a1315db472ec88e6857dac27afb49db310abb69ac5cde98af16d5211ffbf60e",
+          "identical": true
+        },
+        {
+          "name": "qemu-x86_64-11.0.3-dmx1.build.py",
+          "bytes": 17224,
+          "sha256": "029608626a77b62fed86f67579150905bf3589e4cc3735b132475ec2e7e23202",
+          "identical": true
+        },
+        {
+          "name": "third-party.json",
+          "bytes": 24571,
+          "sha256": "46b9ab110cc47b1a4930987ad37e9fa34a92bcb9752a31c97aee9e128c7ca081",
+          "identical": true
+        }
+      ],
+      "total": 14
+    },
+    "public_assets": {
+      "stage": "public",
+      "ok": true,
+      "assets": [
+        {
+          "name": "NOTES.md",
+          "bytes": 4732,
+          "sha256": "2b49093eb652fd6ebc89734e43264c66fff6d9a51322155ad5f2784bb4ee60b5",
+          "identical": true
+        },
+        {
+          "name": "SHA256SUMS",
+          "bytes": 889,
+          "sha256": "9aca86f05449b8465a7917065794bdf9c0c38b60961737e6042cb9c90d244d04",
+          "identical": true
+        },
+        {
+          "name": "dmx-0.4.8-darwin-arm64.tar.gz",
+          "bytes": 5703270,
+          "sha256": "09a3b7d53fed69aee13eb2b0d310ae49fda0d38dc508899539c923984964190a",
+          "identical": true
+        },
+        {
+          "name": "dmx-0.4.8-darwin-arm64.tar.gz.sha256",
+          "bytes": 96,
+          "sha256": "ba21f7c7a55db0371f3437eae9b226173eb3a263b662fc592b0e37f20e57d3ec",
+          "identical": true
+        },
+        {
+          "name": "dmx-guest-0.4.8.tar.gz",
+          "bytes": 62908315,
+          "sha256": "945df49c1aa5f534288d6660bd34a6d46b847a5e8f5f9bf8eb47c7b752e2919c",
+          "identical": true
+        },
+        {
+          "name": "dmx-guest-0.4.8.tar.gz.sha256",
+          "bytes": 89,
+          "sha256": "0053bd98f4ed9d143c2637af41dfafe8d60b7c6d7760672395906d3647d9119a",
+          "identical": true
+        },
+        {
+          "name": "dmx-sources-0.4.8.tar",
+          "bytes": 496465920,
+          "sha256": "bdafb537aef8df22cb3de44fe44ce3d11ba314bae9628435d457e5405d4c82a8",
+          "identical": true
+        },
+        {
+          "name": "dmx-sources-0.4.8.tar.sha256",
+          "bytes": 88,
+          "sha256": "f27081f8d121b7a243f14051b11e511d258149b2f6480fcc1b70da1ee3e215fc",
+          "identical": true
+        },
+        {
+          "name": "fex-2610-dmx13.build.py",
+          "bytes": 174449,
+          "sha256": "5eedd34c399b8105feca2cff478e7ee816b9bb5a29232c0fa25c63b82a401490",
+          "identical": true
+        },
+        {
+          "name": "install.sh",
+          "bytes": 4295,
+          "sha256": "21aacd72f4848840532c86c8fe09e1e8a86bf618fbd2408d75afbc932c0b804b",
+          "identical": true
+        },
+        {
+          "name": "kernel-6.18.58-dmx-4k.build.py",
+          "bytes": 20141,
+          "sha256": "8c130d00d9a267ac91e68e8b47d326cd0755d1cd36ea9446bcc3bdc51b6fe107",
+          "identical": true
+        },
+        {
+          "name": "kernel-6.18.58-dmx-4k.config",
+          "bytes": 94622,
+          "sha256": "4a1315db472ec88e6857dac27afb49db310abb69ac5cde98af16d5211ffbf60e",
+          "identical": true
+        },
+        {
+          "name": "qemu-x86_64-11.0.3-dmx1.build.py",
+          "bytes": 17224,
+          "sha256": "029608626a77b62fed86f67579150905bf3589e4cc3735b132475ec2e7e23202",
+          "identical": true
+        },
+        {
+          "name": "third-party.json",
+          "bytes": 24571,
+          "sha256": "46b9ab110cc47b1a4930987ad37e9fa34a92bcb9752a31c97aee9e128c7ca081",
+          "identical": true
+        }
+      ],
+      "total": 14
+    }
+  }
 }
