@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build app install-app apptest localnettest localnetupdatetest menutest install kernel qemu fex guest selftest daemontest mcptest clocktest sandboxtest x86test dockertest imagetest javatest storagetest pressuretest benchmark test formaltest release clean
+.PHONY: build app install-app apptest localnettest localnetupdatetest menutest install kernel qemu fex guest selftest daemontest mcptest clocktest sandboxtest x86test dockertest imagetest javatest storagetest pressuretest benchmark test formaltest lifecycletest release clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -116,6 +116,12 @@ benchmark: build
 # Unit tests that need no VM (the virtio-fs server's path containment).
 test:
 	swift test
+
+# Device teardown, failed Machine initialization/start, stale memory ticks, and real VM churn.
+lifecycletest: build
+	python3 formal/vm-device-lifetime/check.py
+	python3 formal/vm-device-lifetime/repro/check-code.py
+	python3 -I scripts/test-lifecycle.py $(BIN)
 
 # Bounded safety models plus real Core FD/EMFILE probes (Java + cached TLA+ jar required).
 # Child-only forced FD reuse never shares the unit runner's descriptor namespace.

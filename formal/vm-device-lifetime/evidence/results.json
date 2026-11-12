@@ -1,0 +1,36 @@
+{
+  "bounds": "One queued callback with begin/finish, one stale external callback, one stop and successor VM; safety only, no fairness or state constraints.",
+  "checks": [
+    {
+      "config": "MC",
+      "expected_violation": null,
+      "exit_code": 0,
+      "states": 10
+    },
+    {
+      "config": "MC_old",
+      "expected_violation": "NoFreedRAM",
+      "exit_code": 12,
+      "states": 11
+    },
+    {
+      "config": "MC_drain",
+      "expected_violation": "NoFreedRAM",
+      "exit_code": 12,
+      "states": 11
+    },
+    {
+      "config": "MC_guard",
+      "expected_violation": "NoForeignHV",
+      "exit_code": 12,
+      "states": 9
+    },
+    {
+      "config": "MC_sanity",
+      "expected_violation": "NeverCompletes",
+      "exit_code": 12,
+      "states": 10
+    }
+  ],
+  "properties_sha256": "70c5e98cda3be12c98867b211bca45feacc790d3e26e395785c4d86d4eb2a1d0"
+}

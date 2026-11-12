@@ -1,7 +1,8 @@
 # Bug hunt: VM and process lifecycle (2026-11-12)
 
-Read-only hunt at `9852647` (v0.4.7). **Nothing here is fixed yet**: this file is the work list for
-the fixing session. Nothing was built or run and no finding was reproduced; each one was derived from
+Read-only hunt at `9852647` (v0.4.7). **Original review:** this file was the work list for
+the fixing session. The dated repair record below supersedes its original status.
+At review time nothing was built or run and no finding was reproduced; each one was derived from
 the code and its cited lines were read a second time before it was written down. "Confirmed" below means
 the mechanism is in the code as cited, not that the failure was observed. Follow the usual rule when
 fixing: reproduce or log the suspected state first, then fix, then show the check fails on the old build.
@@ -11,6 +12,29 @@ controller, guest init/agent, vsock/net/fs/blk devices, port and Docker forwardi
 `SelfUpdate`, `GuestStore`, `Sandbox/*`, `MCP/*` beyond `CappedExec`, the menu app.
 
 Suggested order: L1, G1, G4, G3, G2, G5, then the rest.
+
+## Repair record (2026-11-12)
+
+- [x] **L1:** terminal device queue barriers before destroying the VM, weak Machine callbacks,
+  an alive fence under the mapping lock, and a synchronized balloon stats handler.
+- [x] **L2:** partial initialization destroys the HV VM and RAM mapping; start failures halt and
+  join vCPUs and finish teardown before returning an error.
+- [x] **L4:** reject cancelled or detached agent completions throughout tick, trim and sweep.
+- [x] **G10:** initialize the immutable share root wrapper before workers can see it.
+- [ ] **Remaining 13:** G1, G4, G3, G2, G5, G6, L3, G7, G8, G9, L5, G11, L6.
+
+Evidence: the net barrier regression fails on the original code; four independently removed
+code repairs fail their entitled Hypervisor tests (stale release, failed init, failed start,
+late swap completion). All four tests pass restored. The stale release probe makes a real
+successor fail to boot without the alive fence; natural overlap frequency is not measured.
+Selftest 23/23, unit tests 120, daemon 63/63, and four same-process 2 GiB free/stop/start cycles
+pass. Selftest footprint: 98 -> 97 MiB, a single sample each, not evidence of a memory saving.
+Model: 10 reachable states in the repaired bounded safety model; two independent defense
+mutations, old behavior and a reachability sanity invariant fail as required.
+
+[Measurements](../measurements/2026-11-12-lifecycle.json),
+[reproduction and rerun commands](../../formal/vm-device-lifetime/README.md).
+The detailed sections below preserve the original findings, line numbers and proposed checks.
 
 | ID | What | Severity | Confidence |
 |---|---|---|---|

@@ -1,0 +1,156 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>VM lifetime repair</title><style>body{font:17px/1.6 system-ui;max-width:900px;margin:48px auto;padding:0 24px;color:#17202a;background:#f5f7fa}h1,h2{line-height:1.2}pre{background:#fff;padding:20px;overflow:auto}svg{width:100%;height:auto}.ok{color:#176239}</style><h1>VM lifetime: four lifecycle findings repaired</h1><p>2026-11-12 · L1, L2, L4, G10 · 13 findings remain open.</p><p>Before repair a device stop returned while its queue callback was blocked. Forcing a stale release against a successor VM makes that real guest fail to boot when the alive fence is removed.</p><svg viewBox="0 0 860 125" role="img" aria-label="Old callback crosses VM destruction into successor; barriers and alive fence prevent it"><g fill="white" stroke="#9baabc"><rect x="4" y="20" width="240" height="75" rx="6"/><rect x="308" y="20" width="240" height="75" rx="6"/><rect x="612" y="20" width="240" height="75" rx="6"/></g><g font-size="17" fill="#17202a" text-anchor="middle"><text x="124" y="52">Old device callback</text><text x="124" y="77">must finish first</text><text x="428" y="52">Destroy VM</text><text x="428" y="77">close alive fence</text><text x="732" y="52">Create successor</text><text x="732" y="77">old HV calls rejected</text></g><path d="M244 57h64m240 0h64" stroke="#b04436" stroke-width="3"/></svg><h2>Reproduction and repair</h2><ul><li>L1: synchronize terminal device queues, weak Machine captures, guard release and interrupts under the mapping lock. The original queue regression fails; restored code passes.</li><li>L2: clean failed partial initialization and wait for failed-start teardown. Independent mutations fail their corresponding entitled VM tests.</li><li>L4: reject completions from detached/cancelled controllers. A delayed old swap reply cannot set the successor flag.</li><li>G10: construct the immutable share root before publishing the server. Existing FUSE tests pass; no separate race reproduction is claimed.</li></ul><h2>Verification and limits</h2><p class="ok">120 unit tests · 4 entitled VM tests · 23 selftest checks · 63 daemon checks · four 2 GiB release/restart cycles.</p><p>Selftest footprint 98 → 97 MiB, one sample each; this does not establish a memory saving. The model checks 10 reachable states: one split device callback, one independent external callback, two VM generations. Both independent defense mutations, old behavior and the reachability invariant fail as expected. No liveness, natural race-rate or whole-program claim. Trust base: Swift/Rust toolchains, Hypervisor.framework, pinned guest, TLC and manual code/model correspondence.</p><h2>Run again</h2><pre>make build &amp;&amp; make guest &amp;&amp; make selftest
+make test &amp;&amp; make daemontest
+make lifecycletest
+python3 formal/vm-device-lifetime/repro/check-code.py --mutations</pre><p>The mutation command temporarily edits its named source files and restores them in finally; use an exclusively owned checkout. No Artifact publishing tool was available, so this is the standalone local report.</p><h2>Evidence</h2><pre>{
+  &quot;date&quot;: &quot;2026-11-12&quot;,
+  &quot;baseline&quot;: &quot;a0a7922&quot;,
+  &quot;review_base&quot;: &quot;9852647&quot;,
+  &quot;fixed&quot;: [
+    &quot;L1&quot;,
+    &quot;L2&quot;,
+    &quot;L4&quot;,
+    &quot;G10&quot;
+  ],
+  &quot;remaining&quot;: [
+    &quot;G1&quot;,
+    &quot;G4&quot;,
+    &quot;G3&quot;,
+    &quot;G2&quot;,
+    &quot;G5&quot;,
+    &quot;G6&quot;,
+    &quot;L3&quot;,
+    &quot;G7&quot;,
+    &quot;G8&quot;,
+    &quot;G9&quot;,
+    &quot;L5&quot;,
+    &quot;G11&quot;,
+    &quot;L6&quot;
+  ],
+  &quot;selftest&quot;: {
+    &quot;before_checks&quot;: 23,
+    &quot;after_checks&quot;: 23,
+    &quot;before_mb&quot;: 98,
+    &quot;after_mb&quot;: 97
+  },
+  &quot;daemon&quot;: {
+    &quot;checks&quot;: 63,
+    &quot;passed&quot;: 63,
+    &quot;idle_mb&quot;: 100,
+    &quot;stopped_mb&quot;: 9
+  },
+  &quot;unit_tests&quot;: 120,
+  &quot;entitled_vm_tests&quot;: 4,
+  &quot;code_mutations&quot;: [
+    {
+      &quot;name&quot;: &quot;missing-alive-guard&quot;,
+      &quot;exit_code&quot;: 1,
+      &quot;expected_success&quot;: false
+    },
+    {
+      &quot;name&quot;: &quot;missing-init-cleanup&quot;,
+      &quot;exit_code&quot;: 1,
+      &quot;expected_success&quot;: false
+    },
+    {
+      &quot;name&quot;: &quot;missing-start-cleanup&quot;,
+      &quot;exit_code&quot;: 1,
+      &quot;expected_success&quot;: false
+    },
+    {
+      &quot;name&quot;: &quot;missing-tick-guard&quot;,
+      &quot;exit_code&quot;: 1,
+      &quot;expected_success&quot;: false
+    },
+    {
+      &quot;name&quot;: &quot;machine-after&quot;,
+      &quot;exit_code&quot;: 0,
+      &quot;expected_success&quot;: true
+    }
+  ],
+  &quot;model&quot;: {
+    &quot;bounds&quot;: &quot;One queued callback with begin/finish, one stale external callback, one stop and successor VM; safety only, no fairness or state constraints.&quot;,
+    &quot;checks&quot;: [
+      {
+        &quot;config&quot;: &quot;MC&quot;,
+        &quot;expected_violation&quot;: null,
+        &quot;exit_code&quot;: 0,
+        &quot;states&quot;: 10
+      },
+      {
+        &quot;config&quot;: &quot;MC_old&quot;,
+        &quot;expected_violation&quot;: &quot;NoFreedRAM&quot;,
+        &quot;exit_code&quot;: 12,
+        &quot;states&quot;: 11
+      },
+      {
+        &quot;config&quot;: &quot;MC_drain&quot;,
+        &quot;expected_violation&quot;: &quot;NoFreedRAM&quot;,
+        &quot;exit_code&quot;: 12,
+        &quot;states&quot;: 11
+      },
+      {
+        &quot;config&quot;: &quot;MC_guard&quot;,
+        &quot;expected_violation&quot;: &quot;NoForeignHV&quot;,
+        &quot;exit_code&quot;: 12,
+        &quot;states&quot;: 9
+      },
+      {
+        &quot;config&quot;: &quot;MC_sanity&quot;,
+        &quot;expected_violation&quot;: &quot;NeverCompletes&quot;,
+        &quot;exit_code&quot;: 12,
+        &quot;states&quot;: 10
+      }
+    ],
+    &quot;properties_sha256&quot;: &quot;70c5e98cda3be12c98867b211bca45feacc790d3e26e395785c4d86d4eb2a1d0&quot;
+  },
+  &quot;binary_sha256&quot;: &quot;42525664f3bdeba26a69d106187711585cbf8228df231193e877fa1faf956520&quot;,
+  &quot;limits&quot;: [
+    &quot;Natural race frequency not measured; stale release ordering is forced in a real HV process.&quot;,
+    &quot;Finite safety model only; no whole-program or liveness proof.&quot;,
+    &quot;No public release or replacement of the installed app.&quot;
+  ],
+  &quot;restart_stress&quot;: {
+    &quot;binary_sha256&quot;: &quot;42525664f3bdeba26a69d106187711585cbf8228df231193e877fa1faf956520&quot;,
+    &quot;cycles&quot;: [
+      {
+        &quot;offset_s&quot;: 1.5,
+        &quot;same_process&quot;: true,
+        &quot;stop_start_s&quot;: 0.175,
+        &quot;reported_mb&quot;: 4167,
+        &quot;footprint_mb&quot;: 73,
+        &quot;pattern_ok&quot;: true
+      },
+      {
+        &quot;offset_s&quot;: 2,
+        &quot;same_process&quot;: true,
+        &quot;stop_start_s&quot;: 0.128,
+        &quot;reported_mb&quot;: 4024,
+        &quot;footprint_mb&quot;: 74,
+        &quot;pattern_ok&quot;: true
+      },
+      {
+        &quot;offset_s&quot;: 2.5,
+        &quot;same_process&quot;: true,
+        &quot;stop_start_s&quot;: 0.153,
+        &quot;reported_mb&quot;: 4215,
+        &quot;footprint_mb&quot;: 73,
+        &quot;pattern_ok&quot;: true
+      },
+      {
+        &quot;offset_s&quot;: 3,
+        &quot;same_process&quot;: true,
+        &quot;stop_start_s&quot;: 0.17,
+        &quot;reported_mb&quot;: 4339,
+        &quot;footprint_mb&quot;: 73,
+        &quot;pattern_ok&quot;: true
+      }
+    ],
+    &quot;ok&quot;: true
+  },
+  &quot;source_sha256&quot;: {
+    &quot;Sources/DMXCore/HV/Machine.swift&quot;: &quot;8d98ddf33ab1dac67c4fb620201a732ff1fb2e54eaef3ba8cd0e1358ff4a9ef4&quot;,
+    &quot;Sources/DMXCore/Daemon/MemoryController.swift&quot;: &quot;82bd0da48876956890a501a5dad413d409df312f550de693b0ab1b5bcdf61dcb&quot;,
+    &quot;Tests/DMXCoreTests/MachineLifecycleTests.swift&quot;: &quot;fcec1045539bf9f7d4a7065110bbb41aecd57202042cba3c788990b93e3f9403&quot;,
+    &quot;Tests/DMXCoreTests/DeviceStopTests.swift&quot;: &quot;4d55d00361191a9b56136115aad1b2a26d6056288f3dcecfb3172e79376f3591&quot;
+  }
+}</pre></html>

@@ -15,6 +15,7 @@ final class VirtioVsock: VirtioDevice, @unchecked Sendable {
 
     private let queue = DispatchQueue(label: "dmx.vsock")
     private var transport: VirtioMMIO?
+    private var stopped = false
     private var connections: [Key: Connection] = [:]
     private var control: [Header] = []  // payload-free packets waiting for an rx buffer
     private var nextPort: UInt32 = 49152
@@ -96,6 +97,7 @@ final class VirtioVsock: VirtioDevice, @unchecked Sendable {
 
     func activate(_ transport: VirtioMMIO, features: UInt64) {
         queue.async {
+            guard !self.stopped else { return }
             self.transport = transport
             self.deliver()
         }
@@ -126,12 +128,25 @@ final class VirtioVsock: VirtioDevice, @unchecked Sendable {
         }
     }
 
+    /// Terminal barrier, after vCPUs stop; callbacks queued later cannot touch guest RAM.
+    func stop() {
+        queue.sync {
+            stopped = true
+            transport = nil
+            control.removeAll()
+            for c in Array(connections.values) { drop(c, error: DMXError("vm_stopped", "the VM stopped")) }
+        }
+    }
+
     // MARK: Host side
 
     /// Opens a stream to `port` in the guest. Returns the host end of a connected socket.
     func connect(port: UInt32, timeout: Duration = .seconds(1)) async throws -> Int32 {
         try await withCheckedThrowingContinuation { continuation in
             queue.async {
+                guard !self.stopped else {
+                    return continuation.resume(throwing: DMXError("vm_stopped", "the VM stopped"))
+                }
                 guard let fds = Self.socketPair() else {
                     return continuation.resume(throwing: DMXError("vm_error", "socketpair: \(String(cString: strerror(errno)))"))
                 }

@@ -44,6 +44,7 @@ final class VirtioNet: VirtioDevice, @unchecked Sendable {
     let queue = DispatchQueue(label: "dmx.net")
     private(set) var net: UserNet!
     private var transport: VirtioMMIO?
+    private var stopped = false
     private var accepted: UInt64 = 0
     /// Ethernet frames for the guest, oldest first, and their total size.
     private var outbox: [[UInt8]] = []
@@ -79,6 +80,7 @@ final class VirtioNet: VirtioDevice, @unchecked Sendable {
 
     func activate(_ transport: VirtioMMIO, features: UInt64) {
         queue.async {
+            guard !self.stopped else { return }
             self.transport = transport
             self.accepted = features
             self.deliver()
@@ -103,8 +105,10 @@ final class VirtioNet: VirtioDevice, @unchecked Sendable {
 
     /// The VM stopped: closes every host socket.
     func stop() {
-        queue.async {
+        queue.sync {
+            self.stopped = true
             self.transport = nil
+            self.spare.removeAll()
             self.clearOutbox()
             self.net.reset()
         }

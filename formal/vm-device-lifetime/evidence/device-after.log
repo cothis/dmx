@@ -1,0 +1,71 @@
+Building for debugging...
+[5 / 32] DMXCore
+[9 / 33] ArgumentParser
+[18 / 34] DMXCore
+[25 / 42] DMXCore
+[27 / 43] DMXCore
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/Daemon.swift:331:34: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+290 |         idleCheck?.cancel()
+291 |         let started = ContinuousClock.now
+292 |         booting = Task {
+    |                        |- note: 'self' implicitly strongly captured here
+    |                        `- note: add 'self' as a capture list item to silence
+293 |             defer { booting = nil }
+294 |             do {
+    :
+329 |                 // macOS refreshes what it knows of the binary then and allows the next one, with no prompt.
+330 |                 if LocalNetworkAccess.probe() == .blocked {
+331 |                     Task { [weak self] in
+    |                                  |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                  `- note: explicitly assign the capture list item to silence
+332 |                         try? await Task.sleep(for: .seconds(3))
+333 |                         guard let self, self.state == .running, LocalNetworkAccess.probe() == .blocked else { return }
+
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/Daemon.swift:420:32: warning: immutable value 'estimate' was never used; consider replacing with '_' or removing it [#NoUsage]
+418 |                         // Waited behind another call: corrected as far as is certain, measured again in 15 s.
+419 |                         clockRetry = .now + GuestClockWatch.retryAfterFailure
+420 |                         if let estimate, abs(off) >= GuestClockWatch.tolerance {
+    |                                `- warning: immutable value 'estimate' was never used; consider replacing with '_' or removing it [#NoUsage]
+421 |                             log("clock: \(reason.description); the guest was at least \(String(format: "%.1f", abs(off))) s \(off < 0 ? "behind" : "ahead") (slow measurement), corrected that far")
+422 |                         }
+
+[#ImplicitStrongCapture]: <https://docs.swift.org/compiler/documentation/diagnostics/implicit-strong-capture>
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+[28 / 44] DMXCore
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:579:24: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+577 |         func params<P: Decodable>(_: P.Type) throws -> P {
+578 |             do {
+579 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+    |                        `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+580 |             } catch {
+581 |                 throw DMXError("bad_request", "\(method): \(error)")
+
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:580:15: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+578 |             do {
+579 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+580 |             } catch {
+    |               `- warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+581 |                 throw DMXError("bad_request", "\(method): \(error)")
+582 |             }
+
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+[35 / 47] dmx-product
+[38 / 49] DMXCore
+[38 / 49] dmx-product
+[40 / 50] DMXCore
+[45 / 50] DMXCoreTests-product
+[48 / 62]
+[54 / 62] DMXCoreTests-product
+[56 / 62] DMXCoreTests-product
+[58 / 65] DMXCoreTests-product
+[62 / 66]
+[63 / 66]
+Build complete! (5.45초)
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite DeviceStopTests started.
+◇ Test netStopWaitsForDeviceWork() started.
+✔ Test netStopWaitsForDeviceWork() passed after 0.110 seconds.
+✔ Suite DeviceStopTests passed after 0.110 seconds.
+✔ Test run with 1 test in 1 suite passed after 0.110 seconds.

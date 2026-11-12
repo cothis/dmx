@@ -1,0 +1,16 @@
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite DeviceStopTests started.
+◇ Test balloonStopWaitsForReleaseAndRejectsLaterWork() started.
+◇ Test netStopWaitsForDeviceWork() started.
+✔ Test balloonStopWaitsForReleaseAndRejectsLaterWork() passed after 0.110 seconds.
+✔ Test netStopWaitsForDeviceWork() passed after 0.110 seconds.
+✔ Suite DeviceStopTests passed after 0.110 seconds.
+✔ Test run with 2 tests in 1 suite passed after 0.110 seconds.
+Building for debugging...
+[2 / 7] DMXCoreTests-product
+[3 / 11]
+[6 / 11] DMXCoreTests-product
+[11 / 15] DMXCoreTests-product
+Build complete! (1.13초)

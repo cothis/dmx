@@ -1,0 +1,278 @@
+swift test
+Building for debugging...
+Build complete! (0.20초)
+Test Suite 'All tests' started at 2026-11-12 12:51:13.927.
+Test Suite 'All tests' passed at 2026-11-12 12:51:13.927.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite VirtqueueTests started.
+◇ Suite MenuSessionTests started.
+◇ Suite SandboxTests started.
+◇ Suite FUSEServerTests started.
+◇ Suite MemoryTests started.
+◇ Suite DockerProxyResponseTests started.
+➜ Suite MenuEngineVMTests skipped.
+◇ Suite DockerToolsTests started.
+◇ Suite GuestClockTests started.
+➜ Suite AppInstallationTests skipped.
+◇ Suite SelfUpdateTests started.
+◇ Suite FrameConnectionTests started.
+◇ Suite RotatingLogTests started.
+◇ Suite "Passive menu observation" started.
+◇ Suite GuestStoreTests started.
+◇ Suite DeviceStopTests started.
+◇ Suite DockerTests started.
+➜ Suite MachineLifecycleTests skipped.
+◇ Test largestFrameFitsGuaranteedReceiveBuffers() started.
+◇ Test validChainCompletes() started.
+◇ Test ringsCanEndAtRAMBoundaryWithoutEventIndex() started.
+◇ Test guestAddressesCannotOverflow() started.
+◇ Test successfulOperationAndAuthoritativePhaseRecoverIndependently() started.
+◇ Test malformedAllowlistReturnsAnError() started.
+◇ Test lateBootSnapshotCannotUndoAnAcceptedStop() started.
+◇ Test invalidCompletionCannotTrapOrAdvanceTheRing() started.
+◇ Test controlDeadlineWakesItsOwnWaitBeforePeerCloses() started.
+◇ Test mountParsingAndShares() started.
+◇ Test policyLimits() started.
+◇ Test logSummary() started.
+◇ Test lifecycleFailureIsVisibleButStaleFailureCannotReplayOnRetry() started.
+◇ Test networkValues() started.
+◇ Test malformedQueueSizesAndIndicesAreRefused() started.
+◇ Test readOnlyShareRefusesChanges() started.
+◇ Test sizesFitHostAPIs() started.
+◇ Test multiplexedStreamInPieces() started.
+◇ Test helpersThatNeverAnswerAreReapedWithoutAnObserver() started.
+◇ Test cachedDirectorySwappedForSymlinkOnTheHost() started.
+◇ Test setIDBitsAreDroppedWhenAsked() started.
+◇ Test operationFailureCannotRetainANormallyStoppedApp() started.
+◇ Test directoryReleaseCanRaceARead() started.
+◇ Test ownershipIsStored() started.
+◇ Test names() started.
+◇ Test readOnlyOpenCannotChangeHostPermissions() started.
+◇ Test socketsAreBound() started.
+◇ Test refusesDotDotAndSlashes() started.
+◇ Test directorySwappedForSymlinkOnTheHost() started.
+◇ Test refusalFinishesHTTP10ResponseWithoutDockerdOrTeardown() started.
+◇ Test doesNotFollowHostSymlinks() started.
+◇ Test since() started.
+◇ Test imageReferences() started.
+◇ Test pressureAfterStopIsIgnored() started.
+➜ Test containerActionsAndShutdown() skipped.
+◇ Test inFlightDescriptorSurvivesGuestRelease() started.
+◇ Test olderDaemonStatus() started.
+◇ Test pinsAreComplete() started.
+◇ Test onlyUserAttributesAreVisible() started.
+◇ Test kernelPageSizesAndReporting() started.
+◇ Test replacesALinkThatPointsAtNothing() started.
+◇ Test cancellingAnUnfinishedHTTPTransferDoesNotWaitForTheServer() started.
+◇ Test hotplugWireFormat() started.
+◇ Test aSyncStartsTheCountAgain() started.
+◇ Test explicitBinDirectoryWorksWithoutBeingOnPath() started.
+◇ Test leavesOtherFilesOnPathAlone() started.
+◇ Test installTwiceThenUninstall() started.
+◇ Test nothingDueRightAfterASync() started.
+◇ Test estimates() started.
+◇ Test periodicOnceAMinute() started.
+◇ Test noiseBelowTheToleranceIsIgnored() started.
+➜ Test rollbackRestoresBothEntriesAfterLinkCommitFails() skipped.
+◇ Test mirrorServesTheSameFiles() started.
+◇ Test liveReadingsAgree() started.
+◇ Test rejectsLinksAndSpecialFilesWithoutChangingTargets() started.
+◇ Test closedConnectionRejectsNewFrames() started.
+◇ Test refusesToOverwriteASourceBuild() started.
+◇ Test concurrentConsoleWritersDoNotInterleaveRecords() started.
+◇ Test checksumMismatchDeletesTheDownload() started.
+◇ Test retainsNewestBytesAndBoundsOldFiles() started.
+◇ Test hostClockStepsAreSeenBothWays() started.
+◇ Test failedRotationDropsOutputAndRetriesAfterPermissionsRecover() started.
+◇ Test signatureDecision() started.
+◇ Test sleepIsSeenAtOnce() started.
+◇ Test downloadsFromTheReleaseItWasAskedFor() started.
+◇ Test aMirrorHasNoLatest() started.
+◇ Test newerIsNewer() started.
+◇ Test observesAbruptProcessExitWithoutAReceipt() started.
+◇ Test onlyAVersionIsAccepted() started.
+◇ Test bundledCLIRefusesEvenAForcedPartialUpdate() started.
+◇ Test observesAtomicReplacementWithoutAControlSocket() started.
+◇ Test unsignedBinariesHaveNoTeam() started.
+◇ Test sameArchiveWithNewTagRefreshesReceiptWithoutDownload() started.
+◇ Test balloonStopWaitsForReleaseAndRejectsLaterWork() started.
+◇ Test downloadedGuestIsCurrentOrStale() started.
+◇ Test netStopWaitsForDeviceWork() started.
+◇ Test rebuiltGuestIsLocalAndLeftAlone() started.
+◇ Test bootRecordsTheNewTagOfTheSameFiles() started.
+◇ Test menuReadDoesNotSpawnAFallbackExecutable() started.
+◇ Test releaseURLFollowsGitHubLayout() started.
+◇ Test connectedPeerCannotHoldMenuReadForever() started.
+◇ Test missingGuestIsFetchedOnlyWithAPin() started.
+➜ Test staleReleaseCannotReplaceSuccessorRAM() skipped.
+➜ Test partialInitReleasesVM() skipped.
+◇ Test dockerRequests() started.
+◇ Test portSpecs() started.
+➜ Test detachedTickDoesNotSetNextSwapFlag() skipped.
+◇ Test engineConfigKeepsUserSettingsUnderDmxKeys() started.
+◇ Test contextLeavesABrokenConfigAlone() started.
+➜ Test failedStartReleasesVCPUsAndVM() skipped.
+◇ Test publishedPorts() started.
+◇ Test recentAddressesExpireAndStayBounded() started.
+◇ Test aLoneAAAAQuestionHasAnAQuestionForTheSameName() started.
+◇ Test portBindingsBeforeStart() started.
+◇ Test dnsOverTCPKeepsReplyOrderAndItsLimit() started.
+◇ Test hostResolverReplies() started.
+◇ Test socketLinkTakesOnlyAFreePath() started.
+◇ Test dnsOverTCPFinishesWhatWasAskedBeforeTheClientClosedItsSide() started.
+◇ Test dnsOverTCPAnswersInOrderAcrossSplitWrites() started.
+◇ Test dnsFailureKeepsTheQuerysIdAndRecursionFlag() started.
+◇ Test localNames() started.
+◇ Test engineLoggingDefaultsRespectExplicitChoices() started.
+◇ Test certificatesFromAFile() started.
+◇ Test contextInstallAndUninstall() started.
+◇ Test systemProxyForDockerd() started.
+◇ Test unansweredAAAAIsEmptyOnceTheNameHasAnAddress() started.
+◇ Test addressFoundShortensTheWaitButNeverExtendsIt() started.
+◇ Test localNetworkAccessReadsTheSocketErrors() started.
+◇ Test launchdJobHasBothSockets() started.
+✔ Test guestAddressesCannotOverflow() passed after 0.015 seconds.
+✔ Test successfulOperationAndAuthoritativePhaseRecoverIndependently() passed after 0.015 seconds.
+✔ Test lateBootSnapshotCannotUndoAnAcceptedStop() passed after 0.015 seconds.
+✔ Test ringsCanEndAtRAMBoundaryWithoutEventIndex() passed after 0.015 seconds.
+✔ Test invalidCompletionCannotTrapOrAdvanceTheRing() passed after 0.015 seconds.
+✔ Test validChainCompletes() passed after 0.015 seconds.
+✔ Test largestFrameFitsGuaranteedReceiveBuffers() passed after 0.020 seconds.
+✔ Test lifecycleFailureIsVisibleButStaleFailureCannotReplayOnRetry() passed after 0.024 seconds.
+✔ Test malformedQueueSizesAndIndicesAreRefused() passed after 0.024 seconds.
+✔ Test multiplexedStreamInPieces() passed after 0.024 seconds.
+✔ Test operationFailureCannotRetainANormallyStoppedApp() passed after 0.024 seconds.
+✔ Test networkValues() passed after 0.024 seconds.
+✔ Test policyLimits() passed after 0.024 seconds.
+✔ Test malformedAllowlistReturnsAnError() passed after 0.024 seconds.
+✔ Test names() passed after 0.024 seconds.
+✔ Test logSummary() passed after 0.024 seconds.
+✔ Test sizesFitHostAPIs() passed after 0.024 seconds.
+✔ Test mountParsingAndShares() passed after 0.024 seconds.
+✔ Test readOnlyShareRefusesChanges() passed after 0.024 seconds.
+✔ Test imageReferences() passed after 0.024 seconds.
+✔ Test setIDBitsAreDroppedWhenAsked() passed after 0.024 seconds.
+✔ Test cachedDirectorySwappedForSymlinkOnTheHost() passed after 0.024 seconds.
+✔ Test refusesDotDotAndSlashes() passed after 0.024 seconds.
+✔ Test socketsAreBound() passed after 0.024 seconds.
+✔ Test olderDaemonStatus() passed after 0.024 seconds.
+✔ Test pinsAreComplete() passed after 0.024 seconds.
+✔ Test pressureAfterStopIsIgnored() passed after 0.024 seconds.
+✔ Test readOnlyOpenCannotChangeHostPermissions() passed after 0.025 seconds.
+✔ Test kernelPageSizesAndReporting() passed after 0.025 seconds.
+✔ Test since() passed after 0.025 seconds.
+✔ Test aSyncStartsTheCountAgain() passed after 0.025 seconds.
+✔ Test doesNotFollowHostSymlinks() passed after 0.026 seconds.
+✔ Test directorySwappedForSymlinkOnTheHost() passed after 0.026 seconds.
+✔ Test hotplugWireFormat() passed after 0.026 seconds.
+✔ Test nothingDueRightAfterASync() passed after 0.026 seconds.
+✔ Test estimates() passed after 0.026 seconds.
+✔ Test noiseBelowTheToleranceIsIgnored() passed after 0.026 seconds.
+✔ Test periodicOnceAMinute() passed after 0.026 seconds.
+✔ Test liveReadingsAgree() passed after 0.026 seconds.
+✔ Test ownershipIsStored() passed after 0.026 seconds.
+✔ Test inFlightDescriptorSurvivesGuestRelease() passed after 0.026 seconds.
+✔ Test closedConnectionRejectsNewFrames() passed after 0.027 seconds.
+✔ Test onlyUserAttributesAreVisible() passed after 0.027 seconds.
+✔ Test refusesToOverwriteASourceBuild() passed after 0.029 seconds.
+✔ Test rejectsLinksAndSpecialFilesWithoutChangingTargets() passed after 0.029 seconds.
+✔ Test hostClockStepsAreSeenBothWays() passed after 0.029 seconds.
+✔ Test directoryReleaseCanRaceARead() passed after 0.030 seconds.
+✔ Test failedRotationDropsOutputAndRetriesAfterPermissionsRecover() passed after 0.029 seconds.
+✔ Test signatureDecision() passed after 0.029 seconds.
+✔ Test sleepIsSeenAtOnce() passed after 0.029 seconds.
+✔ Test downloadsFromTheReleaseItWasAskedFor() passed after 0.029 seconds.
+✔ Test aMirrorHasNoLatest() passed after 0.029 seconds.
+✔ Test newerIsNewer() passed after 0.029 seconds.
+✔ Test onlyAVersionIsAccepted() passed after 0.029 seconds.
+✔ Test bundledCLIRefusesEvenAForcedPartialUpdate() passed after 0.029 seconds.
+✔ Test sameArchiveWithNewTagRefreshesReceiptWithoutDownload() passed after 0.032 seconds.
+✔ Test retainsNewestBytesAndBoundsOldFiles() passed after 0.032 seconds.
+✔ Test concurrentConsoleWritersDoNotInterleaveRecords() passed after 0.032 seconds.
+✔ Test downloadedGuestIsCurrentOrStale() passed after 0.032 seconds.
+✔ Test releaseURLFollowsGitHubLayout() passed after 0.032 seconds.
+✔ Test menuReadDoesNotSpawnAFallbackExecutable() passed after 0.032 seconds.
+✔ Test portSpecs() passed after 0.031 seconds.
+✔ Test dockerRequests() passed after 0.031 seconds.
+✔ Test publishedPorts() passed after 0.030 seconds.
+✔ Test aLoneAAAAQuestionHasAnAQuestionForTheSameName() passed after 0.026 seconds.
+✔ Test missingGuestIsFetchedOnlyWithAPin() passed after 0.032 seconds.
+✔ Test portBindingsBeforeStart() passed after 0.026 seconds.
+✔ Test engineConfigKeepsUserSettingsUnderDmxKeys() passed after 0.031 seconds.
+✔ Test contextLeavesABrokenConfigAlone() passed after 0.030 seconds.
+✔ Test socketLinkTakesOnlyAFreePath() passed after 0.024 seconds.
+✔ Test rebuiltGuestIsLocalAndLeftAlone() passed after 0.032 seconds.
+✔ Test dnsFailureKeepsTheQuerysIdAndRecursionFlag() passed after 0.024 seconds.
+✔ Test localNames() passed after 0.022 seconds.
+✔ Test bootRecordsTheNewTagOfTheSameFiles() passed after 0.033 seconds.
+✔ Test engineLoggingDefaultsRespectExplicitChoices() passed after 0.026 seconds.
+✔ Test hostResolverReplies() passed after 0.029 seconds.
+✔ Test systemProxyForDockerd() passed after 0.025 seconds.
+✔ Test unansweredAAAAIsEmptyOnceTheNameHasAnAddress() passed after 0.025 seconds.
+✔ Test contextInstallAndUninstall() passed after 0.025 seconds.
+✔ Test localNetworkAccessReadsTheSocketErrors() passed after 0.025 seconds.
+✔ Test launchdJobHasBothSockets() passed after 0.025 seconds.
+✔ Suite VirtqueueTests passed after 0.037 seconds.
+✔ Test unsignedBinariesHaveNoTeam() passed after 0.036 seconds.
+✔ Suite SandboxTests passed after 0.037 seconds.
+✔ Suite FUSEServerTests passed after 0.037 seconds.
+✔ Suite MemoryTests passed after 0.037 seconds.
+✔ Suite GuestClockTests passed after 0.037 seconds.
+✔ Test checksumMismatchDeletesTheDownload() passed after 0.037 seconds.
+✔ Test recentAddressesExpireAndStayBounded() passed after 0.031 seconds.
+✔ Test helpersThatNeverAnswerAreReapedWithoutAnObserver() passed after 0.037 seconds.
+✔ Test certificatesFromAFile() passed after 0.026 seconds.
+✔ Suite RotatingLogTests passed after 0.037 seconds.
+✔ Suite GuestStoreTests passed after 0.037 seconds.
+✔ Suite SelfUpdateTests passed after 0.037 seconds.
+◇ Test closeAloneEndsLeasedReadWhilePeerRemainsOpen() started.
+✔ Test mirrorServesTheSameFiles() passed after 0.042 seconds.
+✔ Test explicitBinDirectoryWorksWithoutBeingOnPath() passed after 0.042 seconds.
+✔ Test replacesALinkThatPointsAtNothing() passed after 0.043 seconds.
+✔ Test cancellingAnUnfinishedHTTPTransferDoesNotWaitForTheServer() passed after 0.043 seconds.
+✔ Test observesAbruptProcessExitWithoutAReceipt() passed after 0.043 seconds.
+✔ Test refusalFinishesHTTP10ResponseWithoutDockerdOrTeardown() passed after 0.043 seconds.
+✔ Suite DockerProxyResponseTests passed after 0.044 seconds.
+✔ Test closeAloneEndsLeasedReadWhilePeerRemainsOpen() passed after 0.006 seconds.
+◇ Test abortAloneEndsBlockedWriteWhilePeerDoesNotRead() started.
+✔ Test installTwiceThenUninstall() passed after 0.045 seconds.
+✔ Test abortAloneEndsBlockedWriteWhilePeerDoesNotRead() passed after 0.003 seconds.
+◇ Test failedRPCLeaseSendsNothingAndKeepsReplyAlignment() started.
+✔ Test failedRPCLeaseSendsNothingAndKeepsReplyAlignment() passed after 0.001 seconds.
+◇ Test wrongResponseIDRetiresConnection() started.
+✔ Test wrongResponseIDRetiresConnection() passed after 0.001 seconds.
+◇ Test applicationErrorDoesNotRetireAlignedConnection() started.
+✔ Test applicationErrorDoesNotRetireAlignedConnection() passed after 0.001 seconds.
+◇ Test daemonApplicationErrorPreservesMessageCodeAndHint() started.
+✔ Test daemonApplicationErrorPreservesMessageCodeAndHint() passed after 0.001 seconds.
+◇ Test servingLeaseFailureClosesConnection() started.
+✔ Test servingLeaseFailureClosesConnection() passed after 0.001 seconds.
+◇ Test malformedRPCRepliesRetireBeforeTheNextCall() started.
+✔ Test malformedRPCRepliesRetireBeforeTheNextCall() passed after 0.001 seconds.
+◇ Test acquiredBindingControlsBothReadAndWrite() started.
+✔ Test acquiredBindingControlsBothReadAndWrite() passed after 0.001 seconds.
+◇ Test retiredControlReconnectsForNextCallWithoutReplay() started.
+2026-11-12T03:51:14Z dmx-daemon: agent: no answer on the control connection or it was retired; opening another
+✔ Test retiredControlReconnectsForNextCallWithoutReplay() passed after 0.001 seconds.
+◇ Test explicitAgentCloseDoesNotReconnect() started.
+✔ Test observesAtomicReplacementWithoutAControlSocket() passed after 0.058 seconds.
+✔ Test addressFoundShortensTheWaitButNeverExtendsIt() passed after 0.059 seconds.
+✔ Test dnsOverTCPAnswersInOrderAcrossSplitWrites() passed after 0.069 seconds.
+✔ Test dnsOverTCPKeepsReplyOrderAndItsLimit() passed after 0.078 seconds.
+✔ Test explicitAgentCloseDoesNotReconnect() passed after 0.040 seconds.
+✔ Suite FrameConnectionTests passed after 0.089 seconds.
+✔ Test controlDeadlineWakesItsOwnWaitBeforePeerCloses() passed after 0.103 seconds.
+✔ Suite MenuSessionTests passed after 0.104 seconds.
+✔ Test leavesOtherFilesOnPathAlone() passed after 0.107 seconds.
+✔ Suite DockerToolsTests passed after 0.107 seconds.
+✔ Test dnsOverTCPFinishesWhatWasAskedBeforeTheClientClosedItsSide() passed after 0.118 seconds.
+✔ Suite DockerTests passed after 0.126 seconds.
+✔ Test balloonStopWaitsForReleaseAndRejectsLaterWork() passed after 0.130 seconds.
+✔ Test netStopWaitsForDeviceWork() passed after 0.132 seconds.
+✔ Suite DeviceStopTests passed after 0.133 seconds.
+✔ Test connectedPeerCannotHoldMenuReadForever() passed after 1.034 seconds.
+✔ Suite "Passive menu observation" passed after 1.035 seconds.
+✔ Test run with 120 tests in 18 suites passed after 1.035 seconds.

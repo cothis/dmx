@@ -38,6 +38,8 @@ public final class Machine: @unchecked Sendable {
     /// Drops this process's mappings of guest RAM after devices touch it, so those pages are
     /// not counted twice in the footprint.
     private let hostMappings: HostMappings
+    /// Protected by hostMappings.exclusive, including every process-wide HV device call.
+    private var vmAlive = true
     private let uart: PL011
     private let console: VirtioConsole
     let vsock = VirtioVsock()
@@ -57,6 +59,7 @@ public final class Machine: @unchecked Sendable {
     private var stopped: Exit?
     private var waiters: [CheckedContinuation<Exit, Never>] = []
     private let threads = DispatchGroup()
+    private let teardown = DispatchGroup()
     /// File contents until they are copied into guest RAM, then released.
     private var kernel: Data, initramfs: Data
     private var redistributorBase: UInt64 = 0
@@ -66,7 +69,7 @@ public final class Machine: @unchecked Sendable {
         try self.init(spec: spec, paths: paths, output: .file(console))
     }
 
-    init(spec: MachineSpec, paths: Paths, output: ConsoleOutput) throws {
+    init(spec: MachineSpec, paths: Paths, output: ConsoleOutput, afterMap: () throws -> Void = {}) throws {
         for file in [paths.kernel, paths.initramfs] where !FileManager.default.fileExists(atPath: file.path) {
             throw DMXError("guest_missing", "guest file not found: \(file.path)", hint: "run `make guest` to build the guest kernel and initramfs")
         }
@@ -100,11 +103,21 @@ public final class Machine: @unchecked Sendable {
             hv_vm_destroy()
             throw DMXError("vm_error", "cannot reserve \(formatSize(ramSize)) of guest memory")
         }
+        var initialized = false
+        let reservedSize = Int(ramSize)
+        defer {
+            if !initialized {
+                hv_vm_destroy()
+                munmap(memory, reservedSize)
+            }
+        }
         ram = memory
         hostMappings = HostMappings(base: memory, size: Int(ramSize))
         try check(hv_vm_map(ram, HVLayout.ramBase, Int(ramSize),
                             hv_memory_flags_t(HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC)), "hv_vm_map")
 
+        // A fallible step here also exercises cleanup of partially initialized machines.
+        try afterMap()
         let gic = hv_gic_config_create()
         var redistSize = 0
         hv_gic_get_redistributor_size(&redistSize)
@@ -124,11 +137,11 @@ public final class Machine: @unchecked Sendable {
         addVirtio(VirtioRNG(), ram: ram)
         addVirtio(vsock, ram: ram)
         HostServices.attach(to: vsock)
-        balloon = VirtioBalloon(ram: ram) { [unowned self] address, length in self.release(address, length) }
+        balloon = VirtioBalloon(ram: ram) { [weak self] address, length in self?.release(address, length) }
         addVirtio(balloon, ram: ram)
         if bootSize < ramSize {
-            let plug = VirtioMem(address: HVLayout.ramBase + bootSize, size: ramSize - bootSize) { [unowned self] address, length in
-                self.release(address, length)
+            let plug = VirtioMem(address: HVLayout.ramBase + bootSize, size: ramSize - bootSize) { [weak self] address, length in
+                self?.release(address, length)
             }
             memoryPlug = plug
             memoryPlugPolicy = MemoryPlugPolicy(plug: plug, balloon: balloon, boot: bootSize)
@@ -138,13 +151,14 @@ public final class Machine: @unchecked Sendable {
         for fs in fileSystems { addVirtio(fs, ram: ram) }
         if let disk { addVirtio(disk, ram: ram) }
         for extra in extraDisks { addVirtio(extra, ram: ram) }
+        initialized = true
     }
 
     private func addVirtio(_ device: VirtioDevice, ram: GuestRAM) {
         let slot = UInt32(virtioSlots)
         virtioSlots += 1
-        let transport = VirtioMMIO(device: device, ram: ram) { [unowned self] level in
-            setSPI(HVLayout.virtioSPI + slot, level)
+        let transport = VirtioMMIO(device: device, ram: ram) { [weak self] level in
+            self?.setSPI(HVLayout.virtioSPI + slot, level)
         }
         bus.append((HVLayout.virtio + UInt64(slot) * VirtioMMIO.size, VirtioMMIO.size, transport))
     }
@@ -153,6 +167,11 @@ public final class Machine: @unchecked Sendable {
     /// routed it to: the in-kernel GIC does not, so the interrupt would wait for the 1 ms cap,
     /// and a request-reply device like virtio-fs would pay that on every request.
     private func setSPI(_ spi: UInt32, _ level: Bool) {
+        hostMappings.exclusive { setLiveSPI(spi, level) }
+    }
+
+    private func setLiveSPI(_ spi: UInt32, _ level: Bool) {
+        guard vmAlive else { return }
         let intid = 32 + spi
         hv_gic_set_spi(intid, level)
         guard level else { return }
@@ -169,7 +188,17 @@ public final class Machine: @unchecked Sendable {
         lock.lock()
         let live = stopped == nil
         lock.unlock()
-        if live { destroyVM() }
+        if live {
+            memoryPlugPolicy?.stop()
+            balloon?.stop()
+            memoryPlug?.stop()
+            vsock.stop()
+            net.stop()
+            for fs in fileSystems { fs.stop() }
+            disk?.close()
+            for extra in extraDisks { extra.close() }
+            destroyVM()
+        }
         munmap(ram, Int(ramSize))
     }
 
@@ -177,8 +206,12 @@ public final class Machine: @unchecked Sendable {
     /// mapped in the process until deinit, for device code still holding addresses into it.
     private func destroyVM() {
         hostMappings.stop()
-        hv_vm_unmap(HVLayout.ramBase, Int(ramSize))
-        hv_vm_destroy()
+        hostMappings.exclusive {
+            guard vmAlive else { return }
+            vmAlive = false
+            hv_vm_unmap(HVLayout.ramBase, Int(ramSize))
+            hv_vm_destroy()
+        }
     }
 
     /// Bytes typed on the host console, for the guest's hvc0.
@@ -209,6 +242,7 @@ public final class Machine: @unchecked Sendable {
         let host = ram.advanced(by: Int(start - HVLayout.ramBase))
         let size = Int(end - start)
         hostMappings.exclusive {
+            guard vmAlive else { return }
             hv_vm_unmap(start, size)
             if madvise(host, size, MADV_ZERO) != 0 { madvise(host, size, MADV_FREE_REUSABLE) }
             hv_vm_map(host, start, size, hv_memory_flags_t(HV_MEMORY_READ | HV_MEMORY_WRITE | HV_MEMORY_EXEC))
@@ -239,10 +273,18 @@ public final class Machine: @unchecked Sendable {
         for _ in vcpus { ready.wait() }
         if let failed = vcpus.first(where: { $0.createError != nil }) {
             stop(.failed(DMXError("vm_error", "hv_vcpu_create: \(failed.createError!)")))
+            teardown.wait()
             throw DMXError("vm_error", "hv_vcpu_create: \(failed.createError!)")
         }
 
-        let entry = try loadGuest()
+        let entry: (kernel: UInt64, fdt: UInt64)
+        do { entry = try loadGuest() }
+        catch {
+            stop(.failed(error as? DMXError ?? DMXError("vm_error", "\(error)")))
+            // Callers may immediately try another Machine after a failed start.
+            teardown.wait()
+            throw error
+        }
         vcpus[0].powerOn(entry: entry.kernel, context: entry.fdt)
         memoryPlugPolicy?.start()
     }
@@ -267,22 +309,27 @@ public final class Machine: @unchecked Sendable {
         lock.lock()
         guard exit == nil else { lock.unlock(); return }
         exit = result
+        teardown.enter()
         lock.unlock()
         for vcpu in vcpus { vcpu.halt() }
         memoryPlugPolicy?.stop()
         vsock.closeAll()
-        net.stop()
         // Often called on a vCPU thread (PSCI SYSTEM_OFF), so wait for the threads elsewhere.
         threads.notify(queue: .global()) { [self] in
+            balloon.stop()
+            memoryPlug?.stop()
+            vsock.stop()
+            net.stop()
             for fs in fileSystems { fs.stop() }
-            destroyVM()
             disk?.close()  // so the next VM can open the image
             for extra in extraDisks { extra.close() }
+            destroyVM()
             lock.lock()
             stopped = result
             let pending = waiters
             waiters.removeAll()
             lock.unlock()
+            teardown.leave()
             for waiter in pending { waiter.resume(returning: result) }
         }
     }

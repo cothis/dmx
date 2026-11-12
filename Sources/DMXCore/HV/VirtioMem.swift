@@ -31,6 +31,7 @@ final class VirtioMem: VirtioDevice, @unchecked Sendable {
     private let release: (UInt64, UInt64) -> Void
     private let lock = NSLock()
     private var transport: VirtioMMIO?
+    private var stopped = false
     private var plugged: [Bool]
     private var pluggedBlocks = 0
     private var requested: UInt64 = 0
@@ -59,14 +60,14 @@ final class VirtioMem: VirtioDevice, @unchecked Sendable {
         lock.lock()
         guard size != requested else { return lock.unlock() }
         requested = size
-        let transport = self.transport
+        let transport = stopped ? nil : self.transport
         lock.unlock()
         transport?.signalConfigChange()
     }
 
     func activate(_ transport: VirtioMMIO, features: UInt64) {
         lock.lock()
-        self.transport = transport
+        if !stopped { self.transport = transport }
         lock.unlock()
     }
 
@@ -102,12 +103,18 @@ final class VirtioMem: VirtioDevice, @unchecked Sendable {
         queue.async { self.drain() }
     }
 
+    /// Called after vCPU intake has ended. Wait for every drain before VM destruction.
+    func stop() {
+        lock.withLock { stopped = true }
+        queue.sync { lock.withLock { transport = nil } }
+    }
+
     private enum Request: UInt16 { case plug = 0, unplug = 1, unplugAll = 2, state = 3 }
     private enum Response: UInt16 { case ack = 0, nack = 1, busy = 2, error = 3 }
 
     private func drain() {
         lock.lock()
-        let transport = self.transport
+        let transport = stopped ? nil : self.transport
         lock.unlock()
         guard let transport else { return }
         var used = false

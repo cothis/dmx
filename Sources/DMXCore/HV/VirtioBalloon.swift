@@ -23,6 +23,7 @@ final class VirtioBalloon: VirtioDevice, @unchecked Sendable {
     private let ram: UnsafeMutableRawPointer
     private let lock = NSLock()
     private var transport: VirtioMMIO?
+    private var stopped = false
     private var targetPages: UInt32 = 0  // config num_pages: how many 4K pages the guest should give up
     private var actualPages: UInt32 = 0  // config actual: how many it has
     private(set) var reportedBytes: UInt64 = 0
@@ -32,7 +33,11 @@ final class VirtioBalloon: VirtioDevice, @unchecked Sendable {
     /// the request (virtio 1.x section 5.5.6.3).
     private var statsChain: VirtqueueChain?
     /// Called with each stats buffer the guest fills (tag → value, virtio_balloon.h).
-    var onStats: (([UInt16: UInt64]) -> Void)?
+    private var statsHandler: (([UInt16: UInt64]) -> Void)?
+    var onStats: (([UInt16: UInt64]) -> Void)? {
+        get { lock.withLock { statsHandler } }
+        set { lock.withLock { statsHandler = newValue } }
+    }
 
     /// `release(address, length)` returns a guest-physical range to the host.
     init(ram: GuestRAM, release: @escaping (UInt64, UInt64) -> Void) {
@@ -59,14 +64,14 @@ final class VirtioBalloon: VirtioDevice, @unchecked Sendable {
     func setTarget(_ bytes: UInt64) {
         lock.lock()
         targetPages = UInt32(min(bytes >> 12, UInt64(UInt32.max)))
-        let transport = self.transport
+        let transport = stopped ? nil : self.transport
         lock.unlock()
         transport?.signalConfigChange()
     }
 
     func activate(_ transport: VirtioMMIO, features: UInt64) {
         lock.lock()
-        self.transport = transport
+        if !stopped { self.transport = transport }
         reportingQueue = features & Self.statsQueue != 0 ? 3 : 2
         lock.unlock()
         // The driver primes the stats queue during probe, before DRIVER_OK, so that kick found
@@ -87,7 +92,7 @@ final class VirtioBalloon: VirtioDevice, @unchecked Sendable {
     @discardableResult
     func requestStats() -> Bool {
         lock.lock()
-        let transport = self.transport, chain = statsChain
+        let transport = stopped ? nil : self.transport, chain = statsChain
         statsChain = nil
         lock.unlock()
         guard let transport, let chain else { return false }
@@ -119,9 +124,15 @@ final class VirtioBalloon: VirtioDevice, @unchecked Sendable {
         queue.async { self.drain(index) }
     }
 
+    /// Called after vCPU intake has ended. Wait for every drain before VM destruction.
+    func stop() {
+        lock.withLock { stopped = true }
+        queue.sync { lock.withLock { transport = nil } }
+    }
+
     private func drain(_ index: Int) {
         lock.lock()
-        let transport = self.transport, reportingQueue = self.reportingQueue
+        let transport = stopped ? nil : self.transport, reportingQueue = self.reportingQueue
         lock.unlock()
         guard let transport, index < transport.queues.count else { return }
 
@@ -184,7 +195,7 @@ final class VirtioBalloon: VirtioDevice, @unchecked Sendable {
         }
         lock.lock()
         statsChain = chain
-        let handler = onStats
+        let handler = statsHandler
         lock.unlock()
         handler?(stats)
     }

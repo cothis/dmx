@@ -1,0 +1,93 @@
+TLC2 Version 2026.10.28.014557 (rev: 56d37a9)
+Warning: Please run the Java VM, which executes TLC with a throughput optimized garbage collector, by passing the "-XX:+UseParallelGC" property.
+(Use the -nowarning option to disable this warning.)
+Running breadth-first search Model-Checking with fp 126 and seed 1837374023209501290 with 1 worker on 10 cores with 4096MB heap and 64MB offheap memory [pid: 55877] (Mac OS X 26.6.1 aarch64, Homebrew 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /Users/cothis/dev/dockermax/formal/vm-device-lifetime/tla/Spec.tla
+Parsing file /private/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/tlc-18064820608706436903/Naturals.tla (jar:file:/Users/cothis/.cache/proof-skills/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /Users/cothis/dev/dockermax/formal/vm-device-lifetime/tla/Properties.tla
+Semantic processing of module Naturals
+Semantic processing of module Properties
+Semantic processing of module Spec
+Linting of module Properties
+Linting of module Spec
+Starting... (2026-11-12 12:48:52)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-12 12:48:52.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 1.6E-18
+The coverage statistics at 2026-11-12 12:48:52 (see https://explain.tlapl.us/module-coverage-statistics for how to interpret the following statistics).
+<external line 4, col 62 to line 4, col 69 of module Spec>: 2
+<rebooted line 4, col 52 to line 4, col 59 of module Spec>: 2
+<stop line 4, col 35 to line 4, col 38 of module Spec>: 2
+<owner line 4, col 11 to line 4, col 15 of module Spec>: 3
+<done line 5, col 32 to line 5, col 35 of module Spec>: 2
+<alive line 4, col 18 to line 4, col 22 of module Spec>: 2
+<foreignHV line 5, col 11 to line 5, col 19 of module Spec>: 1
+<destroyed line 4, col 41 to line 4, col 49 of module Spec>: 2
+<job line 4, col 30 to line 4, col 32 of module Spec>: 3
+<ram line 4, col 25 to line 4, col 27 of module Spec>: 2
+<freedRAM line 5, col 22 to line 5, col 29 of module Spec>: 1
+<Init line 12, col 1 to line 12, col 4 of module Spec>: 1:1
+  line 12, col 9 to line 14, col 84 of module Spec: 1
+<Begin line 16, col 1 to line 16, col 5 of module Spec>: 1:2
+  line 16, col 13 to line 16, col 26 of module Spec: 12
+  |line 16, col 13 to line 16, col 15 of module Spec: 10
+  line 16, col 31 to line 16, col 46 of module Spec: 2
+  line 17, col 13 to line 17, col 98 of module Spec: 2
+<Finish line 19, col 1 to line 19, col 6 of module Spec>: 1:2
+  line 19, col 14 to line 19, col 28 of module Spec: 12
+  |line 19, col 14 to line 19, col 16 of module Spec: 10
+  line 19, col 33 to line 19, col 45 of module Spec: 2
+  line 20, col 14 to line 20, col 43 of module Spec: 2
+  line 21, col 14 to line 21, col 78 of module Spec: 2
+  line 22, col 14 to line 22, col 80 of module Spec: 2
+<Stop line 24, col 1 to line 24, col 4 of module Spec>: 3:3
+  line 24, col 12 to line 24, col 16 of module Spec: 13
+  |line 24, col 13 to line 24, col 16 of module Spec: 10
+  line 24, col 21 to line 24, col 32 of module Spec: 3
+  line 25, col 12 to line 25, col 96 of module Spec: 3
+<Destroy line 27, col 1 to line 27, col 7 of module Spec>: 1:1
+  line 27, col 15 to line 27, col 18 of module Spec: 1
+  line 27, col 23 to line 27, col 32 of module Spec: 8
+  |line 27, col 24 to line 27, col 32 of module Spec: 7
+  line 27, col 38 to line 27, col 43 of module Spec: 3
+  line 27, col 48 to line 27, col 59 of module Spec: 4
+  |line 27, col 48 to line 27, col 50 of module Spec: 3
+  line 28, col 15 to line 28, col 79 of module Spec: 1
+  line 29, col 15 to line 29, col 78 of module Spec: 1
+<Reboot line 31, col 1 to line 31, col 6 of module Spec>: 1:1
+  line 31, col 14 to line 31, col 22 of module Spec: 1
+  line 31, col 27 to line 31, col 35 of module Spec: 5
+  |line 31, col 28 to line 31, col 35 of module Spec: 4
+  line 31, col 40 to line 31, col 55 of module Spec: 1
+  line 31, col 60 to line 31, col 69 of module Spec: 1
+  line 32, col 14 to line 32, col 88 of module Spec: 1
+<External line 34, col 1 to line 34, col 8 of module Spec>: 1:1
+  line 34, col 16 to line 34, col 23 of module Spec: 1
+  line 34, col 28 to line 34, col 36 of module Spec: 4
+  |line 34, col 29 to line 34, col 36 of module Spec: 3
+  line 34, col 41 to line 34, col 56 of module Spec: 1
+  line 35, col 16 to line 35, col 80 of module Spec: 1
+  line 36, col 16 to line 36, col 86 of module Spec: 1
+<Complete line 37, col 1 to line 37, col 8 of module Spec>: 1:1
+  line 37, col 16 to line 37, col 35 of module Spec: 1
+  line 37, col 40 to line 37, col 51 of module Spec: 3
+  |line 37, col 40 to line 37, col 42 of module Spec: 2
+  line 37, col 56 to line 37, col 60 of module Spec: 3
+  |line 37, col 57 to line 37, col 60 of module Spec: 2
+  line 37, col 65 to line 37, col 76 of module Spec: 1
+  line 38, col 16 to line 38, col 100 of module Spec: 1
+<Terminated line 39, col 1 to line 39, col 10 of module Spec>: 0:1
+  line 39, col 15 to line 39, col 18 of module Spec: 1
+  line 39, col 23 to line 39, col 36 of module Spec: 1
+<NoForeignHV line 9, col 1 to line 9, col 11 of module Spec>
+  line 9, col 16 to line 9, col 28 of module Spec: 10
+<NoFreedRAM line 10, col 1 to line 10, col 10 of module Spec>
+  line 10, col 15 to line 10, col 26 of module Spec: 10
+End of statistics.
+13 states generated, 10 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 8.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 2 and the 95th percentile is 2).
+Finished in 00s at (2026-11-12 12:48:52)

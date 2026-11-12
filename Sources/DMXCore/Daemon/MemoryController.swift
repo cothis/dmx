@@ -66,7 +66,7 @@ final class MemoryController {
     private var nap: Task<Void, Never>?
     private var lastActivity = ContinuousClock.now
     private var trims = 0
-    private var swapOn = false
+    private(set) var swapOn = false
     /// Keep the reduced headroom at warning after critical even when unplugging needed no balloon.
     private var squeezed = false
     private var lastTrim: (reason: String, at: ContinuousClock.Instant, freedMb: Int, ms: Int)?
@@ -168,7 +168,12 @@ final class MemoryController {
         }
     }
 
-    private func tick(_ memory: GuestMemory, quiet: Bool, machine: Machine, agent: AgentClient) async {
+    private func active(_ agent: AgentClient) -> Bool {
+        !Task.isCancelled && self.agent === agent && machine != nil
+    }
+
+    func tick(_ memory: GuestMemory, quiet: Bool, machine: Machine, agent: AgentClient) async {
+        guard active(agent), self.machine === machine else { return }
         // A busy guest is in use, exec or not; but not for the sweep's own work just after it.
         if !quiet, swept.map({ ContinuousClock.now - $0.at >= Self.sweepSettle }) ?? true { lastActivity = .now }
         hostPressure = Self.readHostPressure()
@@ -183,9 +188,11 @@ final class MemoryController {
         if !swapOn, current == .critical || memory.used > machine.spec.maxMemory / 2 {
             do {
                 let size = try await agent.swapOn()
+                guard active(agent) else { return }
                 swapOn = true
                 log("memory: zram swap on, \(size >> 20) MB (guest uses \(memory.used >> 20) MB, pressure \(current.rawValue))")
             } catch {
+                guard active(agent) else { return }
                 swapOn = true  // not again for this VM: the guest may simply have no zram
                 log("memory: zram swap not turned on: \((error as? DMXError)?.message ?? "\(error)")")
             }
@@ -200,9 +207,11 @@ final class MemoryController {
             await trim(agent, bytes: trimmable(memory), swappiness: 0, reason: "host pressure \(current.rawValue)")
         } else if idle, idleTrimmed.map({ lastActivity > $0 }) ?? true, memory.cache > Self.keepCache + Self.trimSlack {
             await trim(agent, bytes: trimmable(memory), swappiness: 0, reason: "idle")
+            guard active(agent) else { return }
             idleTrimmed = .now
         }
 
+        guard active(agent) else { return }
         if idle, swept == nil {
             await sweep(agent)
         } else if let swept, lastActivity > swept.at {
@@ -210,6 +219,7 @@ final class MemoryController {
             if let order = swept.restore { await setReportingOrder(agent, order, reason: "in use") }
         }
 
+        guard active(agent) else { return }
         // Reduce present memory first; balloon pages would obstruct unplugging. Without a
         // hotplug device (small ceilings), keep the balloon-only fallback.
         if current == .critical { squeezed = true }
@@ -234,10 +244,11 @@ final class MemoryController {
     }
 
     private func trim(_ agent: AgentClient, bytes: UInt64, swappiness: Int?, reason: String) async {
-        guard bytes > 0 else { return }
+        guard active(agent), bytes > 0 else { return }
         let started = ContinuousClock.now
         do {
             let result = try await agent.reclaim(bytes: bytes, swappiness: swappiness)
+            guard active(agent) else { return }
             let ms = Int(seconds(ContinuousClock.now - started) * 1000)
             let freed = Int((result.freeAfter > result.freeBefore ? result.freeAfter - result.freeBefore : 0) >> 20)
             trims += 1
@@ -251,14 +262,17 @@ final class MemoryController {
     /// Hands back what the guest freed in blocks too small for free page reporting (see the type's
     /// comment). Reporting runs about 2 s after the next free, which the slab shrink provides.
     private func sweep(_ agent: AgentClient) async {
+        guard active(agent), let machine = self.machine else { return }
         let started = ContinuousClock.now
         // A host page can only be released when the whole range is free: reporting individual
         // 4K guest pages on a 16K Mac cannot return them, so do not spend CPU reporting them.
-        let order = Machine.reportingOrder(pageSize: machine?.guestPageSize ?? 4096, blockSize: UInt64(getpagesize()))
+        let order = Machine.reportingOrder(pageSize: machine.guestPageSize, blockSize: UInt64(getpagesize()))
         let previous = await setReportingOrder(agent, order, reason: "idle")
+        guard active(agent) else { return }
         swept = (.now, previous)
         do {
             let slabs = try await agent.shrinkSlabs()
+            guard active(agent) else { return }
             let ms = Int(seconds(ContinuousClock.now - started) * 1000)
             let freed = Int((slabs.freeAfter > slabs.freeBefore ? slabs.freeAfter - slabs.freeBefore : 0) >> 20)
             sweeps += 1
@@ -266,17 +280,19 @@ final class MemoryController {
         } catch {
             log("memory: shrinking slabs failed: \((error as? DMXError)?.message ?? "\(error)")")
         }
-        guard diskTrims else { return }
+        guard active(agent), diskTrims else { return }
         let trimStarted = ContinuousClock.now
-        let image = machine?.spec.dataDisk?.url
+        let image = machine.spec.dataDisk?.url
         let before = image.flatMap(DataDisk.usage)?.allocatedMb
         do {
             _ = try await agent.trimDisk()
+            guard active(agent) else { return }
             let ms = Int(seconds(ContinuousClock.now - trimStarted) * 1000)
             let after = image.flatMap(DataDisk.usage)?.allocatedMb
             let returned = before.flatMap { b in after.map { max(b - $0, 0) } }
             log("disk: idle trim in \(ms) ms, data.img gave back \(returned.map { "\($0) MB" } ?? "an unknown amount")")
         } catch {
+            guard active(agent) else { return }
             diskTrims = false
             log("disk: not trimmed, and not again for this VM: \((error as? DMXError)?.message ?? "\(error)")")
         }
@@ -285,8 +301,10 @@ final class MemoryController {
     /// Returns the order it replaced, nil if the guest refused.
     @discardableResult
     private func setReportingOrder(_ agent: AgentClient, _ order: Int, reason: String) async -> Int? {
+        guard active(agent) else { return nil }
         do {
             let previous = try await agent.setReportingOrder(order)
+            guard active(agent) else { return nil }
             log("memory: free page reporting from \(((machine?.guestPageSize ?? 4096) << order) >> 10) KB blocks (\(reason))")
             return previous
         } catch {

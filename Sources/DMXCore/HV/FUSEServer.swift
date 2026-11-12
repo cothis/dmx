@@ -125,7 +125,7 @@ final class FUSEServer: @unchecked Sendable {
     private var nextNode: UInt64 = 2
     private var handles: [UInt64: Handle] = [:]
     private var nextHandle: UInt64 = 1
-    private lazy var rootDir = DirFD(fd: rootFD, owned: false)
+    private let rootDir: DirFD
     private var dirCache: [UInt64: DirFD] = [:]
     private let dirCacheLimit = 256
     private var useClock: UInt64 = 0
@@ -140,6 +140,7 @@ final class FUSEServer: @unchecked Sendable {
         var st = stat()
         fstat(fd, &st)
         rootFD = fd
+        rootDir = DirFD(fd: fd, owned: false)
         rootInode = Inode(st)
         root = path
         self.readOnly = readOnly

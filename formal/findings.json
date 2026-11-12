@@ -319,5 +319,158 @@
       "Fault injection targets an unsigned executable linked to actual debug Core or the local candidate daemon, not the signed hardened published executable."
     ],
     "diagram_html": "<figure><svg viewBox=\"0 0 980 160\" role=\"img\" aria-label=\"Old RPC counterexample: send request one, read lease fails, reply one stays queued, request two reads reply one\"><defs><marker id=\"rpc-arrow\" markerWidth=\"8\" markerHeight=\"8\" refX=\"7\" refY=\"4\" orient=\"auto\"><path d=\"M0 0L8 4L0 8Z\" fill=\"#6d3730\"/></marker></defs><g fill=\"#fff7ed\" stroke=\"#9f6657\" stroke-width=\"2\"><rect x=\"8\" y=\"28\" width=\"190\" height=\"72\" rx=\"6\"/><rect x=\"264\" y=\"28\" width=\"190\" height=\"72\" rx=\"6\"/><rect x=\"520\" y=\"28\" width=\"190\" height=\"72\" rx=\"6\"/><rect x=\"776\" y=\"28\" width=\"196\" height=\"72\" rx=\"6\" fill=\"#ffe0db\"/></g><g fill=\"#482c24\" font-family=\"system-ui,sans-serif\" font-size=\"17\" text-anchor=\"middle\"><text x=\"103\" y=\"58\">Send request 1</text><text x=\"103\" y=\"82\">effect may be applied</text><text x=\"359\" y=\"58\">Read lease: EMFILE</text><text x=\"359\" y=\"82\">reply 1 remains queued</text><text x=\"615\" y=\"58\">Send request 2</text><text x=\"615\" y=\"82\">same open connection</text><text x=\"874\" y=\"58\">Read reply 1 as call 2</text><text x=\"874\" y=\"82\">correlation violated</text></g><g stroke=\"#6d3730\" stroke-width=\"2\" marker-end=\"url(#rpc-arrow)\"><path d=\"M198 64H258\"/><path d=\"M454 64H514\"/><path d=\"M710 64H770\"/></g><text x=\"490\" y=\"139\" fill=\"#6d3730\" font-family=\"system-ui,sans-serif\" font-size=\"16\" text-anchor=\"middle\">Historical split-lease trace \u00b7 corrected by a pre-send whole-exchange lease, correlation and retirement</text></svg><figcaption>Historical counterexample from the two-call RPC model. No automatic replay is introduced by recovery.</figcaption></figure>"
+  },
+  "vm_device_lifetime_2026_11_12": {
+    "date": "2026-11-12",
+    "baseline": "a0a7922",
+    "review_base": "9852647",
+    "fixed": [
+      "L1",
+      "L2",
+      "L4",
+      "G10"
+    ],
+    "remaining": [
+      "G1",
+      "G4",
+      "G3",
+      "G2",
+      "G5",
+      "G6",
+      "L3",
+      "G7",
+      "G8",
+      "G9",
+      "L5",
+      "G11",
+      "L6"
+    ],
+    "selftest": {
+      "before_checks": 23,
+      "after_checks": 23,
+      "before_mb": 98,
+      "after_mb": 97
+    },
+    "daemon": {
+      "checks": 63,
+      "passed": 63,
+      "idle_mb": 100,
+      "stopped_mb": 9
+    },
+    "unit_tests": 120,
+    "entitled_vm_tests": 4,
+    "code_mutations": [
+      {
+        "name": "missing-alive-guard",
+        "exit_code": 1,
+        "expected_success": false
+      },
+      {
+        "name": "missing-init-cleanup",
+        "exit_code": 1,
+        "expected_success": false
+      },
+      {
+        "name": "missing-start-cleanup",
+        "exit_code": 1,
+        "expected_success": false
+      },
+      {
+        "name": "missing-tick-guard",
+        "exit_code": 1,
+        "expected_success": false
+      },
+      {
+        "name": "machine-after",
+        "exit_code": 0,
+        "expected_success": true
+      }
+    ],
+    "model": {
+      "bounds": "One queued callback with begin/finish, one stale external callback, one stop and successor VM; safety only, no fairness or state constraints.",
+      "checks": [
+        {
+          "config": "MC",
+          "expected_violation": null,
+          "exit_code": 0,
+          "states": 10
+        },
+        {
+          "config": "MC_old",
+          "expected_violation": "NoFreedRAM",
+          "exit_code": 12,
+          "states": 11
+        },
+        {
+          "config": "MC_drain",
+          "expected_violation": "NoFreedRAM",
+          "exit_code": 12,
+          "states": 11
+        },
+        {
+          "config": "MC_guard",
+          "expected_violation": "NoForeignHV",
+          "exit_code": 12,
+          "states": 9
+        },
+        {
+          "config": "MC_sanity",
+          "expected_violation": "NeverCompletes",
+          "exit_code": 12,
+          "states": 10
+        }
+      ],
+      "properties_sha256": "70c5e98cda3be12c98867b211bca45feacc790d3e26e395785c4d86d4eb2a1d0"
+    },
+    "binary_sha256": "42525664f3bdeba26a69d106187711585cbf8228df231193e877fa1faf956520",
+    "limits": [
+      "Natural race frequency not measured; stale release ordering is forced in a real HV process.",
+      "Finite safety model only; no whole-program or liveness proof.",
+      "No public release or replacement of the installed app."
+    ],
+    "restart_stress": {
+      "binary_sha256": "42525664f3bdeba26a69d106187711585cbf8228df231193e877fa1faf956520",
+      "cycles": [
+        {
+          "offset_s": 1.5,
+          "same_process": true,
+          "stop_start_s": 0.175,
+          "reported_mb": 4167,
+          "footprint_mb": 73,
+          "pattern_ok": true
+        },
+        {
+          "offset_s": 2,
+          "same_process": true,
+          "stop_start_s": 0.128,
+          "reported_mb": 4024,
+          "footprint_mb": 74,
+          "pattern_ok": true
+        },
+        {
+          "offset_s": 2.5,
+          "same_process": true,
+          "stop_start_s": 0.153,
+          "reported_mb": 4215,
+          "footprint_mb": 73,
+          "pattern_ok": true
+        },
+        {
+          "offset_s": 3,
+          "same_process": true,
+          "stop_start_s": 0.17,
+          "reported_mb": 4339,
+          "footprint_mb": 73,
+          "pattern_ok": true
+        }
+      ],
+      "ok": true
+    },
+    "source_sha256": {
+      "Sources/DMXCore/HV/Machine.swift": "8d98ddf33ab1dac67c4fb620201a732ff1fb2e54eaef3ba8cd0e1358ff4a9ef4",
+      "Sources/DMXCore/Daemon/MemoryController.swift": "82bd0da48876956890a501a5dad413d409df312f550de693b0ab1b5bcdf61dcb",
+      "Tests/DMXCoreTests/MachineLifecycleTests.swift": "fcec1045539bf9f7d4a7065110bbb41aecd57202042cba3c788990b93e3f9403",
+      "Tests/DMXCoreTests/DeviceStopTests.swift": "4d55d00361191a9b56136115aad1b2a26d6056288f3dcecfb3172e79376f3591"
+    }
   }
 }

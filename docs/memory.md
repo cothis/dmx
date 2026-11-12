@@ -79,6 +79,11 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-11-12: A Hypervisor test needs the entitlement on the executable loading the test bundle.
+  Signing an xctest bundle alone leaves SwiftPM's loader unentitled. Use the repository's
+  `formal/vm-device-lifetime/repro/Runner.swift` and check-code.py; they build/sign a local loader,
+  run isolated tests, and preserve the ordinary Xcode installation.
+
 - 2026-11-06: This Mac's clock jumps by about ±2 s every half hour or so, and the cause is not the clock. macOS's timed
   accepts an NTP sample right after a failed exchange ("NTP failed 4 times, switching off of low source port"), and that
   sample is off by about its 2 s retry wait; the next clean sample sets the clock back. Between jumps all NTP servers agree

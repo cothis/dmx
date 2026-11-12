@@ -590,6 +590,20 @@ separate from Core/VM tests and the completed public distribution checks.
 
 ## Next up
 
+**Lifecycle repair is in progress (2026-11-12): 4 of 17 items repaired.** L1, L2, L4 and G10
+from the [review](reviews/2026-11-12-lifecycle-bug-hunt.md) now have device teardown/fencing,
+failed-init/start cleanup, controller lifetime guards and eager share-root initialization.
+Selftest 23/23 (98 -> 97 MiB in one sample each), unit tests 120, entitled VM tests 4,
+daemon 63/63, four same-process 2 GiB release/stop/start cycles, and bounded model/mutation
+checks pass. This is committed source work, not a release or an installed-app update.
+
+**Next task: G1**, exec stdin blocking control and disconnect cleanup. Reproduce the stalled
+reader in the old guest before changing framing/backpressure; then G4 (independent shutdown
+connection), G3 (UDP backpressure), G2 (bounded shutdown), G5 (durable unpack), followed by
+G6, L3, G7, G8, G9, L5, G11 and L6. These 13 remain open; do not treat a passing shutdown
+suite as proof of their failure paths. [Measurement record](measurements/2026-11-12-lifecycle.json).
+
+
 **v0.4.5 is published** (2026-11-05, signed, notarized and stapled, tag commit `93da890`). It fixes S3
 lookups through boto: a bucket's name came back truncated, and glibc's retry over TCP left macOS's resolver, so
 `AF_UNSPEC` failed where `AF_INET` worked: see [the finding](#s3-bucket-names-and-dns-over-tcp-2026-11-05). All
@@ -825,6 +839,24 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### VM lifetime repair (2026-11-12)
+
+A queued net callback demonstrates that the original stop returned before device work ended.
+An entitled probe forces an old Machine.release after a successor owns the process-wide HV
+slot: removing the alive guard prevents the successor from booting. Failed-init, failed-start
+and late swap-reply mutations each fail their corresponding VM regression; the restored four
+VM regressions pass. Device queues drain before VM destruction; all guest RAM remains mapped
+until teardown finishes. L4 also fences async controller completions; G10's root wrapper is eager.
+
+The finite safety model has 10 reachable states (one split callback, one independent late
+callback and two VM generations), with no fairness or state constraints. Removing queue draining
+or the alive guard independently violates a frozen property. No natural race rate or whole-system
+correctness is claimed. Selftest before/after is 98/97 MiB (one sample each); daemon idle/stopped
+is 100/9 MiB. The same hashed release binary passed selftest 23 and daemon 63 checks.
+See [measurements](measurements/2026-11-12-lifecycle.json) and
+[rerun instructions](../formal/vm-device-lifetime/README.md). The remaining 13 review items stay open.
+
 
 ### Guest clock after sleep and host clock steps (2026-11-06)
 
@@ -1667,6 +1699,8 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 | 2026-10-27 | Pre-announcement review of 0.3.3 | Six code findings fixed, stale docs corrected. Unit 59/59; selftest 23/23; daemon 57/57; MCP 33/33; x86 47/47; Docker 69/69; sandbox 44/44; image matrix 24/24; pressure 12/12 rounds (12 GiB host allocation). Selftest host footprint 97 MiB before, 94–97 after; final 1 GiB reclaim 1123 → 103 MiB in 329 ms (before 1122 → 102 in 214 ms). Published 0.3.3 installer, guest fetch, strict signature/notarization check, selftest (97 MiB) and signed same-version update pass; local guest hashes match published. [Review](review-2026-10-27.md), [bounded results](measurements/2026-10-27-preannouncement-review.json). These fixes are not released. |
 
 ## Progress log
+
+- 2026-11-12: Repaired lifecycle findings L1/L2/L4/G10: drain device work before HV destruction, fence stale callbacks, clean partial VM init and failed starts, reject old controller completions, initialize the FUSE root eagerly. Original net regression and four independent code mutations fail as required; unit 120, entitled VM 4, selftest 23, daemon 63 and four 2 GiB same-process restarts pass. Footprint 98 -> 97 MiB (one sample each). Thirteen findings remain; Next up is G1. No public release.
 
 - 2026-11-12: Read-only bug hunt of the VM and process lifecycle at `9852647`: 17 items, none fixed or reproduced yet, in [docs/reviews/2026-11-12-lifecycle-bug-hunt.md](reviews/2026-11-12-lifecycle-bug-hunt.md). Worst: balloon/virtio-mem work that outlives the VM calls process-wide Hypervisor APIs against the next VM (L1); exec stdin blocking the hang-up kill (G1); `shutdown` queued behind a control call (G4).
 - 2026-11-06: Re-measured dmx alone on 0.4.7 (idle 225 MB, 2 GiB back to 348 MB in 2 s, docker run 96 ms; same range as 0.3.x). The maintainer posted Show GN on GeekNews.

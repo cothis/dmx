@@ -1,0 +1,87 @@
+Another instance of SwiftPM (PID: 47890) is already running using '/Users/cothis/dev/dockermax/.build', waiting until that process has finished execution...Building for debugging...
+[Planning deferred tasks]
+[7 / 48]
+[12 / 53]
+[16 / 55] ArgumentParser
+[33 / 129]
+[49 / 129]
+[53 / 129]
+[62 / 129]
+[70 / 129]
+[81 / 129]
+[83 / 129]
+[85 / 129]
+[87 / 129]
+[91 / 129] DMXCore
+[94 / 132] ArgumentParser
+[96 / 127] DMXCore
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/Daemon.swift:331:34: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+290 |         idleCheck?.cancel()
+291 |         let started = ContinuousClock.now
+292 |         booting = Task {
+    |                        |- note: 'self' implicitly strongly captured here
+    |                        `- note: add 'self' as a capture list item to silence
+293 |             defer { booting = nil }
+294 |             do {
+    :
+329 |                 // macOS refreshes what it knows of the binary then and allows the next one, with no prompt.
+330 |                 if LocalNetworkAccess.probe() == .blocked {
+331 |                     Task { [weak self] in
+    |                                  |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                  `- note: explicitly assign the capture list item to silence
+332 |                         try? await Task.sleep(for: .seconds(3))
+333 |                         guard let self, self.state == .running, LocalNetworkAccess.probe() == .blocked else { return }
+
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/Daemon.swift:420:32: warning: immutable value 'estimate' was never used; consider replacing with '_' or removing it [#NoUsage]
+418 |                         // Waited behind another call: corrected as far as is certain, measured again in 15 s.
+419 |                         clockRetry = .now + GuestClockWatch.retryAfterFailure
+420 |                         if let estimate, abs(off) >= GuestClockWatch.tolerance {
+    |                                `- warning: immutable value 'estimate' was never used; consider replacing with '_' or removing it [#NoUsage]
+421 |                             log("clock: \(reason.description); the guest was at least \(String(format: "%.1f", abs(off))) s \(off < 0 ? "behind" : "ahead") (slow measurement), corrected that far")
+422 |                         }
+
+[#ImplicitStrongCapture]: <https://docs.swift.org/compiler/documentation/diagnostics/implicit-strong-capture>
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:579:24: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+577 |         func params<P: Decodable>(_: P.Type) throws -> P {
+578 |             do {
+579 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+    |                        `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+580 |             } catch {
+581 |                 throw DMXError("bad_request", "\(method): \(error)")
+
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:580:15: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+578 |             do {
+579 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+580 |             } catch {
+    |               `- warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+581 |                 throw DMXError("bad_request", "\(method): \(error)")
+582 |             }
+
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+[106 / 121] dmx-product
+[111 / 125] dmx-product
+[112 / 126]
+[130 / 156]
+[133 / 156]
+[138 / 156] DMXCoreTests-product
+[140 / 156]
+[142 / 156] DMXCoreTests-product
+[149 / 156]
+[153 / 157]
+[154 / 157]
+Build complete! (6.55초)
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite DeviceStopTests started.
+◇ Test netStopWaitsForDeviceWork() started.
+✘ Test netStopWaitsForDeviceWork() recorded an issue at DeviceStopTests.swift:17:9: Expectation failed: early == .timedOut
+↳ early == .timedOut → false
+↳   early → .success
+✘ Test netStopWaitsForDeviceWork() failed after 0.001 seconds with 1 issue.
+↳ /// A stop barrier must wait for an already running device callback before RAM can go away.
+✘ Suite DeviceStopTests failed after 0.001 seconds with 1 issue.
+✘ Test run with 1 test in 1 suite failed after 0.001 seconds with 1 issue.
+Note: Some test targets reported failures:
+  - DMXCoreTests (Swift Testing)

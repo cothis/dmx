@@ -1,0 +1,27 @@
+[
+  {
+    "name": "missing-alive-guard",
+    "exit_code": 1,
+    "expected_success": false
+  },
+  {
+    "name": "missing-init-cleanup",
+    "exit_code": 1,
+    "expected_success": false
+  },
+  {
+    "name": "missing-start-cleanup",
+    "exit_code": 1,
+    "expected_success": false
+  },
+  {
+    "name": "missing-tick-guard",
+    "exit_code": 1,
+    "expected_success": false
+  },
+  {
+    "name": "machine-after",
+    "exit_code": 0,
+    "expected_success": true
+  }
+]

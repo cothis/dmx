@@ -1,0 +1,12 @@
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite MachineLifecycleTests started.
+◇ Test staleReleaseCannotReplaceSuccessorRAM() started.
+✘ Test staleReleaseCannotReplaceSuccessorRAM() recorded an issue at MachineLifecycleTests.swift:49:9: Expectation failed: agent != nil
+↳ agent != nil → false
+↳   agent → nil
+✘ Test staleReleaseCannotReplaceSuccessorRAM() failed after 0.021 seconds with 1 issue.
+✘ Suite MachineLifecycleTests failed after 0.021 seconds with 1 issue.
+↳ /// Runs in an entitled, isolated test process: no data disk or user daemon is opened.
+✘ Test run with 1 test in 1 suite failed after 0.021 seconds with 1 issue.

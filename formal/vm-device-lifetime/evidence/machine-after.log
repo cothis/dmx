@@ -1,0 +1,14 @@
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite MachineLifecycleTests started.
+◇ Test partialInitReleasesVM() started.
+✔ Test partialInitReleasesVM() passed after 0.003 seconds.
+◇ Test failedStartReleasesVCPUsAndVM() started.
+✔ Test failedStartReleasesVCPUsAndVM() passed after 0.002 seconds.
+◇ Test staleReleaseCannotReplaceSuccessorRAM() started.
+✔ Test staleReleaseCannotReplaceSuccessorRAM() passed after 0.098 seconds.
+◇ Test detachedTickDoesNotSetNextSwapFlag() started.
+✔ Test detachedTickDoesNotSetNextSwapFlag() passed after 0.001 seconds.
+✔ Suite MachineLifecycleTests passed after 0.105 seconds.
+✔ Test run with 4 tests in 1 suite passed after 0.105 seconds.
