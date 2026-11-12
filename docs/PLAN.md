@@ -1668,6 +1668,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-12: Read-only bug hunt of the VM and process lifecycle at `9852647`: 17 items, none fixed or reproduced yet, in [docs/reviews/2026-11-12-lifecycle-bug-hunt.md](reviews/2026-11-12-lifecycle-bug-hunt.md). Worst: balloon/virtio-mem work that outlives the VM calls process-wide Hypervisor APIs against the next VM (L1); exec stdin blocking the hang-up kill (G1); `shutdown` queued behind a control call (G4).
 - 2026-11-06: Re-measured dmx alone on 0.4.7 (idle 225 MB, 2 GiB back to 348 MB in 2 s, docker run 96 ms; same range as 0.3.x). The maintainer posted Show GN on GeekNews.
 - 2026-11-06: Published signed/notarized/stapled v0.4.7 from `d038460` and verified it from the public assets, 33/33; installed it on this Mac (local network `blocked`, then `allowed` in about a second). Reviews by Sonnet 5.5 and Codex found three clock-sync defects before release, all fixed.
 - 2026-11-06: Fixed review findings in the clock sync: a sync that waited behind another agent call stepped the guest back by the wait (reproduced, 188 ms); now measured, then adjusted relatively. Docker keep-alive connections check the clock before process starts; failed syncs back off 15 s. `make clocktest` gained `stale`.
