@@ -57,17 +57,12 @@ struct InputQueue {
     state: Mutex<(VecDeque<u8>, bool)>,
     ready: Condvar,
     limit: usize,
-    legacy: bool,
 }
 impl InputQueue {
-    fn new(limit: usize, legacy: bool) -> Self { Self { state: Mutex::new((VecDeque::new(), false)), ready: Condvar::new(), limit, legacy } }
+    fn new(limit: usize) -> Self { Self { state: Mutex::new((VecDeque::new(), false)), ready: Condvar::new(), limit } }
     fn push(&self, data: &[u8]) -> bool {
         let mut s = self.state.lock().unwrap();
-        while !s.1 && s.0.len()+data.len()>self.limit {
-            if !self.legacy { return false; }
-            s = self.ready.wait(s).unwrap();
-        }
-        if s.1 { return false; }
+        if s.1 || s.0.len()+data.len()>self.limit { return false; }
         if data.is_empty() { s.1 = true; } else { s.0.extend(data); }
         self.ready.notify_one();
         true
@@ -79,7 +74,6 @@ impl InputQueue {
         if s.0.is_empty() { return None; }
         let n = s.0.len().min(32768);
         let data = s.0.drain(..n).collect();
-        self.ready.notify_all();
         Some(data)
     }
 }
@@ -191,27 +185,9 @@ pub fn run(id: u64, p: Params, mut conn: Stream, out: Arc<Mutex<Stream>>) {
     }
 
     // The reader never writes child stdin. Credit bounds queued bytes, leaving control live.
-    let input = Arc::new(InputQueue::new(if p.flow_control { 65536 } else { frame::MAX_FRAME }, !p.flow_control));
-    // Old hosts do not honor byte credit. Preserve their backpressure, but observe the
-    // connection hangup separately even when their reader is waiting for queue space.
-    if !p.flow_control {
-        if let Ok(watch) = conn.try_clone() {
-            let alive = alive.clone();
-            let input = input.clone();
-            std::thread::spawn(move || loop {
-                if !*alive.lock().unwrap() { break; }
-                let mut fd = libc::pollfd { fd: watch.as_raw_fd(), events: libc::POLLRDHUP, revents: 0 };
-                let n = unsafe { libc::poll(&mut fd, 1, 100) };
-                if n > 0 && fd.revents & (libc::POLLRDHUP | libc::POLLHUP | libc::POLLERR) != 0 {
-                    let live = alive.lock().unwrap();
-                    if *live { unsafe { libc::kill(-pid, libc::SIGKILL); } }
-                    input.end();
-                    watch.shutdown();
-                    break;
-                }
-            });
-        }
-    }
+    let input = Arc::new(InputQueue::new(if p.flow_control { 65536 } else { frame::MAX_FRAME }));
+    // Legacy clients cannot negotiate byte credit. Their queue remains bounded; overflow
+    // retires the connection instead of blocking the reader behind a stalled child.
     {
         let input = input.clone();
         let out = out.clone();
@@ -245,6 +221,7 @@ pub fn run(id: u64, p: Params, mut conn: Stream, out: Arc<Mutex<Stream>>) {
                 }
             }
             input.end();
+            conn.shutdown(); // wake legacy writers/control calls even if stdout is also full
             // Keep the unreaped PID reserved while signalling its process group.
             let live = alive.lock().unwrap();
             if *live { unsafe { libc::kill(-pid, libc::SIGKILL); } }
@@ -361,6 +338,33 @@ mod tests {
         if !gone { unsafe { libc::kill(-pid,libc::SIGKILL); } }
         thread.join().unwrap();
         assert!(gone,"disconnect must kill/reap a child even while its stdin writer is blocked");
+    }
+
+    #[test]
+    fn legacy_overflow_disconnects_instead_of_blocking_control() {
+        let (agent, mut host) = UnixStream::pair().unwrap();
+        host.set_write_timeout(Some(Duration::from_millis(500))).unwrap();
+        let conn = Stream::from_fd(agent.into());
+        let out = Arc::new(Mutex::new(conn.try_clone().unwrap()));
+        let params: Params = serde_json::from_value(serde_json::json!({"argv":["sleep","30"],"stdin":true})).unwrap();
+        let thread = std::thread::spawn(move || run(1, params, conn, out));
+        let started = frame::read(&mut host).unwrap().unwrap();
+        let pid = serde_json::from_slice::<serde_json::Value>(&started.payload).unwrap()["result"]["pid"].as_i64().unwrap() as libc::pid_t;
+        let mut closed = false;
+        for _ in 0..64 {
+            if let Err(e) = frame::write(&mut host, frame::STDIN, &vec![1;512<<10]) {
+                closed = !matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut);
+                break;
+            }
+        }
+        drop(host);
+        let deadline = Instant::now()+Duration::from_secs(1);
+        while Instant::now()<deadline && unsafe { libc::kill(pid,0) } == 0 { std::thread::sleep(Duration::from_millis(10)); }
+        let gone = unsafe { libc::kill(pid,0) } < 0;
+        if !gone { unsafe { libc::kill(-pid,libc::SIGKILL); } }
+        thread.join().unwrap();
+        assert!(closed,"legacy queue overflow must close the stream rather than retain a blocked writer");
+        assert!(gone,"legacy overflow must reap the child");
     }
 
     #[test]

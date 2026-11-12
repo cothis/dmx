@@ -201,3 +201,8 @@ This repo is public: no private hostnames, IPs or personal details here.
 ## 2026-11-11: 디자인 고착 방지
 
 - 사용자는 디자인 시스템이 잘못된 디자인을 고착시키는 문제를 전반적으로 수정하도록 요청했다. DESIGN.md는 현재 구현 참고이며 미적 선택은 변경 가능하다. 사용자 목적·접근성·플랫폼 동작·실제 화면 검증을 우선하고, 시스템 준수 자체를 품질로 판정하지 않는다.
+
+## 2026-11-12: Lifecycle release review
+
+- The maintainer authorized committing, pushing and publishing the lifecycle release after reviews by Sonnet 5.5 and `codex exec` Sol 6.1 with high reasoning, provided findings are repaired and validation passes. This authorization covers v0.4.8; it does not authorize a community announcement.
+- Closing an owning connection can invalidate raw-fd cancellation and HTTP code outside that connection's frame reader. Audit every raw-fd user when adding an EOF/error close, and force descriptor reuse in an isolated process to verify the cancellation path too.

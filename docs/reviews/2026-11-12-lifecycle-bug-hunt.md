@@ -24,9 +24,9 @@ read-only findings and line numbers below are retained as the review baseline.
 | L2 | Clean partial initialization and failed start before returning; entitled failure/retry probes and independent mutants. |
 | L4 | Reject cancelled/detached controller completions; delayed old swap reply cannot alter the new epoch. |
 | G10 | Eager immutable FUSE root; normal FUSE regression suite. |
-| G1 | Default negotiated 64 KiB byte credit, independent stdin writer, live connection reader; original child leak reproduced, disconnect/SIGINT/MCP timeout reap it; lossless 8 MiB CLI and 1 MiB MCP input. Legacy framing keeps backpressure with an independent hangup observer. |
+| G1 | Default negotiated 64 KiB byte credit, independent stdin writer, live connection reader; original child leak reproduced, disconnect/SIGINT/MCP timeout reap it; lossless 8 MiB CLI and 1 MiB MCP input. Legacy queues reject overflow without blocking the frame reader. New hosts reject more than 4 KiB stdin to an old guest with an upgrade hint; failed-download fallback is a release gate. |
 | G9 | Observe exit with waitid(WNOWAIT), then close the control gate and reap under its mutex; the reader owns an Arc PTY fd. Rust late-control test cannot signal a live stand-in for a reused pid. Actual PID reuse is not forced. |
-| G4 | Shutdown and clock calls use fresh connections and a 2 s ACK deadline; poweroff gets 10 s after ACK. Busy-control fake and shared-connection mutant distinguish the fix. Agent deadlines report agent_timeout. |
+| G4 | Shutdown and periodic clock calls use fresh connections and a 2 s ACK deadline (initial clock sync: 15 s); poweroff gets 10 s after ACK. Busy-control fake and shared-connection mutant distinguish the fix. Agent deadlines report agent_timeout. |
 | G3 | Nonblocking relay stream, bounded datagram drop/partial-frame close, poll-based reply reader, asynchronous close and locked status snapshot; unread guest test and blocking-stream mutant distinguish it. MSG_DONTWAIT alone did not stop Unix writes blocking on this Mac. |
 | G2 | Keep RAM owned during pending callbacks; after a 20 s teardown deadline exit the process with shutdown_timeout instead of freeing live RAM. A real VM with a blocked share callback exits 70 under an injected 0.5 s deadline. No real dead SMB mount was induced. |
 | G5 | Sync staged payload, then marker, then published tree; durable-v1 markers re-unpack old trees once. Three real unpack crash offsets recover Docker. Original delayed-allocation corruption was not reproduced, so this is a durability-contract repair with bounded crash validation. |
@@ -44,7 +44,7 @@ read-only findings and line numbers below are retained as the review baseline.
 Validation: Swift 130; entitled VM 5 plus the expected exit-70 stall probe; selftest 23/23; daemon 63/63; mcp 36/36; storage 64/64; clock 4/4; scenarios 19/19.
 Four 2 GiB same-process restart cycles pass. Four-round alternating memory medians: 96.5 -> 97.0 MiB;
 these short samples do not establish a memory saving. Daemon idle/stopped: 99/9 MiB.
-No public release or installed-app replacement is part of this source repair.
+No public release or installed-app replacement was part of that source repair. The maintainer subsequently authorized v0.4.8 after Sonnet 5.5 and Codex Sol 6.1 high reviews; see [release review](2026-11-12-release-0.4.8.md) for follow-up defects, fixes and release validation.
 
 
 | ID | What | Severity | Confidence |

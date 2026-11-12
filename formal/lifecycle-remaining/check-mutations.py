@@ -4,7 +4,7 @@ import json,subprocess
 from pathlib import Path
 root=Path(__file__).resolve().parents[2];out=Path(__file__).resolve().parent/'evidence'
 variants=[
- ('shutdown-shared','Sources/DMXCore/Agent.swift','shutdownBypassesBusyControl','let _: Empty = try await urgent("shutdown", Empty())','let _: Empty = try await call("shutdown", Empty())'),
+ ('shutdown-shared','Sources/DMXCore/Agent.swift','shutdownBypassesBusyControl','let _: Empty = try await urgent { fresh in try await fresh.call("shutdown", Empty()) }','let _: Empty = try await call("shutdown", Empty())'),
  ('listing-no-retry','Sources/DMXCore/Daemon/Docker.swift','failedContainerListingRetriesAndOldEpochStops','''                    syncAgain = true
                 } else { failures = 0 }''','''                    syncAgain = false
                 } else { failures = 0 }'''),

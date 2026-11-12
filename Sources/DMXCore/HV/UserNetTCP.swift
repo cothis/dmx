@@ -47,7 +47,7 @@ final class TCPFlow {
         sndMax = iss
     }
 
-    /// Actual data/ACK progress renews an idle half-close budget; probes do not.
+    /// Data and valid peer ACKs renew the idle half-close budget; sending probes alone does not.
     func madeProgress(at now: ContinuousClock.Instant = .now) {
         if halfClosedAt != nil { halfClosedAt = now }
     }
@@ -63,7 +63,7 @@ extension UserNet {
     /// Bytes read from the host and not yet acknowledged by the guest, per connection.
     static let sendLimit = 256 << 10
     static let windowScale: UInt8 = 7
-    static let halfCloseTimeout: Duration = .seconds(120)
+    static let halfCloseTimeout: Duration = .seconds(30 * 60)
 
     /// The largest segment one frame carries: the MTU less the IP and TCP headers.
     static func mss(_ key: FlowKey) -> Int { VirtioNet.mtu - (key.remote.isV4 ? 40 : 60) }
@@ -197,6 +197,7 @@ extension UserNet {
     /// The guest acknowledged up to `ack` and has room for `window` bytes.
     private func acknowledged(_ flow: TCPFlow, ack: UInt32, window: UInt32, pure: Bool) {
         let acked = Int32(bitPattern: ack &- flow.sndUna)
+        if acked >= 0 && Int32(bitPattern: flow.sndMax &- ack) >= 0 { flow.madeProgress() }
         if acked > 0 && Int32(bitPattern: flow.sndMax &- ack) >= 0 {
             var bytes = Int(acked)
             if let fin = flow.finSeq, ack == fin &+ 1 {

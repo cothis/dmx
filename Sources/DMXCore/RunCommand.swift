@@ -32,7 +32,7 @@ public func runInGuest(paths: Paths, spec: MachineSpec, argv: [String], timeout:
             throw DMXError("agent_disconnected", "\(argv[0]): connection closed before the process exited")
         }
         status = exit.code ?? 128 + (exit.signal ?? 0)
-        try await agent.shutdown()
+        do { try await agent.shutdown() } catch { await machine.stop() }
     } catch {
         await machine.stop()
         throw error

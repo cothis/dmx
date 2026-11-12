@@ -606,11 +606,13 @@ Validation: Swift 130, entitled VM 5 plus expected fail-stop exit, selftest 23/2
 Four same-process 2 GiB release/restarts pass; alternating selftest medians are 96.5 -> 97.0 MiB
 (four rounds each, not a memory-saving claim). Daemon idle/stopped: 99/9 MiB.
 
-**Next:** no open item remains in this lifecycle review. Public release/versioning and installing
-the updated app are separate maintainer actions. Guest repairs require the newly built guest;
+**Next:** finish the authorized v0.4.8 release after Sonnet 5.5 and Codex Sol 6.1 high reviews,
+real-VM qualification, signed/notarized packaging and local install/update/fallback rehearsal.
+Follow-up review repairs cover UDP response framing, Docker retry/HTTP socket lifetime, stdin EOF
+and legacy limits, early process exit, clock timing and MCP cancellation ownership. See
+[release review](reviews/2026-11-12-release-0.4.8.md). Guest repairs require the rebuilt guest;
 source push alone does not replace the published 0.4.7 guest. Existing FEX compatibility limits
-remain outside this lifecycle scope. Validation commands and bounds are in
-[formal/lifecycle-remaining](../formal/lifecycle-remaining/README.md).
+remain outside this lifecycle scope.
 
 **v0.4.5 is published** (2026-11-05, signed, notarized and stapled, tag commit `93da890`). It fixes S3
 lookups through boto: a bucket's name came back truncated, and glibc's retry over TCP left macOS's resolver, so
@@ -1730,6 +1732,8 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 | 2026-10-27 | Pre-announcement review of 0.3.3 | Six code findings fixed, stale docs corrected. Unit 59/59; selftest 23/23; daemon 57/57; MCP 33/33; x86 47/47; Docker 69/69; sandbox 44/44; image matrix 24/24; pressure 12/12 rounds (12 GiB host allocation). Selftest host footprint 97 MiB before, 94–97 after; final 1 GiB reclaim 1123 → 103 MiB in 329 ms (before 1122 → 102 in 214 ms). Published 0.3.3 installer, guest fetch, strict signature/notarization check, selftest (97 MiB) and signed same-version update pass; local guest hashes match published. [Review](review-2026-10-27.md), [bounded results](measurements/2026-10-27-preannouncement-review.json). These fixes are not released. |
 
 ## Progress log
+
+- 2026-11-12: Pre-release v0.4.8 review by actual Sonnet 5.5 and `codex exec` Sol 6.1 high: four rounds, final NO RELEASE BLOCKERS from both. Repaired UDP response EAGAIN, dockerd retry/socket lifetime, EOF/legacy stdin handling, early-exit result preservation, clock setup/deadlines and MCP late-cancellation fd reuse. Swift 137; entitled VM 5 plus bounded exit-70; core probes 9; full real-VM release matrix and 100 amd64 Java repeats passed. Developer ID signing, notarization and stapling passed; the new guest pin is generated. Local signed install/update/fallback rehearsal and publication remain.
 
 - 2026-11-12: Finished the remaining lifecycle work: G1/G2/G3/G4/G5/G6/G7/G8/G9/L3/L5/G11 repaired; L6 checked and cleared. Added negotiated stdin byte credit, PID/PTY lifetime guards, fresh urgent control, bounded teardown/boot stop, ENOSPC recovery, durable unpack markers, network/listing/spawn retry and expiry guards. Real failure probes, independent mutants and a bounded credit model are recorded; the original read-only hunt now has no open findings. Source work only; no release.
 

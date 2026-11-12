@@ -1,0 +1,29 @@
+{
+  "sonnet": {
+    "requested": "claude-sonnet-5-5",
+    "reported_model_usage": [
+      "claude-sonnet-5-5"
+    ],
+    "verdict": "NO RELEASE BLOCKERS"
+  },
+  "codex": {
+    "command": [
+      "codex",
+      "exec",
+      "-m",
+      "gpt-6.1-sol",
+      "-c",
+      "model_reasoning_effort=\"high\"",
+      "-s",
+      "read-only"
+    ],
+    "banner_model": "gpt-6.1-sol",
+    "banner_reasoning_effort": "high",
+    "verdict": "NO RELEASE BLOCKERS",
+    "runtime_identity_note": "Reviewer cannot independently introspect hidden serving identity; effective CLI configuration is verified."
+  },
+  "fallback": false,
+  "rounds": 4,
+  "scope": "9852647..08f09f5 plus reviewed working tree",
+  "mode": "read-only static review; no tests performed by reviewers"
+}

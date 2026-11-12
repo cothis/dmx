@@ -194,7 +194,13 @@ final class UDPRelay: @unchecked Sendable {
             while offset < count {
                 let n = buffer.withUnsafeMutableBytes { read(connection.fd, $0.baseAddress! + offset, count - offset) }
                 if n < 0 && errno == EINTR { continue }
-                if n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) && offset == 0 { return true } // drop an unsent datagram
+                if n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    var ready = pollfd(fd: connection.fd, events: Int16(POLLIN), revents: 0)
+                    while poll(&ready, 1, -1) < 0 {
+                        if errno != EINTR { return false }
+                    }
+                    continue
+                }
                 guard n > 0 else { return false }
                 offset += n
             }

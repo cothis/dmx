@@ -39,6 +39,9 @@ final class DockerBridge {
     private var events: FrameConnection?
     private var syncing = false, syncAgain = false
     private var listingUnknown = false
+    private var listingGeneration = 0
+    private var listingTask: Task<Void, Never>?
+    private var listingStream: FrameConnection?
     private var acceptPaused = false
     /// Bumped when the VM stops, so work begun for that VM leaves the next one alone.
     private var epoch = 0
@@ -102,11 +105,10 @@ final class DockerBridge {
         up = false
         starting = nil
         client = nil
-        syncing = false
-        listingUnknown = false
+        resetListing()
         watcher?.cancel()
         watcher = nil
-        if let events { shutdown(events.fd, SHUT_RDWR) }
+        events?.close()
         events = nil
         ports.setDockerForwards([])
         if containers != nil {
@@ -194,7 +196,7 @@ final class DockerBridge {
         do {
             let stream = try await resolve().connect(path: Self.guestSocket)
             defer { stream.close() }
-            let body = try await DockerHTTP.get(stream.fd, "/containers/\(container)/json")
+            let body = try await DockerHTTP.get(stream, "/containers/\(container)/json")
             let inspected = try JSONSerialization.jsonObject(with: body) as? [String: Any] ?? [:]
             wanted = Self.bindings(inspected)
             autoRemove = (inspected["HostConfig"] as? [String: Any])?["AutoRemove"] as? Bool ?? false
@@ -220,7 +222,7 @@ final class DockerBridge {
             // dockerd removes a `--rm` container whose start failed, and `docker run --rm` waits
             // for that before it exits.
             if autoRemove, let stream = try? await resolve().connect(path: Self.guestSocket) {
-                _ = try? await DockerHTTP.get(stream.fd, "/containers/\(container)?force=1&v=1", method: "DELETE")
+                _ = try? await DockerHTTP.get(stream, "/containers/\(container)?force=1&v=1", method: "DELETE")
                 stream.close()
             }
             return .refuse(message)
@@ -283,7 +285,7 @@ final class DockerBridge {
         do {
             return try await client.connect(path: Self.guestSocket)
         } catch let error as DMXError where error.code == "agent_connect_failed" {
-            up = false
+            dockerdStopped()
             try await ensureDocker(client)
             return try await client.connect(path: Self.guestSocket)
         }
@@ -366,34 +368,37 @@ final class DockerBridge {
     /// events first, then lists containers, so nothing falls between the two.
     private func follow(_ agent: AgentClient) {
         let epoch = self.epoch
+        let generation = listingGeneration
         watcher?.cancel()
         watcher = Task { @MainActor in
-            while epoch == self.epoch && !Task.isCancelled {
+            while epoch == self.epoch && generation == listingGeneration && !Task.isCancelled {
                 do {
                     let stream = try await agent.connect(path: Self.guestSocket)
+                    guard epoch == self.epoch, generation == listingGeneration, !Task.isCancelled else { stream.close(); return }
                     events = stream
-                    try await DockerHTTP.send(stream.fd, Self.eventsPath)
+                    try await DockerHTTP.send(stream, Self.eventsPath)
                     syncSoon(agent, epoch)
                     // The task already holds self until dockerd or the VM goes away.
-                    await DockerHTTP.lines(stream.fd) {
-                        DispatchQueue.main.async { MainActor.assumeIsolated { self.syncSoon(agent, epoch) } }
+                    await DockerHTTP.lines(stream) {
+                        DispatchQueue.main.async { MainActor.assumeIsolated {
+                            if epoch == self.epoch && generation == self.listingGeneration { self.syncSoon(agent, epoch) }
+                        } }
                     }
-                    events = nil
+                    if events === stream { events = nil }
                     stream.close()
                 } catch {
+                    guard epoch == self.epoch, generation == listingGeneration, !Task.isCancelled else { return }
                     events = nil
                     log("docker: events: \((error as? DMXError)?.message ?? "\(error)")")
                 }
-                guard epoch == self.epoch, !Task.isCancelled else { return }
+                guard epoch == self.epoch, generation == listingGeneration, !Task.isCancelled else { return }
                 // The stream ended with the VM still up: dockerd restarted or died.
                 let probe = try? await agent.connect(path: Self.guestSocket)
                 probe?.close()
+                guard epoch == self.epoch, generation == listingGeneration, !Task.isCancelled else { return }
                 if probe == nil {
                     log("docker: dockerd stopped answering")
-                    up = false
-                    ports.setDockerForwards([])
-                    containers = nil
-                    changed?()
+                    dockerdStopped()
                     return
                 }
                 try? await Task.sleep(for: .seconds(1))
@@ -404,49 +409,83 @@ final class DockerBridge {
     private static let eventsPath = "/events?filters=" + (#"{"type":["container"],"event":["start","die"]}"#
         .addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "")
 
+    private func resetListing() {
+        listingGeneration += 1
+        listingTask?.cancel()
+        listingTask = nil
+        listingStream?.close()
+        listingStream = nil
+        listingUnknown = false
+        syncing = false
+        syncAgain = false
+    }
+
+    /// The event stream ended and the guest socket no longer accepts connections.
+    func dockerdStopped() {
+        resetListing()
+        watcher?.cancel()
+        watcher = nil
+        events?.close()
+        events = nil
+        up = false
+        client = nil
+        ports.setDockerForwards([])
+        containers = nil
+        changed?()
+    }
+
     /// Lists the containers again; events coming in meanwhile cause one more listing.
     func syncSoon(_ agent: AgentClient, _ epoch: Int) {
         guard epoch == self.epoch else { return }
         if syncing { syncAgain = true; return }
         syncing = true
-        Task { @MainActor in
+        let generation = listingGeneration
+        listingTask = Task { @MainActor in
+            defer {
+                if generation == listingGeneration { syncing = false; listingTask = nil }
+            }
             var failures = 0
             repeat {
                 syncAgain = false
-                let ok = await sync(agent, epoch)
-                guard epoch == self.epoch, !Task.isCancelled else { return }
+                let ok = await sync(agent, epoch, generation)
+                guard epoch == self.epoch, generation == listingGeneration, !Task.isCancelled else { return }
                 if !ok {
                     failures += 1
                     try? await Task.sleep(for: .milliseconds(min(100 << min(failures - 1, 5), 3000)))
-                    guard epoch == self.epoch, !Task.isCancelled else { return }
+                    guard epoch == self.epoch, generation == listingGeneration, !Task.isCancelled else { return }
                     syncAgain = true
                 } else { failures = 0 }
             } while syncAgain && epoch == self.epoch
-            if epoch == self.epoch { syncing = false }
+            if epoch == self.epoch, generation == listingGeneration { syncing = false }
         }
     }
 
-    private func sync(_ agent: AgentClient, _ epoch: Int) async -> Bool {
+    private func sync(_ agent: AgentClient, _ epoch: Int, _ generation: Int) async -> Bool {
         let list: [[String: Any]]
         do {
             if let listContainers { list = try await listContainers(agent) }
             else {
                 let stream = try await agent.connect(path: Self.guestSocket)
-                defer { stream.close() }
-                let body = try await DockerHTTP.get(stream.fd, "/containers/json")
+                guard epoch == self.epoch, generation == listingGeneration, !Task.isCancelled else { stream.close(); return false }
+                listingStream = stream
+                defer {
+                    if listingStream === stream { listingStream = nil }
+                    stream.close()
+                }
+                let body = try await DockerHTTP.get(stream, "/containers/json")
                 guard let decoded = try JSONSerialization.jsonObject(with: body) as? [[String: Any]] else {
                     throw DMXError("docker_protocol", "container listing is not an array")
                 }
                 list = decoded
             }
         } catch {
-            guard epoch == self.epoch else { return false }
+            guard epoch == self.epoch, generation == listingGeneration, !Task.isCancelled else { return false }
             listingUnknown = true
             changed?()
             log("docker: cannot list containers: \((error as? DMXError)?.message ?? "\(error)"); retrying")
             return false
         }
-        guard epoch == self.epoch else { return false }
+        guard epoch == self.epoch, generation == listingGeneration, !Task.isCancelled else { return false }
         listingUnknown = false
         changed?()
         ports.setDockerForwards(Self.published(list))
@@ -480,7 +519,25 @@ final class DockerBridge {
 /// Just enough HTTP to ask dockerd for its containers and events: HTTP/1.0, so the reply is not
 /// chunked and ends when the connection closes. Blocking reads run on their own thread.
 enum DockerHTTP {
-    static func send(_ fd: Int32, _ path: String, method: String = "GET") async throws {
+    static func send(_ connection: FrameConnection, _ path: String, method: String = "GET") async throws {
+        let fd = try connection.duplicateOpenFD()
+        defer { Darwin.close(fd) }
+        try await send(fd, path, method: method)
+    }
+
+    static func get(_ connection: FrameConnection, _ path: String, method: String = "GET") async throws -> Data {
+        let fd = try connection.duplicateOpenFD()
+        defer { Darwin.close(fd) }
+        return try await get(fd, path, method: method)
+    }
+
+    static func lines(_ connection: FrameConnection, _ line: @escaping @Sendable () -> Void) async {
+        guard let fd = try? connection.duplicateOpenFD() else { return }
+        defer { Darwin.close(fd) }
+        await lines(fd, line)
+    }
+
+    private static func send(_ fd: Int32, _ path: String, method: String = "GET") async throws {
         let request = Data("\(method) \(path) HTTP/1.0\r\nHost: docker\r\n\r\n".utf8)
         try await onThread {
             try request.withUnsafeBytes { buf in
@@ -496,7 +553,7 @@ enum DockerHTTP {
     }
 
     /// The body of a successful GET (or another method's 2xx reply).
-    static func get(_ fd: Int32, _ path: String, method: String = "GET") async throws -> Data {
+    private static func get(_ fd: Int32, _ path: String, method: String = "GET") async throws -> Data {
         try await send(fd, path, method: method)
         let reply = try await onThread { () throws -> Data in
             var data = Data()
@@ -521,7 +578,7 @@ enum DockerHTTP {
     }
 
     /// Calls `line` for each line of the body (one JSON event each) until the stream ends.
-    static func lines(_ fd: Int32, _ line: @escaping @Sendable () -> Void) async {
+    private static func lines(_ fd: Int32, _ line: @escaping @Sendable () -> Void) async {
         _ = try? await onThread {
             var buffer = [UInt8](repeating: 0, count: 16 << 10)
             var inBody = false

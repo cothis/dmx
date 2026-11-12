@@ -165,7 +165,7 @@ public func execCapped(paths: Paths, argv: [String], stdin: Data?, env: [String]
 /// Ends an exec from another task: shutting the socket down wakes the blocked read, and the
 /// daemon, seeing the client gone, closes the agent's connection, so the agent kills the
 /// process group. Does nothing once the exec is over, so a reused descriptor is never touched.
-private final class ExecKiller: @unchecked Sendable {
+final class ExecKiller: @unchecked Sendable {
     private let lock = NSLock()
     private let session: ExecSession
     private var done = false
@@ -180,7 +180,7 @@ private final class ExecKiller: @unchecked Sendable {
             guard !done else { return }
             done = true
             killedByTimeout = timedOut
-            Darwin.shutdown(session.connection.fd, SHUT_RDWR)
+            session.connection.close()
         }
     }
 

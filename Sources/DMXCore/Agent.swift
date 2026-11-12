@@ -133,6 +133,10 @@ public final class FrameConnection: @unchecked Sendable {
     private let input = NSCondition()
     private var inputCredit: Int?
     private var inputEnded = false
+    static let legacyStdinLimit = 4096
+    private var legacyInputSent = 0
+    private var inputFailure: DMXError?
+    var stdinFailure: DMXError? { input.withLock { inputFailure } }
     var stdinWindow: Int? { input.withLock { inputCredit } }
 
     private func finishInput() {
@@ -143,6 +147,19 @@ public final class FrameConnection: @unchecked Sendable {
     }
 
     func writeStdin(_ data: Data) throws {
+        input.lock()
+        // An old agent cannot separate blocked child stdin from signals/disconnect. Do not
+        // fill its pipe: fail the unsupported operation while EOF can still reap its child.
+        if inputCredit == nil, data.count > Self.legacyStdinLimit - legacyInputSent {
+            let failure = DMXError("guest_upgrade_required", "this guest cannot safely accept more than 4 KiB of exec stdin without byte credit",
+                                   hint: "run `dmx stop`, then `dmx guest fetch --force`, then retry")
+            inputFailure = failure
+            input.unlock()
+            close()
+            throw failure
+        }
+        if inputCredit == nil { legacyInputSent += data.count }
+        input.unlock()
         var offset = 0
         while offset < data.count {
             input.lock()
@@ -195,7 +212,8 @@ public final class FrameConnection: @unchecked Sendable {
 
     /// A frame keeps the same socket across short transfers, even if close releases `fd` and
     /// the OS reuses its number. Checking `closed` alone would race the following syscall.
-    private func withOpenFD<T>(_ body: (Int32) throws -> T) throws -> T {
+    /// Acquires a stable socket lease under the close lock; its caller must close the copy.
+    func duplicateOpenFD() throws -> Int32 {
         closeLock.lock()
         let copy = closed ? -1 : duplicateFD(fd)
         let failure = closed ? "connection closed" : String(cString: strerror(errno))
@@ -203,6 +221,11 @@ public final class FrameConnection: @unchecked Sendable {
         guard copy >= 0 else {
             throw DMXError("\(peer)_disconnected", "\(peer): \(failure)", hint: "run `dmx status`, then retry")
         }
+        return copy
+    }
+
+    private func withOpenFD<T>(_ body: (Int32) throws -> T) throws -> T {
+        let copy = try duplicateOpenFD()
         defer { Darwin.close(copy) }
         return try body(copy)
     }
@@ -266,7 +289,7 @@ public final class FrameConnection: @unchecked Sendable {
     /// only when asked for, so a guest process that writes faster than the caller consumes waits
     /// on vsock credit instead of piling its output up in host memory.
     func nextEvent() async throws -> ExecEvent {
-        try await onQueue { () throws -> ExecEvent in
+        do { return try await onQueue { () throws -> ExecEvent in
             while let (kind, payload) = try self.readFrame() {
                 switch kind {
                 case .stdout: return .stdout(Data(payload))
@@ -291,6 +314,9 @@ public final class FrameConnection: @unchecked Sendable {
                 }
             }
             throw DMXError("\(self.peer)_disconnected", "exec: connection closed before the process exited")
+        } } catch {
+            close() // EOF/error must wake a writer waiting for credit as well as socket I/O.
+            throw stdinFailure ?? error
         }
     }
 
@@ -554,7 +580,9 @@ public final class AgentClient: @unchecked Sendable {
     @discardableResult
     public func syncTime() async throws -> Int64 {
         struct Params: Encodable { let unixNs: Int64 }
-        let result: TimeSyncReply = try await urgent("time_sync", Params(unixNs: Self.unixNs()))
+        let result: TimeSyncReply = try await urgent(timeout: .seconds(15)) { fresh in
+            try await fresh.call("time_sync", Params(unixNs: Self.unixNs()))
+        }
         return result.offsetNs
     }
 
@@ -564,11 +592,13 @@ public final class AgentClient: @unchecked Sendable {
     /// An agent older than 0.4.7 sets the clock instead; then `applied`.
     public func measureClock() async throws -> (arrivalNs: Int64, roundTripNs: Int64, applied: Bool) {
         struct Params: Encodable { let unixNs: Int64; let measure: Bool }
-        let sent = ContinuousClock.now
-        let result: TimeSyncReply = try await urgent("time_sync", Params(unixNs: Self.unixNs(), measure: true))
-        let roundTrip = ContinuousClock.now - sent
-        let rtt = roundTrip.components.seconds * 1_000_000_000 + roundTrip.components.attoseconds / 1_000_000_000
-        return (result.offsetNs, rtt, result.measured != true)
+        return try await urgent { fresh in
+            let sent = ContinuousClock.now
+            let result: TimeSyncReply = try await fresh.call("time_sync", Params(unixNs: Self.unixNs(), measure: true))
+            let roundTrip = ContinuousClock.now - sent
+            let rtt = roundTrip.components.seconds * 1_000_000_000 + roundTrip.components.attoseconds / 1_000_000_000
+            return (result.offsetNs, rtt, result.measured != true)
+        }
     }
 
     /// Moves the guest clock by `ns` from wherever it is when the call arrives, so waiting does
@@ -577,24 +607,26 @@ public final class AgentClient: @unchecked Sendable {
     public func adjustClock(by ns: Int64, slewBelow: Duration) async throws {
         struct Params: Encodable { let unixNs: Int64; let adjustNs: Int64; let slewBelowNs: Int64 }
         let below = slewBelow.components.seconds * 1_000_000_000 + slewBelow.components.attoseconds / 1_000_000_000
-        let _: TimeSyncReply = try await urgent("time_sync", Params(unixNs: Self.unixNs(), adjustNs: ns, slewBelowNs: below))
+        let _: TimeSyncReply = try await urgent { fresh in
+            try await fresh.call("time_sync", Params(unixNs: Self.unixNs(), adjustNs: ns, slewBelowNs: below))
+        }
     }
 
     private struct TimeSyncReply: Decodable, Sendable { let offsetNs: Int64; let measured: Bool? }
     private static func unixNs() -> Int64 { Int64(Date().timeIntervalSince1970 * 1e9) }
 
     /// Latency-sensitive control must not queue behind reclaim, slab shrinking or disk trim.
-    private func urgent<P: Encodable & Sendable, R: Decodable & Sendable>(_ method: String, _ params: P) async throws -> R {
+    private func urgent<R: Sendable>(timeout: Duration = .seconds(2), _ operation: @escaping @Sendable (FrameConnection) async throws -> R) async throws -> R {
         let fresh = try await open()
         defer { fresh.close() }
-        return try await withConnectionDeadline(.seconds(2), connection: fresh) {
-            try await fresh.call(method, params)
+        return try await withConnectionDeadline(timeout, connection: fresh) {
+            try await operation(fresh)
         }
     }
 
     /// Asks the guest to sync and power off. The VM stops shortly after this returns.
     public func shutdown() async throws {
-        let _: Empty = try await urgent("shutdown", Empty())
+        let _: Empty = try await urgent { fresh in try await fresh.call("shutdown", Empty()) }
     }
 
     /// Starts a process in the guest on a new connection.
@@ -608,6 +640,7 @@ public final class AgentClient: @unchecked Sendable {
         request.tty = tty
         request.stdin = stdin != nil
         let session = try await exec(request)
+        defer { session.connection.close() }
         // Output is read only while we iterate, so stdin goes in alongside: a process that echoes
         // a large stdin would otherwise block on its full stdout while we block on its stdin.
         let feed = Task.detached {
@@ -622,7 +655,11 @@ public final class AgentClient: @unchecked Sendable {
             case .stdout(let d): out.append(d)
             case .stderr(let d): err.append(d)
             case .exit(let exit):
-                try await feed.value
+                session.connection.close()
+                // A child may intentionally exit without consuming all stdin (e.g. true/head).
+                // Preserve explicit legacy incompatibility, but its exit wins over a closed pipe.
+                _ = try? await feed.value
+                if let failure = session.connection.stdinFailure { throw failure }
                 return ExecOutput(exit: exit, stdout: out, stderr: err)
             }
         }
@@ -675,11 +712,13 @@ public struct ExecEvents: AsyncSequence, Sendable {
             guard !finished else { return nil }
             do {
                 let event = try await connection.nextEvent()
+                if let failure = connection.stdinFailure { throw failure }
                 if case .exit = event { finished = true }
                 return event
             } catch {
                 finished = true
-                throw error
+                connection.close()
+                throw connection.stdinFailure ?? error
             }
         }
     }

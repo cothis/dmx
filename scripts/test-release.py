@@ -7,7 +7,7 @@ a running VM, container and volume, and the release's own fix. Isolated from ~/.
 import ctypes, http.server, json, os, plistlib, shutil, socketserver, subprocess, sys, tempfile, threading, time
 from pathlib import Path
 
-VERSION, PREVIOUS = "0.4.7", "0.4.6"
+VERSION, PREVIOUS = "0.4.8", "0.4.7"
 mode = sys.argv[1]
 PUBLIC = "https://github.com/cothis/dmx/releases/download"
 checks = []
@@ -144,7 +144,14 @@ try:
     for platform, want in (("linux/arm64", "aarch64"), ("linux/amd64", "x86_64"), ("linux/386", "x86_64")):
         r = docker(env, area, "run", "--rm", "--platform", platform, "alpine", "uname", "-m")
         check(f"fresh_container_{platform.replace('/', '_')}", r.stdout.decode().strip() == want, r.stdout + r.stderr[-200:])
-    # The release's own fix, with the published binary.
+    # Lifecycle fixes on the installed, signed helper and its downloaded guest.
+    payload = bytes(range(256)) * 4096
+    r = run([str(area / "prefix/bin/dmx"), "exec", "--", "cat"], env, stdin=payload)
+    check("fix_large_stdin_lossless", r.returncode == 0 and r.stdout == payload, len(r.stdout))
+    r = run([sys.executable, "-I", str(Path(__file__).with_name("test-lifecycle-remaining.py")), str(area / "prefix/bin/dmx")], env, timeout=400)
+    (ROOT / "fresh-lifecycle.log").write_bytes(r.stdout + r.stderr)
+    check("fix_lifecycle_faults", r.returncode == 0, r.stdout[-500:] + r.stderr[-500:])
+    # Previous networking and clock fixes remain part of the release proof.
     for image in ("python:3-slim", "python:3-alpine"):
         tag = image.split("-")[1]
         r = docker(env, area, "run", "--rm", "-i", image, "python", "-u", "-c", GAI, timeout=200)
@@ -179,6 +186,8 @@ try:
     check("previous_container", r.returncode == 0, r.stderr[-200:])
     cid = r.stdout.decode().strip()
     time.sleep(1)
+    old_guest = ROOT / "previous-guest"
+    shutil.copytree(area / "home/guest", old_guest)
     before = status(area, env)
     update_env = dict(env)
     if mode == "local":
@@ -217,6 +226,11 @@ try:
     out = r.stdout.decode().split()
     check("update_fix_af_inet6_alone", len(out) >= 2 and out[0] == "no_address" and 0.8 < float(out[1]) < 4.5, r.stdout[:40] + r.stderr[-200:])
     check("update_fix_clock_follows_host", *clock_follows(area, env))
+    r = run([str(area / "prefix/bin/dmx"), "exec", "--", "cat"], env, stdin=payload)
+    check("update_large_stdin_lossless", r.returncode == 0 and r.stdout == payload, len(r.stdout))
+    r = run([sys.executable, "-I", str(Path(__file__).with_name("test-legacy-exec.py")), str(area / "prefix/bin/dmx"), str(old_guest), "--require-fallback"], env, timeout=300)
+    (ROOT / "legacy-fallback.log").write_bytes(r.stdout + r.stderr)
+    check("update_previous_guest_fallback", r.returncode == 0, r.stdout[-500:] + r.stderr[-500:])
     docker(env, area, "rm", "-f", "kept")
     dmx(area, env, "stop", "--json")
     time.sleep(12)
@@ -225,3 +239,5 @@ finally:
     dnssd.DNSServiceRefDeallocate(dnssd_ref)
     failed = [c["name"] for c in checks if not c["ok"]]
     print(json.dumps({"mode": mode, "version": VERSION, "previous": PREVIOUS, "ok": not failed and len(checks) > 0, "total": len(checks), "failed": failed, "root": str(ROOT), "checks": checks}, default=str))
+
+if failed: sys.exit(1)

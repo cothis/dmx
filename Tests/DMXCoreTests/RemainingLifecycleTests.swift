@@ -15,7 +15,11 @@ import Testing
     @Test func stdinSliceKeepsItsBytesAcrossFrames() async throws {
         let (a,b) = try pair()
         defer { a.close(); b.close() }
-        let session = ExecSession(connection:a,pid:1)
+        let start = Task { try await a.exec(ExecRequest(argv:["cat"])) }
+        _ = try await b.receive()
+        try b.writeFrame(.json, Data(#"{"id":1,"ok":true,"result":{"pid":1,"stdin_window":65536}}"#.utf8))
+        let session = try await start.value
+        let events = Task { for try await _ in session.events {} }
         let data = Data((0..<(1 << 19)).map { UInt8($0 & 255) }).dropFirst(17)
         #expect(data.startIndex == 17)
         let feed = Task.detached { try session.write(data); try session.closeStdin() }
@@ -24,8 +28,11 @@ import Testing
             #expect(kind == .stdin)
             if payload.isEmpty { break }
             received.append(payload)
+            try b.writeFrame(.json, JSONSerialization.data(withJSONObject:["event":"stdin_credit","bytes":payload.count]))
         }
+        try b.writeFrame(.json, Data(#"{"event":"exit","code":0,"signal":null}"#.utf8))
         try await feed.value
+        try await events.value
         #expect(received == data)
     }
 
@@ -143,18 +150,18 @@ import Testing
             let key = UserNet.FlowKey(guestPort:1234,remote:IPAddress(v4:0x08080808),remotePort:80)
             let half = TCPFlow(key:key,irs:10)
             half.guestFinished = true
-            half.halfClosedAt = .now - .seconds(121)
+            half.halfClosedAt = .now - UserNet.halfCloseTimeout - .seconds(1)
             // Expiry only needs the close path; a nil socket is safe for an unconnected flow.
             device.net.tcp[key] = half
             device.net.tcpTick(.now)
             #expect(device.net.tcp[key] == nil)
             let active = TCPFlow(key:key,irs:12)
-            active.halfClosedAt = .now - .seconds(121)
+            active.halfClosedAt = .now - UserNet.halfCloseTimeout - .seconds(1)
             active.madeProgress()
             device.net.tcp[key] = active
             device.net.tcpTick(.now)
             #expect(device.net.tcp[key] === active)
-            device.net.tcpTick(.now + .seconds(121))
+            device.net.tcpTick(.now + UserNet.halfCloseTimeout + .seconds(1))
             #expect(device.net.tcp[key] == nil)
             let live = TCPFlow(key:key,irs:11)
             device.net.tcp[key] = live
