@@ -1,0 +1,41 @@
+Building for debugging...
+[4 / 31]
+[9 / 34] ArgumentParser
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:580:24: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+578 |         func params<P: Decodable>(_: P.Type) throws -> P {
+579 |             do {
+580 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+    |                        `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+581 |             } catch {
+582 |                 throw DMXError("bad_request", "\(method): \(error)")
+
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:581:15: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+579 |             do {
+580 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+581 |             } catch {
+    |               `- warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+582 |                 throw DMXError("bad_request", "\(method): \(error)")
+583 |             }
+
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+[13 / 29] DMXCore
+Build complete! (1.53초)
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite RemainingLifecycleTests started.
+◇ Test stdinSliceKeepsItsBytesAcrossFrames() started.
+✔ Test stdinSliceKeepsItsBytesAcrossFrames() passed after 0.040 seconds.
+◇ Test shutdownBypassesBusyControl() started.
+✔ Test shutdownBypassesBusyControl() passed after 0.707 seconds.
+◇ Test failedContainerListingRetriesAndOldEpochStops() started.
+2026-11-12T04:47:25Z dmx-daemon: docker: cannot list containers: listing failed; retrying
+✔ Test failedContainerListingRetriesAndOldEpochStops() passed after 0.525 seconds.
+◇ Test dockerEMFILEBacksOff() started.
+✔ Test dockerEMFILEBacksOff() passed after 0.374 seconds.
+◇ Test forwardedSocketsHaveBoundedKeepalive() started.
+✔ Test forwardedSocketsHaveBoundedKeepalive() passed after 0.001 seconds.
+◇ Test halfClosedFlowExpiresAndLiveIdleFlowStays() started.
+✔ Test halfClosedFlowExpiresAndLiveIdleFlowStays() passed after 0.001 seconds.
+✔ Suite RemainingLifecycleTests passed after 1.651 seconds.
+✔ Test run with 6 tests in 1 suite passed after 1.651 seconds.

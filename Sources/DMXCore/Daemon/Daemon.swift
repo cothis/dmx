@@ -12,6 +12,7 @@ public final class Daemon {
     /// How long a daemon whose VM is stopped waits for clients before exiting. launchd delays
     /// relaunching a job that ran for less than 10 s, so exiting sooner would slow the next command.
     static let linger: Duration = .seconds(10)
+    static let bootStopGrace: Duration = .seconds(30)
 
     private let paths: Paths
     private let diagnosticLogs: DaemonLogs
@@ -222,7 +223,7 @@ public final class Daemon {
         let agent = try await runningInTime()
         let session = try await agent.exec(request)
         defer { session.connection.close() }
-        try client.send(DaemonReply(id: id, result: ExecStarted(pid: session.pid)))
+        try client.send(DaemonReply(id: id, result: ExecStarted(pid: session.pid, stdinWindow: session.connection.stdinWindow)))
         execs += 1
         memory.noteActivity()
         defer { execs -= 1; memory.noteActivity() }
@@ -254,7 +255,7 @@ public final class Daemon {
             guestUsedMb: used, hostFootprintMb: host?.footprintMb, hostPeakFootprintMb: host?.peakFootprintMb,
             clients: others, execs: execs, containers: docker.containers, idleTimeoutS: idleTimeout, idleStopInS: idleStopIn,
             socket: paths.controlSocket.path, consoleLog: paths.consoleLog.path,
-            memory: memory.status(guest: guest), disk: DataDisk.usage(paths.dataDisk), dockerSocket: paths.dockerSocket.path, logWarnings: diagnosticLogs.warnings.isEmpty ? nil : diagnosticLogs.warnings, localNetwork: state == .running ? LocalNetworkAccess.probe() : nil)
+            memory: memory.status(guest: guest), disk: DataDisk.usage(paths.dataDisk), diskError: machine?.diskError, dockerSocket: paths.dockerSocket.path, logWarnings: diagnosticLogs.warnings.isEmpty ? nil : diagnosticLogs.warnings, localNetwork: state == .running ? LocalNetworkAccess.probe() : nil)
     }
 
     // MARK: VM lifecycle
@@ -471,7 +472,16 @@ public final class Daemon {
                 // Downloads are cancellable. Once a VM exists, allow its first disk format
                 // to finish before poweroff rather than leaving a half-formatted data disk.
                 if machine == nil { booting?.cancel() }
-                _ = try? await booting?.value
+                let boot = booting
+                let deadline = Task { [weak self] in
+                    try await Task.sleep(for: Self.bootStopGrace)
+                    guard let self, self.state == .starting else { return }
+                    log("boot did not finish within the 30 s stop grace; powering off")
+                    boot?.cancel()
+                    await self.machine?.stop()
+                }
+                _ = try? await boot?.value
+                deadline.cancel()
             case .running:
                 log("stopping the VM: \(reason)")
                 state = .stopping
@@ -488,15 +498,22 @@ public final class Daemon {
         defer { stopping = nil }
         guard let machine else { state = .stopped; return }
         memory.detach()
-        docker.vmStopped()
         let started = ContinuousClock.now
-        let deadline = Task {
-            try await Task.sleep(for: .seconds(10))
+        var deadline = Task {
+            try await Task.sleep(for: .seconds(13))
             log("guest did not power off within 10 s, stopping it")
             await machine.stop()
         }
-        // Returns at once normally; if the guest hangs, machine.stop() ends the call.
-        try? await agent?.shutdown()
+        docker.vmStopped()
+        // Shutdown has its own connection and a bounded ACK, independent of reclaim/trim.
+        if let agent, (try? await agent.shutdown()) != nil {
+            deadline.cancel()
+            deadline = Task {
+                try await Task.sleep(for: .seconds(10))
+                log("guest did not power off within 10 s of shutdown ACK, stopping it")
+                await machine.stop()
+            }
+        }
         _ = await machine.waitUntilStopped()
         deadline.cancel()
         agent?.close()

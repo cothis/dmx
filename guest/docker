@@ -29,14 +29,18 @@ done
 set -- $(head -c 4096 "$dev" | tr -d '\0')
 [ "$#" -ge 4 ] && [ "$1 $2" = "dmx-docker 3" ] || fail "$dev is not a dmx Docker image of this version; rebuild the guest (make guest)"
 sha=$3 len=$4
-if [ "$(cat "$root/.version" 2>/dev/null)" != "$sha" ]; then
+if [ "$(cat "$root/.version" 2>/dev/null)" != "$sha durable-v1" ]; then
 	echo "dmx-docker: unpacking $sha onto the data disk" >&2
 	rm -rf "$root.new" "$root.old"
 	mkdir -p "$root.new"
 	dd if="$dev" bs=4096 skip=1 2>/dev/null | head -c "$len" | tar -xzf - -C "$root.new"
-	echo "$sha" >"$root.new/.version"
+	# Payload must reach the disk before its completion marker can.
+	sync
+	echo "$sha durable-v1" >"$root.new/.version"
+	sync
 	[ -d "$root" ] && mv "$root" "$root.old"
 	mv "$root.new" "$root"
+	sync
 	rm -rf "$root.old"
 	# What the unpacking left in the page cache (the image and ~150 MB of files) is not needed
 	# again soon; drop it now rather than waiting for the idle trim.

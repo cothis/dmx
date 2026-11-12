@@ -41,6 +41,9 @@ final class UDPRelay: @unchecked Sendable {
     private var sweeper: DispatchSourceTimer?
     private var flows: [Peer: Flow] = [:]
     private var total = 0
+    private let snapshotLock = NSLock()
+    private var snapshot = (active: 0, total: 0)
+    private var closing = false
     /// Reply threads still sending from the socket, which is closed only after the last one.
     private var senders = 0
     private var cancelled = false
@@ -73,11 +76,12 @@ final class UDPRelay: @unchecked Sendable {
     }
 
     /// Peers with an open stream, and peers since the port was bound.
-    var counts: (active: Int, total: Int) { queue.sync { (flows.count, total) } }
+    var counts: (active: Int, total: Int) { snapshotLock.withLock { snapshot } }
 
     /// Stops listening and closes every peer's stream. Needed: the dispatch sources hold the relay until then.
     func close() {
-        queue.sync {
+        guard snapshotLock.withLock({ if closing { return false }; closing = true; return true }) else { return }
+        queue.async { [self] in
             sweeper?.cancel()
             sweeper = nil
             source?.cancel()
@@ -89,6 +93,7 @@ final class UDPRelay: @unchecked Sendable {
     // MARK: On the queue
 
     private func receive() {
+        guard !snapshotLock.withLock({ closing }) else { return }
         var buffer = [UInt8](repeating: 0, count: Self.datagramLimit)
         // A bounded number per event, so one busy port does not starve the others' streams.
         for _ in 0..<64 {
@@ -115,6 +120,7 @@ final class UDPRelay: @unchecked Sendable {
         let flow = Flow(peer: peer, length: length)
         flows[key] = flow
         total += 1
+        snapshotLock.withLock { snapshot = (flows.count, total) }
         let connect = connect, using = using
         Task { @MainActor in
             using(true)
@@ -132,6 +138,7 @@ final class UDPRelay: @unchecked Sendable {
     private func started(_ flow: Flow, _ connection: FrameConnection) {
         guard !flow.ended else { return connection.close() }
         flow.connection = connection
+        _ = fcntl(connection.fd, F_SETFL, fcntl(connection.fd, F_GETFL) | O_NONBLOCK)
         for datagram in flow.pending { send(datagram, on: connection, flow) }
         flow.pending = []
         senders += 1
@@ -140,7 +147,7 @@ final class UDPRelay: @unchecked Sendable {
         thread.start()
     }
 
-    /// Frames one datagram onto the peer's stream. Blocks while the guest's side is full.
+    /// Frames a datagram without waiting for guest progress. A partial frame ends the flow.
     private func send(_ datagram: Data, on connection: FrameConnection, _ flow: Flow) {
         var frame = Data(capacity: 2 + datagram.count)
         frame.append(UInt8(datagram.count >> 8))
@@ -149,8 +156,9 @@ final class UDPRelay: @unchecked Sendable {
         let ok = frame.withUnsafeBytes { buf in
             var offset = 0
             while offset < buf.count {
-                let n = write(connection.fd, buf.baseAddress! + offset, buf.count - offset)
+                let n = Darwin.write(connection.fd, buf.baseAddress! + offset, buf.count - offset)
                 if n < 0 && errno == EINTR { continue }
+                if n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) && offset == 0 { return true } // drop an unsent datagram
                 guard n > 0 else { return false }
                 offset += n
             }
@@ -170,6 +178,7 @@ final class UDPRelay: @unchecked Sendable {
         guard !flow.ended else { return }
         flow.ended = true
         flows = flows.filter { $0.value !== flow }
+        snapshotLock.withLock { snapshot = (flows.count, total) }
         if let connection = flow.connection { shutdown(connection.fd, SHUT_RDWR) }
         let using = using
         Task { @MainActor in using(false) }
@@ -185,6 +194,7 @@ final class UDPRelay: @unchecked Sendable {
             while offset < count {
                 let n = buffer.withUnsafeMutableBytes { read(connection.fd, $0.baseAddress! + offset, count - offset) }
                 if n < 0 && errno == EINTR { continue }
+                if n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) && offset == 0 { return true } // drop an unsent datagram
                 guard n > 0 else { return false }
                 offset += n
             }

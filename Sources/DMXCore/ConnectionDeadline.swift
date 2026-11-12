@@ -43,18 +43,22 @@ func withConnectionDeadline<T: Sendable>(_ duration: Duration?, connection: Fram
             let result = try await operation()
             let expired = deadline.finish()
             try Task.checkCancellation()
-            guard !expired else { throw timeout() }
+            guard !expired else { throw timeout(connection.peer) }
             return result
         } catch {
             let expired = deadline.finish()
             if Task.isCancelled { throw CancellationError() }
-            if expired { throw timeout() }
+            if expired { throw timeout(connection.peer) }
             throw error
         }
     } onCancel: { connection.close() }
 }
 
-private func timeout() -> DMXError {
-    DMXError("daemon_timeout", "the dmx daemon did not complete the request before its deadline",
+private func timeout(_ peer: FrameConnection.Peer) -> DMXError {
+    if peer == .agent {
+        return DMXError("agent_timeout", "the guest agent did not complete the request before its deadline",
+                        hint: "run `dmx status`; `dmx stop` powers off a guest that no longer answers")
+    }
+    return DMXError("daemon_timeout", "the dmx daemon did not complete the request before its deadline",
              hint: "run `dmx status`; inspect the daemon log before retrying `dmx stop`")
 }

@@ -1,0 +1,72 @@
+TLC2 Version 2026.10.28.014557 (rev: 56d37a9)
+Running breadth-first search Model-Checking with fp 18 and seed -8205809613767278644 with 1 worker on 10 cores with 3641MB heap and 64MB offheap memory [pid: 71719] (Mac OS X 26.6.1 aarch64, Homebrew 17.0.20 64bit, MSBDiskFPSet, DiskStateQueue).
+Parsing file /Users/cothis/dev/dockermax/formal/lifecycle-remaining/tla/Spec.tla
+Parsing file /private/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/tlc-17324601490426911503/Naturals.tla (jar:file:/Users/cothis/.cache/proof-skills/tla2tools.jar!/tla2sany/StandardModules/Naturals.tla)
+Parsing file /private/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/tlc-17324601490426911503/Sequences.tla (jar:file:/Users/cothis/.cache/proof-skills/tla2tools.jar!/tla2sany/StandardModules/Sequences.tla)
+Parsing file /Users/cothis/dev/dockermax/formal/lifecycle-remaining/tla/Properties.tla
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module Properties
+Semantic processing of module Spec
+Linting of module Properties
+Linting of module Spec
+Starting... (2026-11-12 13:47:28)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-12 13:47:28.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 1.9E-15
+The coverage statistics at 2026-11-12 13:47:28 (see https://explain.tlapl.us/module-coverage-statistics for how to interpret the following statistics).
+<credit line 4, col 11 to line 4, col 16 of module Spec>: 5
+<rejected line 4, col 42 to line 4, col 49 of module Spec>: 1
+<queued line 4, col 19 to line 4, col 24 of module Spec>: 12
+<sent line 4, col 36 to line 4, col 39 of module Spec>: 8
+<writing line 4, col 27 to line 4, col 33 of module Spec>: 3
+<Init line 11, col 1 to line 11, col 4 of module Spec>: 1:1
+  line 11, col 9 to line 11, col 85 of module Spec: 1
+<Send line 13, col 1 to line 13, col 4 of module Spec (14 9 18 28)>: 43:115
+  line 14, col 13 to line 14, col 24 of module Spec: 278
+  line 14, col 29 to line 14, col 39 of module Spec: 115
+  |line 14, col 29 to line 14, col 29 of module Spec: 278
+  |line 14, col 34 to line 14, col 39 of module Spec: 278
+  line 14, col 45 to line 14, col 57 of module Spec: 115
+  |line 14, col 45 to line 14, col 52 of module Spec: 142
+  line 15, col 12 to line 15, col 80 of module Spec: 115
+  line 16, col 12 to line 16, col 101 of module Spec: 115
+  |line 16, col 25 to line 16, col 100 of module Spec: 115
+  ||line 16, col 25 to line 16, col 32 of module Spec: 115
+  ||line 16, col 38 to line 16, col 99 of module Spec: 115
+  |||line 16, col 41 to line 16, col 50 of module Spec: 115
+  |||line 16, col 79 to line 16, col 99 of module Spec: 115
+  ||||line 16, col 79 to line 16, col 95 of module Spec: 115
+  |||||line 16, col 79 to line 16, col 91 of module Spec: 115
+  ||||||line 10, col 13 to line 10, col 62 of module Spec: 227
+  |||||||line 10, col 16 to line 10, col 25 of module Spec: 227
+  |||||||line 10, col 39 to line 10, col 62 of module Spec: 112
+  ||||||line 16, col 85 to line 16, col 90 of module Spec: 115
+  |||||line 16, col 95 to line 16, col 95 of module Spec: 115
+  line 17, col 12 to line 17, col 38 of module Spec: 115
+  line 18, col 12 to line 18, col 28 of module Spec: 115
+<Take line 20, col 1 to line 20, col 4 of module Spec>: 65:65
+  line 20, col 12 to line 20, col 22 of module Spec: 204
+  |line 20, col 12 to line 20, col 18 of module Spec: 139
+  line 20, col 27 to line 20, col 41 of module Spec: 65
+  |line 20, col 27 to line 20, col 37 of module Spec: 74
+  line 21, col 12 to line 21, col 60 of module Spec: 65
+  line 22, col 12 to line 22, col 45 of module Spec: 65
+<Write line 24, col 1 to line 24, col 5 of module Spec>: 30:65
+  line 24, col 13 to line 24, col 23 of module Spec: 65
+  |line 24, col 13 to line 24, col 19 of module Spec: 139
+  line 24, col 28 to line 24, col 53 of module Spec: 65
+  line 24, col 58 to line 24, col 69 of module Spec: 65
+  line 25, col 13 to line 25, col 46 of module Spec: 65
+<Terminated line 26, col 1 to line 26, col 10 of module Spec>: 0:139
+  line 26, col 15 to line 26, col 28 of module Spec: 139
+<NoLegalInputRejected line 7, col 1 to line 7, col 20 of module Spec>
+  line 7, col 25 to line 7, col 46 of module Spec: 139
+End of statistics.
+385 states generated, 139 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 15.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 3 and the 95th percentile is 3).
+Finished in 00s at (2026-11-12 13:47:28)

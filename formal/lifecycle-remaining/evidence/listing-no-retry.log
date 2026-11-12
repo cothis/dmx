@@ -1,0 +1,156 @@
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite RemainingLifecycleTests started.
+◇ Test failedContainerListingRetriesAndOldEpochStops() started.
+2026-11-12T04:34:57Z dmx-daemon: docker: cannot list containers: listing failed; retrying
+✘ Test failedContainerListingRetriesAndOldEpochStops() recorded an issue at RemainingLifecycleTests.swift:62:9: Expectation failed: calls == 2
+↳ calls == 2 → false
+↳   calls → 1
+✘ Test failedContainerListingRetriesAndOldEpochStops() recorded an issue at RemainingLifecycleTests.swift:63:9: Expectation failed: bridge.containers == 0
+↳ bridge.containers == 0 → false
+↳   bridge.containers → nil
+↳     some → 0
+✘ Test failedContainerListingRetriesAndOldEpochStops() recorded an issue at RemainingLifecycleTests.swift:64:9: Expectation failed: !bridge.busy
+↳ !bridge.busy → true
+↳   bridge.busy → false
+↳     bridge → DMXCore.DockerBridge
+↳       paths → Paths(home: file:///var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-list-95C81BCE-954B-452E-9988-AE5985FAEECA/)
+↳         home → file:///var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-list-95C81BCE-954B-452E-9988-AE5985FAEECA/
+↳           _url → Foundation._SwiftURL
+↳             _parseInfo → Foundation.URLParseInfo
+↳               urlString → "file:///var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-list-95C81BCE-954B-452E-9988-AE5985FAEECA/"
+↳               schemeRange → 0[any] ..< 4[utf8]
+↳                 some → 0[any] ..< 4[utf8]
+↳                   lowerBound → 0[any]
+↳                     _rawBits → 15
+↳                   upperBound → 4[utf8]
+↳                     _rawBits → 262148
+↳               userRange → nil
+↳               passwordRange → nil
+↳               hostRange → 7[utf8] ..< 7[utf8]
+↳                 some → 7[utf8] ..< 7[utf8]
+↳                   lowerBound → 7[utf8]
+↳                     _rawBits → 458756
+↳                   upperBound → 7[utf8]
+↳                     _rawBits → 458756
+↳               portRange → nil
+↳               pathRange → 7[utf8] ..< 102[utf8]
+↳                 some → 7[utf8] ..< 102[utf8]
+↳                   lowerBound → 7[utf8]
+↳                     _rawBits → 458756
+↳                   upperBound → 102[utf8]
+↳                     _rawBits → 6684679
+↳               queryRange → nil
+↳               fragmentRange → nil
+↳               isIPLiteral → false
+↳               didPercentEncodeHost → false
+↳               pathHasFileID → false
+↳               encodedComponents → EncodedComponentSet(rawValue: 0)
+↳                 rawValue → 0
+↳             _baseURL → nil
+↳             _encoding → Unicode (UTF-8)
+↳               rawValue → 4
+↳             _isCanonicalFileURL → true
+↳             _resourceInfo → Foundation._SwiftURL.ResourceInfo
+↳               ref → LockedState<Optional<AnyObject>>(_buffer: Foundation.LockedState<Swift.Optional<Swift.AnyObject>>.(unknown context at $184b3d314)._Buffer)
+↳                 _buffer → Foundation.LockedState<Swift.Optional<Swift.AnyObject>>.(unknown context at $184b3d314)._Buffer
+↳             _nsurlLock → LockedState<Optional<NSURL>>(_buffer: Foundation.LockedState<Swift.Optional<__C.NSURL>>.(unknown context at $184b3d314)._Buffer)
+↳               _buffer → Foundation.LockedState<Swift.Optional<__C.NSURL>>.(unknown context at $184b3d314)._Buffer
+↳       ports → DMXCore.PortForwards
+↳         paths → Paths(home: file:///var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-list-95C81BCE-954B-452E-9988-AE5985FAEECA/)
+↳           home → file:///var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-list-95C81BCE-954B-452E-9988-AE5985FAEECA/
+↳             _url → Foundation._SwiftURL
+↳               _parseInfo → Foundation.URLParseInfo
+↳                 urlString → "file:///var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-list-95C81BCE-954B-452E-9988-AE5985FAEECA/"
+↳                 schemeRange → 0[any] ..< 4[utf8]
+↳                   some → 0[any] ..< 4[utf8]
+↳                     lowerBound → 0[any]
+↳                       _rawBits → 15
+↳                     upperBound → 4[utf8]
+↳                       _rawBits → 262148
+↳                 userRange → nil
+↳                 passwordRange → nil
+↳                 hostRange → 7[utf8] ..< 7[utf8]
+↳                   some → 7[utf8] ..< 7[utf8]
+↳                     lowerBound → 7[utf8]
+↳                       _rawBits → 458756
+↳                     upperBound → 7[utf8]
+↳                       _rawBits → 458756
+↳                 portRange → nil
+↳                 pathRange → 7[utf8] ..< 102[utf8]
+↳                   some → 7[utf8] ..< 102[utf8]
+↳                     lowerBound → 7[utf8]
+↳                       _rawBits → 458756
+↳                     upperBound → 102[utf8]
+↳                       _rawBits → 6684679
+↳                 queryRange → nil
+↳                 fragmentRange → nil
+↳                 isIPLiteral → false
+↳                 didPercentEncodeHost → false
+↳                 pathHasFileID → false
+↳                 encodedComponents → EncodedComponentSet(rawValue: 0)
+↳                   rawValue → 0
+↳               _baseURL → nil
+↳               _encoding → Unicode (UTF-8)
+↳                 rawValue → 4
+↳               _isCanonicalFileURL → true
+↳               _resourceInfo → Foundation._SwiftURL.ResourceInfo
+↳                 ref → LockedState<Optional<AnyObject>>(_buffer: Foundation.LockedState<Swift.Optional<Swift.AnyObject>>.(unknown context at $184b3d314)._Buffer)
+↳                   _buffer → Foundation.LockedState<Swift.Optional<Swift.AnyObject>>.(unknown context at $184b3d314)._Buffer
+↳               _nsurlLock → LockedState<Optional<NSURL>>(_buffer: Foundation.LockedState<Swift.Optional<__C.NSURL>>.(unknown context at $184b3d314)._Buffer)
+↳                 _buffer → Foundation.LockedState<Swift.Optional<__C.NSURL>>.(unknown context at $184b3d314)._Buffer
+↳         listeners → []
+↳         agent → nil
+↳         using → nil
+↳         open → 0
+↳         trim → nil
+↳       source → nil
+↳       ownsSocket → false
+↳       agent → nil
+↳       using → nil
+↳       changed → nil
+↳       clock → nil
+↳       up → false
+↳       starting → nil
+↳       client → nil
+↳       watcher → nil
+↳       events → nil
+↳       syncing → false
+↳       syncAgain → false
+↳       listingUnknown → true
+↳       acceptPaused → false
+↳       epoch → 0
+↳       containers → nil
+↳       used → false
+↳     busy → true
+✘ Test failedContainerListingRetriesAndOldEpochStops() recorded an issue at RemainingLifecycleTests.swift:68:9: Expectation failed: calls == 2
+↳ calls == 2 → false
+↳   calls → 1
+✘ Test failedContainerListingRetriesAndOldEpochStops() failed after 0.551 seconds with 4 issues.
+✘ Suite RemainingLifecycleTests failed after 0.552 seconds with 4 issues.
+✘ Test run with 1 test in 1 suite failed after 0.552 seconds with 4 issues.
+Note: Some test targets reported failures:
+  - DMXCoreTests (Swift Testing)
+Building for debugging...
+[2 / 14] DMXCore
+[5 / 17] DMXCore
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:580:24: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+578 |         func params<P: Decodable>(_: P.Type) throws -> P {
+579 |             do {
+580 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+    |                        `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+581 |             } catch {
+582 |                 throw DMXError("bad_request", "\(method): \(error)")
+
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:581:15: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+579 |             do {
+580 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+581 |             } catch {
+    |               `- warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+582 |                 throw DMXError("bad_request", "\(method): \(error)")
+583 |             }
+
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+[13 / 14] DMXCoreTests-product
+Build complete! (1.59초)

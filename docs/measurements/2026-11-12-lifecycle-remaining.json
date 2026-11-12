@@ -1,0 +1,265 @@
+{
+  "date": "2026-11-12",
+  "baseline": "0ca4214",
+  "fixed": [
+    "G1",
+    "G2",
+    "G3",
+    "G4",
+    "G5",
+    "G6",
+    "G7",
+    "G8",
+    "G9",
+    "L3",
+    "L5",
+    "G11"
+  ],
+  "cleared": [
+    "L6"
+  ],
+  "open": [],
+  "swift_unit_tests": 130,
+  "checks": {
+    "selftest": {
+      "passed": 23,
+      "total": 23
+    },
+    "daemon": {
+      "passed": 63,
+      "total": 63
+    },
+    "mcp": {
+      "passed": 36,
+      "total": 36
+    },
+    "storage": {
+      "passed": 64,
+      "total": 64
+    },
+    "clock": {
+      "passed": 4,
+      "total": 4
+    },
+    "scenarios": {
+      "passed": 19,
+      "total": 19
+    }
+  },
+  "vm": {
+    "hypervisor_tests": 5,
+    "pre_run_exit_latched": true,
+    "stuck_share_exit_code": 70,
+    "stuck_share_exit_s": 0.68,
+    "injected_teardown_deadline_s": 0.5
+  },
+  "mutations": [
+    {
+      "name": "shutdown-shared",
+      "exit_code": 1,
+      "assertion_failed": true
+    },
+    {
+      "name": "listing-no-retry",
+      "exit_code": 1,
+      "assertion_failed": true
+    },
+    {
+      "name": "accept-no-backoff",
+      "exit_code": 1,
+      "assertion_failed": true
+    },
+    {
+      "name": "half-close-no-expiry",
+      "exit_code": 1,
+      "assertion_failed": true
+    },
+    {
+      "name": "udp-blocking-write",
+      "exit_code": 1,
+      "assertion_failed": true
+    }
+  ],
+  "credit_model": {
+    "bounds": "Byte window 4, chunks 1..2, total input at most 8; safety only, no fairness or state constraints.",
+    "checks": [
+      {
+        "config": "MC",
+        "exit_code": 0,
+        "violation": null,
+        "states": 139
+      },
+      {
+        "config": "MC_frames",
+        "exit_code": 12,
+        "violation": "NoLegalInputRejected",
+        "states": 20
+      },
+      {
+        "config": "MC_credit",
+        "exit_code": 12,
+        "violation": "NoLegalInputRejected",
+        "states": 14
+      },
+      {
+        "config": "MC_sanity",
+        "exit_code": 12,
+        "violation": "NeverSends",
+        "states": 2
+      }
+    ],
+    "properties_sha256": "ce31b38090047b563ae90bc22f6820c6657c0ab8e7db8f9c4e54317f81fbf03e"
+  },
+  "memory": {
+    "before_sample_mb": 97,
+    "after_sample_mb": 98,
+    "alternating_selftest": {
+      "samples": [
+        {
+          "round": 0,
+          "kind": "before",
+          "footprint_mb": 97
+        },
+        {
+          "round": 0,
+          "kind": "after",
+          "footprint_mb": 97
+        },
+        {
+          "round": 1,
+          "kind": "after",
+          "footprint_mb": 97
+        },
+        {
+          "round": 1,
+          "kind": "before",
+          "footprint_mb": 95
+        },
+        {
+          "round": 2,
+          "kind": "before",
+          "footprint_mb": 97
+        },
+        {
+          "round": 2,
+          "kind": "after",
+          "footprint_mb": 97
+        },
+        {
+          "round": 3,
+          "kind": "after",
+          "footprint_mb": 97
+        },
+        {
+          "round": 3,
+          "kind": "before",
+          "footprint_mb": 96
+        }
+      ],
+      "median_mb": {
+        "before": 96.5,
+        "after": 97.0
+      }
+    },
+    "daemon_idle_mb": 99,
+    "daemon_stopped_mb": 9
+  },
+  "binary_sha256": "cc9627d4b2509697a911a1eb7fb404f9f1b2dc983f67250d56352b9b54327be4",
+  "guest_sha256": {
+    "Image": "fa487e1461eac6012fb5c43281b815e36cfea99d4f4ce4ed30498811f7650bf3",
+    "initramfs.gz": "5787a8a68892189056de93b617b649053db7229bfc78bb911bd26cdaed29eb62",
+    "docker.img": "b4a642e5e12fde9779958974aba4b83f68c9e26128c8b6261a7c3f2a8a42e7b4"
+  },
+  "restarts": {
+    "binary_sha256": "cc9627d4b2509697a911a1eb7fb404f9f1b2dc983f67250d56352b9b54327be4",
+    "cycles": [
+      {
+        "offset_s": 1.5,
+        "same_process": true,
+        "stop_start_s": 0.162,
+        "reported_mb": 4122,
+        "footprint_mb": 72,
+        "pattern_ok": true
+      },
+      {
+        "offset_s": 2,
+        "same_process": true,
+        "stop_start_s": 0.143,
+        "reported_mb": 3339,
+        "footprint_mb": 73,
+        "pattern_ok": true
+      },
+      {
+        "offset_s": 2.5,
+        "same_process": true,
+        "stop_start_s": 0.156,
+        "reported_mb": 4494,
+        "footprint_mb": 73,
+        "pattern_ok": true
+      },
+      {
+        "offset_s": 3,
+        "same_process": true,
+        "stop_start_s": 0.162,
+        "reported_mb": 4437,
+        "footprint_mb": 74,
+        "pattern_ok": true
+      }
+    ],
+    "ok": true
+  },
+  "bounds": {
+    "stdin_window_bytes": 65536,
+    "stdin_frame_max_bytes": 32768,
+    "enospc_retry_s": 1,
+    "half_close_idle_s": 120,
+    "keepalive": {
+      "idle_s": 60,
+      "interval_s": 10,
+      "probes": 3
+    },
+    "boot_stop_grace_s": 30,
+    "shutdown_ack_s": 2,
+    "poweroff_after_ack_s": 10,
+    "device_teardown_s": 20,
+    "launchd_exit_timeout_s": 75
+  },
+  "limits": [
+    "The natural original unpack corruption was not reproduced; durability ordering and three real crash offsets were checked.",
+    "Blocked share is a real VM with an injected callback stall, not a dead physical SMB/NFS mount.",
+    "No physical LAN disappearance or forced PID number reuse; OS keepalive options and the closed-control gate are tested.",
+    "Finite credit safety only; no liveness or whole-program proof.",
+    "Memory is a short alternating sample, not a claimed memory saving.",
+    "No public release, signing/notarization, or installed-app replacement."
+  ],
+  "source_sha256": {
+    "Sources/DMXCore/Agent.swift": "d61f17d537bd8d18f76cbb88a1b525c9fa51603054b6ee65df1b037fd752c8dd",
+    "Sources/DMXCore/ConnectionDeadline.swift": "0f79ac979441f35dbdb98f496ed9603416654fa00de20180832305da547431be",
+    "Sources/DMXCore/DMXError.swift": "0ade39f8b2e1e89bfe960571597e1972cfc68046abd9a22536d3ab290a7b6616",
+    "Sources/DMXCore/Daemon/Daemon.swift": "b600b43dcdec853c3093ba1edb2562f5e79fa50a7f32523c126441d0e2f38c42",
+    "Sources/DMXCore/Daemon/DaemonChildren.swift": "843f82b954ccc299a3c6014381ab044033f5a3acc5ad5a50749581f73e894770",
+    "Sources/DMXCore/Daemon/DaemonClient.swift": "c9e24ef1bc88e2aed60c1dff0bc10a922eda16f7ad69a1ce6c9a8793eeadcf34",
+    "Sources/DMXCore/Daemon/DaemonProtocol.swift": "2b0af91286d1925a1bb144ba1711e061d66f4999fd11c0c2cce3270a68cee337",
+    "Sources/DMXCore/Daemon/Docker.swift": "d2521c5a75ed5cf34e360898ee0b94e3cac964ac4e1b590ca8b600da0d7641e0",
+    "Sources/DMXCore/Daemon/Launchd.swift": "5b60ff2e8e73278bb1cc457bca9a6f7cc5a8a672b831136e1ef945839e633ed0",
+    "Sources/DMXCore/Daemon/PortForward.swift": "bd483644eb43ca1bedb33d2bc90ae3fc57f914d9403500d901bc57f518b6aabe",
+    "Sources/DMXCore/Daemon/UDPForward.swift": "0f585120dff340f6a93c5d57776529ff6e3f739b8af944f135e703c7d2dc358a",
+    "Sources/DMXCore/HV/FUSEServer.swift": "cc232c6d6d14073c6ce552c4468d5656e6d9bb3d53ecc9c824b08da9026d226b",
+    "Sources/DMXCore/HV/Machine.swift": "21ac01d280f3bc658a05f8c572d3359ecb9b19edbefac926ef07e33a225643d9",
+    "Sources/DMXCore/HV/UserNetTCP.swift": "09dc3314cd222d4953270192e31c2dece5451a4467c78092e43b5387a1258681",
+    "Sources/DMXCore/HV/VCPU.swift": "d870f8adee4fe539f17df7bf4bc2fd2be3ac4ad9b6b40185b74ee6966d09e0f1",
+    "Sources/DMXCore/HV/VirtioBlock.swift": "ba5bd52626a806b43cbbc0bc3441a9c4c4b5fa4aefa622fbd005599283f74eb3",
+    "Sources/dmx/Lifecycle.swift": "85746250cd13b66cfb2613118f5280254ad0bf4e9db11a68c137af5354d76a33",
+    "guest/agent/src/exec.rs": "e724752b669b31dc55599a1383850b305049739ef54aaf83cd1b8aed651053f5",
+    "guest/agent/src/vsock.rs": "8a24389ef220155354322bfdaad37277a25e913a19752807663b0620140cb4c8",
+    "guest/docker": "b07315f07b186b8591d9d3092c3e2cb3e37d2c41f5767755928f4c4396aa1f12",
+    "guest/init": "61a25c224c9c7efcd96c3c32fb0705d30ff318effb0138786e9f204b094d26a1",
+    "scripts/test-lifecycle.py": "b53acdd96a9472ee56a2f809762e7eb8a14b0cf5cd6d89c522606046e7377806",
+    "scripts/test-mcp.py": "f6fe90bbee81a5e07d38cd7c9df6fa21f22acc43fd5fa69423c3c7414999697e",
+    "Sources/DMXCore/HV/TeardownWatchdog.swift": "b2d84a493c6cbafc0fdbbfe13b1003a840241e7900605ff39a3917446c792634",
+    "Tests/DMXCoreTests/RemainingLifecycleTests.swift": "dd6fadaed553f7e9b3dcd5f3f2a17b44e5c903271c144c18fb2d25386bd24d37",
+    "Tests/DMXCoreTests/RemainingLifecycleVMTests.swift": "9a3ac687b68bd3b890d69f8f396297440d9f689e38ac073c474d9240c0fcb5a3",
+    "Tests/DMXCoreTests/UDPBackpressureTests.swift": "43379d0d07d393aa9b239194b49b6ca91406bc39c78bdcc93801be1e09f0fa10",
+    "scripts/test-lifecycle-remaining.py": "8e8332df67c4364ba4f4ca982ac632cb693ed78c73107c7c511aadffeba4785d"
+  }
+}

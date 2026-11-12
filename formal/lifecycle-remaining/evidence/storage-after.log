@@ -1,0 +1,419 @@
+{
+  "ok": true,
+  "checks": [
+    {
+      "name": "foreground_socket",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "real_vm_start",
+      "ok": true,
+      "detail": "{\n  \"clients\" : 0,\n  \"console_log\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/logs/console.log\",\n  \"cpus\" : 2,\n  \"disk\" : {\n    \"allocated_mb\" : 10,\n    \"path\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/data.img\",\n    \"size_mb\" : 65536\n  },\n  \"docker_socket\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/docker.sock\",\n  \"execs\" : 0,\n  \"guest_used_mb\" : 21,\n  \"host_footprint_mb\" : 88,\n  \"host_peak_footprint_mb\" "
+    },
+    {
+      "name": "legacy_stdio_detached",
+      "ok": true,
+      "detail": "['/dev/null', '/dev/null']"
+    },
+    {
+      "name": "old_host_logs_bounded",
+      "ok": true,
+      "detail": "{'daemon.log': [217, 1048576, 1048576], 'console.log': [450, 1048576, 1048576]}"
+    },
+    {
+      "name": "guest_command_4",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "console_flood_tail",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "console_flood_bound",
+      "ok": true,
+      "detail": "[464, 1048576, 1048576]"
+    },
+    {
+      "name": "guest_command_7",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "failed_start_fixture",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "failed_start_returns",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "guest_command_10",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "failed_start_tail_retained",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "guest_command_12",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "docker_command_13",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "retry_before_inherited_pipe_closes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "guest_command_15",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "guest_command_16",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "guest_command_17",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "guest_command_18",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "dockerd_restart_after_crash",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "guest_command_20",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "guest_command_21",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "old_guest_logs_bounded",
+      "ok": true,
+      "detail": "    32520 /var/lib/dmx/log/dockerd.log\n  1048576 /var/lib/dmx/log/dockerd.log.1\n  1048576 /var/lib/dmx/log/dockerd.log.2\n  2129672 total\n"
+    },
+    {
+      "name": "guest_command_23",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "dockerd_flood_tail",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "guest_command_25",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "dockerd_flood_bound",
+      "ok": true,
+      "detail": "    32533 /var/lib/dmx/log/dockerd.log\n  1048576 /var/lib/dmx/log/dockerd.log.1\n  1048576 /var/lib/dmx/log/dockerd.log.2\n  2129685 total\n"
+    },
+    {
+      "name": "docker_command_27",
+      "ok": true,
+      "detail": "Unable to find image 'alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42' locally\ndocker.io/library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42: Pulling from library/alpine\nd3531b7a4f21: Pulling fs layer\nd3531b7a4f21: Download complete\nd3531b7a4f21: Pull complete\nDigest: sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42\nStatus: Downloaded newer image for alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee5075"
+    },
+    {
+      "name": "docker_command_28",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "container_flood_exit",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "docker_command_30",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "container_defaults",
+      "ok": true,
+      "detail": "{'Type': 'json-file', 'Config': {'max-file': '2', 'max-size': '10m'}}"
+    },
+    {
+      "name": "docker_command_32",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "docker_logs_retains_tail",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "docker_command_34",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "guest_command_35",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "container_flood_bound",
+      "ok": true,
+      "detail": "  7538896 /var/lib/docker/containers/7acd09891711ef488a5f474236a0fcf4890662a9149714f5ea75a936e3a86340/7acd09891711ef488a5f474236a0fcf4890662a9149714f5ea75a936e3a86340-json.log\n 10000079 /var/lib/docker/containers/7acd09891711ef488a5f474236a0fcf4890662a9149714f5ea75a936e3a86340/7acd09891711ef488a5f474236a0fcf4890662a9149714f5ea75a936e3a86340-json.log.1\n 17538975 total\n"
+    },
+    {
+      "name": "docker_command_37",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "docker_command_38",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "per_container_override",
+      "ok": true,
+      "detail": "{'Type': 'none', 'Config': {}}"
+    },
+    {
+      "name": "stop",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "old_daemon_exits",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "restart_after_manual_daemon_exit",
+      "ok": true,
+      "detail": "{\n  \"clients\" : 0,\n  \"console_log\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/logs/console.log\",\n  \"cpus\" : 2,\n  \"disk\" : {\n    \"allocated_mb\" : 208,\n    \"path\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/data.img\",\n    \"size_mb\" : 65536\n  },\n  \"docker_socket\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/docker.sock\",\n  \"execs\" : 0,\n  \"guest_used_mb\" : 22,\n  \"host_footprint_mb\" : 73,\n  \"host_peak_footprint_mb\""
+    },
+    {
+      "name": "docker_command_43",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "docker_command_44",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "existing_container_override_preserved",
+      "ok": true,
+      "detail": "{'Type': 'none', 'Config': {}}"
+    },
+    {
+      "name": "guest_rust_rotation_tests",
+      "ok": true,
+      "detail": "\nrunning 6 tests\ntest docker::output_tests::inherited_stderr_cannot_hold_the_log_lock_after_child_exit ... ok\ntest exec::tests::control_after_exit_does_not_signal_another_process ... ok\ntest exec::tests::blocked_stdin_disconnect_reaps_child ... ok\ntest rotating_log::tests::retains_tail_with_fixed_disk_budget ... ok\ntest rotating_log::tests::rotation_error_drops_bytes_then_recovers ... ok\ntest rotating_log::tests::contended_lock_waits_for_previous_owner_with_a_deadline ... ok\n\ntest result: ok. 6 "
+    },
+    {
+      "name": "stopped_before_log_failures",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "unwritable_host_logs_still_boot",
+      "ok": true,
+      "detail": "{\n  \"clients\" : 0,\n  \"console_log\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/logs/console.log\",\n  \"cpus\" : 2,\n  \"disk\" : {\n    \"allocated_mb\" : 208,\n    \"path\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/data.img\",\n    \"size_mb\" : 65536\n  },\n  \"docker_socket\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/docker.sock\",\n  \"execs\" : 0,\n  \"guest_used_mb\" : 20,\n  \"host_footprint_mb\" : 71,\n  \"host_peak_footprint_mb\""
+    },
+    {
+      "name": "unwritable_logs_reported",
+      "ok": true,
+      "detail": "['log_unwritable: cannot write diagnostic log /var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/logs/daemon.log: Permission denied; repair the log directory and free space, then run `dmx stop` followed by `dmx start`', 'log_unwritable: cannot write diagnostic log /var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/logs/console.log: Permission denied; repair the log directory and free space, then run `dmx stop` followed by `dmx start`']"
+    },
+    {
+      "name": "plain_status_reports_log_warning",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "guest_command_51",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "docker_command_52",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "guest_command_53",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "unsafe_guest_log_still_starts_docker",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "passive_client_accepted",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "same_daemon_log_recovery",
+      "ok": true,
+      "detail": "{\n  \"clients\" : 1,\n  \"console_log\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/logs/console.log\",\n  \"cpus\" : 2,\n  \"disk\" : {\n    \"allocated_mb\" : 209,\n    \"path\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/data.img\",\n    \"size_mb\" : 65536\n  },\n  \"docker_socket\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/docker.sock\",\n  \"execs\" : 0,\n  \"guest_used_mb\" : 21,\n  \"host_footprint_mb\" : 75,\n  \"host_peak_footprint_mb\""
+    },
+    {
+      "name": "recovered_console_is_live",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "docker_command_58",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "guest_disabled_sink_warning",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "unavailable_logger_daemon_exits",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "unsafe_host_logs_still_boot",
+      "ok": true,
+      "detail": "{\n  \"clients\" : 0,\n  \"console_log\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/logs/console.log\",\n  \"cpus\" : 2,\n  \"disk\" : {\n    \"allocated_mb\" : 209,\n    \"path\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/data.img\",\n    \"size_mb\" : 65536\n  },\n  \"docker_socket\" : \"/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/docker.sock\",\n  \"execs\" : 0,\n  \"guest_used_mb\" : 22,\n  \"host_footprint_mb\" : 71,\n  \"host_peak_footprint_mb\""
+    },
+    {
+      "name": "unsafe_host_logs_reported",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "unsafe_log_target_unchanged",
+      "ok": true,
+      "detail": ""
+    }
+  ],
+  "metrics": {
+    "guest_test_harness_sha256": "06c7177f2cf75334d48553b5c2faced638d639e357fb27fb6a94f8abadd1e9e2",
+    "idle_before_docker": {
+      "clients": 0,
+      "console_log": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/logs/console.log",
+      "cpus": 2,
+      "disk": {
+        "allocated_mb": 10,
+        "path": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/data.img",
+        "size_mb": 65536
+      },
+      "docker_socket": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/docker.sock",
+      "execs": 0,
+      "guest_used_mb": 21,
+      "host_footprint_mb": 88,
+      "host_peak_footprint_mb": 88,
+      "idle_timeout_s": 300,
+      "launchd": false,
+      "local_network": "allowed",
+      "max_memory": "2.0G",
+      "memory": {
+        "balloon_mb": 0,
+        "balloon_target_mb": 0,
+        "guest_cache_mb": 5,
+        "guest_page_size": 4096,
+        "guest_swap_mb": 0,
+        "host_pressure": "normal",
+        "plug": {
+          "boot_mb": 1024,
+          "plugged_mb": 128,
+          "plugs": 1,
+          "requested_mb": 128,
+          "unplugs": 0
+        },
+        "pressure_simulated": false,
+        "reported_mb": 0,
+        "sweeps": 0,
+        "trims": 0
+      },
+      "pid": 74043,
+      "socket": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/dmx.sock",
+      "state": "running",
+      "uptime_s": 0,
+      "version": "0.4.7"
+    },
+    "containerd_before_crash": "pid=484\npipe:[1220]\n",
+    "containerd_after_crash": "pid=759\npipe:[1918]\n",
+    "container_log_sizes": "  7538896 /var/lib/docker/containers/7acd09891711ef488a5f474236a0fcf4890662a9149714f5ea75a936e3a86340/7acd09891711ef488a5f474236a0fcf4890662a9149714f5ea75a936e3a86340-json.log\n 10000079 /var/lib/docker/containers/7acd09891711ef488a5f474236a0fcf4890662a9149714f5ea75a936e3a86340/7acd09891711ef488a5f474236a0fcf4890662a9149714f5ea75a936e3a86340-json.log.1\n 17538975 total\n",
+    "idle_after_docker": {
+      "clients": 0,
+      "console_log": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/logs/console.log",
+      "containers": 0,
+      "cpus": 2,
+      "disk": {
+        "allocated_mb": 208,
+        "path": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/data.img",
+        "size_mb": 65536
+      },
+      "docker_socket": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/docker.sock",
+      "execs": 0,
+      "guest_used_mb": 63,
+      "host_footprint_mb": 264,
+      "host_peak_footprint_mb": 305,
+      "idle_stop_in_s": 299,
+      "idle_timeout_s": 300,
+      "launchd": false,
+      "local_network": "allowed",
+      "max_memory": "2.0G",
+      "memory": {
+        "balloon_mb": 0,
+        "balloon_target_mb": 0,
+        "guest_cache_mb": 140,
+        "guest_page_size": 4096,
+        "guest_swap_mb": 0,
+        "host_pressure": "normal",
+        "plug": {
+          "boot_mb": 1024,
+          "plugged_mb": 256,
+          "plugs": 2,
+          "requested_mb": 256,
+          "unplugs": 0
+        },
+        "pressure_simulated": false,
+        "reported_mb": 0,
+        "sweeps": 0,
+        "trims": 0
+      },
+      "pid": 74148,
+      "socket": "/var/folders/vm/jyny87zj5zq0hlwn2tg3xrgh0000gn/T/dmx-storage-fvgf7_bd/dmx.sock",
+      "state": "running",
+      "uptime_s": 0.5,
+      "version": "0.4.7"
+    }
+  }
+}

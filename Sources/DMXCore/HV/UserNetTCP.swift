@@ -17,6 +17,7 @@ final class TCPFlow {
     // From the guest
     let irs: UInt32             // the guest's initial sequence number
     var rcvNext: UInt32         // the next byte we expect from the guest
+    var halfClosedAt: ContinuousClock.Instant?
     var guestFinished = false   // its FIN was taken and the socket shut down for writing
 
     // To the guest
@@ -46,6 +47,11 @@ final class TCPFlow {
         sndMax = iss
     }
 
+    /// Actual data/ACK progress renews an idle half-close budget; probes do not.
+    func madeProgress(at now: ContinuousClock.Instant = .now) {
+        if halfClosedAt != nil { halfClosedAt = now }
+    }
+
     /// Bytes in `buffer` not sent yet.
     var unsent: Int { buffer.count - Int(Int32(bitPattern: sndNext &- sndUna)) }
 }
@@ -57,6 +63,7 @@ extension UserNet {
     /// Bytes read from the host and not yet acknowledged by the guest, per connection.
     static let sendLimit = 256 << 10
     static let windowScale: UInt8 = 7
+    static let halfCloseTimeout: Duration = .seconds(120)
 
     /// The largest segment one frame carries: the MTU less the IP and TCP headers.
     static func mss(_ key: FlowKey) -> Int { VirtioNet.mtu - (key.remote.isV4 ? 40 : 60) }
@@ -123,7 +130,7 @@ extension UserNet {
                 let skip = Int(already)
                 if skip < payload.count {
                     let n = write(flow.socket.fd, payload.baseAddress! + skip, payload.count - skip)
-                    if n > 0 { flow.rcvNext &+= UInt32(n) }
+                    if n > 0 { flow.rcvNext &+= UInt32(n); flow.madeProgress() }
                     if n < 0 && errno != EAGAIN && errno != EINTR {
                         send(flow, seq: flow.sndNext, flags: Self.rst | Self.ack)
                         return remove(flow, reset: true)
@@ -132,6 +139,7 @@ extension UserNet {
                 if flags & Self.fin != 0 && flow.rcvNext == seq &+ UInt32(payload.count) {
                     flow.rcvNext &+= 1
                     flow.guestFinished = true
+                    flow.halfClosedAt = .now
                     shutdown(flow.socket.fd, SHUT_WR)
                 }
             }
@@ -199,6 +207,7 @@ extension UserNet {
             flow.sndUna = ack
             if Int32(bitPattern: ack &- flow.sndNext) > 0 { flow.sndNext = ack }
             flow.lastProgress = .now
+            flow.madeProgress()
             flow.retries = 0
             flow.duplicateAcks = 0
         } else if acked == 0 && pure && flow.sndNext != flow.sndUna && window == flow.guestWindow {
@@ -257,9 +266,11 @@ extension UserNet {
         }
         let n = read(flow.socket.fd, &scratch, min(room, scratch.count))
         if n > 0 {
+            flow.madeProgress()
             flow.buffer.append(contentsOf: scratch[0..<n])
         } else if n == 0 {
             flow.finSeq = flow.sndUna &+ UInt32(flow.buffer.count)
+            flow.halfClosedAt = .now
         } else if errno != EAGAIN && errno != EINTR {
             send(flow, seq: flow.sndNext, flags: Self.rst | Self.ack)
             return remove(flow, reset: true)
@@ -317,6 +328,11 @@ extension UserNet {
     /// Sends what the guest has not acknowledged in time again, and probes a closed window.
     func tcpTick(_ now: ContinuousClock.Instant) {
         for flow in Array(tcp.values) {
+            if let at = flow.halfClosedAt, now - at >= Self.halfCloseTimeout {
+                send(flow, seq: flow.sndNext, flags: Self.rst | Self.ack)
+                remove(flow, reset: true)
+                continue
+            }
             let timeout = Duration.milliseconds(250 << min(max(flow.retries, flow.probes), 4))
             guard now - flow.lastProgress > timeout else { continue }
             switch flow.state {

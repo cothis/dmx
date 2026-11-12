@@ -352,6 +352,7 @@ final class PortForwards {
                 return
             }
             _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
+            configureForwardKeepalive(fd)
             var on: Int32 = 1
             _ = setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
             _ = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, socklen_t(MemoryLayout<Int32>.size))
@@ -749,4 +750,13 @@ private final class Splice: @unchecked Sendable {
         finished?.resume()
         finished = nil
     }
+}
+
+/// Dead peers must release VM usage even when no further application traffic is sent.
+func configureForwardKeepalive(_ fd: Int32) {
+    var on: Int32 = 1, idle: Int32 = 60, interval: Int32 = 10, probes: Int32 = 3
+    _ = setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, socklen_t(MemoryLayout<Int32>.size))
+    _ = setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, &idle, socklen_t(MemoryLayout<Int32>.size))
+    _ = setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &interval, socklen_t(MemoryLayout<Int32>.size))
+    _ = setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &probes, socklen_t(MemoryLayout<Int32>.size))
 }

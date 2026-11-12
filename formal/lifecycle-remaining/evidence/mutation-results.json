@@ -1,0 +1,27 @@
+[
+  {
+    "name": "shutdown-shared",
+    "exit_code": 1,
+    "assertion_failed": true
+  },
+  {
+    "name": "listing-no-retry",
+    "exit_code": 1,
+    "assertion_failed": true
+  },
+  {
+    "name": "accept-no-backoff",
+    "exit_code": 1,
+    "assertion_failed": true
+  },
+  {
+    "name": "half-close-no-expiry",
+    "exit_code": 1,
+    "assertion_failed": true
+  },
+  {
+    "name": "udp-blocking-write",
+    "exit_code": 1,
+    "assertion_failed": true
+  }
+]

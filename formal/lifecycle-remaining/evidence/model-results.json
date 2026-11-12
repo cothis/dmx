@@ -1,0 +1,30 @@
+{
+  "bounds": "Byte window 4, chunks 1..2, total input at most 8; safety only, no fairness or state constraints.",
+  "checks": [
+    {
+      "config": "MC",
+      "exit_code": 0,
+      "violation": null,
+      "states": 139
+    },
+    {
+      "config": "MC_frames",
+      "exit_code": 12,
+      "violation": "NoLegalInputRejected",
+      "states": 20
+    },
+    {
+      "config": "MC_credit",
+      "exit_code": 12,
+      "violation": "NoLegalInputRejected",
+      "states": 14
+    },
+    {
+      "config": "MC_sanity",
+      "exit_code": 12,
+      "violation": "NeverSends",
+      "states": 2
+    }
+  ],
+  "properties_sha256": "ce31b38090047b563ae90bc22f6820c6657c0ab8e7db8f9c4e54317f81fbf03e"
+}

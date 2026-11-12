@@ -1,0 +1,6 @@
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite StuckShareLifecycleTests started.
+◇ Test shutdownExitsWhenHostShareCannotReturn() started.
+dmx: shutdown_timeout: host device work did not finish; exiting without freeing live guest RAM. Run `dmx doctor`, then `dmx start`.

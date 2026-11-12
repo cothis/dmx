@@ -49,6 +49,7 @@ public struct DaemonStatus: Codable, Sendable {
     public var memory: MemoryStatus? = nil
     /// The data disk image on the host; nil until the first boot creates it.
     public var disk: DiskUsage? = nil
+    public var diskError: DMXError? = nil
     /// The Docker API socket (`DOCKER_HOST=unix://...`, or the `dmx` docker context).
     public var dockerSocket: String? = nil
 
@@ -94,4 +95,5 @@ struct NoParams: Codable, Sendable {}
 
 struct ExecStarted: Codable, Sendable {
     let pid: Int
+    var stdinWindow: Int? = nil
 }

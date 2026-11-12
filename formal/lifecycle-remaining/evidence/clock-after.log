@@ -1,0 +1,33 @@
+swift build -c release
+Building for production...
+[2 / 3] dmx-product
+[3 / 3] dmx-product
+Build complete! (0.62초)
+codesign --force --sign - --entitlements dmx.entitlements .build/release/dmx
+.build/release/dmx: replacing existing signature
+python3 -I scripts/test-clock.py .build/release/dmx
+{
+  "ok": true,
+  "checks": [
+    {
+      "name": "start",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "step",
+      "ok": true,
+      "detail": "guest -3600 s off before, set after 61 s; log: [\"2026-11-12T04:51:26Z dmx-daemon: clock: periodic; the guest was 3600.0 s behind, set to the host's time\"]"
+    },
+    {
+      "name": "slew",
+      "ok": true,
+      "detail": "{\"moved_ms\": -38.102149963378906, \"worst_back_ms\": 0.0}; host stepped back 0.0 ms"
+    },
+    {
+      "name": "stale",
+      "ok": true,
+      "detail": "{\"worst_back_ms\": 0.0}; host stepped back 0.0 ms; log: [\"2026-11-12T04:51:26Z dmx-daemon: clock: periodic; the guest was 3600.0 s behind, set to the host's time\"]"
+    }
+  ]
+}

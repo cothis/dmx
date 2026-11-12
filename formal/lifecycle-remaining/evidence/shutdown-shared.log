@@ -1,0 +1,76 @@
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite RemainingLifecycleTests started.
+◇ Test shutdownBypassesBusyControl() started.
+✘ Test shutdownBypassesBusyControl() recorded an issue at RemainingLifecycleTests.swift:38:9: Expectation failed: ContinuousClock.now - start < .milliseconds(400)
+↳ ContinuousClock.now - start < .milliseconds(400) → false
+↳   ContinuousClock.now - start → 0.742381042 seconds
+↳     _low → 742381042000000000
+↳     _high → 0
+↳   .milliseconds(400) → 0.4 seconds
+↳     _low → 400000000000000000
+↳     _high → 0
+✘ Test shutdownBypassesBusyControl() failed after 0.746 seconds with 1 issue.
+✘ Suite RemainingLifecycleTests failed after 0.746 seconds with 1 issue.
+✘ Test run with 1 test in 1 suite failed after 0.746 seconds with 1 issue.
+Note: Some test targets reported failures:
+  - DMXCoreTests (Swift Testing)
+Building for debugging...
+[2 / 14] DMXCore
+[4 / 16] DMXCore
+[11 / 23] DMXCore
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:580:24: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+578 |         func params<P: Decodable>(_: P.Type) throws -> P {
+579 |             do {
+580 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+    |                        `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+581 |             } catch {
+582 |                 throw DMXError("bad_request", "\(method): \(error)")
+
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:581:15: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+579 |             do {
+580 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+581 |             } catch {
+    |               `- warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+582 |                 throw DMXError("bad_request", "\(method): \(error)")
+583 |             }
+
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+[18 / 31] DMXCore
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/Daemon.swift:332:34: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+291 |         idleCheck?.cancel()
+292 |         let started = ContinuousClock.now
+293 |         booting = Task {
+    |                        |- note: 'self' implicitly strongly captured here
+    |                        `- note: add 'self' as a capture list item to silence
+294 |             defer { booting = nil }
+295 |             do {
+    :
+330 |                 // macOS refreshes what it knows of the binary then and allows the next one, with no prompt.
+331 |                 if LocalNetworkAccess.probe() == .blocked {
+332 |                     Task { [weak self] in
+    |                                  |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                  `- note: explicitly assign the capture list item to silence
+333 |                         try? await Task.sleep(for: .seconds(3))
+334 |                         guard let self, self.state == .running, LocalNetworkAccess.probe() == .blocked else { return }
+
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/Daemon.swift:421:32: warning: immutable value 'estimate' was never used; consider replacing with '_' or removing it [#NoUsage]
+419 |                         // Waited behind another call: corrected as far as is certain, measured again in 15 s.
+420 |                         clockRetry = .now + GuestClockWatch.retryAfterFailure
+421 |                         if let estimate, abs(off) >= GuestClockWatch.tolerance {
+    |                                `- warning: immutable value 'estimate' was never used; consider replacing with '_' or removing it [#NoUsage]
+422 |                             log("clock: \(reason.description); the guest was at least \(String(format: "%.1f", abs(off))) s \(off < 0 ? "behind" : "ahead") (slow measurement), corrected that far")
+423 |                         }
+
+[#ImplicitStrongCapture]: <https://docs.swift.org/compiler/documentation/diagnostics/implicit-strong-capture>
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+[25 / 32] DMXCoreTests-product
+[27 / 43] dmx-product
+[30 / 43]
+[36 / 44] DMXCoreTests-product
+[38 / 44] DMXCoreTests-product
+[40 / 47] DMXCoreTests-product
+[44 / 48]
+[45 / 48]
+Build complete! (4.15초)

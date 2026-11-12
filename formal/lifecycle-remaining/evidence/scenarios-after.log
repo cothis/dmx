@@ -1,0 +1,184 @@
+{"name": "stalled_stdin_disconnect_returns", "ok": true, "detail": {"seconds": 0.001, "exit_code": -9}}
+{"name": "stalled_stdin_disconnect_reaped", "ok": true, "detail": null}
+{"name": "stalled_stdin_sigint_returns", "ok": true, "detail": {"seconds": 0.002, "exit_code": 130}}
+{"name": "stalled_stdin_sigint_reaped", "ok": true, "detail": null}
+{"name": "credit_stream_sha256", "ok": true, "detail": {"code": 0, "stdout": "e335c7a8cc2abecdd821c10f0b0e705622b8652b47206b2270021c86794e241c  -\n", "stderr": "", "expected": "e335c7a8cc2abecdd821c10f0b0e705622b8652b47206b2270021c86794e241c"}}
+{"name": "lost_spawn_lock_race_retries", "ok": true, "detail": {"seconds": 1.326, "stderr": ""}}
+{"name": "first_boot_daemon_listens", "ok": true, "detail": null}
+{"name": "first_boot_disk_created", "ok": true, "detail": null}
+{"name": "sigterm_during_first_boot_bounded", "ok": true, "detail": {"seconds": 0.282, "exit_code": 0}}
+{"name": "disk_usable_after_first_boot_sigterm", "ok": true, "detail": null}
+{"name": "enospc_is_reported_as_waiting", "ok": true, "detail": {"clients": 1, "console_log": "/private/tmp/dmx-space-5z4nt_px/mnt/dmx-rem-er35_g_h/logs/console.log", "cpus": 2, "disk": {"allocated_mb": 6, "path": "/private/tmp/dmx-space-5z4nt_px/mnt/dmx-rem-er35_g_h/data.img", "size_mb": 1024}, "disk_error": {"code": "disk_full", "hint": "free space on the volume holding data.img, then run `dmx status`; writes retry automatically", "message": "host disk is full; guest writes are waiting for space"}, "docker_socket": "/private/tmp/dmx-space-5z4nt_px/mnt/dmx-rem-er35_g_h/docker.sock", "execs": 1, "guest_used_mb": 21, "host_footprint_mb": 136, "host_peak_footprint_mb": 136, "idle_timeout_s": 300, "launchd": false, "local_network": "allowed", "max_memory": "2.0G", "memory": {"balloon_mb": 0, "balloon_target_mb": 0, "guest_cache_mb": 37, "guest_page_size": 4096, "guest_swap_mb": 0, "host_pressure": "normal", "plug": {"boot_mb": 1024, "plugged_mb": 128, "plugs": 1, "requested_mb": 128, "unplugs": 0}, "pressure_simulated": false, "reported_mb": 0, "sweeps": 0, "trims": 0}, "pid": 73945, "socket": "/private/tmp/dmx-space-5z4nt_px/mnt/dmx-rem-er35_g_h/dmx.sock", "state": "running", "uptime_s": 0.5, "version": "0.4.7"}}
+{"name": "enospc_request_still_pending", "ok": true, "detail": null}
+{"name": "enospc_write_resumes", "ok": true, "detail": ""}
+{"name": "enospc_status_clears", "ok": true, "detail": null}
+{"name": "enospc_does_not_abort_guest_journal", "ok": true, "detail": null}
+{"name": "docker_recovers_after_unpack_crash_0.02", "ok": true, "detail": "26 04:50:33 GMT\r\nContent-Length: 2\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\nOK"}
+{"name": "docker_recovers_after_unpack_crash_0.08", "ok": true, "detail": "26 04:50:35 GMT\r\nContent-Length: 2\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\nOK"}
+{"name": "docker_recovers_after_unpack_crash_0.2", "ok": true, "detail": "26 04:50:36 GMT\r\nContent-Length: 2\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\nOK"}
+{"name": "durable_markers_published", "ok": true, "detail": null}
+{
+  "ok": true,
+  "binary_sha256": "cc9627d4b2509697a911a1eb7fb404f9f1b2dc983f67250d56352b9b54327be4",
+  "checks": [
+    {
+      "name": "stalled_stdin_disconnect_returns",
+      "ok": true,
+      "detail": {
+        "seconds": 0.001,
+        "exit_code": -9
+      }
+    },
+    {
+      "name": "stalled_stdin_disconnect_reaped",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "stalled_stdin_sigint_returns",
+      "ok": true,
+      "detail": {
+        "seconds": 0.002,
+        "exit_code": 130
+      }
+    },
+    {
+      "name": "stalled_stdin_sigint_reaped",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "credit_stream_sha256",
+      "ok": true,
+      "detail": {
+        "code": 0,
+        "stdout": "e335c7a8cc2abecdd821c10f0b0e705622b8652b47206b2270021c86794e241c  -\n",
+        "stderr": "",
+        "expected": "e335c7a8cc2abecdd821c10f0b0e705622b8652b47206b2270021c86794e241c"
+      }
+    },
+    {
+      "name": "lost_spawn_lock_race_retries",
+      "ok": true,
+      "detail": {
+        "seconds": 1.326,
+        "stderr": ""
+      }
+    },
+    {
+      "name": "first_boot_daemon_listens",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "first_boot_disk_created",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "sigterm_during_first_boot_bounded",
+      "ok": true,
+      "detail": {
+        "seconds": 0.282,
+        "exit_code": 0
+      }
+    },
+    {
+      "name": "disk_usable_after_first_boot_sigterm",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "enospc_is_reported_as_waiting",
+      "ok": true,
+      "detail": {
+        "clients": 1,
+        "console_log": "/private/tmp/dmx-space-5z4nt_px/mnt/dmx-rem-er35_g_h/logs/console.log",
+        "cpus": 2,
+        "disk": {
+          "allocated_mb": 6,
+          "path": "/private/tmp/dmx-space-5z4nt_px/mnt/dmx-rem-er35_g_h/data.img",
+          "size_mb": 1024
+        },
+        "disk_error": {
+          "code": "disk_full",
+          "hint": "free space on the volume holding data.img, then run `dmx status`; writes retry automatically",
+          "message": "host disk is full; guest writes are waiting for space"
+        },
+        "docker_socket": "/private/tmp/dmx-space-5z4nt_px/mnt/dmx-rem-er35_g_h/docker.sock",
+        "execs": 1,
+        "guest_used_mb": 21,
+        "host_footprint_mb": 136,
+        "host_peak_footprint_mb": 136,
+        "idle_timeout_s": 300,
+        "launchd": false,
+        "local_network": "allowed",
+        "max_memory": "2.0G",
+        "memory": {
+          "balloon_mb": 0,
+          "balloon_target_mb": 0,
+          "guest_cache_mb": 37,
+          "guest_page_size": 4096,
+          "guest_swap_mb": 0,
+          "host_pressure": "normal",
+          "plug": {
+            "boot_mb": 1024,
+            "plugged_mb": 128,
+            "plugs": 1,
+            "requested_mb": 128,
+            "unplugs": 0
+          },
+          "pressure_simulated": false,
+          "reported_mb": 0,
+          "sweeps": 0,
+          "trims": 0
+        },
+        "pid": 73945,
+        "socket": "/private/tmp/dmx-space-5z4nt_px/mnt/dmx-rem-er35_g_h/dmx.sock",
+        "state": "running",
+        "uptime_s": 0.5,
+        "version": "0.4.7"
+      }
+    },
+    {
+      "name": "enospc_request_still_pending",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "enospc_write_resumes",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "enospc_status_clears",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "enospc_does_not_abort_guest_journal",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "name": "docker_recovers_after_unpack_crash_0.02",
+      "ok": true,
+      "detail": "26 04:50:33 GMT\r\nContent-Length: 2\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\nOK"
+    },
+    {
+      "name": "docker_recovers_after_unpack_crash_0.08",
+      "ok": true,
+      "detail": "26 04:50:35 GMT\r\nContent-Length: 2\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\nOK"
+    },
+    {
+      "name": "docker_recovers_after_unpack_crash_0.2",
+      "ok": true,
+      "detail": "26 04:50:36 GMT\r\nContent-Length: 2\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\nOK"
+    },
+    {
+      "name": "durable_markers_published",
+      "ok": true,
+      "detail": null
+    }
+  ]
+}

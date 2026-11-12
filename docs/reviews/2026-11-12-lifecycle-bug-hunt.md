@@ -13,28 +13,39 @@ controller, guest init/agent, vsock/net/fs/blk devices, port and Docker forwardi
 
 Suggested order: L1, G1, G4, G3, G2, G5, then the rest.
 
-## Repair record (2026-11-12)
+## Final disposition (2026-11-12)
 
-- [x] **L1:** terminal device queue barriers before destroying the VM, weak Machine callbacks,
-  an alive fence under the mapping lock, and a synchronized balloon stats handler.
-- [x] **L2:** partial initialization destroys the HV VM and RAM mapping; start failures halt and
-  join vCPUs and finish teardown before returning an error.
-- [x] **L4:** reject cancelled or detached agent completions throughout tick, trim and sweep.
-- [x] **G10:** initialize the immutable share root wrapper before workers can see it.
-- [ ] **Remaining 13:** G1, G4, G3, G2, G5, G6, L3, G7, G8, G9, L5, G11, L6.
+**All 17 review items are resolved:** 16 repaired, L6 checked and cleared. The original
+read-only findings and line numbers below are retained as the review baseline.
 
-Evidence: the net barrier regression fails on the original code; four independently removed
-code repairs fail their entitled Hypervisor tests (stale release, failed init, failed start,
-late swap completion). All four tests pass restored. The stale release probe makes a real
-successor fail to boot without the alive fence; natural overlap frequency is not measured.
-Selftest 23/23, unit tests 120, daemon 63/63, and four same-process 2 GiB free/stop/start cycles
-pass. Selftest footprint: 98 -> 97 MiB, a single sample each, not evidence of a memory saving.
-Model: 10 reachable states in the repaired bounded safety model; two independent defense
-mutations, old behavior and a reachability sanity invariant fail as required.
+| ID | Resolution and evidence |
+|---|---|
+| L1 | Device barriers and per-Machine HV fence; original net barrier fails, forced stale release cannot replace a successor's RAM. |
+| L2 | Clean partial initialization and failed start before returning; entitled failure/retry probes and independent mutants. |
+| L4 | Reject cancelled/detached controller completions; delayed old swap reply cannot alter the new epoch. |
+| G10 | Eager immutable FUSE root; normal FUSE regression suite. |
+| G1 | Default negotiated 64 KiB byte credit, independent stdin writer, live connection reader; original child leak reproduced, disconnect/SIGINT/MCP timeout reap it; lossless 8 MiB CLI and 1 MiB MCP input. Legacy framing keeps backpressure with an independent hangup observer. |
+| G9 | Observe exit with waitid(WNOWAIT), then close the control gate and reap under its mutex; the reader owns an Arc PTY fd. Rust late-control test cannot signal a live stand-in for a reused pid. Actual PID reuse is not forced. |
+| G4 | Shutdown and clock calls use fresh connections and a 2 s ACK deadline; poweroff gets 10 s after ACK. Busy-control fake and shared-connection mutant distinguish the fix. Agent deadlines report agent_timeout. |
+| G3 | Nonblocking relay stream, bounded datagram drop/partial-frame close, poll-based reply reader, asynchronous close and locked status snapshot; unread guest test and blocking-stream mutant distinguish it. MSG_DONTWAIT alone did not stop Unix writes blocking on this Mac. |
+| G2 | Keep RAM owned during pending callbacks; after a 20 s teardown deadline exit the process with shutdown_timeout instead of freeing live RAM. A real VM with a blocked share callback exits 70 under an injected 0.5 s deadline. No real dead SMB mount was induced. |
+| G5 | Sync staged payload, then marker, then published tree; durable-v1 markers re-unpack old trees once. Three real unpack crash offsets recover Docker. Original delayed-allocation corruption was not reproduced, so this is a durability-contract repair with bounded crash validation. |
+| G6 | Hold ENOSPC writes/flushes, publish disk_error.code=disk_full and retry once per second; stop cancels waiters. A full 256 MiB APFS image makes the original guest abort its journal/remount read-only; the fixed guest resumes writes after space returns without I/O errors. |
+| L3 | Stop during startup allows 30 s then cancels boot and powers off; launchd ExitTimeOut=75 covers grace, shutdown and device teardown. First-boot SIGTERM returns and the disk boots again. The worst-case 30 s grace is code-bounded, not exhaustively timed here. |
+| G7 | Failed or malformed listings keep counts unknown/busy and retry with bounded backoff until the epoch changes; one-failure and old-epoch probes plus no-retry mutant. |
+| G8 | Two-minute idle expiry only for half-closed NAT flows, renewed by real data/ACK progress; accepted forwards use 60 s/10 s/3-probe TCP keepalive. Fake-clock expiry/active-flow tests and IPv4/IPv6 getsockopt readback pass; no vanished physical LAN client was induced. |
+| L5 | Respawn after the owned helper exits; original loses a one-second lock race and fails after 15 s, fixed client retries. |
+| G11 | Suspend Docker accept for 100 ms on EMFILE/ENFILE, balancing resume after cancellation; real readiness source with injected EMFILE and no-backoff mutant. |
+| L6 | Local SDK promises pre-run cancellation is latched; real hv_vcpu_run returns CANCELED before its 200 ms rescue. Added created/destroyed-ID fencing. The suspected latch bug is cleared. |
 
-[Measurements](../measurements/2026-11-12-lifecycle.json),
-[reproduction and rerun commands](../../formal/vm-device-lifetime/README.md).
-The detailed sections below preserve the original findings, line numbers and proposed checks.
+[Initial repair measurements](../measurements/2026-11-12-lifecycle.json),
+[remaining repair measurements](../measurements/2026-11-12-lifecycle-remaining.json),
+[rerun commands and limits](../../formal/lifecycle-remaining/README.md).
+Validation: Swift 130; entitled VM 5 plus the expected exit-70 stall probe; selftest 23/23; daemon 63/63; mcp 36/36; storage 64/64; clock 4/4; scenarios 19/19.
+Four 2 GiB same-process restart cycles pass. Four-round alternating memory medians: 96.5 -> 97.0 MiB;
+these short samples do not establish a memory saving. Daemon idle/stopped: 99/9 MiB.
+No public release or installed-app replacement is part of this source repair.
+
 
 | ID | What | Severity | Confidence |
 |---|---|---|---|

@@ -9,8 +9,9 @@ use std::io::{Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::{mpsc, Arc, Condvar, Mutex};
+use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
 #[derive(Deserialize)]
@@ -25,6 +26,8 @@ pub struct Params {
     /// Without a tty, whether the host sends stdin; otherwise stdin is /dev/null.
     #[serde(default)]
     pub stdin: bool,
+    #[serde(default)]
+    pub flow_control: bool,
     #[serde(default = "rows")]
     pub rows: u16,
     #[serde(default = "cols")]
@@ -48,6 +51,38 @@ struct Control {
 /// After the process exits, output still arriving is forwarded until the streams have been
 /// quiet this long; background children that keep a stream open do not block `exit` forever.
 const DRAIN_QUIET: Duration = Duration::from_millis(500);
+
+/// A byte limit, not a frame limit: terminal input may arrive one byte per frame.
+struct InputQueue {
+    state: Mutex<(VecDeque<u8>, bool)>,
+    ready: Condvar,
+    limit: usize,
+    legacy: bool,
+}
+impl InputQueue {
+    fn new(limit: usize, legacy: bool) -> Self { Self { state: Mutex::new((VecDeque::new(), false)), ready: Condvar::new(), limit, legacy } }
+    fn push(&self, data: &[u8]) -> bool {
+        let mut s = self.state.lock().unwrap();
+        while !s.1 && s.0.len()+data.len()>self.limit {
+            if !self.legacy { return false; }
+            s = self.ready.wait(s).unwrap();
+        }
+        if s.1 { return false; }
+        if data.is_empty() { s.1 = true; } else { s.0.extend(data); }
+        self.ready.notify_one();
+        true
+    }
+    fn end(&self) { let mut s = self.state.lock().unwrap(); s.1 = true; self.ready.notify_one(); }
+    fn take(&self) -> Option<Vec<u8>> {
+        let mut s = self.state.lock().unwrap();
+        while s.0.is_empty() && !s.1 { s = self.ready.wait(s).unwrap(); }
+        if s.0.is_empty() { return None; }
+        let n = s.0.len().min(32768);
+        let data = s.0.drain(..n).collect();
+        self.ready.notify_all();
+        Some(data)
+    }
+}
 
 pub fn run(id: u64, p: Params, mut conn: Stream, out: Arc<Mutex<Stream>>) {
     if p.argv.is_empty() {
@@ -126,7 +161,9 @@ pub fn run(id: u64, p: Params, mut conn: Stream, out: Arc<Mutex<Stream>>) {
         outputs.push((frame::STDERR, Box::new(s)));
     }
     let pid = child.id() as libc::pid_t;
-    crate::reply_ok(&out, id, serde_json::json!({ "pid": pid }));
+    let alive = Arc::new(Mutex::new(true));
+    let master = master.map(Arc::new);
+    crate::reply_ok(&out, id, serde_json::json!({ "pid": pid, "stdin_window": if p.flow_control { Some(65536) } else { None } }));
 
     let started = Instant::now();
     let last_output = Arc::new(AtomicU64::new(0));
@@ -153,32 +190,79 @@ pub fn run(id: u64, p: Params, mut conn: Stream, out: Arc<Mutex<Stream>>) {
         });
     }
 
-    let exited = Arc::new(AtomicBool::new(false));
-    {
-        let exited = exited.clone();
-        let master_fd = master.as_ref().map(|m| m.as_raw_fd());
-        std::thread::spawn(move || {
-            while let Ok(Some(f)) = frame::read(&mut conn) {
-                match f.kind {
-                    frame::STDIN if f.payload.is_empty() => stdin = None,
-                    frame::STDIN => {
-                        if let Some(w) = stdin.as_mut() {
-                            let _ = w.write_all(&f.payload);
-                        }
-                    }
-                    frame::JSON => control(&f.payload, pid, master_fd),
-                    _ => {}
+    // The reader never writes child stdin. Credit bounds queued bytes, leaving control live.
+    let input = Arc::new(InputQueue::new(if p.flow_control { 65536 } else { frame::MAX_FRAME }, !p.flow_control));
+    // Old hosts do not honor byte credit. Preserve their backpressure, but observe the
+    // connection hangup separately even when their reader is waiting for queue space.
+    if !p.flow_control {
+        if let Ok(watch) = conn.try_clone() {
+            let alive = alive.clone();
+            let input = input.clone();
+            std::thread::spawn(move || loop {
+                if !*alive.lock().unwrap() { break; }
+                let mut fd = libc::pollfd { fd: watch.as_raw_fd(), events: libc::POLLRDHUP, revents: 0 };
+                let n = unsafe { libc::poll(&mut fd, 1, 100) };
+                if n > 0 && fd.revents & (libc::POLLRDHUP | libc::POLLHUP | libc::POLLERR) != 0 {
+                    let live = alive.lock().unwrap();
+                    if *live { unsafe { libc::kill(-pid, libc::SIGKILL); } }
+                    input.end();
+                    watch.shutdown();
+                    break;
                 }
-            }
-            // The host went away: nobody will read the output, so stop the process group.
-            if !exited.load(Ordering::SeqCst) {
-                unsafe { libc::kill(-pid, libc::SIGKILL) };
+            });
+        }
+    }
+    {
+        let input = input.clone();
+        let out = out.clone();
+        std::thread::spawn(move || {
+            while let Some(data) = input.take() {
+                if let Some(w) = stdin.as_mut() {
+                    if w.write_all(&data).is_err() { stdin = None; }
+                }
+                if p.flow_control {
+                    let event = serde_json::json!({"event":"stdin_credit", "bytes":data.len()});
+                    if frame::write(&mut *out.lock().unwrap(), frame::JSON, event.to_string().as_bytes()).is_err() { break; }
+                }
             }
         });
     }
+    {
+        let alive = alive.clone();
+        let master = master.clone();
+        let input = input.clone();
+        std::thread::spawn(move || {
+            while let Ok(Some(f)) = frame::read(&mut conn) {
+                match f.kind {
+                    frame::STDIN => {
+                        // A peer that ignores the negotiated window must not pin the reader.
+                        if (p.flow_control && f.payload.len() > 32768) || !input.push(&f.payload) { break; }
+                    }
+                    frame::JSON => {
+                        control_if_live(&f.payload, pid, master.as_ref().map(|m| m.as_raw_fd()), &alive);
+                    }
+                    _ => {}
+                }
+            }
+            input.end();
+            // Keep the unreaped PID reserved while signalling its process group.
+            let live = alive.lock().unwrap();
+            if *live { unsafe { libc::kill(-pid, libc::SIGKILL); } }
+        });
+    }
 
-    let status = child.wait();
-    exited.store(true, Ordering::SeqCst);
+    // Observe exit without reaping: the reader can signal until this point without PID reuse.
+    let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
+    unsafe {
+        while libc::waitid(libc::P_PID, pid as libc::id_t, &mut info, libc::WEXITED | libc::WNOWAIT) < 0 {
+            if std::io::Error::last_os_error().kind() != std::io::ErrorKind::Interrupted { break; }
+        }
+    }
+    let status = {
+        let mut live = alive.lock().unwrap();
+        *live = false;
+        child.wait()
+    };
     let mut finished = 0;
     while finished < pumps {
         match done_rx.recv_timeout(Duration::from_millis(50)) {
@@ -214,6 +298,11 @@ pub fn default_signals() {
     }
 }
 
+fn control_if_live(payload: &[u8], pid: libc::pid_t, master: Option<libc::c_int>, alive: &Mutex<bool>) {
+    let live = alive.lock().unwrap();
+    if *live { control(payload, pid, master); }
+}
+
 fn control(payload: &[u8], pid: libc::pid_t, master: Option<libc::c_int>) {
     let Ok(c) = serde_json::from_slice::<Control>(payload) else { return };
     let num = |k: &str| c.params.get(k).and_then(|v| v.as_u64());
@@ -247,4 +336,41 @@ fn openpty(rows: u16, cols: u16) -> std::io::Result<(OwnedFd, OwnedFd)> {
         unsafe { libc::fcntl(fd, libc::F_SETFD, libc::FD_CLOEXEC) };
     }
     Ok(unsafe { (OwnedFd::from_raw_fd(m), OwnedFd::from_raw_fd(s)) })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::net::UnixStream;
+
+    #[test]
+    fn blocked_stdin_disconnect_reaps_child() {
+        let (agent, mut host) = UnixStream::pair().unwrap();
+        let conn = Stream::from_fd(agent.into());
+        let out = Arc::new(Mutex::new(conn.try_clone().unwrap()));
+        let params: Params = serde_json::from_value(serde_json::json!({"argv":["sleep","30"],"stdin":true,"flow_control":true})).unwrap();
+        let thread = std::thread::spawn(move || run(1, params, conn, out));
+        let started = frame::read(&mut host).unwrap().unwrap();
+        let pid = serde_json::from_slice::<serde_json::Value>(&started.payload).unwrap()["result"]["pid"].as_i64().unwrap() as libc::pid_t;
+        for _ in 0..2 { frame::write(&mut host, frame::STDIN, &vec![1;32768]).unwrap(); }
+        std::thread::sleep(Duration::from_millis(100));
+        drop(host);
+        let deadline = Instant::now()+Duration::from_secs(1);
+        while Instant::now()<deadline && unsafe { libc::kill(pid,0) } == 0 { std::thread::sleep(Duration::from_millis(10)); }
+        let gone = unsafe { libc::kill(pid,0) } < 0;
+        if !gone { unsafe { libc::kill(-pid,libc::SIGKILL); } }
+        thread.join().unwrap();
+        assert!(gone,"disconnect must kill/reap a child even while its stdin writer is blocked");
+    }
+
+    #[test]
+    fn control_after_exit_does_not_signal_another_process() {
+        let mut child = Command::new("sleep").arg("30").spawn().unwrap();
+        let payload = br#"{"method":"signal","params":{"signal":9}}"#;
+        control_if_live(payload,child.id() as libc::pid_t,None,&Mutex::new(false));
+        std::thread::sleep(Duration::from_millis(20));
+        let alive = child.try_wait().unwrap().is_none();
+        let _ = child.kill(); let _ = child.wait();
+        assert!(alive,"a late control must not signal a reused pid");
+    }
 }

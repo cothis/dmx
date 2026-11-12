@@ -16,6 +16,10 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Maintainer preferences
 
+- 2026-11-12: A requested review work list includes its remaining findings. Do not end after a
+  self-selected repair batch when the remaining scope is already authorized; finish the list,
+  validating or clearing suspected findings, and report any actual blocker explicitly.
+
 - 2026-11-06: The maintainer posted dmx 0.4.7 to GeekNews as Show GN (https://news.hada.io/topic?id=36695), from the
   account cothis1030, after reviewing a draft and pressing submit themselves. GeekNews allows one Show GN per project for
   a period, so do not post dmx there again. Hacker News (same account name) still restricts Show HN for new accounts.
@@ -78,6 +82,13 @@ This repo is public: no private hostnames, IPs or personal details here.
   plan/progress/measurements in the same work, verify on a real VM, commit, push.
 
 ## Lessons
+
+- 2026-11-12: On this Mac a blocking Unix stream remained blocked with `send(MSG_DONTWAIT)`;
+  set `O_NONBLOCK` on the UDP relay stream and poll EAGAIN in its reply reader. Check that
+  close actually drains flows, not just that an asynchronous close method returns.
+- 2026-11-12: There is no `dmx quit` CLI. Isolated test cleanup must send the control-socket
+  `quit` RPC and wait for daemon.lock to be released before deleting a fixture or detaching
+  its volume. A CLI parser error is not successful teardown.
 
 - 2026-11-12: A Hypervisor test needs the entitlement on the executable loading the test bundle.
   Signing an xctest bundle alone leaves SwiftPM's loader unentitled. Use the repository's

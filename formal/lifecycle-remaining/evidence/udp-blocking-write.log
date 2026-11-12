@@ -1,0 +1,34 @@
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite UDPBackpressureTests started.
+◇ Test unreadGuestCannotBlockCountsOrClose() started.
+✘ Test unreadGuestCannotBlockCountsOrClose() recorded an issue at UDPBackpressureTests.swift:59:9: Expectation failed: closed
+↳ closed → <not evaluated>
+✘ Test unreadGuestCannotBlockCountsOrClose() failed after 0.461 seconds with 1 issue.
+✘ Suite UDPBackpressureTests failed after 0.461 seconds with 1 issue.
+✘ Test run with 1 test in 1 suite failed after 0.462 seconds with 1 issue.
+Note: Some test targets reported failures:
+  - DMXCoreTests (Swift Testing)
+Building for debugging...
+[2 / 14] DMXCore
+[5 / 17] DMXCore
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:580:24: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+578 |         func params<P: Decodable>(_: P.Type) throws -> P {
+579 |             do {
+580 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+    |                        `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+581 |             } catch {
+582 |                 throw DMXError("bad_request", "\(method): \(error)")
+
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:581:15: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+579 |             do {
+580 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+581 |             } catch {
+    |               `- warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+582 |                 throw DMXError("bad_request", "\(method): \(error)")
+583 |             }
+
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+[13 / 14] dmx-product
+Build complete! (1.57초)

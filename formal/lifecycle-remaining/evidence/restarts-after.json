@@ -1,0 +1,38 @@
+{
+  "binary_sha256": "cc9627d4b2509697a911a1eb7fb404f9f1b2dc983f67250d56352b9b54327be4",
+  "cycles": [
+    {
+      "offset_s": 1.5,
+      "same_process": true,
+      "stop_start_s": 0.162,
+      "reported_mb": 4122,
+      "footprint_mb": 72,
+      "pattern_ok": true
+    },
+    {
+      "offset_s": 2,
+      "same_process": true,
+      "stop_start_s": 0.143,
+      "reported_mb": 3339,
+      "footprint_mb": 73,
+      "pattern_ok": true
+    },
+    {
+      "offset_s": 2.5,
+      "same_process": true,
+      "stop_start_s": 0.156,
+      "reported_mb": 4494,
+      "footprint_mb": 73,
+      "pattern_ok": true
+    },
+    {
+      "offset_s": 3,
+      "same_process": true,
+      "stop_start_s": 0.162,
+      "reported_mb": 4437,
+      "footprint_mb": 74,
+      "pattern_ok": true
+    }
+  ],
+  "ok": true
+}

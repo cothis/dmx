@@ -22,7 +22,7 @@ public final class DaemonClient: Sendable {
     public static func connect(paths: Paths, start: Bool, executable: String? = nil,
                                requestTimeout: Duration? = nil) async throws -> DaemonClient? {
         let deadline = ContinuousClock.now + .seconds(15)
-        var spawned = false
+        var spawned: Int32?
         var lastError: DMXError?
         while ContinuousClock.now < deadline {
             try Task.checkCancellation()
@@ -39,10 +39,8 @@ public final class DaemonClient: Sendable {
                 return DaemonClient(paths: paths, control: connection, hello: hello, requestTimeout: requestTimeout)
             } catch let error as DMXError where error.code == "daemon_unreachable" {
                 guard start else { return nil }
-                if !spawned {
-                    try spawnDaemon(paths, executable: executable)
-                    spawned = true
-                }
+                if let pid = spawned, !DaemonChildren.shared.contains(pid) { spawned = nil }
+                if spawned == nil { spawned = try spawnDaemon(paths, executable: executable) }
                 lastError = error
             } catch let error as DMXError where error.code == "daemon_disconnected" {
                 lastError = error
@@ -138,7 +136,7 @@ public final class DaemonClient: Sendable {
 
 /// Starts `dmx daemon` detached from this process, logging to `~/.dmx/logs/daemon.log`.
 /// Two clients may both start one; the second finds the lock taken and exits.
-private func spawnDaemon(_ paths: Paths, executable: String?) throws {
+private func spawnDaemon(_ paths: Paths, executable: String?) throws -> Int32 {
     try FileManager.default.createDirectory(at: paths.logs, withIntermediateDirectories: true)
     let executable = try executable ?? currentExecutable()
     var actions: posix_spawn_file_actions_t?
@@ -166,6 +164,7 @@ private func spawnDaemon(_ paths: Paths, executable: String?) throws {
         throw DMXError("daemon_error", "cannot start \(executable) daemon: \(String(cString: strerror(result)))")
     }
     DaemonChildren.shared.register(pid)
+    return pid
 }
 
 /// The absolute path of the running dmx binary.

@@ -1,7 +1,7 @@
 # dmx-agent protocol (version 1)
 
 `dmx-agent` runs in the guest, started and restarted by `/init`. The host reaches it through the
-VM's virtio socket device: `VZVirtioSocketDevice.connect(toPort: 1024)`. Host code lives in
+VM's virtio socket device on port 1024. Host code lives in
 `Sources/DMXCore/Agent.swift`, guest code in `guest/agent`.
 
 ## Frames
@@ -54,7 +54,17 @@ The host turns them into `DMXError` codes prefixed with `agent_`.
 
 Params: `argv` (required), `env` (list of `KEY=VALUE` added to the agent's environment), `cwd`,
 `tty` (default false), `stdin` (without a tty: whether the host will send stdin; otherwise
-/dev/null), `rows` and `cols` (tty size, default 24x80).
+/dev/null), `rows` and `cols` (tty size, default 24x80), and optional `flow_control`.
+
+Current hosts request `flow_control: true`. The start reply then includes `stdin_window: 65536`.
+The host consumes that many bytes of credit, sending stdin in frames of at most 32768 bytes,
+then waits for `{"event":"stdin_credit","bytes":N}` before sending those bytes again. Credit
+is returned after writing to child stdin; the input queue is bounded by bytes, so one-byte tty
+frames obey the same window. Output iteration consumes credit events internally. Signal,
+resize and empty stdin (EOF) frames do not consume byte credit. The daemon passes the negotiated
+window and subsequent credit frames unchanged. A stalled child cannot block the connection
+reader or its disconnect kill. Missing negotiation preserves legacy backpressure, with a
+separate socket hangup observer. Older guests omit the window; new hosts retain legacy framing.
 
 After the `ok` reply the connection belongs to the process:
 
@@ -77,6 +87,8 @@ a new one per exec (`AgentClient` does this). A control call unanswered after 60
 `agent_timeout`; the host then shuts that connection down (ending the calls queued on it) and
 opens another, so an agent thread that died or hung mid-call (a guest kernel oops did this once)
 does not leave every later call waiting. `dmx status` waits at most 2 s for guest memory.
+Shutdown and clock operations use independent connections with a 2 s reply deadline, so a
+reclaim cannot queue in front of poweroff or a Docker process's clock synchronization.
 
 ## connect
 

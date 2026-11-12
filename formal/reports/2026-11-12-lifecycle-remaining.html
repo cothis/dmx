@@ -1,0 +1,268 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Lifecycle review completed</title><style>body{max-width:1000px;margin:48px auto;padding:0 24px;background:#f4f6f8;color:#17202a;font:17px/1.6 system-ui}h1,h2{line-height:1.2}pre{background:white;padding:20px;overflow:auto}svg{width:100%;height:auto}.pass{color:#176239}</style><h1>All lifecycle findings resolved</h1><p>2026-11-12 · Remaining 12 defects repaired · L6 cleared · Total review: 16 repairs, one non-bug.</p><p class="pass">selftest 23/23; daemon 63/63; mcp 36/36; storage 64/64; clock 4/4; scenarios 19/19 · Swift 130 · five entitled VM tests plus expected exit-70 stall probe.</p><svg viewBox="0 0 940 115" role="img" aria-label="Host byte credit preserves the exec reader while stdin is stalled"><g fill="white" stroke="#9baabc"><rect x="5" y="10" width="270" height="85" rx="8"/><rect x="330" y="10" width="280" height="85" rx="8"/><rect x="665" y="10" width="270" height="85" rx="8"/></g><g text-anchor="middle" font-size="17" fill="#17202a"><text x="140" y="45">Host: 64 KiB byte credit</text><text x="140" y="72">controls bypass credit wait</text><text x="470" y="45">Agent connection reader</text><text x="470" y="72">signal / resize / disconnect</text><text x="800" y="45">Bounded input + writer</text><text x="800" y="72">child stdin may stall</text></g><path d="M275 52h55m280 0h55" stroke="#176239" stroke-width="3"/></svg><h2>Observed failures and repairs</h2><ul><li>Original G1 leaves its stalled child alive after disconnect. Byte credit and independent input writing preserve controls; lossless input and timeout/reaping tests pass. Late controls cannot signal after the reap gate closes; the PTY remains owned.</li><li>Original L5 loses the spawn lock race and fails after 15 seconds. Owned-helper exit triggers another spawn.</li><li>Original G6 returns guest EIO on a full isolated APFS image, aborts ext4 and remounts read-only. The candidate holds requests, reports disk_full, and resumes without journal errors after space returns.</li><li>A deliberately blocked share holds a real vCPU; the teardown watchdog ends the isolated process with exit 70. Production deadline is 20 seconds. Boot stop is bounded and launchd allows the complete grace period.</li><li>Independent shutdown/clock connections, UDP nonblocking relay, EMFILE backoff, listing retries and idle half-close expiry pass code probes. Active data/ACK progress renews the half-close idle budget.</li><li>Staged unpack is synced before durable-v1 markers; three forced crash offsets recover. The SDK and real HV test clear L6's pre-run latch concern.</li></ul><h2>Formal scope and sensitivity</h2><p>The credit model explores 139 states: window 4, chunks 1..2, total input 8. Replacing byte admission with three frame slots rejects a legal fragmented stream; removing host credit independently overflows the queue. The sanity property also fails. No fairness, state constraint, liveness or whole-program claim. Five independent code mutants fail property assertions, and restored code passes.</p><h2>Evidence boundaries</h2><p>The original natural unpack corruption, a dead physical network mount, forced PID-number reuse and a vanished physical LAN client were not induced. Evidence is durable ordering plus three crashes, a real VM with an injected blocking callback, late-control gating and OS keepalive option readback. A 30-second startup grace is code-bounded, not an exhaustive timing proof. Trust base: local Swift/Rust compilers, pinned guest inputs, Hypervisor.framework, filesystem/OS contracts, TLC and manual code/model correspondence. No release or installed-app replacement.</p><h2>Run again</h2><pre>make build &amp;&amp; make guest &amp;&amp; make selftest
+make test &amp;&amp; make daemontest &amp;&amp; make mcptest &amp;&amp; make storagetest &amp;&amp; make clocktest
+make remaininglifecycletest
+python3 formal/lifecycle-remaining/check-mutations.py</pre><p>The mutation script temporarily edits its named sources, restores each in finally, and requires an exclusively owned checkout. No Artifact publishing tool was available; this is the standalone local report.</p><h2>Measurements and hashes</h2><pre>{
+  &quot;date&quot;: &quot;2026-11-12&quot;,
+  &quot;baseline&quot;: &quot;0ca4214&quot;,
+  &quot;fixed&quot;: [
+    &quot;G1&quot;,
+    &quot;G2&quot;,
+    &quot;G3&quot;,
+    &quot;G4&quot;,
+    &quot;G5&quot;,
+    &quot;G6&quot;,
+    &quot;G7&quot;,
+    &quot;G8&quot;,
+    &quot;G9&quot;,
+    &quot;L3&quot;,
+    &quot;L5&quot;,
+    &quot;G11&quot;
+  ],
+  &quot;cleared&quot;: [
+    &quot;L6&quot;
+  ],
+  &quot;open&quot;: [],
+  &quot;swift_unit_tests&quot;: 130,
+  &quot;checks&quot;: {
+    &quot;selftest&quot;: {
+      &quot;passed&quot;: 23,
+      &quot;total&quot;: 23
+    },
+    &quot;daemon&quot;: {
+      &quot;passed&quot;: 63,
+      &quot;total&quot;: 63
+    },
+    &quot;mcp&quot;: {
+      &quot;passed&quot;: 36,
+      &quot;total&quot;: 36
+    },
+    &quot;storage&quot;: {
+      &quot;passed&quot;: 64,
+      &quot;total&quot;: 64
+    },
+    &quot;clock&quot;: {
+      &quot;passed&quot;: 4,
+      &quot;total&quot;: 4
+    },
+    &quot;scenarios&quot;: {
+      &quot;passed&quot;: 19,
+      &quot;total&quot;: 19
+    }
+  },
+  &quot;vm&quot;: {
+    &quot;hypervisor_tests&quot;: 5,
+    &quot;pre_run_exit_latched&quot;: true,
+    &quot;stuck_share_exit_code&quot;: 70,
+    &quot;stuck_share_exit_s&quot;: 0.68,
+    &quot;injected_teardown_deadline_s&quot;: 0.5
+  },
+  &quot;mutations&quot;: [
+    {
+      &quot;name&quot;: &quot;shutdown-shared&quot;,
+      &quot;exit_code&quot;: 1,
+      &quot;assertion_failed&quot;: true
+    },
+    {
+      &quot;name&quot;: &quot;listing-no-retry&quot;,
+      &quot;exit_code&quot;: 1,
+      &quot;assertion_failed&quot;: true
+    },
+    {
+      &quot;name&quot;: &quot;accept-no-backoff&quot;,
+      &quot;exit_code&quot;: 1,
+      &quot;assertion_failed&quot;: true
+    },
+    {
+      &quot;name&quot;: &quot;half-close-no-expiry&quot;,
+      &quot;exit_code&quot;: 1,
+      &quot;assertion_failed&quot;: true
+    },
+    {
+      &quot;name&quot;: &quot;udp-blocking-write&quot;,
+      &quot;exit_code&quot;: 1,
+      &quot;assertion_failed&quot;: true
+    }
+  ],
+  &quot;credit_model&quot;: {
+    &quot;bounds&quot;: &quot;Byte window 4, chunks 1..2, total input at most 8; safety only, no fairness or state constraints.&quot;,
+    &quot;checks&quot;: [
+      {
+        &quot;config&quot;: &quot;MC&quot;,
+        &quot;exit_code&quot;: 0,
+        &quot;violation&quot;: null,
+        &quot;states&quot;: 139
+      },
+      {
+        &quot;config&quot;: &quot;MC_frames&quot;,
+        &quot;exit_code&quot;: 12,
+        &quot;violation&quot;: &quot;NoLegalInputRejected&quot;,
+        &quot;states&quot;: 20
+      },
+      {
+        &quot;config&quot;: &quot;MC_credit&quot;,
+        &quot;exit_code&quot;: 12,
+        &quot;violation&quot;: &quot;NoLegalInputRejected&quot;,
+        &quot;states&quot;: 14
+      },
+      {
+        &quot;config&quot;: &quot;MC_sanity&quot;,
+        &quot;exit_code&quot;: 12,
+        &quot;violation&quot;: &quot;NeverSends&quot;,
+        &quot;states&quot;: 2
+      }
+    ],
+    &quot;properties_sha256&quot;: &quot;ce31b38090047b563ae90bc22f6820c6657c0ab8e7db8f9c4e54317f81fbf03e&quot;
+  },
+  &quot;memory&quot;: {
+    &quot;before_sample_mb&quot;: 97,
+    &quot;after_sample_mb&quot;: 98,
+    &quot;alternating_selftest&quot;: {
+      &quot;samples&quot;: [
+        {
+          &quot;round&quot;: 0,
+          &quot;kind&quot;: &quot;before&quot;,
+          &quot;footprint_mb&quot;: 97
+        },
+        {
+          &quot;round&quot;: 0,
+          &quot;kind&quot;: &quot;after&quot;,
+          &quot;footprint_mb&quot;: 97
+        },
+        {
+          &quot;round&quot;: 1,
+          &quot;kind&quot;: &quot;after&quot;,
+          &quot;footprint_mb&quot;: 97
+        },
+        {
+          &quot;round&quot;: 1,
+          &quot;kind&quot;: &quot;before&quot;,
+          &quot;footprint_mb&quot;: 95
+        },
+        {
+          &quot;round&quot;: 2,
+          &quot;kind&quot;: &quot;before&quot;,
+          &quot;footprint_mb&quot;: 97
+        },
+        {
+          &quot;round&quot;: 2,
+          &quot;kind&quot;: &quot;after&quot;,
+          &quot;footprint_mb&quot;: 97
+        },
+        {
+          &quot;round&quot;: 3,
+          &quot;kind&quot;: &quot;after&quot;,
+          &quot;footprint_mb&quot;: 97
+        },
+        {
+          &quot;round&quot;: 3,
+          &quot;kind&quot;: &quot;before&quot;,
+          &quot;footprint_mb&quot;: 96
+        }
+      ],
+      &quot;median_mb&quot;: {
+        &quot;before&quot;: 96.5,
+        &quot;after&quot;: 97.0
+      }
+    },
+    &quot;daemon_idle_mb&quot;: 99,
+    &quot;daemon_stopped_mb&quot;: 9
+  },
+  &quot;binary_sha256&quot;: &quot;cc9627d4b2509697a911a1eb7fb404f9f1b2dc983f67250d56352b9b54327be4&quot;,
+  &quot;guest_sha256&quot;: {
+    &quot;Image&quot;: &quot;fa487e1461eac6012fb5c43281b815e36cfea99d4f4ce4ed30498811f7650bf3&quot;,
+    &quot;initramfs.gz&quot;: &quot;5787a8a68892189056de93b617b649053db7229bfc78bb911bd26cdaed29eb62&quot;,
+    &quot;docker.img&quot;: &quot;b4a642e5e12fde9779958974aba4b83f68c9e26128c8b6261a7c3f2a8a42e7b4&quot;
+  },
+  &quot;restarts&quot;: {
+    &quot;binary_sha256&quot;: &quot;cc9627d4b2509697a911a1eb7fb404f9f1b2dc983f67250d56352b9b54327be4&quot;,
+    &quot;cycles&quot;: [
+      {
+        &quot;offset_s&quot;: 1.5,
+        &quot;same_process&quot;: true,
+        &quot;stop_start_s&quot;: 0.162,
+        &quot;reported_mb&quot;: 4122,
+        &quot;footprint_mb&quot;: 72,
+        &quot;pattern_ok&quot;: true
+      },
+      {
+        &quot;offset_s&quot;: 2,
+        &quot;same_process&quot;: true,
+        &quot;stop_start_s&quot;: 0.143,
+        &quot;reported_mb&quot;: 3339,
+        &quot;footprint_mb&quot;: 73,
+        &quot;pattern_ok&quot;: true
+      },
+      {
+        &quot;offset_s&quot;: 2.5,
+        &quot;same_process&quot;: true,
+        &quot;stop_start_s&quot;: 0.156,
+        &quot;reported_mb&quot;: 4494,
+        &quot;footprint_mb&quot;: 73,
+        &quot;pattern_ok&quot;: true
+      },
+      {
+        &quot;offset_s&quot;: 3,
+        &quot;same_process&quot;: true,
+        &quot;stop_start_s&quot;: 0.162,
+        &quot;reported_mb&quot;: 4437,
+        &quot;footprint_mb&quot;: 74,
+        &quot;pattern_ok&quot;: true
+      }
+    ],
+    &quot;ok&quot;: true
+  },
+  &quot;bounds&quot;: {
+    &quot;stdin_window_bytes&quot;: 65536,
+    &quot;stdin_frame_max_bytes&quot;: 32768,
+    &quot;enospc_retry_s&quot;: 1,
+    &quot;half_close_idle_s&quot;: 120,
+    &quot;keepalive&quot;: {
+      &quot;idle_s&quot;: 60,
+      &quot;interval_s&quot;: 10,
+      &quot;probes&quot;: 3
+    },
+    &quot;boot_stop_grace_s&quot;: 30,
+    &quot;shutdown_ack_s&quot;: 2,
+    &quot;poweroff_after_ack_s&quot;: 10,
+    &quot;device_teardown_s&quot;: 20,
+    &quot;launchd_exit_timeout_s&quot;: 75
+  },
+  &quot;limits&quot;: [
+    &quot;The natural original unpack corruption was not reproduced; durability ordering and three real crash offsets were checked.&quot;,
+    &quot;Blocked share is a real VM with an injected callback stall, not a dead physical SMB/NFS mount.&quot;,
+    &quot;No physical LAN disappearance or forced PID number reuse; OS keepalive options and the closed-control gate are tested.&quot;,
+    &quot;Finite credit safety only; no liveness or whole-program proof.&quot;,
+    &quot;Memory is a short alternating sample, not a claimed memory saving.&quot;,
+    &quot;No public release, signing/notarization, or installed-app replacement.&quot;
+  ],
+  &quot;source_sha256&quot;: {
+    &quot;Sources/DMXCore/Agent.swift&quot;: &quot;d61f17d537bd8d18f76cbb88a1b525c9fa51603054b6ee65df1b037fd752c8dd&quot;,
+    &quot;Sources/DMXCore/ConnectionDeadline.swift&quot;: &quot;0f79ac979441f35dbdb98f496ed9603416654fa00de20180832305da547431be&quot;,
+    &quot;Sources/DMXCore/DMXError.swift&quot;: &quot;0ade39f8b2e1e89bfe960571597e1972cfc68046abd9a22536d3ab290a7b6616&quot;,
+    &quot;Sources/DMXCore/Daemon/Daemon.swift&quot;: &quot;b600b43dcdec853c3093ba1edb2562f5e79fa50a7f32523c126441d0e2f38c42&quot;,
+    &quot;Sources/DMXCore/Daemon/DaemonChildren.swift&quot;: &quot;843f82b954ccc299a3c6014381ab044033f5a3acc5ad5a50749581f73e894770&quot;,
+    &quot;Sources/DMXCore/Daemon/DaemonClient.swift&quot;: &quot;c9e24ef1bc88e2aed60c1dff0bc10a922eda16f7ad69a1ce6c9a8793eeadcf34&quot;,
+    &quot;Sources/DMXCore/Daemon/DaemonProtocol.swift&quot;: &quot;2b0af91286d1925a1bb144ba1711e061d66f4999fd11c0c2cce3270a68cee337&quot;,
+    &quot;Sources/DMXCore/Daemon/Docker.swift&quot;: &quot;d2521c5a75ed5cf34e360898ee0b94e3cac964ac4e1b590ca8b600da0d7641e0&quot;,
+    &quot;Sources/DMXCore/Daemon/Launchd.swift&quot;: &quot;5b60ff2e8e73278bb1cc457bca9a6f7cc5a8a672b831136e1ef945839e633ed0&quot;,
+    &quot;Sources/DMXCore/Daemon/PortForward.swift&quot;: &quot;bd483644eb43ca1bedb33d2bc90ae3fc57f914d9403500d901bc57f518b6aabe&quot;,
+    &quot;Sources/DMXCore/Daemon/UDPForward.swift&quot;: &quot;0f585120dff340f6a93c5d57776529ff6e3f739b8af944f135e703c7d2dc358a&quot;,
+    &quot;Sources/DMXCore/HV/FUSEServer.swift&quot;: &quot;cc232c6d6d14073c6ce552c4468d5656e6d9bb3d53ecc9c824b08da9026d226b&quot;,
+    &quot;Sources/DMXCore/HV/Machine.swift&quot;: &quot;21ac01d280f3bc658a05f8c572d3359ecb9b19edbefac926ef07e33a225643d9&quot;,
+    &quot;Sources/DMXCore/HV/UserNetTCP.swift&quot;: &quot;09dc3314cd222d4953270192e31c2dece5451a4467c78092e43b5387a1258681&quot;,
+    &quot;Sources/DMXCore/HV/VCPU.swift&quot;: &quot;d870f8adee4fe539f17df7bf4bc2fd2be3ac4ad9b6b40185b74ee6966d09e0f1&quot;,
+    &quot;Sources/DMXCore/HV/VirtioBlock.swift&quot;: &quot;ba5bd52626a806b43cbbc0bc3441a9c4c4b5fa4aefa622fbd005599283f74eb3&quot;,
+    &quot;Sources/dmx/Lifecycle.swift&quot;: &quot;85746250cd13b66cfb2613118f5280254ad0bf4e9db11a68c137af5354d76a33&quot;,
+    &quot;guest/agent/src/exec.rs&quot;: &quot;e724752b669b31dc55599a1383850b305049739ef54aaf83cd1b8aed651053f5&quot;,
+    &quot;guest/agent/src/vsock.rs&quot;: &quot;8a24389ef220155354322bfdaad37277a25e913a19752807663b0620140cb4c8&quot;,
+    &quot;guest/docker&quot;: &quot;b07315f07b186b8591d9d3092c3e2cb3e37d2c41f5767755928f4c4396aa1f12&quot;,
+    &quot;guest/init&quot;: &quot;61a25c224c9c7efcd96c3c32fb0705d30ff318effb0138786e9f204b094d26a1&quot;,
+    &quot;scripts/test-lifecycle.py&quot;: &quot;b53acdd96a9472ee56a2f809762e7eb8a14b0cf5cd6d89c522606046e7377806&quot;,
+    &quot;scripts/test-mcp.py&quot;: &quot;f6fe90bbee81a5e07d38cd7c9df6fa21f22acc43fd5fa69423c3c7414999697e&quot;,
+    &quot;Sources/DMXCore/HV/TeardownWatchdog.swift&quot;: &quot;b2d84a493c6cbafc0fdbbfe13b1003a840241e7900605ff39a3917446c792634&quot;,
+    &quot;Tests/DMXCoreTests/RemainingLifecycleTests.swift&quot;: &quot;dd6fadaed553f7e9b3dcd5f3f2a17b44e5c903271c144c18fb2d25386bd24d37&quot;,
+    &quot;Tests/DMXCoreTests/RemainingLifecycleVMTests.swift&quot;: &quot;9a3ac687b68bd3b890d69f8f396297440d9f689e38ac073c474d9240c0fcb5a3&quot;,
+    &quot;Tests/DMXCoreTests/UDPBackpressureTests.swift&quot;: &quot;43379d0d07d393aa9b239194b49b6ca91406bc39c78bdcc93801be1e09f0fa10&quot;,
+    &quot;scripts/test-lifecycle-remaining.py&quot;: &quot;8e8332df67c4364ba4f4ca982ac632cb693ed78c73107c7c511aadffeba4785d&quot;
+  }
+}</pre></html>

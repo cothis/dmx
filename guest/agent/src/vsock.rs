@@ -46,6 +46,8 @@ impl Listener {
 pub struct Stream(OwnedFd);
 
 impl Stream {
+    #[cfg(test)]
+    pub fn from_fd(fd: OwnedFd) -> Self { Self(fd) }
     /// Connects to `port` on the host (a host service, see host_services.rs).
     pub fn connect_host(port: u32) -> io::Result<Self> {
         unsafe {
@@ -112,4 +114,8 @@ impl Write for &Stream {
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }
+}
+
+impl AsRawFd for Stream {
+    fn as_raw_fd(&self) -> libc::c_int { self.0.as_raw_fd() }
 }

@@ -1,0 +1,234 @@
+swift build -c release
+Building for production...
+[2 / 3] DMXCore
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/Daemon.swift:332:34: warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+291 |         idleCheck?.cancel()
+292 |         let started = ContinuousClock.now
+293 |         booting = Task {
+    |                        |- note: 'self' implicitly strongly captured here
+    |                        `- note: add 'self' as a capture list item to silence
+294 |             defer { booting = nil }
+295 |             do {
+    :
+330 |                 // macOS refreshes what it knows of the binary then and allows the next one, with no prompt.
+331 |                 if LocalNetworkAccess.probe() == .blocked {
+332 |                     Task { [weak self] in
+    |                                  |- warning: 'weak' ownership of capture 'self' differs from implicitly-captured strong reference in outer scope [#ImplicitStrongCapture]
+    |                                  `- note: explicitly assign the capture list item to silence
+333 |                         try? await Task.sleep(for: .seconds(3))
+334 |                         guard let self, self.state == .running, LocalNetworkAccess.probe() == .blocked else { return }
+
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/Daemon.swift:421:32: warning: immutable value 'estimate' was never used; consider replacing with '_' or removing it [#NoUsage]
+419 |                         // Waited behind another call: corrected as far as is certain, measured again in 15 s.
+420 |                         clockRetry = .now + GuestClockWatch.retryAfterFailure
+421 |                         if let estimate, abs(off) >= GuestClockWatch.tolerance {
+    |                                `- warning: immutable value 'estimate' was never used; consider replacing with '_' or removing it [#NoUsage]
+422 |                             log("clock: \(reason.description); the guest was at least \(String(format: "%.1f", abs(off))) s \(off < 0 ? "behind" : "ahead") (slow measurement), corrected that far")
+423 |                         }
+
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/DaemonClient.swift:179:33: warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+177 |     }
+178 |     // Bundle.main can name dmx-menu when this helper lives inside dmx.app.
+179 |     return URL(fileURLWithPath: String(cString: path)).resolvingSymlinksInPath().path
+    |                                 `- warning: 'init(cString:)' is deprecated: Use String(decoding: array, as: UTF8.self) instead, after truncating the null termination. [#DeprecatedDeclaration]
+180 | }
+181 |
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+[#ImplicitStrongCapture]: <https://docs.swift.org/compiler/documentation/diagnostics/implicit-strong-capture>
+[#NoUsage]: <https://docs.swift.org/compiler/documentation/diagnostics/no-usage>
+[3 / 4] DMXCore
+[8 / 8] dmx-menu-product
+[9 / 9] dmx-product
+[10 / 10] dmx-product
+[12 / 12] dmx-menu-product
+Build complete! (20.24초)
+codesign --force --sign - --entitlements dmx.entitlements .build/release/dmx
+.build/release/dmx: replacing existing signature
+.build/release/dmx boot --selftest --json
+{
+  "agent" : {
+    "agent" : "dmx-agent",
+    "kernel" : "6.18.58-dmx-4k",
+    "protocol" : 1,
+    "version" : "0.1.0"
+  },
+  "boot_ms" : 362,
+  "checks" : [
+    {
+      "detail" : "uname -a exited 0",
+      "name" : "exec",
+      "ok" : true
+    },
+    {
+      "detail" : "cat echoed \"ping\\n\"",
+      "name" : "exec_stdin",
+      "ok" : true
+    },
+    {
+      "detail" : "exit 3, stdout \"out\\n\", stderr \"err\\n\"",
+      "name" : "exec_streams",
+      "ok" : true
+    },
+    {
+      "detail" : "tty printed \"/dev/pts/0\"",
+      "name" : "exec_tty",
+      "ok" : true
+    },
+    {
+      "detail" : "rejected with an error",
+      "name" : "exec_missing",
+      "ok" : true
+    },
+    {
+      "detail" : "bound",
+      "name" : "driver.virtio_console",
+      "ok" : true
+    },
+    {
+      "detail" : "bound",
+      "name" : "driver.virtio_rng",
+      "ok" : true
+    },
+    {
+      "detail" : "bound",
+      "name" : "driver.virtio_balloon",
+      "ok" : true
+    },
+    {
+      "detail" : "bound",
+      "name" : "driver.vmw_vsock_virtio_transport",
+      "ok" : true
+    },
+    {
+      "detail" : "bound",
+      "name" : "driver.virtio_net",
+      "ok" : true
+    },
+    {
+      "detail" : "bound",
+      "name" : "driver.virtio_blk",
+      "ok" : true
+    },
+    {
+      "detail" : "bound",
+      "name" : "driver.virtio_mem",
+      "ok" : true
+    },
+    {
+      "detail" : "cpu 9 off and on, online \"0-9\"",
+      "name" : "cpu_hotplug",
+      "ok" : true
+    },
+    {
+      "detail" : "available 1.2G -> 1.2G",
+      "name" : "drop_caches",
+      "ok" : true
+    },
+    {
+      "detail" : "pid 73524, 98 MB (peak 98 MB)",
+      "name" : "host_footprint",
+      "ok" : true
+    },
+    {
+      "detail" : "1 GB touched and freed: 1124 MB -> 104 MB in 217 ms, 23 reports",
+      "name" : "reclaim",
+      "ok" : true
+    },
+    {
+      "detail" : "ping 192.168.127.1: exit 0",
+      "name" : "net_icmp",
+      "ok" : true
+    },
+    {
+      "detail" : "4 MB over HTTP from the host's 127.0.0.1: \"3ce5fdf904fcf1137e7cf604e1ad749c00b407fe4344f9a459c562ec987a6cff  -\\n\"",
+      "name" : "net_tcp",
+      "ok" : true
+    },
+    {
+      "detail" : "ping fd64:646d:7800::1: exit 0",
+      "name" : "net_icmp6",
+      "ok" : true
+    },
+    {
+      "detail" : "4 MB over HTTP from the host's ::1: \"3ce5fdf904fcf1137e7cf604e1ad749c00b407fe4344f9a459c562ec987a6cff  -\\n\"",
+      "name" : "net_tcp6",
+      "ok" : true
+    },
+    {
+      "detail" : "/dev/vda /var/lib ext4 rw,relatime,discard,no_prefetch_block_bitmaps 0 0",
+      "name" : "disk_mount",
+      "ok" : true
+    },
+    {
+      "detail" : "128 MB written and deleted: host file 10 -> 138 -> 11 MB in 0 ms",
+      "name" : "disk_discard",
+      "ok" : true
+    },
+    {
+      "detail" : "static x86_64 ELF: exit 0, \"x86_64 ok\\n\"",
+      "name" : "x86_64",
+      "ok" : true
+    }
+  ],
+  "clock_offset_ms" : -1794459022726.865,
+  "cpus" : 10,
+  "disk" : {
+    "allocated_after_delete_mb" : 11,
+    "allocated_after_write_mb" : 138,
+    "allocated_before_mb" : 10,
+    "mount" : "/dev/vda /var/lib ext4 rw,relatime,discard,no_prefetch_block_bitmaps 0 0",
+    "returned_ms" : 0,
+    "write_ms" : 369
+  },
+  "guest_used_mb" : 36,
+  "host" : {
+    "footprint_mb" : 98,
+    "peak_footprint_mb" : 98,
+    "pid" : 73524
+  },
+  "max_memory" : "8.0G",
+  "memory_plug" : {
+    "boot_mb" : 1024,
+    "plugged_mb" : 256,
+    "plugs" : 2,
+    "requested_mb" : 256,
+    "unplugs" : 0
+  },
+  "ok" : true,
+  "problems" : [
+
+  ],
+  "reclaim" : {
+    "after_free_mb" : 1124,
+    "after_reclaim_mb" : 104,
+    "idle_mb" : 98,
+    "reported_mb" : 2654,
+    "reports" : 23,
+    "returned_ms" : 217
+  },
+  "shutdown_ms" : 43,
+  "stats" : {
+    "cgroups" : [
+
+    ],
+    "load" : [
+      0,
+      0,
+      0
+    ],
+    "memory" : {
+      "available" : 1250889728,
+      "balloon" : 0,
+      "buffers" : 77824,
+      "cached" : 3260416,
+      "free" : 1265668096,
+      "shmem" : 3244032,
+      "swap_free" : 0,
+      "swap_total" : 0,
+      "total" : 1304039424
+    },
+    "uptime_s" : 0.35
+  },
+  "uname" : "Linux dmx 6.18.58-dmx-4k #1 SMP PREEMPT_DYNAMIC 2026-01-01 aarch64 Linux"
+}

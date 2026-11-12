@@ -1,0 +1,12 @@
+build-current-core: passed
+compile-isolated: passed
+read: passed
+write: passed
+midframe: passed
+compile-poll-gate: passed
+gated-midframe: passed
+compile-review: passed
+equal-archive: passed
+compile-rpc-fault: passed
+compile-interposer: passed
+rpc-real-emfile: passed

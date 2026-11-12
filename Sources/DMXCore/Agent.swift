@@ -77,6 +77,8 @@ public struct ExecRequest: Codable, Sendable {
     public var stdin = false
     public var rows = 24
     public var cols = 80
+    /// Bound stdin independently of signals and resize frames.
+    public var flowControl = true
 
     public init(argv: [String]) { self.argv = argv }
 
@@ -90,6 +92,7 @@ public struct ExecRequest: Codable, Sendable {
         stdin = try c.decodeIfPresent(Bool.self, forKey: .stdin) ?? false
         rows = try c.decodeIfPresent(Int.self, forKey: .rows) ?? 24
         cols = try c.decodeIfPresent(Int.self, forKey: .cols) ?? 80
+        flowControl = try c.decodeIfPresent(Bool.self, forKey: .flowControl) ?? false
     }
 }
 
@@ -127,6 +130,32 @@ public final class FrameConnection: @unchecked Sendable {
     private let queue = DispatchQueue(label: "dmx.frame.connection")
     private let writeLock = NSLock()
     private var nextID: UInt64 = 1
+    private let input = NSCondition()
+    private var inputCredit: Int?
+    private var inputEnded = false
+    var stdinWindow: Int? { input.withLock { inputCredit } }
+
+    private func finishInput() {
+        input.lock()
+        inputEnded = true
+        input.broadcast()
+        input.unlock()
+    }
+
+    func writeStdin(_ data: Data) throws {
+        var offset = 0
+        while offset < data.count {
+            input.lock()
+            while !inputEnded, inputCredit == 0 { input.wait() }
+            let ended = inputEnded
+            let count = min(data.count - offset, min(inputCredit ?? (32 << 10), 32 << 10))
+            if inputCredit != nil { inputCredit! -= count }
+            input.unlock()
+            guard !ended else { throw DMXError("agent_disconnected", "exec stdin is closed") }
+            try writeFrame(.stdin, data.subdata(in: (data.startIndex + offset)..<(data.startIndex + offset + count)))
+            offset += count
+        }
+    }
 
     /// A connection on any stream socket; `close` releases it.
     init(fd: Int32, peer: Peer = .agent,
@@ -158,6 +187,7 @@ public final class FrameConnection: @unchecked Sendable {
         defer { closeLock.unlock() }
         guard !closed else { return }
         closed = true
+        finishInput()
         // Wake I/O on the frame's duplicate too; closing one descriptor alone cannot do that.
         Darwin.shutdown(fd, SHUT_RDWR)
         closeConnection()
@@ -222,9 +252,12 @@ public final class FrameConnection: @unchecked Sendable {
     /// Starts a process in the guest. This connection belongs to the session from now on.
     public func exec(_ request: ExecRequest) async throws -> ExecSession {
         let reply = try await self.reply("exec", request)
-        struct Started: Decodable { let pid: Int }
+        struct Started: Decodable { let pid: Int; let stdinWindow: Int? }
         guard let started = try? Self.decoder.decode(Reply<Started>.self, from: reply).result else {
             throw DMXError("\(peer)_protocol", "exec: unexpected reply")
+        }
+        if let window = started.stdinWindow, window > 0, window <= 64 << 10 {
+            input.withLock { inputCredit = window }
         }
         return ExecSession(connection: self, pid: started.pid)
     }
@@ -239,8 +272,19 @@ public final class FrameConnection: @unchecked Sendable {
                 case .stdout: return .stdout(Data(payload))
                 case .stderr: return .stderr(Data(payload))
                 case .json:
+                    struct Credit: Decodable { let event: String; let bytes: Int }
+                    if let credit = try? Self.decoder.decode(Credit.self, from: payload), credit.event == "stdin_credit" {
+                        self.input.lock()
+                        if let available = self.inputCredit, credit.bytes > 0, credit.bytes <= 64 << 10 {
+                            self.inputCredit = min(64 << 10, available + credit.bytes)
+                            self.input.broadcast()
+                        }
+                        self.input.unlock()
+                        continue
+                    }
                     if let exit = try? Self.decoder.decode(ExecExit.self, from: payload),
                        (try? Self.decoder.decode(Envelope.self, from: payload))?.event == "exit" {
+                        self.finishInput()
                         return .exit(exit)
                     }
                 case .stdin: break
@@ -506,13 +550,11 @@ public final class AgentClient: @unchecked Sendable {
         return result.trimmed
     }
 
-    /// Sets the guest clock to the host clock and returns how far off it was, in nanoseconds
-    /// (guest minus host). The host time is taken before the call, which can wait behind other
-    /// control calls, so this is for boot, when nothing else is asking; later use `measureClock`.
+    /// Sets the guest clock on an independent connection; cache reclaim cannot delay it.
     @discardableResult
     public func syncTime() async throws -> Int64 {
         struct Params: Encodable { let unixNs: Int64 }
-        let result: TimeSyncReply = try await call("time_sync", Params(unixNs: Self.unixNs()))
+        let result: TimeSyncReply = try await urgent("time_sync", Params(unixNs: Self.unixNs()))
         return result.offsetNs
     }
 
@@ -523,7 +565,7 @@ public final class AgentClient: @unchecked Sendable {
     public func measureClock() async throws -> (arrivalNs: Int64, roundTripNs: Int64, applied: Bool) {
         struct Params: Encodable { let unixNs: Int64; let measure: Bool }
         let sent = ContinuousClock.now
-        let result: TimeSyncReply = try await call("time_sync", Params(unixNs: Self.unixNs(), measure: true))
+        let result: TimeSyncReply = try await urgent("time_sync", Params(unixNs: Self.unixNs(), measure: true))
         let roundTrip = ContinuousClock.now - sent
         let rtt = roundTrip.components.seconds * 1_000_000_000 + roundTrip.components.attoseconds / 1_000_000_000
         return (result.offsetNs, rtt, result.measured != true)
@@ -535,15 +577,24 @@ public final class AgentClient: @unchecked Sendable {
     public func adjustClock(by ns: Int64, slewBelow: Duration) async throws {
         struct Params: Encodable { let unixNs: Int64; let adjustNs: Int64; let slewBelowNs: Int64 }
         let below = slewBelow.components.seconds * 1_000_000_000 + slewBelow.components.attoseconds / 1_000_000_000
-        let _: TimeSyncReply = try await call("time_sync", Params(unixNs: Self.unixNs(), adjustNs: ns, slewBelowNs: below))
+        let _: TimeSyncReply = try await urgent("time_sync", Params(unixNs: Self.unixNs(), adjustNs: ns, slewBelowNs: below))
     }
 
-    private struct TimeSyncReply: Decodable { let offsetNs: Int64; let measured: Bool? }
+    private struct TimeSyncReply: Decodable, Sendable { let offsetNs: Int64; let measured: Bool? }
     private static func unixNs() -> Int64 { Int64(Date().timeIntervalSince1970 * 1e9) }
+
+    /// Latency-sensitive control must not queue behind reclaim, slab shrinking or disk trim.
+    private func urgent<P: Encodable & Sendable, R: Decodable & Sendable>(_ method: String, _ params: P) async throws -> R {
+        let fresh = try await open()
+        defer { fresh.close() }
+        return try await withConnectionDeadline(.seconds(2), connection: fresh) {
+            try await fresh.call(method, params)
+        }
+    }
 
     /// Asks the guest to sync and power off. The VM stops shortly after this returns.
     public func shutdown() async throws {
-        let _: Empty = try await call("shutdown", Empty())
+        let _: Empty = try await urgent("shutdown", Empty())
     }
 
     /// Starts a process in the guest on a new connection.
@@ -591,7 +642,7 @@ public final class ExecSession: Sendable {
         events = ExecEvents(connection: connection)
     }
 
-    public func write(_ data: Data) throws { try connection.writeFrame(.stdin, data) }
+    public func write(_ data: Data) throws { try connection.writeStdin(data) }
     public func closeStdin() throws { try connection.writeFrame(.stdin, Data()) }
 
     public func resize(rows: Int, cols: Int) throws {

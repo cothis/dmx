@@ -590,19 +590,27 @@ separate from Core/VM tests and the completed public distribution checks.
 
 ## Next up
 
-**Lifecycle repair is in progress (2026-11-12): 4 of 17 items repaired.** L1, L2, L4 and G10
-from the [review](reviews/2026-11-12-lifecycle-bug-hunt.md) now have device teardown/fencing,
-failed-init/start cleanup, controller lifetime guards and eager share-root initialization.
-Selftest 23/23 (98 -> 97 MiB in one sample each), unit tests 120, entitled VM tests 4,
-daemon 63/63, four same-process 2 GiB release/stop/start cycles, and bounded model/mutation
-checks pass. This is committed source work, not a release or an installed-app update.
+**Lifecycle review complete (2026-11-12): all 17 items resolved.** The first repair covered
+L1/L2/L4/G10; the remaining 12 defects are repaired and L6's pre-run cancellation concern is
+cleared by the SDK contract and an entitled Hypervisor check. See the
+[final dispositions](reviews/2026-11-12-lifecycle-bug-hunt.md) and
+[remaining repair measurements](measurements/2026-11-12-lifecycle-remaining.json).
 
-**Next task: G1**, exec stdin blocking control and disconnect cleanup. Reproduce the stalled
-reader in the old guest before changing framing/backpressure; then G4 (independent shutdown
-connection), G3 (UDP backpressure), G2 (bounded shutdown), G5 (durable unpack), followed by
-G6, L3, G7, G8, G9, L5, G11 and L6. These 13 remain open; do not treat a passing shutdown
-suite as proof of their failure paths. [Measurement record](measurements/2026-11-12-lifecycle.json).
+Default stdin byte credit keeps control/disconnect responsive; shutdown/clock control is
+independent; UDP/accept/TCP/listing/spawn retries are bounded; staged unpack data precedes its
+durable marker; ENOSPC waits instead of aborting ext4. A stuck host share causes a bounded
+process exit (20 s), preserving RAM ownership until process termination. Boot stop grace is
+30 s; launchd allows 75 s for boot grace, shutdown and device teardown.
 
+Validation: Swift 130, entitled VM 5 plus expected fail-stop exit, selftest 23/23; daemon 63/63; mcp 36/36; storage 64/64; clock 4/4; scenarios 19/19.
+Four same-process 2 GiB release/restarts pass; alternating selftest medians are 96.5 -> 97.0 MiB
+(four rounds each, not a memory-saving claim). Daemon idle/stopped: 99/9 MiB.
+
+**Next:** no open item remains in this lifecycle review. Public release/versioning and installing
+the updated app are separate maintainer actions. Guest repairs require the newly built guest;
+source push alone does not replace the published 0.4.7 guest. Existing FEX compatibility limits
+remain outside this lifecycle scope. Validation commands and bounds are in
+[formal/lifecycle-remaining](../formal/lifecycle-remaining/README.md).
 
 **v0.4.5 is published** (2026-11-05, signed, notarized and stapled, tag commit `93da890`). It fixes S3
 lookups through boto: a bucket's name came back truncated, and glibc's retry over TCP left macOS's resolver, so
@@ -839,6 +847,29 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### Remaining lifecycle repairs (2026-11-12)
+
+Twelve defects repaired and L6 cleared. The original stalled exec leaks its guest child, a
+lost daemon spawn fails after 15 s, and a full isolated host volume returns EIO that aborts
+ext4's journal and remounts read-only. The candidate reaps stalled execs, retries the lost spawn,
+and holds disk writes until space is freed. The 64 KiB stdin bound counts bytes, including tiny
+terminal frames; a transient three-frame queue failed legitimate fragmented input and was
+replaced by a byte queue. The model explores 139 states at window 4, chunk 1..2, total input 8;
+frame-count, credit-guard and reachability mutations fail. No liveness/whole-program proof.
+
+A real blocked-share VM process exits 70 after an injected 0.5 s watchdog (default 20 s), rather
+than freeing RAM still held by a callback. Fresh shutdown and clock connections avoid waiting
+behind reclaim; UDP sockets explicitly use O_NONBLOCK because MSG_DONTWAIT alone did not
+prevent a blocking Unix write. Half-close expiry measures inactivity, not total response time;
+real progress renews it and IPv4/IPv6 forward keepalive options read back correctly.
+
+Original unpack corruption, an actual dead network mount and a disappeared physical LAN client
+were not reproduced; durable ordering, an injected blocked share and OS socket options are the
+respective evidence. Real first-boot SIGTERM and three unpack crashes recover; those samples do
+not exhaust crash timings or prove a maximum for all storage/hardware failures. Full commands,
+measurements and artifact hashes: [record](measurements/2026-11-12-lifecycle-remaining.json).
+
 
 ### VM lifetime repair (2026-11-12)
 
@@ -1699,6 +1730,8 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 | 2026-10-27 | Pre-announcement review of 0.3.3 | Six code findings fixed, stale docs corrected. Unit 59/59; selftest 23/23; daemon 57/57; MCP 33/33; x86 47/47; Docker 69/69; sandbox 44/44; image matrix 24/24; pressure 12/12 rounds (12 GiB host allocation). Selftest host footprint 97 MiB before, 94–97 after; final 1 GiB reclaim 1123 → 103 MiB in 329 ms (before 1122 → 102 in 214 ms). Published 0.3.3 installer, guest fetch, strict signature/notarization check, selftest (97 MiB) and signed same-version update pass; local guest hashes match published. [Review](review-2026-10-27.md), [bounded results](measurements/2026-10-27-preannouncement-review.json). These fixes are not released. |
 
 ## Progress log
+
+- 2026-11-12: Finished the remaining lifecycle work: G1/G2/G3/G4/G5/G6/G7/G8/G9/L3/L5/G11 repaired; L6 checked and cleared. Added negotiated stdin byte credit, PID/PTY lifetime guards, fresh urgent control, bounded teardown/boot stop, ENOSPC recovery, durable unpack markers, network/listing/spawn retry and expiry guards. Real failure probes, independent mutants and a bounded credit model are recorded; the original read-only hunt now has no open findings. Source work only; no release.
 
 - 2026-11-12: Repaired lifecycle findings L1/L2/L4/G10: drain device work before HV destruction, fence stale callbacks, clean partial VM init and failed starts, reject old controller completions, initialize the FUSE root eagerly. Original net regression and four independent code mutations fail as required; unit 120, entitled VM 4, selftest 23, daemon 63 and four 2 GiB same-process restarts pass. Footprint 98 -> 97 MiB (one sample each). Thirteen findings remain; Next up is G1. No public release.
 

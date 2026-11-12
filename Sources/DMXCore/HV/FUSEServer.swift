@@ -126,12 +126,14 @@ final class FUSEServer: @unchecked Sendable {
     private var handles: [UInt64: Handle] = [:]
     private var nextHandle: UInt64 = 1
     private let rootDir: DirFD
+    private let beforeRequest: (@Sendable (UInt32) -> Void)?
     private var dirCache: [UInt64: DirFD] = [:]
     private let dirCacheLimit = 256
     private var useClock: UInt64 = 0
 
     /// Opens the share's root; symlinks in `path` itself are followed (the user chose it).
-    init(path: String, readOnly: Bool) throws {
+    init(path: String, readOnly: Bool, beforeRequest: (@Sendable (UInt32) -> Void)? = nil) throws {
+        self.beforeRequest = beforeRequest
         let fd = Darwin.open(path, O_RDONLY | O_DIRECTORY | O_CLOEXEC)
         guard fd >= 0 else {
             throw DMXError("share_missing", "cannot share \(path): \(String(cString: strerror(errno)))",
@@ -191,6 +193,7 @@ final class FUSEServer: @unchecked Sendable {
     /// fuse_write_in, with the data in `input`. READ fills `output`, the guest buffers after the
     /// out-header.
     func handle(opcode raw: UInt32, node: UInt64, caller: Caller = .root, args: Data, input: [iovec], output: [iovec]) -> Reply {
+        beforeRequest?(raw)
         guard let opcode = FUSE.Opcode(rawValue: raw) else { return .error(Linux.ENOSYS) }
         var r = FUSEReader(args)
         do {

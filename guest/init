@@ -86,10 +86,10 @@ if mountpoint -q /var/lib; then
 	done
 	# dmx-docker 3, payload sha256, length, build key, x86 tar sha256, offset, length
 	[ -n "$img" ] && set -- $(head -c 4096 "$img" | tr -d '\0') && [ "$#" -ge 8 ] && [ "$1 $2" = "dmx-docker 3" ] &&
-		[ "$(cat $x86/sha256 2>/dev/null)" != "$6 $emulator" ] && {
+		[ "$(cat $x86/sha256 2>/dev/null)" != "$6 $emulator durable-v1" ] && {
 		rm -rf $x86.new /var/lib/dmx/qemu && mkdir -p $x86.new &&
 			dd if="$img" bs=4096 skip=$(($7 / 4096)) count=$((($8 + 4095) / 4096)) 2>/dev/null | head -c "$8" | unxz | tar -x -C $x86.new "$emulator" &&
-			echo "$6 $emulator" >$x86.new/sha256 && rm -rf $x86 && mv $x86.new $x86 && sync || echo "dmx-init: cannot unpack the x86 emulators" >&2
+			sync && echo "$6 $emulator durable-v1" >$x86.new/sha256 && sync && rm -rf $x86 && mv $x86.new $x86 && sync || echo "dmx-init: cannot unpack the x86 emulators" >&2
 		# The read-only disk's pages are not needed again; the unpacked copy's go with the idle trim.
 		blockdev --flushbufs "$img" 2>/dev/null
 	}

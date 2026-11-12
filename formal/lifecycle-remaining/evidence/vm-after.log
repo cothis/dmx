@@ -1,0 +1,25 @@
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite MachineLifecycleTests started.
+◇ Test partialInitReleasesVM() started.
+✔ Test partialInitReleasesVM() passed after 0.002 seconds.
+◇ Test failedStartReleasesVCPUsAndVM() started.
+✔ Test failedStartReleasesVCPUsAndVM() passed after 0.001 seconds.
+◇ Test staleReleaseCannotReplaceSuccessorRAM() started.
+✔ Test staleReleaseCannotReplaceSuccessorRAM() passed after 0.114 seconds.
+◇ Test detachedTickDoesNotSetNextSwapFlag() started.
+✔ Test detachedTickDoesNotSetNextSwapFlag() passed after 0.001 seconds.
+✔ Suite MachineLifecycleTests passed after 0.119 seconds.
+✔ Test run with 4 tests in 1 suite passed after 0.119 seconds.
+
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+➜ Suite StuckShareLifecycleTests skipped.
+◇ Suite RemainingLifecycleVMTests started.
+➜ Test shutdownExitsWhenHostShareCannotReturn() skipped.
+◇ Test preRunExitIsLatched() started.
+✔ Test preRunExitIsLatched() passed after 0.210 seconds.
+✔ Suite RemainingLifecycleVMTests passed after 0.210 seconds.
+✔ Test run with 2 tests in 2 suites passed after 0.210 seconds.

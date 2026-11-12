@@ -31,6 +31,7 @@ final class VCPU: @unchecked Sendable {
     private var start: (entry: UInt64, context: UInt64)?
     private var on = false
     private var halted = false
+    private var created = false
     private var woken = false
 
     private static let timebase: mach_timebase_info_data_t = {
@@ -68,9 +69,11 @@ final class VCPU: @unchecked Sendable {
         cond.lock()
         halted = true
         cond.broadcast()
+        if created {
+            var target = id
+            hv_vcpus_exit(&target, 1)
+        }
         cond.unlock()
-        var target = id
-        hv_vcpus_exit(&target, 1)
     }
 
     /// Ends a WFI wait early, because an interrupt may now be pending.
@@ -91,6 +94,7 @@ final class VCPU: @unchecked Sendable {
             ready.signal()
             return
         }
+        cond.withLock { self.created = true }
         exitInfo = exit
         // Hypervisor.framework leaves MPIDR at 0 for every vCPU; give each its own affinity.
         hv_vcpu_set_sys_reg(id, HV_SYS_REG_MPIDR_EL1, UInt64(index))
@@ -114,7 +118,10 @@ final class VCPU: @unchecked Sendable {
             on = false
             cond.unlock()
         }
+        cond.lock()
+        self.created = false
         hv_vcpu_destroy(id)
+        cond.unlock()
     }
 
     private func waitForPowerOn() -> (UInt64, UInt64)? {

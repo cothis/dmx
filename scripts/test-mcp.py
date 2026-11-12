@@ -211,6 +211,10 @@ try:
     s = r["structuredContent"]
     check("max_output_zero", s["stdout_bytes"] == 6 and s["stdout_omitted_bytes"] == 6, s)
 
+    r = c.call("dmx_exec", {"argv": ["wc", "-c"], "stdin": "m" * (1 << 20)})
+    check("credit_stdin_1m_lossless", r["structuredContent"]["exit_code"] == 0
+          and r["structuredContent"]["stdout"].strip() == "1048576", r)
+
     # Timeout kills the process and its children.
     started = time.time()
     r = c.call("dmx_exec", {"argv": ["sh", "-c", "echo before; sleep 1234 & sleep 1235"], "timeout": 2})
@@ -221,6 +225,10 @@ try:
           and s["stdout"] == "before\n" and 1.9 < seconds < 6, (round(seconds, 2), s))
     gone = wait_for(lambda: not guest_has("sleep 123"), 5)
     check("timeout_killed_guest_processes", gone, "gone" if gone else "sleep 1234/1235 still running")
+
+    r = c.call("dmx_exec", {"argv": ["sleep", "24682"], "stdin": "x" * (1 << 20), "timeout": 2})
+    check("blocked_stdin_timeout", r["structuredContent"]["timed_out"] is True, r)
+    check("blocked_stdin_timeout_reaped", wait_for(lambda: not guest_has("sleep 24682"), 3), "no stalled stdin child remains")
 
     # notifications/cancelled stops a running call: no reply, guest process killed.
     c.next_id += 1

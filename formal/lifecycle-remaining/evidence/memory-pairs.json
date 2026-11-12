@@ -1,0 +1,48 @@
+{
+  "samples": [
+    {
+      "round": 0,
+      "kind": "before",
+      "footprint_mb": 97
+    },
+    {
+      "round": 0,
+      "kind": "after",
+      "footprint_mb": 97
+    },
+    {
+      "round": 1,
+      "kind": "after",
+      "footprint_mb": 97
+    },
+    {
+      "round": 1,
+      "kind": "before",
+      "footprint_mb": 95
+    },
+    {
+      "round": 2,
+      "kind": "before",
+      "footprint_mb": 97
+    },
+    {
+      "round": 2,
+      "kind": "after",
+      "footprint_mb": 97
+    },
+    {
+      "round": 3,
+      "kind": "after",
+      "footprint_mb": 97
+    },
+    {
+      "round": 3,
+      "kind": "before",
+      "footprint_mb": 96
+    }
+  ],
+  "median_mb": {
+    "before": 96.5,
+    "after": 97.0
+  }
+}

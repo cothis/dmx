@@ -307,6 +307,7 @@ func describe(_ s: DaemonStatus) -> String {
     if let disk = s.disk {
         lines.append("  disk: \(disk.path), \(formatSize(UInt64(disk.sizeMb) << 20)) max, \(disk.allocatedMb) MB used on the host")
     }
+    if let issue = s.diskError { lines.append("  \(issue.code): \(issue.message); \(issue.hint ?? "run `dmx status`")") }
     if let socket = s.dockerSocket {
         lines.append("  docker: \(socket)" + (s.containers.map { ", \($0) running container\($0 == 1 ? "" : "s")" } ?? ""))
     }

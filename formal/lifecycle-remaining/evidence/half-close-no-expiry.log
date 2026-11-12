@@ -1,0 +1,72 @@
+◇ Test run started.
+↳ Testing Library Version: 2084
+↳ Target Platform: arm64e-apple-macos14.0
+◇ Suite RemainingLifecycleTests started.
+◇ Test halfClosedFlowExpiresAndLiveIdleFlowStays() started.
+✘ Test halfClosedFlowExpiresAndLiveIdleFlowStays() recorded an issue at RemainingLifecycleTests.swift:104:13: Expectation failed: device.net.tcp[key] == nil
+↳ device.net.tcp[key] == nil → false
+↳   device.net.tcp[key] → DMXCore.TCPFlow
+↳     some → DMXCore.TCPFlow
+↳       key → FlowKey(guestPort: 1234, remote: DMXCore.IPAddress(high: 0, low: 281470816487432), remotePort: 80)
+↳         guestPort → 1234
+↳         remote → IPAddress(high: 0, low: 281470816487432)
+↳           high → 0
+↳           low → 281470816487432
+↳         remotePort → 80
+↳       socket → nil
+↳       state → .connecting
+↳       irs → 10
+↳       rcvNext → 11
+↳       halfClosedAt → Instant(_value: 1169728.718829791 seconds)
+↳         some → Instant(_value: 1169728.718829791 seconds)
+↳           _value → 1169728.718829791 seconds
+↳             _low → 2230371794622477824
+↳             _high → 63411
+↳       guestFinished → true
+↳       iss → 251838518
+↳       sndUna → 251838518
+↳       sndNext → 251838518
+↳       sndMax → 251838518
+↳       buffer → ByteQueue(storage: [], head: 0)
+↳         storage → []
+↳         head → 0
+↳       finSeq → nil
+↳       finAcked → false
+↳       guestWindow → 0
+↳       guestScale → 0
+↳       ourScale → 0
+↳       mss → 536
+↳       lastProgress → Instant(_value: 1169849.7188265 seconds)
+↳         _value → 1169849.7188265 seconds
+↳           _low → 12549904061365168128
+↳           _high → 63417
+↳       retries → 0
+↳       probes → 0
+↳       duplicateAcks → 0
+✘ Test halfClosedFlowExpiresAndLiveIdleFlowStays() failed after 0.002 seconds with 1 issue.
+✘ Suite RemainingLifecycleTests failed after 0.002 seconds with 1 issue.
+✘ Test run with 1 test in 1 suite failed after 0.002 seconds with 1 issue.
+Note: Some test targets reported failures:
+  - DMXCoreTests (Swift Testing)
+Building for debugging...
+[2 / 14] DMXCore
+[5 / 17] DMXCore
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:580:24: warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+578 |         func params<P: Decodable>(_: P.Type) throws -> P {
+579 |             do {
+580 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+    |                        `- warning: no calls to throwing functions occur within 'try' expression [#UnnecessaryEffectMarker]
+581 |             } catch {
+582 |                 throw DMXError("bad_request", "\(method): \(error)")
+
+/Users/cothis/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:581:15: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+579 |             do {
+580 |                 return try FrameConnection.decoder.decode(DaemonParams<P>.self, from: payload).params
+581 |             } catch {
+    |               `- warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+582 |                 throw DMXError("bad_request", "\(method): \(error)")
+583 |             }
+
+[#UnnecessaryEffectMarker]: <https://docs.swift.org/compiler/documentation/diagnostics/unnecessary-effect-marker>
+[13 / 14] DMXCoreTests-product
+Build complete! (1.61초)

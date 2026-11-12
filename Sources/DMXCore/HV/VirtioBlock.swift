@@ -86,6 +86,31 @@ final class VirtioBlock: VirtioDevice, @unchecked Sendable {
     private let inFlight = DispatchSemaphore(value: maxInFlight)
     private let lock = NSLock()
     private var transport: VirtioMMIO?
+    private let space = NSCondition()
+    private var stopping = false
+    private var spaceWaiters = 0
+    var isSpaceBlocked: Bool { space.withLock { spaceWaiters > 0 } }
+
+    /// Unblock ENOSPC waiters before the normal device barrier waits on them.
+    func beginStop() { space.withLock { stopping = true; space.broadcast() } }
+
+    /// ENOSPC is recoverable: keep the uncompleted request and its bounded bounce buffer.
+    /// The guest must not see EIO and abort its ext4 journal merely because APFS is full.
+    private func waitForSpace(_ operation: () -> Int) -> Int {
+        var blocked = false
+        defer { if blocked { space.withLock { spaceWaiters -= 1 } } }
+        while true {
+            let n = operation()
+            guard n < 0, errno == ENOSPC else { return n }
+            space.lock()
+            if !blocked { spaceWaiters += 1; blocked = true }
+            if stopping { space.unlock(); return -1 }
+            _ = space.wait(until: Date().addingTimeInterval(1))
+            let stop = stopping
+            space.unlock()
+            if stop { return -1 }
+        }
+    }
 
     /// Opens the image, creating it sparse if missing. Holds an exclusive lock on it until
     /// `close()`, so two VMs never write the same disk; a read-only one only a shared lock.
@@ -135,6 +160,7 @@ final class VirtioBlock: VirtioDevice, @unchecked Sendable {
 
     /// Waits for requests in flight, then closes the image and drops its lock.
     func close() {
+        beginStop()
         queue.sync {
             workers.sync(flags: .barrier) {}
             if fd >= 0 { Darwin.close(fd) }
@@ -237,7 +263,7 @@ final class VirtioBlock: VirtioDevice, @unchecked Sendable {
             let length = iov.reduce(0) { $0 + $1.iov_len }
             result = inBounds(sector, length) && bounced(iov, at: sector * 512, write: true) ? .ok : .ioError
         case 4:  // FLUSH
-            result = fcntl(fd, F_BARRIERFSYNC) == 0 ? .ok : .ioError
+            result = waitForSpace { Int(fcntl(fd, F_BARRIERFSYNC)) } == 0 ? .ok : .ioError
         case 8:  // GET_ID: up to 20 bytes, no terminator needed
             let id = Array(self.id.utf8.prefix(20))
             var data = Data(id)
@@ -344,9 +370,11 @@ final class VirtioBlock: VirtioDevice, @unchecked Sendable {
         var iov = vectors, index = 0, position = off_t(offset)
         while index < iov.count {
             let count = Int32(min(iov.count - index, Int(IOV_MAX)))
-            let n = iov.withUnsafeMutableBufferPointer { buffer in
-                write ? pwritev(fd, buffer.baseAddress! + index, count, position)
-                      : preadv(fd, buffer.baseAddress! + index, count, position)
+            let n = waitForSpace {
+                iov.withUnsafeMutableBufferPointer { buffer in
+                    write ? pwritev(fd, buffer.baseAddress! + index, count, position)
+                          : preadv(fd, buffer.baseAddress! + index, count, position)
+                }
             }
             if n < 0 && errno == EINTR { continue }
             if n <= 0 { return false }  // an error, or the image shrank under us

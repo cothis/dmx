@@ -21,6 +21,8 @@ final class DaemonChildren: @unchecked Sendable {
         source.resume()
     }
 
+    func contains(_ pid: Int32) -> Bool { lock.withLock { children[pid] != nil } }
+
     func reapIfExited(_ pid: Int32) {
         lock.withLock {
             guard let source = children[pid] else { return }

@@ -1,0 +1,9 @@
+{"name": "lost_spawn_lock_race_retries", "ok": false, "detail": {"seconds": 15.026, "stderr": "error: no answer from the dmx daemon on /private/tmp/dmx-rem-52pho3_z/dmx.sock: connect /private/tmp/dmx-rem-52pho3_z/dmx.sock: No such file or directory\nhint: see /private/tmp/dmx-rem-52pho3_z/logs/daemon.log, or run `dmx daemon` in a terminal to watch it\n"}}
+Traceback (most recent call last):
+  File "/Users/cothis/dev/dockermax/scripts/test-lifecycle-remaining.py", line 75, in <module>
+    check('lost_spawn_lock_race_retries',p.returncode==0 and elapsed<3,dict(seconds=round(elapsed,3),stderr=p.stderr))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/cothis/dev/dockermax/scripts/test-lifecycle-remaining.py", line 13, in check
+    assert ok,(name,detail)
+           ^^
+AssertionError: ('lost_spawn_lock_race_retries', {'seconds': 15.026, 'stderr': 'error: no answer from the dmx daemon on /private/tmp/dmx-rem-52pho3_z/dmx.sock: connect /private/tmp/dmx-rem-52pho3_z/dmx.sock: No such file or directory\nhint: see /private/tmp/dmx-rem-52pho3_z/logs/daemon.log, or run `dmx daemon` in a terminal to watch it\n'})

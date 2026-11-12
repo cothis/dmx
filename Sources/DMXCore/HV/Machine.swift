@@ -60,6 +60,8 @@ public final class Machine: @unchecked Sendable {
     private var waiters: [CheckedContinuation<Exit, Never>] = []
     private let threads = DispatchGroup()
     private let teardown = DispatchGroup()
+    private let watchdog = TeardownWatchdog()
+    private let teardownTimeout: Double
     /// File contents until they are copied into guest RAM, then released.
     private var kernel: Data, initramfs: Data
     private var redistributorBase: UInt64 = 0
@@ -69,7 +71,9 @@ public final class Machine: @unchecked Sendable {
         try self.init(spec: spec, paths: paths, output: .file(console))
     }
 
-    init(spec: MachineSpec, paths: Paths, output: ConsoleOutput, afterMap: () throws -> Void = {}) throws {
+    init(spec: MachineSpec, paths: Paths, output: ConsoleOutput, afterMap: () throws -> Void = {}, teardownTimeout: Double = 20,
+         beforeShareRequest: (@Sendable (UInt32) -> Void)? = nil) throws {
+        self.teardownTimeout = teardownTimeout
         for file in [paths.kernel, paths.initramfs] where !FileManager.default.fileExists(atPath: file.path) {
             throw DMXError("guest_missing", "guest file not found: \(file.path)", hint: "run `make guest` to build the guest kernel and initramfs")
         }
@@ -85,7 +89,7 @@ public final class Machine: @unchecked Sendable {
         bootSize = Self.bootSize(spec: resolved)
         // Shares open their roots now, so a missing directory fails before there is a VM.
         fileSystems = try resolved.shares.enumerated().map { index, share in
-            VirtioFS(tag: "dmx\(index)", server: try FUSEServer(path: share.path, readOnly: share.readOnly))
+            VirtioFS(tag: "dmx\(index)", server: try FUSEServer(path: share.path, readOnly: share.readOnly, beforeRequest: beforeShareRequest))
         }
         // Before the VM exists, so a disk in use fails without leaving a VM behind.
         disk = try spec.dataDisk.map(VirtioBlock.init)
@@ -254,6 +258,12 @@ public final class Machine: @unchecked Sendable {
     /// `ri_phys_footprint` (what Activity Monitor shows) counts them.
     public func hostFootprint() -> HostFootprint? { HostFootprint.read(pid: getpid()) }
 
+    var diskError: DMXError? {
+        guard disk?.isSpaceBlocked == true else { return nil }
+        return DMXError("disk_full", "host disk is full; guest writes are waiting for space",
+                        hint: "free space on the volume holding data.img, then run `dmx status`; writes retry automatically")
+    }
+
     public func start() throws {
         // Each vCPU must be created and run on its own thread; create them all first so the
         // device tree can list their MPIDRs, then release CPU 0. The rest wait for PSCI CPU_ON.
@@ -311,6 +321,9 @@ public final class Machine: @unchecked Sendable {
         exit = result
         teardown.enter()
         lock.unlock()
+        watchdog.arm(after: teardownTimeout)
+        disk?.beginStop()
+        for extra in extraDisks { extra.beginStop() }
         for vcpu in vcpus { vcpu.halt() }
         memoryPlugPolicy?.stop()
         vsock.closeAll()
@@ -329,6 +342,7 @@ public final class Machine: @unchecked Sendable {
             let pending = waiters
             waiters.removeAll()
             lock.unlock()
+            watchdog.cancel()
             teardown.leave()
             for waiter in pending { waiter.resume(returning: result) }
         }

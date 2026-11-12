@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build app install-app apptest localnettest localnetupdatetest menutest install kernel qemu fex guest selftest daemontest mcptest clocktest sandboxtest x86test dockertest imagetest javatest storagetest pressuretest benchmark test formaltest lifecycletest release clean
+.PHONY: build app install-app apptest localnettest localnetupdatetest menutest install kernel qemu fex guest selftest daemontest mcptest clocktest sandboxtest x86test dockertest imagetest javatest storagetest pressuretest benchmark test formaltest lifecycletest remaininglifecycletest release clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -122,6 +122,12 @@ lifecycletest: build
 	python3 formal/vm-device-lifetime/check.py
 	python3 formal/vm-device-lifetime/repro/check-code.py
 	python3 -I scripts/test-lifecycle.py $(BIN)
+
+# Remaining lifecycle fixes: credit model, entitled fail-stop/latch tests, isolated fault probes.
+remaininglifecycletest: build guest
+	python3 formal/lifecycle-remaining/check-model.py
+	python3 formal/lifecycle-remaining/check-vm.py
+	python3 -I scripts/test-lifecycle-remaining.py $(BIN)
 
 # Bounded safety models plus real Core FD/EMFILE probes (Java + cached TLA+ jar required).
 # Child-only forced FD reuse never shares the unit runner's descriptor namespace.

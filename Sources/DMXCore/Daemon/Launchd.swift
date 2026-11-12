@@ -148,6 +148,8 @@ public enum LaunchAgent {
             "ProcessType": "Interactive",
             // The daemon exits whenever it is idle; let the next connection start it at once.
             "ThrottleInterval": 1,
+            // Boot grace (30 s), shutdown request/poweroff (13 s), teardown (20 s), plus margin.
+            "ExitTimeOut": 75,
         ]
         return try PropertyListSerialization.data(fromPropertyList: job, format: .xml, options: 0)
     }

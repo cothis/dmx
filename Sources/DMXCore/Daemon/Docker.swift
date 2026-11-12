@@ -18,6 +18,8 @@ final class DockerBridge {
 
     private let paths: Paths
     private let ports: PortForwards
+    private let listContainers: (@MainActor (AgentClient) async throws -> [[String: Any]])?
+    private let acceptFD: @Sendable (Int32) -> Int32
     private var source: DispatchSourceRead?
     /// Whether this process bound the socket (standalone), so it removes it on exit.
     private var ownsSocket = false
@@ -36,6 +38,8 @@ final class DockerBridge {
     /// The events stream, shut down to end the watcher when the VM stops.
     private var events: FrameConnection?
     private var syncing = false, syncAgain = false
+    private var listingUnknown = false
+    private var acceptPaused = false
     /// Bumped when the VM stops, so work begun for that VM leaves the next one alone.
     private var epoch = 0
     /// Running containers while the daemon follows dockerd; nil before Docker is used after a boot.
@@ -43,7 +47,11 @@ final class DockerBridge {
     /// A Docker client connected since the daemon started (or since the last `dmx stop`).
     var used = false
 
-    init(paths: Paths, ports: PortForwards) {
+    init(paths: Paths, ports: PortForwards,
+         listContainers: (@MainActor (AgentClient) async throws -> [[String: Any]])? = nil,
+         acceptFD: @escaping @Sendable (Int32) -> Int32 = { Darwin.accept($0, nil, nil) }) {
+        self.listContainers = listContainers
+        self.acceptFD = acceptFD
         self.paths = paths
         self.ports = ports
     }
@@ -53,7 +61,7 @@ final class DockerBridge {
     var keepsDaemon: Bool { ownsSocket && used }
 
     /// Whether running containers count as using the VM.
-    var busy: Bool { (containers ?? 0) > 0 }
+    var busy: Bool { listingUnknown || (containers ?? 0) > 0 }
 
     /// Listens on the socket launchd holds for us (`Sockets.Docker` in the plist), or binds it.
     func start(agent: @escaping @MainActor () async throws -> AgentClient, using: @escaping @MainActor (Bool) -> Void,
@@ -95,6 +103,7 @@ final class DockerBridge {
         starting = nil
         client = nil
         syncing = false
+        listingUnknown = false
         watcher?.cancel()
         watcher = nil
         if let events { shutdown(events.fd, SHUT_RDWR) }
@@ -109,9 +118,21 @@ final class DockerBridge {
     // MARK: Clients
 
     private func accept(_ listener: Int32) {
+        guard !acceptPaused else { return }
         while true {
-            let fd = Darwin.accept(listener, nil, nil)
-            guard fd >= 0 else { return }
+            let fd = acceptFD(listener)
+            guard fd >= 0 else {
+                if errno == EMFILE || errno == ENFILE, let source {
+                    acceptPaused = true
+                    source.suspend()
+                    Task { @MainActor [weak self, source] in
+                        try? await Task.sleep(for: .milliseconds(100))
+                        source.resume() // balance even if stop() cancelled the source
+                        self?.acceptPaused = false
+                    }
+                }
+                return
+            }
             _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
             var on: Int32 = 1
             _ = setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
@@ -384,35 +405,56 @@ final class DockerBridge {
         .addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "")
 
     /// Lists the containers again; events coming in meanwhile cause one more listing.
-    private func syncSoon(_ agent: AgentClient, _ epoch: Int) {
+    func syncSoon(_ agent: AgentClient, _ epoch: Int) {
         guard epoch == self.epoch else { return }
         if syncing { syncAgain = true; return }
         syncing = true
         Task { @MainActor in
+            var failures = 0
             repeat {
                 syncAgain = false
-                await sync(agent, epoch)
+                let ok = await sync(agent, epoch)
+                guard epoch == self.epoch, !Task.isCancelled else { return }
+                if !ok {
+                    failures += 1
+                    try? await Task.sleep(for: .milliseconds(min(100 << min(failures - 1, 5), 3000)))
+                    guard epoch == self.epoch, !Task.isCancelled else { return }
+                    syncAgain = true
+                } else { failures = 0 }
             } while syncAgain && epoch == self.epoch
             if epoch == self.epoch { syncing = false }
         }
     }
 
-    private func sync(_ agent: AgentClient, _ epoch: Int) async {
+    private func sync(_ agent: AgentClient, _ epoch: Int) async -> Bool {
         let list: [[String: Any]]
         do {
-            let stream = try await agent.connect(path: Self.guestSocket)
-            defer { stream.close() }
-            let body = try await DockerHTTP.get(stream.fd, "/containers/json")
-            list = try JSONSerialization.jsonObject(with: body) as? [[String: Any]] ?? []
+            if let listContainers { list = try await listContainers(agent) }
+            else {
+                let stream = try await agent.connect(path: Self.guestSocket)
+                defer { stream.close() }
+                let body = try await DockerHTTP.get(stream.fd, "/containers/json")
+                guard let decoded = try JSONSerialization.jsonObject(with: body) as? [[String: Any]] else {
+                    throw DMXError("docker_protocol", "container listing is not an array")
+                }
+                list = decoded
+            }
         } catch {
-            return log("docker: cannot list containers: \((error as? DMXError)?.message ?? "\(error)")")
+            guard epoch == self.epoch else { return false }
+            listingUnknown = true
+            changed?()
+            log("docker: cannot list containers: \((error as? DMXError)?.message ?? "\(error)"); retrying")
+            return false
         }
-        guard epoch == self.epoch else { return }
+        guard epoch == self.epoch else { return false }
+        listingUnknown = false
+        changed?()
         ports.setDockerForwards(Self.published(list))
         if containers != list.count {
             containers = list.count
             changed?()
         }
+        return true
     }
 
     /// The host forwards for the TCP and UDP ports running containers publish. Docker Desktop

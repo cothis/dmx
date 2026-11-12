@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Free 2 GiB, stop during free-page reporting, then reboot in the same daemon. Isolated data."""
-import hashlib, json, os, subprocess, sys, tempfile, time
+import hashlib, json, os, socket, struct, subprocess, sys, tempfile, time, fcntl
 from pathlib import Path
 binary=Path(sys.argv[1] if len(sys.argv)>1 else '.build/release/dmx').resolve()
 guest=Path(os.environ.get('DMX_HOME',str(Path.home()/'.dmx')))/'guest'
@@ -32,4 +32,14 @@ with tempfile.TemporaryDirectory(prefix='dmx-life-',dir='/private/tmp') as direc
    rows.append(dict(offset_s=delay,same_process=True,stop_start_s=stop_start_s,reported_mb=(before.get('memory') or {}).get('reported_mb'),footprint_mb=after.get('host_footprint_mb'),pattern_ok=True))
   print(json.dumps(dict(binary_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),cycles=rows,ok=True),indent=2))
  finally:
-  subprocess.run([str(binary),'quit'],env=env,capture_output=True,timeout=30)
+  with socket.socket(socket.AF_UNIX) as client:
+   client.settimeout(55);client.connect(str(home/'dmx.sock'))
+   body=json.dumps(dict(id=1,method='quit',params={})).encode()
+   client.sendall(struct.pack('>I',len(body)+1)+b'\0'+body)
+   while client.recv(65536):pass
+  with open(home/'daemon.lock','a') as lock:
+   end=time.monotonic()+55
+   while time.monotonic()<end:
+    try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB);break
+    except BlockingIOError:time.sleep(.05)
+   else:raise AssertionError('fixture daemon did not exit')
