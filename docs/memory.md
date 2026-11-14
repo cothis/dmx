@@ -11,8 +11,6 @@ This repo is public: no private hostnames, IPs or personal details here.
   Goals: a VM that does not hold memory (balloon, idle stop), docker CLI compatibility (Engine API socket),
   AI-native (`--json`, structured errors, `dmx mcp`). The maintainer accepts a VM but dislikes fixed memory allocation,
   so memory savings are the main differentiator.
-- Memory savings are always-on defaults, never opt-in flags.
-- Host memory of the VM is reported as `ri_phys_footprint` of the dmx process (not RSS, not the `footprint` tool).
 
 ## Maintainer preferences
 
