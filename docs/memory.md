@@ -18,6 +18,10 @@ This repo is public: no private hostnames, IPs or personal details here.
   self-selected repair batch when the remaining scope is already authorized; finish the list,
   validating or clearing suspected findings, and report any actual blocker explicitly.
 
+- 2026-11-12: The maintainer authorized committing, pushing and publishing the lifecycle release after reviews by Sonnet 5.5 and `codex exec` Sol 6.1 with high reasoning, provided findings are repaired and validation passes. This authorization covers v0.4.8; it does not authorize a community announcement.
+
+- 2026-11-11: 사용자는 디자인 시스템이 잘못된 디자인을 고착시키는 문제를 전반적으로 수정하도록 요청했다. DESIGN.md는 현재 구현 참고이며 미적 선택은 변경 가능하다. 사용자 목적·접근성·플랫폼 동작·실제 화면 검증을 우선하고, 시스템 준수 자체를 품질로 판정하지 않는다.
+
 - 2026-11-06: The maintainer posted dmx 0.4.7 to GeekNews as Show GN (https://news.hada.io/topic?id=36695), from the
   account cothis1030, after reviewing a draft and pressing submit themselves. GeekNews allows one Show GN per project for
   a period, so do not post dmx there again. Hacker News (same account name) still restricts Show HN for new accounts.
@@ -81,6 +85,7 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-11-12: Closing an owning connection can invalidate raw-fd cancellation and HTTP code outside that connection's frame reader. Audit every raw-fd user when adding an EOF/error close, and force descriptor reuse in an isolated process to verify the cancellation path too.
 - 2026-11-12: On this Mac a blocking Unix stream remained blocked with `send(MSG_DONTWAIT)`;
   set `O_NONBLOCK` on the UDP relay stream and poll EAGAIN in its reply reader. Check that
   close actually drains flows, not just that an asynchronous close method returns.
@@ -195,12 +200,3 @@ This repo is public: no private hostnames, IPs or personal details here.
   before ballooning.
 - A pushed main and a green test matrix are not a public release; release and notarization are maintainer decisions.
 - Guest agent: control and exec must use separate vsock connections, or you get `Broken pipe`.
-
-## 2026-11-11: 디자인 고착 방지
-
-- 사용자는 디자인 시스템이 잘못된 디자인을 고착시키는 문제를 전반적으로 수정하도록 요청했다. DESIGN.md는 현재 구현 참고이며 미적 선택은 변경 가능하다. 사용자 목적·접근성·플랫폼 동작·실제 화면 검증을 우선하고, 시스템 준수 자체를 품질로 판정하지 않는다.
-
-## 2026-11-12: Lifecycle release review
-
-- The maintainer authorized committing, pushing and publishing the lifecycle release after reviews by Sonnet 5.5 and `codex exec` Sol 6.1 with high reasoning, provided findings are repaired and validation passes. This authorization covers v0.4.8; it does not authorize a community announcement.
-- Closing an owning connection can invalidate raw-fd cancellation and HTTP code outside that connection's frame reader. Audit every raw-fd user when adding an EOF/error close, and force descriptor reuse in an isolated process to verify the cancellation path too.
