@@ -31,8 +31,8 @@ SOURCES = {
         "sha256": "4d3f80afaebd447c5591a63a73bde380a149fe8b2d85488cafabb2ff97551f50",
     },
     "kernel": {
-        "url": f"{ALPINE}/main/aarch64/linux-virt-6.18.58-r0.apk",
-        "sha256": "b46c51ddf572d85b2ba7b9adfaa64f4c38fc490c93d97a20ffd2418d51284085",
+        "url": f"{ALPINE}/main/aarch64/linux-virt-6.18.64-r0.apk",
+        "sha256": "cf171f51ab44d637a7758dd5a2f6a4ecd7ddbea18d61b9e37a6d39357d2fb1d5",
     },
 }
 # mke2fs, to format the data disk on first boot (busybox has no ext4 mkfs), e2fsck, to check it at
@@ -68,9 +68,9 @@ MKFS_DIR = "usr/libexec/dmx-mkfs"
 # the CA file dockerd checks registries against. Signatures checked against the Alpine keys in
 # the minirootfs when these were pinned.
 DOCKER_PACKAGES = {
-    "docker-engine": ("community", "docker-engine-29.9.2-r0.apk", "54020dff7d00fc5b165a37029ff23233af981bdd022ce4d15d13e2eb7e4195db"),
+    "docker-engine": ("community", "docker-engine-29.9.3-r1.apk", "c1e681aa91897bf2cabb6d2f5d32a206623100724f2d3c8d89b5451cb33a5478"),
     "containerd": ("community", "containerd-2.3.7-r0.apk", "6ec45c52859e40f2b2ecf23a9be1d45d2199a86a5caa00f31586a29a53725646"),
-    "runc": ("community", "runc-1.4.3-r2.apk", "969ef33f23a2a3586505cf9b5f9adda397851e615431a3267bfb970d16df4143"),
+    "runc": ("community", "runc-1.4.4-r0.apk", "3b9e0ba89e287660343c1c867691fe8a8af67b2cec87da33d3e9970456417924"),
     "tini-static": ("community", "tini-static-0.19.0-r3.apk", "1cab1e98b70661fb92f53309f2dd7c2526c615eca9a1f57badc86b66f90607bc"),
     "iptables": ("main", "iptables-1.8.13-r0.apk", "9d22aef2e74346e9d537f6dc964786ab14b35580e3ccc0e4001dc3a725e8fe77"),
     "libxtables": ("main", "libxtables-1.8.13-r0.apk", "7535f18d9c7229178bc5e3809e5fea171033e33dfa054d88846512e1f25eefa8"),
@@ -94,7 +94,7 @@ DOCKER_MODULES = ["veth", "bridge", "br_netfilter", "macvlan", "ipvlan", "vxlan"
 # gzip'd tar, and x86.tar.xz (the x86 emulators, X86_EMULATORS), each padded to 4 KB blocks.
 DOCKER_IMAGE_MAGIC = b"dmx-docker 3\n"
 
-KERNEL_RELEASE = "6.18.58-0-virt"
+KERNEL_RELEASE = "6.18.64-0-virt"
 # The kernel the guest runs: trimmed 4K config and reporting patch, from scripts/build-kernel.py.
 # The Alpine kernel above is used only to boot the VM that builds it (`--kernel alpine`).
 DMX_KERNEL_RELEASE = "6.18.58-dmx-4k"

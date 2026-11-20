@@ -91,6 +91,14 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-11-20: `make kernel`, `make qemu`, `make fex` and `make build` all re-sign `.build/release/dmx` in place
+  (`codesign --force`). Starting one while a build VM runs from that binary slowed the running builds about
+  30-fold (kernel 1 h 52 min unfinished, 3.5 min alone; FEX 45 s alone). Run them one at a time, and build a
+  test binary elsewhere while a VM runs.
+- 2026-11-20: Alpine removes superseded packages from its mirrors, so pinned guest inputs stop downloading
+  (15 of 196 on 2026-11-20, docker-engine and runc among them). Re-pin with each build script's `--lock` and
+  the current versions, then check every new file with `scripts/verify-apk.py`; `--lock` alone only hashes
+  what HTTPS served. Build into a separate DMX_HOME (`build-guest.py --out`), not over the installed guest.
 - 2026-11-20: Two sessions worked in this checkout at once, and one's "docs only" commit carried the other's
   uncommitted code (842165a). Stage the paths you changed (`git add <paths>`), not `git add -A`, and check
   `git status` for files you did not write before committing; leave those to their session.
