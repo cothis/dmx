@@ -588,7 +588,46 @@ separate from Core/VM tests and the completed public distribution checks.
 - [x] Obtain actual Opus 5.5 approval of the final delta and both inherited-fault follow-ups; reproduce and resolve its low-severity finding.
 - [x] Publish v0.4.4 after approval, with signed/notarized assets and verification from public URLs.
 
+### Phase 13: Easier to try and to trust (2026-11-20)
+
+Ideas taken from comparing dmx with Kiri (a Rust engine that also replaces Docker Desktop and got
+wide attention). dmx keeps real dockerd: Kiri's own runtime gives it 2.5 ms runs, and its issue
+tracker is full of Docker behaviour differences. What dmx lacks is visible proof and a lower cost
+to switch. One item per session, in this order; each is verified on the real VM.
+
+- [x] README front page: one claim (a Docker Desktop replacement that gives memory back), the
+      numbers that prove it first, Quick start before details, AI native as the third reason.
+      Done when: the first screen says what dmx is, why to switch and how to install, and every
+      number on it links to its measurement.
+- [ ] `dmx bench`: the comparison users can run themselves. Memory over time while a container
+      takes and frees 2 GiB, idle footprint and warm `docker run`, for dmx and any other engine
+      running beside it (`--endpoint`/process detection as `scripts/benchmark.py` does). `--json`
+      output and a plotted SVG for the README. Done when: the README graph comes from `dmx bench`
+      on this Mac with the method linked.
+- [ ] Soak check: hundreds of `docker run --rm` and Compose up/down cycles, then idle footprint,
+      guest memory, open fds and daemon threads against the start. Opt-in from selftest. Done when:
+      it runs on the real VM and the numbers are recorded here.
+- [ ] Guest crash recovery: when the guest dies (kernel panic, VMM fault), keep the console tail,
+      boot a new VM with backoff, and restart containers whose policy is `always` or
+      `unless-stopped`. Done when: a forced guest crash in a test brings those containers back
+      and leaves `no` ones stopped.
+- [ ] `dmx import`: bring images, volumes and (stopped) container definitions over from Docker
+      Desktop, OrbStack or Colima through their Docker sockets. Done when: an import from a real
+      second engine restores an image, a named volume's data and a Compose project.
+- [ ] Homebrew tap (maintainer decision: a new public repository `cothis/homebrew-dmx`): a cask
+      for the notarized app archive, `auto_updates true`, uninstall of the launchd agent and a zap
+      of `~/.dmx`; the release script updates version and sha256. Homebrew stays optional.
+- [ ] Local names (maintainer decision: admin prompt and a trusted CA): `<container>.dmx.local`
+      and `<service>.<project>.dmx.local` over HTTP and HTTPS, with a CA whose name constraints
+      allow only `*.dmx.local`, and `/etc/resolver/dmx.local`.
+- Not planned now: Kubernetes (k3s), Windows/Linux hosts, an own runtime in place of dockerd.
+
 ## Next up
+
+**Phase 13 started** (2026-11-20): see [Phase 13](#phase-13-easier-to-try-and-to-trust-2026-11-20).
+The README front page is rewritten. Next: `dmx bench` (the README graph depends on it), then the soak check, crash recovery and
+`dmx import`. The Homebrew tap and local names wait for the maintainer.
+
 
 **v0.4.8 is published** (2026-11-12), signed, notarized and stapled, from tag commit `5cb05c3`.
 All 17 original lifecycle review items are resolved (16 repairs, L6 checked and cleared), including
@@ -1749,6 +1788,8 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 | 2026-10-27 | Pre-announcement review of 0.3.3 | Six code findings fixed, stale docs corrected. Unit 59/59; selftest 23/23; daemon 57/57; MCP 33/33; x86 47/47; Docker 69/69; sandbox 44/44; image matrix 24/24; pressure 12/12 rounds (12 GiB host allocation). Selftest host footprint 97 MiB before, 94–97 after; final 1 GiB reclaim 1123 → 103 MiB in 329 ms (before 1122 → 102 in 214 ms). Published 0.3.3 installer, guest fetch, strict signature/notarization check, selftest (97 MiB) and signed same-version update pass; local guest hashes match published. [Review](review-2026-10-27.md), [bounded results](measurements/2026-10-27-preannouncement-review.json). These fixes are not released. |
 
 ## Progress log
+
+- 2026-11-20: Started Phase 13 after comparing dmx with Kiri: bench, soak, crash recovery, import, then the Homebrew tap and local names (maintainer decisions). Rewrote the README front page: one claim, install in three lines, the comparison table first, AI native as the last reason. Docs only.
 
 - 2026-11-12: Published signed/notarized/stapled v0.4.8 from `5cb05c3` after Sonnet 5.5 and Sol 6.1 high final reviews returned NO RELEASE BLOCKERS. Full real-VM qualification passed; local/public signed install/update 37/37 each, nested lifecycle faults 19 and old-guest fallback 9 each; all 14 draft/public assets byte-identical. Running VM, container and volume preserved, restart uses the pinned new guest. Second packaging kept the pin. Verification and source hashes are in the release measurement record. No community announcement.
 

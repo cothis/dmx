@@ -1,45 +1,51 @@
 # dmx
 
-A Docker-compatible container engine for Apple Silicon Macs that gives memory back, built to be
-driven by AI agents as easily as by people.
+**A Docker Desktop replacement for Apple Silicon Macs that gives memory back.**
 
-> Early development (0.x). dmx runs dockerd, Compose and BuildKit in its own small Linux VM on
-> Hypervisor.framework. The VM starts on first use, stops when idle, and returns memory the guest
-> frees within seconds.
+Your containers use memory while they run. When they stop needing it, dmx hands it back to macOS
+within seconds, and when nothing runs for 5 minutes the VM powers off and costs nothing. The
+`docker` CLI, Compose and BuildKit work unchanged, because dmx runs the real dockerd.
+
+```sh
+curl -fsSL https://github.com/cothis/dmx/releases/download/v0.4.8/install.sh | sh
+dmx install                # docker context "dmx", started on demand by launchd
+docker run --rm hello-world
+```
+
+## The numbers
+
+Host memory of the whole engine, VM included, while a container takes 2 GiB and frees it:
 
 | Same Mac, 2 CPUs / 4 GiB VM | dmx | OrbStack | Colima | Docker Desktop |
 |---|---|---|---|---|
 | Idle | **222 MB** | 379 MB | 1100 MB | 1026 MB |
-| Idle CPU | **0.4 %** of one core | 0.5 % | 0.7 % | 0.5 % |
 | While a container holds 2 GiB | **2390 MB** | 2693 MB | 3160 MB | 3154 MB |
-| After it frees the 2 GiB (10 s at most) | **356 MB** | 2699 MB | 3164 MB | 3157 MB |
+| After it frees the 2 GiB (within 10 s) | **356 MB** | 2699 MB | 3164 MB | 3157 MB |
+| Idle CPU (one core) | **0.4 %** | 0.5 % | 0.7 % | 0.5 % |
 | Warm `docker run --rm alpine true` | 104 ms | 97 ms | 52 ms | 63 ms |
 
-Medians of three rounds on a quiet Mac, measured with dmx 0.3.0; dmx 0.3.6 measured the same
-([re-check](docs/benchmark.md#dmx-re-check-2026-10-27-036)). Whole engine, VM included. Idle memory is the steady
-state 95 s after the last command: dmx's dips to 194 MB when it trims the guest and settles at
-222 MB. OrbStack gives the 2 GiB back about 20 s after the container exits, past the 10 s this
-table allows; Colima and Docker Desktop still hold it five minutes later. Method, raw data
-and caveats: [docs/benchmark.md](docs/benchmark.md#results-2026-10-26-dmx-030-quiet-mac). dmx's `docker run` is
-slower than Colima's because dmx keeps write ordering on the data disk across a power cut
-([why](docs/benchmark.md#warm-docker-run-profile-2026-10-25)).
+OrbStack gives the 2 GiB back about 20 s later; Colima and Docker Desktop still hold it five
+minutes later. dmx's `docker run` is the slowest of the four because it keeps the data disk's
+write order across a power cut ([why](docs/benchmark.md#warm-docker-run-profile-2026-10-25)).
+Medians of three rounds on a quiet Mac with dmx 0.3.0, re-checked with 0.3.6
+([method, raw data and caveats](docs/benchmark.md#results-2026-10-26-dmx-030-quiet-mac)).
 
 ## Why dmx
 
-- **Memory that comes back.** Most engines grow their VM to its limit and keep it. dmx's own VMM
-  returns freed guest pages to macOS, adds RAM to the guest only as it needs it, trims caches when
-  idle, and powers the VM off after 5 minutes with nothing running (the daemon then exits).
-- **Docker compatible.** The stock `docker` CLI, Compose and BuildKit against a Docker Engine API
-  socket; published ports, bind mounts of Mac paths, `host.docker.internal`, the Mac's SSH agent
-  at `/run/host-services/ssh-auth.sock`, restart policies and amd64 images work as on Docker
-  Desktop. amd64 and 386 images run through FEX-Emu with the Apple CPU's hardware TSO memory
-  model, in place of Docker Desktop's Rosetta; `dmx config set x86_emulator qemu` switches to QEMU
-  (amd64 only). dmx
-  installs pinned copies of the CLI tools, so neither Homebrew nor Docker Desktop is needed.
-- **AI native.** Every command has `--json` and structured errors with a hint naming the next
-  command; nothing prompts. `dmx mcp` gives AI clients the engine itself over MCP, with capped
-  output, and disposable sandboxes with a network and file policy, resource limits, a TTL, and
-  checkpoints to roll back to or fork from.
+- **Memory that comes back.** Most engines grow their VM to its limit and keep it. dmx has its
+  own VMM on Hypervisor.framework so it can return freed guest pages to macOS (free page
+  reporting), add RAM to the guest only as it needs it, and trim caches when idle.
+- **Docker as you know it.** The real dockerd, containerd and BuildKit, with the stock CLI tools
+  installed for you (no Docker Desktop, no Homebrew). Published ports, bind mounts of Mac paths,
+  `host.docker.internal`, the Mac's SSH agent, VPN DNS, company certificates and proxies work as
+  on Docker Desktop. amd64 and 386 images run through FEX-Emu with the Apple CPU's hardware TSO
+  memory model (`dmx config set x86_emulator qemu` switches to QEMU, amd64 only).
+- **A native menu app**, signed and notarized, with engine memory, containers and Start/Stop.
+- **Built for AI agents too.** Every command has `--json` and structured errors with a hint
+  naming the next command; nothing prompts. `dmx mcp` gives AI clients the engine over MCP, plus
+  disposable sandboxes with a network and file policy, limits, a TTL and checkpoints.
+
+Free for commercial use (Apache-2.0); see [Using dmx at work](#using-dmx-at-work).
 
 ## Quick start
 

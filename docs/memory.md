@@ -14,6 +14,9 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Maintainer preferences
 
+- 2026-11-20: Approved Phase 13 in PLAN.md (ideas from comparing dmx with Kiri; README first). Work it one item per
+  session through "이어서 진행해", not with parallel subagents: one VM and quiet-host measurements. Keep real dockerd.
+
 - 2026-11-12: A requested review work list includes its remaining findings. Do not end after a
   self-selected repair batch when the remaining scope is already authorized; finish the list,
   validating or clearing suspected findings, and report any actual blocker explicitly.
