@@ -647,6 +647,20 @@ to switch. One item per session, in this order; each is verified on the real VM.
 
 ## Next up
 
+**v0.5.0 is published** (2026-11-21, signed, notarized and stapled, tag commit `a015df8`).
+- The 14 assets re-downloaded from the public URLs are byte-identical to the local ones.
+- `test-release.py public` passed 39/41. It covered a fresh install (selftest 23/23 at 98 MB),
+  sandbox cancel, crash recovery in 2 s, an update from 0.4.8 that kept the VM, its container
+  and its volume, and the 0.4.8-guest fallback. The two `.local` failures came from
+  unanswered local network prompts ([qualification](#v050-release-qualification-2026-11-20)).
+
+**Next:**
+- `dmx status` and `dmx doctor` should notice when mDNSResponder withholds `.local` answers.
+  Today the `local_network` probe asks the kernel, which said `allowed` while every `.local`
+  lookup failed under an open prompt. One option: resolve the Mac's own `LocalHostName`
+  through the same path HostDNS uses.
+- No community announcement was made; that is the maintainer's call.
+
 **Phase 13 is done; its open ends are closed except two that need the maintainer** (2026-11-20).
 `dmx import` now passes from OrbStack and Docker Desktop too ([finding](#import-from-orbstack-and-docker-desktop-2026-11-20)).
 Local names work in Safari and Chrome with no warning ([finding](#local-names-in-browsers-2026-11-20)).
@@ -1230,21 +1244,26 @@ Two things in the test kit needed repair; neither touched the product:
   migration. The jar the v0.3.12 evidence names (sha256 `fc6878c6…`) matches no tlaplus release
   between v1.7.1 and v1.8.0; it was probably a v1.8.0 nightly. The official v1.8.0 jar
   (`fdffef24…`) ran it.
-- **test-release local, first run 38/41, second run 40/41.** The failures are explained:
+- **test-release local, first run 38/41, second run 40/41; public 39/41.** The failures are explained:
   - `fix_crash_recovers` (new). The panic came about 4 s after `docker run -d`, before ext4's
     5 s commit, so dockerd's record of the start was lost and the container came back as
     `created`, as after a power cut. With `sync` before the panic it was back in 3 s; the
     check now syncs first.
-  - `fix_af_inet6_alone`, and again in the second run (40/41). The dmx daemon of the fresh
-    install starts the AAAA query and its own A query 13 ms apart. mDNSResponder never
-    answers that A query for the record registered on this Mac (its log has no result), so
-    the AAAA fails at 5 s, as designed when no A comes. The published 0.4.8 behaves the same
-    on this Mac now: installed fresh in the same way, it fails 3 times out of 3, though it
-    passed this check on 2026-11-12 before the Mac migration. So it is not a 0.5.0
-    regression. A daemon run from the terminal passes 20/20 at 1.0 s, and so does the
-    updated install in the same run (1.11 and 1.17 s, the A answered in 77–150 ms).
-    mDNSResponder logs `util_copy_trust_info … afpAccessDenied` for these app copies. Why it
-    withholds `.local` answers from a fresh copy and not from an updated one is not known.
+  - `fix_af_inet6_alone`: failed in both local runs, and twice in the public run (39/41).
+    Cause, confirmed: macOS's local network prompts. Every fresh dmx.app copy the checks
+    installed at a new temporary path raised "dmx would like to find devices on your local
+    network" (about ten that evening). While prompts were unanswered, mDNSResponder gave that
+    copy no `.local` answers at all: IPv4 failed, and so did the Mac's own name. The daemon
+    still started its own A query 13 ms after the AAAA, as designed. The published 0.4.8
+    failed the same way (3/3), so it is not a 0.5.0 regression.
+    After the maintainer answered the prompts, the installed app (a separate DMX_HOME, so no
+    new prompt) resolved:
+    - a registered name in 0.01 s (IPv4) and 0.31 s (`AF_UNSPEC`), and IPv6 alone as no
+      address in 0.31 s;
+    - the Mac's `LocalHostName` to the gateway addresses.
+
+    In that state `dmx status` still said `local_network: allowed`: its kernel probe and
+    mDNSResponder's decision differ while a prompt is open. That is the next fix (below).
   - `update_previous_guest_fallback`. test-legacy-exec.py assumed a guest without stdin
     credit (0.4.7). The 0.4.8 guest has credit and correctly holds 1 MiB back instead of
     refusing it. `--credit` checks that, then Ctrl-C (exit 130 in 9 ms) and reaping: 10/10.
@@ -2151,6 +2170,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-21: Published v0.5.0 from `a015df8`. The suites passed on the 0.5.0 build: unit 174, formal 15+17, selftest, daemon 63, MCP 39, x86 77, Docker 81, sandbox 45, crash 40, names 37, launchd 10, soak 28, storage 64, images 24, Java 100, menu 25, app 14, LAN 13, lifecycle. Two packagings, the second with `pin_changed: false`; the assets are byte-identical to the local ones; test-release public 39/41. The two `.local` failures came from local network prompts the fresh test copies raised, confirmed once the maintainer answered them. Test-kit repairs: x86 re-pins, release.py on Python 3.9, test-release checks for 0.5.0's own fixes, crash check syncs first, legacy check for guests with stdin credit.
 - 2026-11-20: Second audit round (fix review by Opus 5.5 and Codex gpt-6.2-sol on 25ff416..609c671; whole-code audits by Opus 5.5 for resource lifetimes, concurrency and docs vs behaviour). Fixed: FUSE opens reserve the handle before `O_TRUNC`; vsock double drop; cancelled sandbox exec now kills its command; fence failures stop the sandbox; MCP EOF wait bounded; import/bench docker processes end on cancel; tools resume after a 200 and a cancellable install lock; guest fetch no longer blocks boots and every boot holds the guest lock; config set/unset under a lock and checks at use; every failure carries a hint; crash streak stops at ten; forward, docker.sock (1024), control (256) and names (1024) limits; standalone daemon refused beside launchd; NAT keepalive; ByteQueue capacity; stale work dirs, guarded-port files and bench containers cleaned; agent thread spawns no longer abort it; docs corrected. Unit 174, agent 8/8; namestest 37/37, crashtest 40/40, daemontest 63/63, sandboxtest 45/45 (new `exec_cancel_kills`, which v0.4.8 fails), mcptest 39/39, dockertest 81/81, soaktest 28/28, launchdtest 10/10, importtest 29/29, selftest 23/23 ×2 at 96 MB ([review](reviews/2026-11-20-audit-round2.md)).
 - 2026-11-20: Full code audit (three Opus 5.5 agents by area; Codex gpt-6.2-sol refused the whole repository three times on OpenAI's cybersecurity flag). Fixed, several in released code: a memory ceiling not in whole 128 MB blocks crashed the daemon at boot; shares' descriptor budget; guest-controlled overflows and copy sizes in the VMM; recovery boots after `dmx stop` and endless crash loops; sandboxes left running without their rules, and IPv6 in sandboxes; per-forward connection and UDP peer limits; MCP waits for cancelled calls; names leave sandboxes out and bound head readers; a linked docker config.json, concurrent tool installs, JSON envelopes for every failure, the update hint URL, config.json checked on load, `dmx_config_set` limited to cpus/memory/idle_timeout, download size bounds, the guest lock held while a VM opens its files. Unit 173; namestest 37/37, crashtest 40/40, daemontest 63/63, sandboxtest 44/44, mcptest 39/39, dockertest 81/81, soaktest 28/28, launchdtest 10/10, importtest 29/29, selftest 97–98 MB.
 - 2026-11-20: Third review round (Opus 5.5 no blockers, Codex gpt-6.2-sol blockers) fixed: names table freshness after events and during connects, guarded ports shared between daemons and TLS listeners that accept only names' own connections, the import journal by run id with a lock and label check, ownership read back before copy and rollback, anonymous volumes without copy-up and shared ones by name, old CAs removable, resolver ownership, crash counting after autostart and retried recovery boots, verify-apk reading like the builder, split ClientHellos. Unit 172; namestest 37/37, crashtest 40/40, daemontest 63/63, sandboxtest 44/44, mcptest 38/38, dockertest 81/81, importtest 29/29, launchdtest 10/10, selftest 96–97 MB.

@@ -95,6 +95,11 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-11-21: Every fresh dmx.app copy run from a new path raises macOS's local network prompt. While prompts wait,
+  mDNSResponder gives that copy no `.local` answers, and `dmx status` still says `allowed`. A release check that
+  installs copies raised about ten prompts and failed `.local` checks for that reason alone. Tell the maintainer
+  before such runs, keep fresh installs few, and re-test against an already-answered copy (the installed app with a
+  separate DMX_HOME) rather than a new one.
 - 2026-11-20: A test against a throwaway DMX_HOME must set DOCKER_HOST as well. Without it the `docker` CLI uses the
   `dmx` context, the maintainer's installed engine: it woke that engine and ran test containers in it. Its failures also
   looked like a product bug: a launchd engine has macOS's local network access blocked, so `.local` lookups fail there.

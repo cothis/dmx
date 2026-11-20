@@ -140,6 +140,11 @@ dmx exec -- uname -a   # the first boot downloads the guest (62 MB) and checks i
 
 ### Local network permission
 
+`test-release.py` installs fresh app copies at new temporary paths, and each raises the prompt. Until it is
+answered, mDNSResponder gives that copy no `.local` answers, so `fix_af_inet6_alone` and
+`update_fix_af_inet6_alone` fail (0.5.0, 2026-11-21). Tell the maintainer before running it, and have the prompts
+answered before reading those two checks.
+
 A launchd test from a new temporary path raises macOS's prompt for a new UUID, and says nothing about an
 update in place. While that prompt is open every copy is blocked, including the installed one, and answering
 it allows the UUID everywhere. So update the installed app and read `dmx status` before any such test of the
