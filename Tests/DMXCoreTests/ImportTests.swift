@@ -121,6 +121,34 @@ import Testing
         #expect(Import.anonymousVolumes(inherits).isEmpty)
     }
 
+    /// --volumes-from brings the other container's volumes; a VOLUME of its own image is still its own.
+    @Test func keepsItsOwnAnonymousVolumesBesideVolumesFrom() {
+        let web = Self.container(Self.webID, "web", inspect: [
+            "Mounts": .array([.object(["Type": "volume", "Name": "aaaa", "Destination": "/shared"])]),
+        ])
+        let other = String(repeating: "d", count: 64)
+        let side = Self.container(Self.sideID, "side", inspect: [
+            "HostConfig": .object(["VolumesFrom": ["web:ro"]]),
+            "Mounts": .array([.object(["Type": "volume", "Name": "aaaa", "Destination": "/shared"]),
+                              .object(["Type": "volume", "Name": .string(other), "Destination": "/own"])]),
+        ])
+        #expect(Import.anonymousVolumes(side, containers: [web, side]).map(\.volume) == [other])
+    }
+
+    @Test func refusesNamesAndReferencesDockerWouldNotMake() {
+        #expect(Import.validName("shop_data"))
+        #expect(Import.validName("a1.b-c_d"))
+        #expect(!Import.validName("-o"))
+        #expect(!Import.validName("x"))
+        #expect(!Import.validName("a,readonly=false"))
+        #expect(!Import.validName("../etc"))
+        #expect(Import.validReference("library/alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42"))
+        #expect(Import.validReference("localhost:5000/web:1"))
+        #expect(!Import.validReference("-o/tmp/x"))
+        #expect(!Import.validReference("web 1"))
+        #expect(!Import.validReference(""))
+    }
+
     @Test func selectsAComposeProjectAndWhatItUses() throws {
         let project = ["com.docker.compose.project": "shop"]
         let web = Self.container(Self.webID, "shop-web-1", inspect: [
@@ -212,8 +240,31 @@ import Testing
 
     @Test func readsAChunkedBody() {
         let body = Data("4\r\n[{\"a\r\n5;x=1\r\n\":1}]\r\n0\r\n\r\n".utf8)
-        #expect(String(decoding: DockerAPI.unchunk(body), as: UTF8.self) == "[{\"a\":1}]")
-        #expect(DockerAPI.unchunk(Data("not chunked".utf8)) == Data("not chunked".utf8))
+        #expect(DockerAPI.chunks(body) == .complete(Data("[{\"a\":1}]".utf8)))
+        #expect(DockerAPI.chunks(Data("4\r\n[{\"a\r\n5\r\n\":".utf8)) == .incomplete)
+        #expect(DockerAPI.chunks(Data("-5\r\nabc\r\n".utf8)) == .malformed)
+        #expect(DockerAPI.chunks(Data("zz\r\n".utf8)) == .malformed)
+        #expect(DockerAPI.chunks(Data("2\r\nabcd\r\n".utf8)) == .malformed)
+    }
+
+    /// A complete chunked reply on a connection that stays open ends at its last chunk.
+    @Test func endsAChunkedReplyAtItsLastChunk() async throws {
+        var pair: [Int32] = [0, 0]
+        #expect(socketpair(AF_UNIX, SOCK_STREAM, 0, &pair) == 0)
+        let client = pair[0], server = pair[1]
+        defer { Darwin.close(server) }
+        let api = DockerAPI(open: { DockerStream(fd: client, timeoutSeconds: 5) { _ = Darwin.close(client) } }, apiVersion: "")
+        Thread {
+            var request = [UInt8](repeating: 0, count: 4096)
+            _ = read(server, &request, request.count)
+            let reply = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\n[]\r\n0\r\n\r\n"
+            _ = reply.withCString { write(server, $0, strlen($0)) }
+        }.start()
+        let started = ContinuousClock.now
+        let (status, body) = try await api.call("GET", "/containers/json")
+        #expect(status == 200)
+        #expect(body == Data("[]".utf8))
+        #expect(ContinuousClock.now - started < .seconds(2))
     }
 
     @Test func refusesASourceItCannotUse() async throws {

@@ -86,6 +86,7 @@ final class NamesService {
         tls = [:]
         state = [:]
         settings = nil
+        syncGuestGuard()
     }
 
     /// The running containers changed. Ports given up to a container are taken back once no
@@ -96,6 +97,12 @@ final class NamesService {
         if new != entries {
             entries = new
             log("names: \(entries.isEmpty ? "none" : entries.map(\.name).joined(separator: ", "))")
+            // A name's TLS listener goes with its container.
+            let live = Set(entries.map(\.name))
+            for (name, backend) in tls where !live.contains(name) {
+                backend.listener.cancel()
+                tls[name] = nil
+            }
         }
         listenWeb()
     }
@@ -113,6 +120,26 @@ final class NamesService {
             state["https"] = "yielded: a forward listens on port \(port)"
             log("names: https port \(port) given up to a forward")
         }
+        syncGuestGuard()
+        // The forward may fail to listen after all (the port is taken); look again shortly.
+        if retry == nil {
+            retry = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled, let self else { return }
+                self.retry = nil
+                self.listenWeb()
+            }
+        }
+    }
+
+    /// The ports names listens on now, which the guest must not reach through the host gateway
+    /// (see GuestHostPorts).
+    private func syncGuestGuard() {
+        guard let settings else { return GuestHostPorts.shared.set([]) }
+        var held: Set<UInt16> = []
+        if http != nil { held.insert(UInt16(settings.httpPort)) }
+        if https != nil { held.insert(UInt16(settings.httpsPort)) }
+        GuestHostPorts.shared.set(held)
     }
 
     func status() -> NamesStatus {
@@ -143,6 +170,7 @@ final class NamesService {
         } else if https == nil, authority != nil {
             state["https"] = "yielded: a forward listens on port \(settings.httpsPort)"
         }
+        syncGuestGuard()
         let failed = (http == nil && !(forwarded?(settings.httpPort) ?? false))
             || (https == nil && authority != nil && !(forwarded?(settings.httpsPort) ?? false))
         if !failed {
@@ -163,7 +191,7 @@ final class NamesService {
     /// the others.
     private func listenTCP(_ port: Int, _ accepted: @escaping @MainActor (Int32) -> Void) throws -> Held {
         let fd = socket(AF_INET, SOCK_STREAM, 0)
-        guard fd >= 0 else { throw DMXError("names_error", "socket: \(String(cString: strerror(errno)))") }
+        guard fd >= 0 else { throw DMXError("names_error", "socket: \(String(cString: strerror(errno)))", hint: "see `dmx names status`; `dmx doctor` checks the descriptors") }
         _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
         var on: Int32 = 1
         _ = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, socklen_t(MemoryLayout<Int32>.size))
@@ -208,7 +236,7 @@ final class NamesService {
 
     nonisolated private static func listenDNS(_ port: Int) throws -> Held {
         let fd = socket(AF_INET, SOCK_DGRAM, 0)
-        guard fd >= 0 else { throw DMXError("names_error", "socket: \(String(cString: strerror(errno)))") }
+        guard fd >= 0 else { throw DMXError("names_error", "socket: \(String(cString: strerror(errno)))", hint: "see `dmx names status`; `dmx doctor` checks the descriptors") }
         _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
         guard HostEndpoint.v4(0x7f00_0001, UInt16(port)).withSockaddr({ bind(fd, $0, $1) }) == 0 else {
             let code = errno
@@ -295,7 +323,10 @@ final class NamesService {
         defer { Darwin.close(fd) }
         guard let (prefix, head) = await Self.readHead(fd, parse: LocalNames.serverName),
               case .host(let sni) = head, let name = sni,
-              name.hasSuffix(".\(LocalNames.domain)"), LocalNames.dnsName(String(name.dropLast(LocalNames.domain.count + 1))) == name
+              name.hasSuffix(".\(LocalNames.domain)"), LocalNames.dnsName(String(name.dropLast(LocalNames.domain.count + 1))) == name,
+              // A listener and a leaf only for the names of running containers: any page or
+              // program on this Mac can send any server name, and each would cost a listener.
+              entries.contains(where: { $0.name == name })
         else { return }
         let port: UInt16
         do {
@@ -318,7 +349,7 @@ final class NamesService {
     private func backend(_ name: String) async throws -> UInt16 {
         if let existing = tls[name] { return try await existing.port.value }
         guard let authority, let leafKey else {
-            throw DMXError("names_error", "no CA; run `dmx names setup`")
+            throw DMXError("names_error", "no CA for HTTPS names", hint: "run `dmx names setup`")
         }
         let identity = try authority.identity(name, leafKey: leafKey)
         let backend = try TLSBackend(identity: identity) { [unowned self] plain in
@@ -397,7 +428,7 @@ final class TLSBackend: @unchecked Sendable {
         let options = NWProtocolTLS.Options()
         let sec = options.securityProtocolOptions
         guard let local = sec_identity_create(identity) else {
-            throw DMXError("names_error", "cannot use the TLS identity")
+            throw DMXError("names_error", "cannot use the TLS identity", hint: "run `dmx names remove`, then `dmx names setup` to make a new CA")
         }
         sec_protocol_options_set_local_identity(sec, local)
         sec_protocol_options_set_min_tls_protocol_version(sec, .TLSv12)
@@ -413,8 +444,8 @@ final class TLSBackend: @unchecked Sendable {
                 listener.stateUpdateHandler = { state in
                     switch state {
                     case .ready: once.run { continuation.resume(returning: listener.port?.rawValue ?? 0) }
-                    case .failed(let error): once.run { continuation.resume(throwing: DMXError("names_error", "tls listener: \(error)")) }
-                    case .cancelled: once.run { continuation.resume(throwing: DMXError("names_error", "tls listener cancelled")) }
+                    case .failed(let error): once.run { continuation.resume(throwing: DMXError("names_error", "tls listener: \(error)", hint: "see `dmx names status`")) }
+                    case .cancelled: once.run { continuation.resume(throwing: DMXError("names_error", "tls listener cancelled", hint: "see `dmx names status`")) }
                     default: break
                     }
                 }
@@ -465,6 +496,8 @@ private final class ConnectionPump: @unchecked Sendable {
     private let writer = DispatchQueue(label: "dmx.names.conn.write")
     private let lock = NSLock()
     private var ended = 0
+    /// Whether the connection got ready, so the two copies run and end() closes the socket.
+    private var pumping = false
 
     init(_ connection: NWConnection, fd: Int32) {
         self.connection = connection
@@ -475,14 +508,24 @@ private final class ConnectionPump: @unchecked Sendable {
         connection.stateUpdateHandler = { [self] state in
             switch state {
             case .ready:
+                lock.withLock { pumping = true }
                 receive()
                 Thread.detachNewThread { [self] in fromSocket() }
             case .failed:
                 // Unblocks the socket side, unless end() closed the descriptor already: its
                 // number may belong to another connection by now.
-                lock.withLock { if ended < 2 { shutdown(fd, SHUT_RDWR) } }
+                let never = lock.withLock { () -> Bool in
+                    if ended < 2 { shutdown(fd, SHUT_RDWR) }
+                    return !pumping
+                }
+                // A handshake that failed (a client that does not trust the CA, a scan) never
+                // started the copies, so nothing else would close the socket or the connection.
+                if never { connection.cancel() }
             case .cancelled:
-                lock.withLock { if ended < 2 { shutdown(fd, SHUT_RDWR) } }
+                lock.withLock {
+                    if ended < 2 { shutdown(fd, SHUT_RDWR) }
+                    if !pumping && ended < 2 { ended = 2; Darwin.close(fd) }
+                }
                 // The handler holds the pump, which holds the connection.
                 connection.stateUpdateHandler = nil
             default: break

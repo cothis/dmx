@@ -7,7 +7,7 @@ struct ImportCommand: AsyncParsableCommand {
         commandName: "import",
         abstract: "Bring images, volumes, networks and containers over from Docker Desktop, OrbStack or Colima.",
         discussion: """
-            Reads the other engine through its Docker socket and changes nothing there. Images go \
+            Reads the other engine through its Docker socket and leaves it as it was. Images go \
             through `docker save | docker load`; each volume's data is copied with `docker cp` between \
             two containers that are created and never started; user bridge networks and containers are \
             created in dmx with their settings and labels, so Compose finds its projects. Containers are \

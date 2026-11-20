@@ -314,12 +314,18 @@ dmx import --from orbstack --project shop
 docker compose up -d             # in the project's directory, after stopping it in the other engine
 ```
 
-Nothing on the other engine changes. Images go through `docker save | docker load` (with
+The other engine is left as it was: dmx only reads it, except for the two helper containers each
+volume copy makes there and removes (and, if it has no image at all, the pinned alpine pulled
+for them and removed again at the end); a run that is interrupted leaves its helpers, and the next
+run removes them. Images go through `docker save | docker load` (with
 `--platform` when a multi-platform image has only some platforms there); an image a container
 names by digest (`alpine@sha256:...`) is pulled by that digest instead, because a load cannot
 bring that name back. Each volume's files, owners, modes and links are copied with `docker cp`
-between two containers that are created with the volume mounted and never started; any image
-each engine has will do for them, and they are removed afterwards. User bridge networks are
+between two containers that are created with the volume mounted (`volume-nocopy`, so an empty
+volume gets none of the helper image's files) and never started; any image each engine has will
+do for them. A container whose volume could not be copied, or was skipped, is not created, so it
+cannot start on an empty volume; a dry run does not start a stopped dmx (it then says it cannot
+tell what dmx has already). User bridge networks are
 created with their labels and options, without the other VM's bridge name, and with the subnet
 only when a container had a fixed address in it. Containers are created with their own
 configuration and labels, so Compose finds its projects, and are not started, so their ports do

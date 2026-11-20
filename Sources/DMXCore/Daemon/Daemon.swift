@@ -481,7 +481,7 @@ public final class Daemon {
             }
             let uptime = bootedAt.map { ContinuousClock.now - $0 }
             // Read before vmStopped forgets them. The events stream may have ended already.
-            let containers = docker.runningAtLastListing
+            let containers = docker.runningAtCrash
             let busy = docker.busy || containers > 0
             memory.detach()
             docker.vmStopped()

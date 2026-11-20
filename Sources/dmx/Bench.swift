@@ -64,6 +64,7 @@ func describeBench(_ r: Bench.Report, svg: String?) -> String {
         lines.append("\(e.name): " + settings.joined(separator: ", ") + "; processes " + e.processes.map { "\($0.command) (\($0.pid))" }.joined(separator: ", "))
         if let error = e.error { lines.append("\(e.name) failed: \(error.message)" + (error.hint.map { "\n  hint: \($0)" } ?? "")) }
     }
+    for w in r.warnings { lines.append("warning: \(w)") }
     lines.append(String(format: "host load %.2f -> %.2f; method: %@", r.host.loadStart, r.host.loadEnd, r.method))
     if let svg { lines.append("graph: \(svg)") }
     return lines.joined(separator: "\n")

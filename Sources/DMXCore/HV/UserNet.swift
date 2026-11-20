@@ -107,8 +107,11 @@ final class UserNet: @unchecked Sendable {
     /// Where a guest flow to `address:port` goes on the host, or nil if nowhere.
     func endpoint(for address: IPAddress, port: UInt16) -> HostEndpoint? {
         switch address {
-        case Self.host: return .v4(0x7f00_0001, port)
-        case Self.host6: return .v6(.loopback6, port)
+        case Self.host, Self.host6:
+            // Local names route by name to any container's web port; reached from a container
+            // through host.docker.internal they would skip Docker's network isolation.
+            guard !GuestHostPorts.shared.contains(port) else { return nil }
+            return address == Self.host ? .v4(0x7f00_0001, port) : .v6(.loopback6, port)
         case Self.gateway, Self.gateway6: return port == 53 ? resolver : nil
         default:
             if address.isV4 {
@@ -689,4 +692,14 @@ extension UnsafeRawBufferPointer {
 extension Array where Element == UInt8 {
     mutating func be16(_ v: UInt16) { append(UInt8(v >> 8)); append(UInt8(v & 0xff)) }
     mutating func be32(_ v: UInt32) { be16(UInt16(v >> 16)); be16(UInt16(v & 0xffff)) }
+}
+
+/// Host ports a guest flow to the host gateway (host.docker.internal) must not reach: those local
+/// names listens on while it holds them. Set on the main actor, read on the network queue.
+final class GuestHostPorts: @unchecked Sendable {
+    static let shared = GuestHostPorts()
+    private let lock = NSLock()
+    private var ports: Set<UInt16> = []
+    func set(_ new: Set<UInt16>) { lock.withLock { ports = new } }
+    func contains(_ port: UInt16) -> Bool { lock.withLock { ports.contains(port) } }
 }

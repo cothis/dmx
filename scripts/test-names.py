@@ -125,6 +125,28 @@ def wait_for(predicate, seconds):
     return predicate()
 
 
+def daemon_fds():
+    pids = daemon_pids()
+    if not pids:
+        return None
+    out = subprocess.run(["lsof", "-n", "-P", "-p", str(pids[0]), "-F", "f"], capture_output=True, text=True).stdout
+    return sum(1 for line in out.splitlines() if line[1:].isdigit())
+
+
+def tls_hello(name):
+    """A TLS handshake with server name `name`, verification off; True if it completed."""
+    import ssl
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    try:
+        with socket.create_connection(("127.0.0.1", HTTPS), timeout=5) as raw:
+            with context.wrap_socket(raw, server_hostname=name):
+                return True
+    except (OSError, ssl.SSLError):
+        return False
+
+
 def lan_address():
     for interface in ["en0", "en1"]:
         r = subprocess.run(["ipconfig", "getifaddr", interface], capture_output=True, text=True)
@@ -206,6 +228,24 @@ try:
           and "ALPN: server accepted http/1.1" in r.stderr, r.stderr[-400:])
     status, _ = curl(f"https://web.dmx.local:{HTTPS}/", "--cacert", "/etc/ssl/cert.pem")
     check("untrusted_without_ca", status.startswith("000"), status)
+
+    # Names and handshakes that go nowhere cost the daemon nothing that stays: no listener for a
+    # name no container has, and failed handshakes close their sockets.
+    time.sleep(2)
+    fds_before = daemon_fds()
+    unknown = [tls_hello(f"nobody-{i}.dmx.local") for i in range(200)]
+    check("tls_unknown_names_refused", not any(unknown), f"{sum(unknown)} of 200 completed")
+    for _ in range(50):
+        curl(f"https://web.dmx.local:{HTTPS}/", "--cacert", "/etc/ssl/cert.pem")
+    time.sleep(3)
+    fds_after = daemon_fds()
+    check("tls_failures_leave_no_fds", fds_before is not None and fds_after is not None and fds_after <= fds_before + 4,
+          f"{fds_before} -> {fds_after}")
+    # A container reaching the Mac's port: names would hand it any container's web port.
+    r = docker("run", "--rm", "--network", "bridge", "alpine", "sh", "-c",
+               f"wget -q -T 5 -O - --header 'Host: web.dmx.local' http://host.docker.internal:{HTTP}/ >/dev/null 2>&1 && echo reached || echo refused",
+               timeout=120)
+    check("container_cannot_reach_names", r.stdout.strip() == "refused", (r.stdout + r.stderr)[-200:])
 
     lan = lan_address()
     if lan:

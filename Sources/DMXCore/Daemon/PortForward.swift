@@ -292,7 +292,11 @@ final class PortForwards {
     func list() -> [PortForwardStatus] { listeners.map(\.status) }
 
     /// Whether a forward listens on TCP host `port` (local names leave such ports alone).
-    func holdsTCP(_ port: Int) -> Bool { listeners.contains { $0.forward.proto == "tcp" && $0.forward.hostPort == port } }
+    /// Whether a forward listens on TCP `port` now; one whose listen failed (kept to report its
+    /// error) does not, so local names take the port back.
+    func holdsTCP(_ port: Int) -> Bool {
+        listeners.contains { $0.forward.proto == "tcp" && $0.forward.hostPort == port && ($0.source != nil || $0.source6 != nil) }
+    }
 
     private func save() throws {
         let encoder = JSONEncoder()

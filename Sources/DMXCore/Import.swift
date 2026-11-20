@@ -131,13 +131,29 @@ public enum Import {
                             projects: options.projects)
         let source = try await Inventory.read(src)
         let selection = try Selection(source, projects: options.projects)
-        progress("dmx: reading what it has")
-        let dstInfo = try await dst.json("GET", "/info")
-        var target = try await Inventory.read(dst)
+        // A dry run reads dmx only if its VM is up: booting it would start dockerd and, by their
+        // restart policies, containers.
+        var dstInfo: JSONValue = .null
+        var target = Inventory()
+        var dmxRunning = true
+        if options.dryRun {
+            let client = try await DaemonClient.connect(paths: paths, start: false)
+            dmxRunning = (try? await client?.status(timeout: .seconds(10)).state) == "running"
+            client?.close()
+        }
+        if dmxRunning {
+            progress("dmx: reading what it has")
+            dstInfo = try await dst.json("GET", "/info")
+            target = try await Inventory.read(dst)
+        } else {
+            report.warnings.append("dmx is stopped and a dry run does not start it, so this plan does not know what dmx has already; "
+                                   + "`dmx start`, then `dmx import --dry-run` again, to see what would be left alone")
+        }
         let shares = (try? Config.load(paths).shareList) ?? Share.defaults
 
         var run = Runner(src: src, dst: dst, srcCLI: srcCLI, dstCLI: dstCLI, sourceName: sourceName, dryRun: options.dryRun,
                          progress: progress)
+        if !options.dryRun { await run.removeStaleHelpers() }
         for image in selection.images { report.items.append(await run.image(image, target: &target)) }
         for volume in selection.volumes {
             report.items.append(await run.volume(volume, source: source, target: &target, selection: selection))
@@ -146,10 +162,10 @@ public enum Import {
         let runtimes = Set(dstInfo["Runtimes"]?.object?.keys.map { $0 } ?? [])
         for container in selection.orderedContainers {
             report.items.append(contentsOf: await run.container(container, source: source, selection: selection, target: &target,
-                                                    runtimes: runtimes, shares: shares))
+                                                                runtimes: runtimes, shares: shares))
         }
         await run.cleanUp()
-        report.warnings = run.warnings
+        report.warnings += run.warnings
         report.ok = !report.items.contains { $0.action == "failed" }
         report.next = nextStep(report, selection: selection)
         return report
@@ -354,8 +370,14 @@ extension Import {
         /// Containers created in this run, by name.
         var targetIDs: [String: String] = [:]
         var helperImages: (src: String?, dst: String?) = (nil, nil)
-        /// This run's helpers only, so a run never removes another one's.
-        let helperLabel = "dmx.import=helper-\(getpid())-\(UUID().uuidString.prefix(8))"
+        /// This run's helpers only, so a run never removes another one's. The value starts with
+        /// the pid, so a later run can tell the helpers of an interrupted one.
+        let helperValue = "\(getpid())-\(UUID().uuidString.prefix(8))"
+        var helperLabel: String { "\(Import.helperKey)=\(helperValue)" }
+        /// Images this run pulled into the source to read its volumes, removed again at the end.
+        var pulledIntoSource: [String] = []
+        /// Volumes whose data did not come over (failed or skipped): containers using them are not created.
+        var missingVolumes: [String: String] = [:]
 
         init(src: DockerAPI, dst: DockerAPI, srcCLI: DockerCLI, dstCLI: DockerCLI, sourceName: String, dryRun: Bool,
              progress: @escaping @Sendable (String) -> Void) {
@@ -371,6 +393,12 @@ extension Import {
         mutating func image(_ image: Image, target: inout Inventory) async -> Item {
             let name = image.tags.isEmpty ? image.digests.first ?? Import.shortID(image.id) : image.tags.joined(separator: ", ")
             var item = Item(kind: "image", name: name, action: "imported", detail: Import.megabytes(image.size))
+            // The names go to the docker CLI as arguments; a source could send anything.
+            guard (image.tags + image.digests + [image.id]).allSatisfy(Import.validReference) else {
+                item.action = "skipped"
+                item.detail = "not a reference Docker gives an image"
+                return item
+            }
             let missing = image.tags.filter { target.tags[$0] == nil }
             let other = image.tags.filter { target.tags[$0].map { $0 != image.id } ?? false }
             if !other.isEmpty {
@@ -394,7 +422,7 @@ extension Import {
                 }
                 if dryRun { item.action = "planned"; return item }
                 progress("image \(digest): pulling it by digest")
-                if (try? await dstCLI.run(["pull", "--quiet", digest], timeout: 1800)) != nil,
+                if (try? await dstCLI.run(["pull", "--quiet", "--", digest], timeout: 1800)) != nil,
                    let id = try? await dst.json("GET", "/images/\(digest)/json")["Id"]?.string {
                     imageMap[image.id] = id
                     item.detail = (item.detail ?? "") + ", pulled by digest"
@@ -407,13 +435,14 @@ extension Import {
             do {
                 var output: String
                 do {
-                    output = try await DockerCLI.pipe(srcCLI, ["save"] + refs, into: dstCLI, ["load"], timeout: 3600)
+                    output = try await DockerCLI.pipe(srcCLI, ["save", "--"] + refs, into: dstCLI, ["load"], timeout: 3600)
                 } catch {
                     // An image from a multi-platform index whose other platforms were never pulled:
                     // the containerd store cannot export what it lacks, so ask for the one it has.
                     // If that fails too (an older dockerd has no --platform), the first error is the one to see.
                     guard let platform = try? await Import.platform(of: image.id, src),
-                          let retried = try? await DockerCLI.pipe(srcCLI, ["save", "--platform", platform] + refs, into: dstCLI, ["load"], timeout: 3600)
+                          Import.validReference(platform),
+                          let retried = try? await DockerCLI.pipe(srcCLI, ["save", "--platform", platform, "--"] + refs, into: dstCLI, ["load"], timeout: 3600)
                     else { throw error }
                     output = retried
                 }
@@ -436,6 +465,12 @@ extension Import {
 
         mutating func volume(_ volume: Volume, source: Inventory, target: inout Inventory, selection: Selection) async -> Item {
             var item = Item(kind: "volume", name: volume.name, action: "imported")
+            guard Import.validName(volume.name) else {
+                item.action = "skipped"
+                item.detail = "not a name Docker gives a volume"
+                missingVolumes[volume.name] = "its volume \(volume.name) has a name Docker does not give volumes"
+                return item
+            }
             if target.volumes.contains(where: { $0.name == volume.name }) {
                 item.action = "exists"
                 item.detail = "dmx has a volume of this name; its data was left alone"
@@ -445,11 +480,7 @@ extension Import {
                 item.action = "skipped"
                 item.detail = volume.driver != "local" ? "driver \(volume.driver) is not dmx's"
                     : "its options (\(volume.options.keys.sorted().joined(separator: ", "))) describe storage of \(sourceName)'s VM"
-                let users = source.containers.filter { $0.volumeNames.contains(volume.name) }.map(\.name)
-                if !users.isEmpty {
-                    warnings.append("\(users.joined(separator: ", ")) mount\(users.count == 1 ? "s" : "") volume \(volume.name), which was not imported; "
-                                    + "dockerd will make an empty local volume of that name unless you create it in dmx first")
-                }
+                missingVolumes[volume.name] = "its volume \(volume.name) was not imported (\(item.detail!))"
                 return item
             }
             warnIfInUse(volume.name, source: source, redo: "`docker volume rm \(volume.name)` in dmx and import again")
@@ -457,6 +488,13 @@ extension Import {
             progress("volume \(volume.name): copying its data")
             var created = false
             do {
+                // dockerd answers a create for a name it has with that volume, so a volume made
+                // since the listing (another import, Compose) is found here and left alone.
+                if (try await dst.call("GET", "/volumes/\(volume.name)")).status != 404 {
+                    item.action = "exists"
+                    item.detail = "dmx has a volume of this name (made during the import); its data was left alone"
+                    return item
+                }
                 _ = try await dst.json("POST", "/volumes/create", body: .object([
                     "Name": .string(volume.name), "Driver": "local", "Labels": .object(volume.labels.mapValues(JSONValue.string)),
                 ]))
@@ -466,6 +504,7 @@ extension Import {
             } catch {
                 item.action = "failed"
                 item.detail = Import.message(error)
+                missingVolumes[volume.name] = "its volume \(volume.name) could not be copied"
                 if created { _ = try? await dst.call("DELETE", "/volumes/\(queryValue(volume.name))") }
             }
             return item
@@ -486,9 +525,12 @@ extension Import {
         mutating func copyData(from sourceVolume: String, into targetVolume: String) async throws {
             if helperImages.src == nil { helperImages.src = try await helperImage(src, srcCLI, side: sourceName) }
             if helperImages.dst == nil { helperImages.dst = try await helperImage(dst, dstCLI, side: "dmx") }
+            // volume-nocopy: an empty volume must not get the helper image's files at that path
+            // (dockerd's copy-up), neither the source's nor dmx's.
             func create(_ cli: DockerCLI, _ image: String, _ volume: String, ro: Bool) async throws -> String {
                 try await cli.run(["create", "--network", "none", "--entrypoint", helperMount, "--label", helperLabel,
-                                   "-v", "\(volume):\(helperMount)\(ro ? ":ro" : "")", image], timeout: 120)
+                                   "--mount", "type=volume,src=\(volume),dst=\(helperMount),volume-nocopy\(ro ? ",readonly" : "")",
+                                   "--", image], timeout: 120)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
             }
             let s = try await create(srcCLI, helperImages.src!, sourceVolume, ro: true)
@@ -501,9 +543,10 @@ extension Import {
                 if let d { _ = try? await dst.call("DELETE", "/containers/\(d)?force=1&v=1") }
                 throw error
             }
-            // -v takes only volumes of the helper's own image; the mounted one is named.
-            _ = try await srcCLI.run(["rm", "-fv", s], timeout: 60)
-            _ = try await dstCLI.run(["rm", "-fv", d!], timeout: 60)
+            // v=1 takes only volumes of the helper's own image; the mounted one is named. Both go
+            // whatever the other did; one left behind is found by its label at the end.
+            _ = try? await src.call("DELETE", "/containers/\(s)?force=1&v=1")
+            _ = try? await dst.call("DELETE", "/containers/\(d!)?force=1&v=1")
         }
 
         mutating func helperImage(_ api: DockerAPI, _ cli: DockerCLI, side: String) async throws -> String {
@@ -514,9 +557,8 @@ extension Import {
             }
             progress("\(side) has no image to read volumes with; pulling alpine")
             _ = try await cli.run(["pull", "--quiet", Bench.image], timeout: 600)
-            if side != "dmx" {
-                warnings.append("pulled \(Bench.image) into \(sourceName) to read its volumes; remove it there with `docker rmi` if you like")
-            }
+            // The source is left as it was: what was pulled there goes again at the end.
+            if side != "dmx" { pulledIntoSource.append(Bench.image) }
             return Bench.image
         }
 
@@ -554,7 +596,20 @@ extension Import {
             for bind in Import.unsharedBinds(c, shares: shares) {
                 warnings.append("\(c.name): \(bind) is a Mac path dmx does not share; add it with `dmx config set shares ...` before starting it")
             }
-            let anonymous = Import.anonymousVolumes(c)
+            guard Import.validName(c.name) else {
+                item.action = "skipped"
+                item.detail = "not a name Docker gives a container"
+                return [item]
+            }
+            // Its data did not come over: created anyway, it would get an empty volume of that
+            // name, and the next run would count it as imported.
+            let missingVolumes = self.missingVolumes
+            if let missing = c.volumeNames.compactMap({ missingVolumes[$0] }).first {
+                item.action = "failed"
+                item.detail = "not created: \(missing)"
+                return [item]
+            }
+            let anonymous = Import.anonymousVolumes(c, containers: source.containers)
             if dryRun {
                 item.action = "planned"
                 return [item] + anonymous.map { Item(kind: "volume", name: $0.volume, action: "planned", detail: "anonymous, of \(c.name)") }
@@ -610,6 +665,7 @@ extension Import {
                 guard let new = mounts.first(where: { $0["Destination"]?.string == dest && $0["Type"]?.string == "volume" })?["Name"]?.string else {
                     v.action = "failed"
                     v.detail = "dmx made no volume at \(dest) for \(c.name)"
+                    copied = false
                     items.append(v)
                     continue
                 }
@@ -637,13 +693,23 @@ extension Import {
             return items
         }
 
-        /// Helpers this run left behind (an error between create and removal).
+        /// Helpers this run left behind (an error between create and removal), and what it pulled
+        /// into the source.
         func cleanUp() async {
             guard !dryRun else { return }
+            for api in [src, dst] { await Import.removeHelpers(api, label: helperLabel) }
+            for image in pulledIntoSource { _ = try? await src.call("DELETE", "/images/\(image)?noprune=0") }
+        }
+
+        /// Helpers of earlier runs that did not finish (interrupted, or the engine went away):
+        /// their pid in the label is no longer a process.
+        func removeStaleHelpers() async {
             for api in [src, dst] {
-                guard let list = try? await api.json("GET", "/containers/json?all=1&filters=\(queryValue("{\"label\":[\"\(helperLabel)\"]}"))").array else { continue }
+                guard let list = try? await api.json("GET", "/containers/json?all=1&filters=\(queryValue("{\"label\":[\"\(Import.helperKey)\"]}"))").array else { continue }
                 for c in list {
-                    if let id = c["Id"]?.string { _ = try? await api.call("DELETE", "/containers/\(id)?force=1&v=1") }
+                    guard let id = c["Id"]?.string, let value = c["Labels"]?[Import.helperKey]?.string,
+                          let pid = Int32(value.prefix { $0 != "-" }), pid != getpid(), kill(pid, 0) != 0, errno == ESRCH else { continue }
+                    _ = try? await api.call("DELETE", "/containers/\(id)?force=1&v=1")
                 }
             }
         }
@@ -746,17 +812,43 @@ extension Import {
 
     /// The container's volumes that have no name of their own (from the image's VOLUME, `-v /path`
     /// or a `--mount` without a source): mount point and the volume's name in the source.
-    static func anonymousVolumes(_ c: Container) -> [(dest: String, volume: String)] {
+    static func anonymousVolumes(_ c: Container, containers: [Container] = []) -> [(dest: String, volume: String)] {
         let host = c.hostConfig
         // `-v name:/path` and `-v /host:/path` name what is mounted; so does a --mount with a source.
         let named = Set((host["Binds"]?.array ?? []).compactMap(\.string).compactMap(bindTarget)
             + (host["Mounts"]?.array ?? []).filter { !($0["Source"]?.string ?? "").isEmpty }.compactMap { $0["Target"]?.string })
-        // --volumes-from brings another container's volumes; that container owns them.
-        guard (host["VolumesFrom"]?.array ?? []).isEmpty else { return [] }
+        // --volumes-from brings another container's volumes; that container owns them, the rest
+        // are this one's. Unknown sources (not listed) leave nothing to tell them apart by.
+        let from = (host["VolumesFrom"]?.array ?? []).compactMap(\.string).map { containerName(String($0.split(separator: ":").first ?? ""), containers) }
+        let sources = from.compactMap { name in containers.first { $0.name == name } }
+        guard sources.count == from.count else { return [] }
+        let inherited = Set(sources.flatMap(\.volumeNames))
         return c.mounts.compactMap { m in
             guard m["Type"]?.string == "volume", let name = m["Name"]?.string, let dest = m["Destination"]?.string,
-                  !named.contains(dest) else { return nil }
+                  !named.contains(dest), !inherited.contains(name) else { return nil }
             return (dest, name)
+        }
+    }
+
+    static let helperKey = "dmx.import.helper"
+
+    /// Docker's own rule for volume and container names: [a-zA-Z0-9][a-zA-Z0-9_.-]+.
+    static func validName(_ name: String) -> Bool {
+        guard let first = name.unicodeScalars.first, name.count >= 2, name.count <= 255,
+              CharacterSet.alphanumerics.contains(first), first.isASCII else { return false }
+        return name.unicodeScalars.allSatisfy { $0.isASCII && (CharacterSet.alphanumerics.contains($0) || "_.-".unicodeScalars.contains($0)) }
+    }
+
+    /// An image reference or ID as an argument: no leading dash, no space or control characters.
+    static func validReference(_ ref: String) -> Bool {
+        !ref.isEmpty && !ref.hasPrefix("-") && ref.count <= 512
+            && ref.unicodeScalars.allSatisfy { $0.isASCII && $0.value > 0x20 && $0.value < 0x7f && $0 != "," }
+    }
+
+    static func removeHelpers(_ api: DockerAPI, label: String) async {
+        guard let list = try? await api.json("GET", "/containers/json?all=1&filters=\(queryValue("{\"label\":[\"\(label)\"]}"))").array else { return }
+        for c in list {
+            if let id = c["Id"]?.string { _ = try? await api.call("DELETE", "/containers/\(id)?force=1&v=1") }
         }
     }
 

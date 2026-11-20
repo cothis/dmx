@@ -186,7 +186,7 @@ let mcpTools: [MCPTool] = [
         "description": .string("""
             Brings images, volumes with their data, user bridge networks and containers over from \
             another engine on this Mac (Docker Desktop, OrbStack, Colima, Rancher Desktop or a Docker \
-            socket) into dmx, like `dmx import --json`. The other engine is only read. Containers are \
+            socket) into dmx, like `dmx import --json`. The other engine is left as it was. Containers are \
             created in dmx, not started; whatever dmx already has (a tag, volume, network or container \
             name) is left alone and reported as "exists", so calling it again imports only what is \
             missing. Use dry_run first to see the plan. Copying images and volume data can take minutes.

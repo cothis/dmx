@@ -144,6 +144,11 @@ import Testing
         #expect(!Self.evaluate(try authority.issue("example.com", leafKey: key), authority, name: "example.com"))
         #expect(!Self.evaluate(try authority.issue("evildmx.local", leafKey: key), authority, name: "evildmx.local"))
         #expect(!Self.evaluate(try authority.issue("web.dmx.local", leafKey: key), authority, name: "other.dmx.local"))
+        // Nor one for an address: names constraints bind only names of their kind, so the CA
+        // excludes every IPv4 and IPv6 address. (Fails without the excludedSubtrees.)
+        #expect(!Self.evaluate(try authority.issue("web.dmx.local", leafKey: key, addresses: [Data([127, 0, 0, 1])]), authority, name: "127.0.0.1"))
+        #expect(!Self.evaluate(try authority.issue("web.dmx.local", leafKey: key, addresses: [Data([10, 0, 0, 1])]), authority, name: "10.0.0.1"))
+        #expect(Self.evaluate(try authority.issue("web.dmx.local", leafKey: key, addresses: [Data([127, 0, 0, 1])]), authority, name: "web.dmx.local") == false)
         // Loading gives the same CA, and it still signs.
         let again = try #require(try NameAuthority.load(dir))
         #expect(again.sha1 == authority.sha1)

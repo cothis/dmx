@@ -153,8 +153,12 @@ struct Uninstall: AsyncParsableCommand {
     @MainActor
     func run() async throws {
         try await report(global) {
-            let result = try LaunchAgent.uninstall(paths: Paths())
-            return (result, "uninstalled \(result.label)", true)
+            let paths = Paths()
+            let result = try LaunchAgent.uninstall(paths: paths)
+            var text = "uninstalled \(result.label)"
+            // Local names changed macOS (a trusted CA, /etc/resolver); this leaves them for `dmx names remove`.
+            if LocalNames.settings(paths)?.system == true { text += "\n  local names stay set up; `dmx names remove` takes them out of macOS" }
+            return (result, text, true)
         }
     }
 }

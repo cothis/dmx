@@ -73,6 +73,9 @@ extension LocalNames {
         var changes: [String] = []
         let directory = Self.directory(paths)
         let authority = try? NameAuthority.load(directory)
+        // Only a setup that changed macOS from this DMX_HOME removes the resolver file: another
+        // DMX_HOME (a test's, with --no-system) must not take away the one the user set up.
+        let changedSystem = Self.settings(paths)?.system ?? false
         try? FileManager.default.removeItem(at: settingsFile(paths))
         if let client = try await DaemonClient.connect(paths: paths, start: false) {
             defer { client.close() }
@@ -83,18 +86,25 @@ extension LocalNames {
             try untrust(authority, directory)
             changes.append("removed the CA from this user's keychain and trust settings")
         }
-        if FileManager.default.fileExists(atPath: resolverFile),
+        if changedSystem, FileManager.default.fileExists(atPath: resolverFile),
            (try? String(contentsOfFile: resolverFile, encoding: .utf8))?.hasPrefix("# dmx local names") ?? false {
             progress("removing \(resolverFile): macOS asks for an administrator's password")
             try administrator("/bin/rm -f \(shellQuote(resolverFile))")
             changes.append("removed \(resolverFile)")
         }
-        if FileManager.default.fileExists(atPath: directory.path) {
+        // Without its key the CA cannot be read, so its trust could not be checked or removed:
+        // keep the certificate, or nothing would say which one to take out of the keychain.
+        let unreadable = authority == nil && FileManager.default.fileExists(atPath: directory.appendingPathComponent("ca.pem").path)
+        if FileManager.default.fileExists(atPath: directory.path), !unreadable {
             try FileManager.default.removeItem(at: directory)
             changes.append("removed \(directory.path)")
         }
         var report = try await status(paths: paths, reload: false)
         report.changes = changes
+        if unreadable {
+            report.ok = false
+            report.next = "remove the \"\(NameAuthority.commonName)\" certificate in Keychain Access, then delete \(directory.path)"
+        }
         return report
     }
 

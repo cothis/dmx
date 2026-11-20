@@ -15,6 +15,14 @@ public struct NameAuthority: Sendable {
     /// Leaves last 397 days: what browsers accept from public CAs, so nothing objects later.
     static let leafLifetime: TimeInterval = 397 * 86400
 
+    /// NameConstraints: permitted dNSName dmx.local; excluded iPAddress 0.0.0.0/0 and ::/0.
+    static var nameConstraints: Data {
+        DER.sequence([
+            DER.tagged(0xa0, DER.sequence([DER.tagged(0x82, Data(LocalNames.domain.utf8))])),
+            DER.tagged(0xa1, DER.sequence([DER.tagged(0x87, Data(count: 8))]) + DER.sequence([DER.tagged(0x87, Data(count: 32))])),
+        ])
+    }
+
     /// Loads the authority from `directory`, or makes one there.
     public static func loadOrCreate(_ directory: URL) throws -> NameAuthority {
         if let existing = try load(directory) { return existing }
@@ -31,9 +39,10 @@ public struct NameAuthority: Sendable {
                 DER.ext(DER.oid.basicConstraints, critical: true, DER.sequence([DER.boolean(true), DER.integer(0)])),
                 DER.ext(DER.oid.keyUsage, critical: true, DER.bitString(Data([0x06]), unusedBits: 1)),  // keyCertSign, cRLSign
                 DER.ext(DER.oid.subjectKeyIdentifier, critical: false, DER.octetString(DER.keyIdentifier(spki))),
-                // permittedSubtrees: dNSName "dmx.local", which covers every name under it.
-                DER.ext(DER.oid.nameConstraints, critical: true,
-                        DER.sequence([DER.tagged(0xa0, DER.sequence([DER.tagged(0x82, Data(LocalNames.domain.utf8))]))])),
+                // permittedSubtrees: dNSName "dmx.local", which covers every name under it. A
+                // constraint binds only names of its own kind, so excludedSubtrees takes every
+                // IPv4 and IPv6 address too: a leaf for https://<address> is refused as well.
+                DER.ext(DER.oid.nameConstraints, critical: true, Self.nameConstraints),
             ])
         let certificate = try DER.signed(tbs, with: key.key)
         let keyFile = directory.appendingPathComponent("ca.key")
@@ -64,7 +73,7 @@ public struct NameAuthority: Sendable {
     }
 
     /// A leaf for `name` signed by this authority, with `leafKey` as its key.
-    func issue(_ name: String, leafKey: P256Key, now: Date = Date()) throws -> Data {
+    func issue(_ name: String, leafKey: P256Key, now: Date = Date(), addresses: [Data] = []) throws -> Data {
         let spki = leafKey.publicKeyBits
         let tbs = DER.tbsCertificate(
             serial: DER.randomSerial(), issuer: DER.name(Self.commonName), subject: DER.name(name),
@@ -77,7 +86,9 @@ public struct NameAuthority: Sendable {
                 DER.ext(DER.oid.subjectKeyIdentifier, critical: false, DER.octetString(DER.keyIdentifier(spki))),
                 DER.ext(DER.oid.authorityKeyIdentifier, critical: false,
                         DER.sequence([DER.tagged(0x80, DER.keyIdentifier(publicKeyBits))])),
-                DER.ext(DER.oid.subjectAltName, critical: false, DER.sequence([DER.tagged(0x82, Data(name.utf8))])),
+                // `addresses` (iPAddress SANs) only for tests: the CA must not be trusted for them.
+                DER.ext(DER.oid.subjectAltName, critical: false,
+                        DER.sequence([DER.tagged(0x82, Data(name.utf8))] + addresses.map { DER.tagged(0x87, $0) })),
             ])
         return try DER.signed(tbs, with: key.key)
     }
@@ -117,7 +128,7 @@ struct P256Key: @unchecked Sendable {
         let attributes: [CFString: Any] = [kSecAttrKeyType: kSecAttrKeyTypeECSECPrimeRandom, kSecAttrKeySizeInBits: 256]
         var error: Unmanaged<CFError>?
         guard let key = SecKeyCreateRandomKey(attributes as CFDictionary, &error) else {
-            throw DMXError("names_error", "cannot make a P-256 key: \(error?.takeRetainedValue().localizedDescription ?? "?")")
+            throw DMXError("names_error", "cannot make a P-256 key: \(error?.takeRetainedValue().localizedDescription ?? "?")", hint: "run `dmx doctor`, then `dmx names setup` again")
         }
         return P256Key(key: key)
     }
@@ -130,7 +141,7 @@ struct P256Key: @unchecked Sendable {
                                            kSecAttrKeyClass: kSecAttrKeyClassPrivate, kSecAttrKeySizeInBits: 256]
         var error: Unmanaged<CFError>?
         guard let key = SecKeyCreateWithData(privateBits as CFData, attributes as CFDictionary, &error) else {
-            throw DMXError("names_error", "not a P-256 private key")
+            throw DMXError("names_error", "not a P-256 private key", hint: "run `dmx names remove`, then `dmx names setup` to make a new CA")
         }
         self.key = key
     }
@@ -252,7 +263,7 @@ enum DER {
     static func signed(_ tbs: Data, with key: SecKey) throws -> Data {
         var error: Unmanaged<CFError>?
         guard let signature = SecKeyCreateSignature(key, .ecdsaSignatureMessageX962SHA256, tbs as CFData, &error) as Data? else {
-            throw DMXError("names_error", "cannot sign a certificate: \(error?.takeRetainedValue().localizedDescription ?? "?")")
+            throw DMXError("names_error", "cannot sign a certificate: \(error?.takeRetainedValue().localizedDescription ?? "?")", hint: "run `dmx names remove`, then `dmx names setup` to make a new CA")
         }
         return sequence([tbs, ecdsaSHA256, bitString(signature)])
     }

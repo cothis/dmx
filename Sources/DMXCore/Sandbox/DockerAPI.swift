@@ -198,34 +198,53 @@ struct DockerAPI: Sendable {
     func call(_ method: String, _ path: String, body: JSONValue? = nil) async throws -> (status: Int, body: Data) {
         let (status, stream, rest, length, chunked) = try await send(method, path, body: body)
         defer { stream.close() }
+        let cut = DMXError("docker_failed", "the reply to \(method) \(path) was cut short",
+                           hint: "check the engine with `docker info`, then try again")
         let data = try await onThread { () throws -> Data in
             var data = rest
             while data.count < min(length ?? .max, 64 << 20) {
+                // A chunked body ends at its last chunk, whether or not the connection closes.
+                if chunked, case .complete = Self.chunks(data) { break }
                 let chunk = try stream.read()
                 if chunk.isEmpty { break }
                 data.append(chunk)
             }
+            if let length {
+                guard data.count >= length else { throw cut }
+                return data.prefix(length)
+            }
             return data
         }
-        return (status, chunked ? Self.unchunk(data) : data)
+        guard chunked else { return (status, data) }
+        switch Self.chunks(data) {
+        case .complete(let body): return (status, body)
+        case .incomplete: throw cut
+        case .malformed: throw DMXError("docker_failed", "the reply to \(method) \(path) is not valid chunked HTTP",
+                                         hint: "check the engine with `docker info`")
+        }
     }
 
-    /// An HTTP/1.1 chunked body, read to the end, as its bytes: `<hex size>[;ext]\r\n<bytes>\r\n`
-    /// until a zero size. What does not parse is kept as it came.
-    static func unchunk(_ body: Data) -> Data {
+    enum Chunks: Equatable { case complete(Data), incomplete, malformed }
+
+    /// An HTTP/1.1 chunked body: `<hex size>[;ext]\r\n<bytes>\r\n` until a zero size.
+    static func chunks(_ body: Data) -> Chunks {
         var out = Data(), index = body.startIndex
         let crlf = Data("\r\n".utf8)
-        while let line = body.range(of: crlf, in: index..<body.endIndex) {
+        while true {
+            guard let line = body.range(of: crlf, in: index..<body.endIndex) else {
+                return body.distance(from: index, to: body.endIndex) > 1024 ? .malformed : .incomplete
+            }
             let sizeText = String(decoding: body[index..<line.lowerBound], as: UTF8.self).split(separator: ";").first ?? ""
-            guard let size = Int(sizeText.trimmingCharacters(in: .whitespaces), radix: 16) else { return body }
-            if size == 0 { return out }
+            let digits = sizeText.trimmingCharacters(in: .whitespaces)
+            guard !digits.isEmpty, digits.count <= 15, digits.allSatisfy(\.isHexDigit), let size = Int(digits, radix: 16) else { return .malformed }
+            if size == 0 { return .complete(out) }
             let start = line.upperBound
-            guard body.distance(from: start, to: body.endIndex) >= size else { return body }
+            guard body.distance(from: start, to: body.endIndex) >= size + 2 else { return .incomplete }
             let end = body.index(start, offsetBy: size)
+            guard body[end..<body.index(end, offsetBy: 2)] == crlf else { return .malformed }
             out.append(body[start..<end])
-            index = body.index(end, offsetBy: min(2, body.distance(from: end, to: body.endIndex)))
+            index = body.index(end, offsetBy: 2)
         }
-        return out.isEmpty ? body : out
     }
 
     /// A request that must succeed (2xx); returns the JSON reply, or null for an empty body.

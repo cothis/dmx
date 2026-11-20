@@ -53,6 +53,12 @@ final class DockerBridge {
     /// which a crashing VM shows first (its vsock closes before it has stopped), so the daemon
     /// knows what was running when it decides whether to boot a new VM (Daemon.recover).
     private(set) var runningAtLastListing = 0
+    /// An event came after the last listing: a container may have started that it does not count.
+    private var eventsSinceListing = false
+    /// What a crash takes down, for the decision to boot a new VM: the last listing, or at least
+    /// one when an event came after it (the agent then starts dockerd only if dockerd would
+    /// restart something, and an idle VM stops again).
+    var runningAtCrash: Int { eventsSinceListing ? max(runningAtLastListing, 1) : runningAtLastListing }
     /// A Docker client connected since the daemon started (or since the last `dmx stop`).
     var used = false
 
@@ -109,6 +115,7 @@ final class DockerBridge {
     func vmStopped() {
         epoch += 1
         runningAtLastListing = 0
+        eventsSinceListing = false
         up = false
         starting = nil
         client = nil
@@ -389,6 +396,7 @@ final class DockerBridge {
                     // The task already holds self until dockerd or the VM goes away.
                     await DockerHTTP.lines(stream) {
                         DispatchQueue.main.async { MainActor.assumeIsolated {
+                            if epoch == self.epoch { self.eventsSinceListing = true }
                             if epoch == self.epoch && generation == self.listingGeneration { self.syncSoon(agent, epoch) }
                         } }
                     }
@@ -414,7 +422,8 @@ final class DockerBridge {
         }
     }
 
-    private static let eventsPath = "/events?filters=" + (#"{"type":["container"],"event":["start","die"]}"#
+    // Network connect and disconnect too: local names route to a container's address, which they change.
+    private static let eventsPath = "/events?filters=" + (#"{"type":["container","network"],"event":["start","die","connect","disconnect"]}"#
         .addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "")
 
     private func resetListing() {
@@ -505,6 +514,7 @@ final class DockerBridge {
         ports.setDockerForwards(Self.published(list))
         onContainers?(list)
         runningAtLastListing = list.count
+        eventsSinceListing = false
         if containers != list.count {
             containers = list.count
             changed?()

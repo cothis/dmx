@@ -650,8 +650,10 @@ to switch. One item per session, in this order; each is verified on the real VM.
 **Phase 13 is done; its open ends are closed except two that need the maintainer** (2026-11-20).
 `dmx import` now passes from OrbStack and Docker Desktop too ([finding](#import-from-orbstack-and-docker-desktop-2026-11-20)).
 Local names work in Safari and Chrome with no warning ([finding](#local-names-in-browsers-2026-11-20)).
-Next: the reviews the maintainer asked for (a full audit with Mythos 5.2, a review with Codex
-gpt-6.2-sol), and a release is the maintainer's decision. Everything since
+The audit with Mythos 5.2 and the review with Codex gpt-6.2-sol both found release blockers; all
+findings but three noted limitations are fixed and re-checked ([review](reviews/2026-11-20-unreleased.md)).
+A release is the maintainer's decision; a second review round of the fixes is the next step if
+one is wanted before it. Everything since
 v0.4.8 is unreleased, now including a guest rebuilt from re-pinned inputs (Docker 29.9.3, runc
 1.4.4, the restart rule), libmalloc's space-efficient mode and vCPU threads at userInitiated
 ([finding](#open-ends-2026-11-20)). The rebuilt guest lives in a separate DMX_HOME on this Mac;
@@ -2078,6 +2080,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-20: Reviews of everything since v0.4.8 (Mythos 5.2 full audit, Codex gpt-6.2-sol): RELEASE BLOCKERS from both, all fixed except three documented limitations. Names: TLS listeners only for running names, failed handshakes close, containers cannot reach names through the host gateway, the CA excludes IP addresses, network events refresh the table, remove leaves another home's resolver. Import: no copy-up or leftover pulls in the source, volumes made meanwhile left alone, no container on a missing volume, stale helpers removed, dry run does not boot dmx, arguments checked. DockerAPI chunked/short replies, crash-reboot decision after a fresh start, `on-failure:N`, verify-apk's stream count, bench names, names after a failed forward; `make launchdtest` for launchd activation through the re-exec. Unit 168, namestest 35/35 (32/35 on the previous build), crashtest 40/40, daemontest 63/63, sandboxtest 44/44, mcptest 38/38, dockertest 81/81, importtest 29/29, launchdtest 9/9, selftest 96 MB.
 - 2026-11-20: `dmx import` from OrbStack and Docker Desktop: 29/29 twice each, after fixing `DockerAPI` for sockets that keep HTTP/1.0 connections open and send chunked bodies (OrbStack's). Both engines installed for the check and removed. Left for the maintainer: local names in browsers, the audit and review, release.
 - 2026-11-20: Closed Phase 13's open ends. Re-pinned the guest inputs Alpine had removed (Docker 29.9.3, runc 1.4.4; kernel, FEX and qemu rebuilt byte-identical to v0.4.8) with `scripts/verify-apk.py`; the agent's restart rule now matches dockerd's (`docker stop` keeps only `unless-stopped` down; `on-failure` that died with the VM comes back); `make crashtest` forces a VMM fault too (40/40, 37/40 on the old guest); the daemon runs with libmalloc's space-efficient mode (13.7/25.0 → 3.5/3.9 MB dirty, selftest 99 → 96 MB); vCPU threads at userInitiated (busy-Mac `docker run` 116 → 86 ms median; the bimodal runs were efficiency cores). Full real-VM qualification of the new guest passed. Left for the maintainer: import from OrbStack/Docker Desktop, local names in browsers, reviews, release.
 - 2026-11-20: `dmx import` from the classic image store: Compose's image label is recomputed for dmx, so such projects are not recreated (importtest's recreate check had missed "Recreated"; fixed). importtest 29/29 from Colima with each store. `dmx bench --engine` against a real Colima, two rounds: Colima kept the 2 GiB (3106 MB idle in round 2), dmx back to 299–324 MB in about 4 s. Unit 163, selftest 23/23 (100 MB). Colima removed again.

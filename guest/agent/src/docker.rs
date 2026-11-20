@@ -207,10 +207,8 @@ fn answers() -> bool {
     UnixStream::connect(SOCKET).is_ok()
 }
 
-/// Containers dockerd would start again when it starts, as its restart manager decides, but
-/// leaving out those stopped with `docker stop`: an `always` container the user stopped comes
-/// back when dockerd next starts, but does not by itself bring Docker up at boot. Read from
-/// dockerd's own records, which it writes on every state change.
+/// Containers dockerd would start again when it starts, as its restart manager decides (see
+/// restartable_in). Read from dockerd's own records, which it writes on every state change.
 fn restartable_containers() -> usize {
     restartable_in(Path::new(CONTAINERS))
 }
@@ -234,11 +232,15 @@ fn restartable_in(containers: &Path) -> usize {
             let started_before = state["HasBeenStartedBefore"].as_bool().unwrap_or(false);
             let died_running = state["State"]["Running"].as_bool().unwrap_or(false);
             let failed = died_running || state["State"]["ExitCode"].as_i64().unwrap_or(0) != 0;
+            // on-failure:N: dockerd's restart manager starts from the stored RestartCount and
+            // gives up at N (0 means no limit).
+            let max = host["RestartPolicy"]["MaximumRetryCount"].as_i64().unwrap_or(0);
+            let retries_left = max == 0 || state["RestartCount"].as_i64().unwrap_or(0) < max;
             started_before
                 && match policy {
                     "always" => true,
                     "unless-stopped" => !stopped_by_user,
-                    "on-failure" => failed,
+                    "on-failure" => failed && retries_left,
                     _ => false,
                 }
         })
@@ -250,11 +252,16 @@ mod restart_tests {
     use super::*;
 
     fn container(root: &Path, name: &str, policy: &str, started: bool, manual: bool, running: bool, exit: i64) {
+        container_with(root, name, policy, started, manual, running, exit, 0, 0);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn container_with(root: &Path, name: &str, policy: &str, started: bool, manual: bool, running: bool, exit: i64, max: i64, count: i64) {
         let dir = root.join(name);
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("hostconfig.json"), format!(r#"{{"RestartPolicy":{{"Name":"{policy}","MaximumRetryCount":0}}}}"#)).unwrap();
+        std::fs::write(dir.join("hostconfig.json"), format!(r#"{{"RestartPolicy":{{"Name":"{policy}","MaximumRetryCount":{max}}}}}"#)).unwrap();
         std::fs::write(dir.join("config.v2.json"), format!(
-            r#"{{"HasBeenStartedBefore":{started},"HasBeenManuallyStopped":{manual},"State":{{"Running":{running},"ExitCode":{exit}}}}}"#)).unwrap();
+            r#"{{"HasBeenStartedBefore":{started},"HasBeenManuallyStopped":{manual},"RestartCount":{count},"State":{{"Running":{running},"ExitCode":{exit}}}}}"#)).unwrap();
     }
 
     /// What dockerd 29 started again after a clean stop and after a guest crash, on the real VM.
@@ -278,6 +285,13 @@ mod restart_tests {
             container(&one, name, policy, *started, *manual, *running, *exit);
             assert_eq!(restartable_in(&one), *expected as usize, "{name}");
         }
+        // on-failure:2: retries left, then none.
+        let one = root.join("max-left");
+        container_with(&one, "c", "on-failure", true, false, false, 1, 2, 1);
+        assert_eq!(restartable_in(&one), 1, "on-failure:2 after one retry");
+        let spent = root.join("max-spent");
+        container_with(&spent, "c", "on-failure", true, false, false, 1, 2, 2);
+        assert_eq!(restartable_in(&spent), 0, "on-failure:2 after two retries");
         let _ = std::fs::remove_dir_all(&root);
     }
 }

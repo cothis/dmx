@@ -21,6 +21,8 @@ New after 0.4.8.
   (`My_App` is `my-app.dmx.local`). A name that is not a DNS name is left out.
 - `<service>.<project>.dmx.local` for every Compose service, from the labels Compose sets, on
   the lowest-numbered replica. When it clashes with a container's own name, the service wins.
+  The labels are the container's, which include its image's: an image that carries Compose's
+  labels takes the service's name like Compose's own container would. Run images you trust.
 
 Connections go to the container's address in the VM on its web port: the label
 `dmx.http-port=<port>` if it has one, else 80 if it exposes 80, else the first of 8080, 3000,
@@ -41,11 +43,14 @@ They do not boot the VM.
   `Host` header or TLS server name to the container, through the guest agent's `connect`, as
   port forwards do. macOS lets a user listen on ports below 1024 only on the wildcard address,
   so the daemon listens on `0.0.0.0` and closes every connection that did not arrive on
-  `127.0.0.0/8`: other machines get nothing. No privileged helper runs.
+  `127.0.0.0/8`: other machines get nothing. Containers get nothing either: their connections to
+  the Mac (`host.docker.internal`) are refused on these two ports while names hold them, since
+  names reach every container's web port and would skip Docker's network isolation. HTTPS
+  listeners exist only for the names of running containers. No privileged helper runs.
 - **TLS.** `dmx names setup` makes a certificate authority in `~/.dmx/names` (ECDSA P-256, key
   mode 0600, not in a keychain) whose name constraints permit `dmx.local` and the names under
-  it only: macOS, browsers and curl reject anything else it signed, so trusting it cannot vouch
-  for another site even if its key leaked. The daemon issues a leaf for each name on its first
+  it only, and exclude every IPv4 and IPv6 address: macOS, browsers and curl reject anything
+  else it signed, so trusting it cannot vouch for another site or address even if its key leaked. The daemon issues a leaf for each name on its first
   TLS connection, in memory, valid for 397 days, and offers HTTP/1.1 (ALPN) to the container.
   The CA is trusted for TLS in your login keychain, for your user only.
 - **A container that publishes port 80 or 443** (`docker run -p 80:80`) takes the port while it

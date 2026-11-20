@@ -124,6 +124,7 @@ public enum Bench {
         public let image: String
         public let method = "https://github.com/cothis/dmx/blob/main/docs/benchmark.md#dmx-bench"
         public var engines: [EngineReport] = []
+        public var warnings: [String] = []
     }
 
     /// The image of the comparison protocol, pinned by digest (scripts/image-matrix.json).
@@ -160,6 +161,13 @@ public enum Bench {
                                        memoryGb: Int(ProcessInfo.processInfo.physicalMemory >> 30), loadStart: loadAverage()),
                             image: image)
 
+        // The idle window lasts 105 s; a shorter idle timeout stops dmx's VM inside it.
+        if let config = try? Config.load(paths), config.idleTimeoutSeconds > 0, config.idleTimeoutSeconds < 120 {
+            let warning = "dmx's idle_timeout is \(config.idleTimeoutSeconds) s, inside the 105 s idle window: the idle numbers are of a stopped VM; "
+                + "`dmx config set idle_timeout 5m` for the measurement"
+            report.warnings.append(warning)
+            progress(warning)
+        }
         // dmx first. Its daemon is the one process its VM is charged to; asking starts it.
         var dmx = EngineReport(name: "dmx", socket: paths.dockerSocket.path)
         do {
@@ -189,7 +197,8 @@ public enum Bench {
                         progress: @escaping @Sendable (String) -> Void) async -> EngineReport {
         var r = start
         let name = r.name
-        let container = "dmx-bench-\(getpid())-\(name)"
+        // Its own name: the cleanup removes by name, and must never meet someone else's container.
+        let container = "dmx-bench-\(getpid())-\(UUID().uuidString.prefix(8).lowercased())-\(name)"
         do {
             progress("\(name): asking the engine")
             let info = try JSONDecoder().decode(JSONValue.self, from: Data(try await cli.run(["info", "--format", "{{json .}}"], timeout: 180).utf8))
@@ -316,7 +325,7 @@ public enum Bench {
 
     static func cpuSeconds(_ pids: [Int32]) throws -> Double {
         try pids.reduce(0) { sum, pid in
-            guard let u = footprint(pid) else { throw DMXError("bench_process_gone", "process \(pid) exited while it was being measured") }
+            guard let u = footprint(pid) else { throw DMXError("bench_process_gone", "process \(pid) exited while it was being measured", hint: "the engine restarted or stopped; run `dmx bench` again once it is up") }
             return sum + u.cpuS
         }
     }
@@ -359,7 +368,7 @@ public enum Bench {
     }
 
     static func asDMXError(_ error: Error) -> DMXError {
-        (error as? DMXError) ?? DMXError("bench_failed", "\(error)")
+        (error as? DMXError) ?? DMXError("bench_failed", "\(error)", hint: "run `dmx doctor`, then `dmx bench` again")
     }
 
     /// Reads the engine's footprint every 100 ms on its own thread, so docker commands do not

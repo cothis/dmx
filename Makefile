@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build app install-app apptest localnettest localnetupdatetest menutest install kernel qemu fex guest selftest daemontest mcptest clocktest sandboxtest x86test dockertest soaktest importtest namestest crashtest imagetest javatest storagetest pressuretest benchmark test formaltest lifecycletest remaininglifecycletest release clean
+.PHONY: build app install-app apptest localnettest localnetupdatetest menutest install kernel qemu fex guest selftest daemontest mcptest clocktest sandboxtest x86test dockertest soaktest importtest launchdtest namestest crashtest imagetest javatest storagetest pressuretest benchmark test formaltest lifecycletest remaininglifecycletest release clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -105,6 +105,11 @@ importtest: build
 # HTTP and HTTPS routing, LAN refusal, 200 parallel requests, port takeover (about 1 min).
 namestest: build
 	python3 -I scripts/test-names.py $(BIN)
+
+# launchd socket activation through the daemon's MallocSpaceEfficient re-exec, under a test
+# label and a throwaway DMX_HOME (about 30 s).
+launchdtest: build
+	python3 -I scripts/test-launchd-reexec.py $(BIN)
 
 # Forced guest kernel panics: a new VM brings back `always`/`unless-stopped` containers, `no`
 # ones stay exited; backoff, `dmx stop` during it, a crash with nothing running (about 1 min).

@@ -12,6 +12,7 @@ non-zero if one fails.
 """
 
 import hashlib
+import importlib.util
 import io
 import os
 import subprocess
@@ -21,8 +22,12 @@ import tempfile
 import zlib
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parent.parent
+sys.dont_write_bytecode = True
+_spec = importlib.util.spec_from_file_location("build_guest", ROOT / "scripts" / "build-guest.py")
+guest = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(guest)
 CACHE = Path(os.environ.get("DMX_HOME", Path.home() / ".dmx")) / "cache"
-MINIROOTFS = CACHE / "alpine-minirootfs-3.24.3-aarch64.tar.gz"  # pinned in build-guest.py
 
 
 def segments(raw):
@@ -40,9 +45,16 @@ def verify(path, keys):
     raw = path.read_bytes()
     try:
         segs = segments(raw)
+        # Exactly signature, control and data: build-guest.py reads the gzip members back to back,
+        # so a fourth one would be packaged without being covered by the signed datahash.
+        if len(segs) != 3:
+            return False, f"{len(segs)} gzip streams, not 3"
         signature = tarfile.open(fileobj=io.BytesIO(segs[0][1]))
         member = next(m for m in signature.getmembers() if m.name.startswith(".SIGN."))
-        key = keys / member.name.split(".", 3)[3]
+        key_name = member.name.split(".", 3)[3]
+        if "/" in key_name or key_name.startswith("."):
+            return False, f"key name {key_name!r}"
+        key = keys / key_name
         digest = "-sha256" if member.name.startswith(".SIGN.RSA256.") else "-sha1"
         with tempfile.NamedTemporaryFile() as sig, tempfile.NamedTemporaryFile() as control:
             sig.write(signature.extractfile(member).read())
@@ -60,8 +72,10 @@ def verify(path, keys):
 
 
 def main():
+    # The keys come from the pinned minirootfs, fetched (and its sha256 checked) as build-guest.py does.
+    minirootfs = guest.fetch("minirootfs", CACHE)
     with tempfile.TemporaryDirectory() as tmp:
-        with tarfile.open(MINIROOTFS, "r:gz") as tar:
+        with tarfile.open(minirootfs, "r:gz") as tar:
             members = [m for m in tar.getmembers() if m.name.startswith("./etc/apk/keys/") and m.isfile()]
             tar.extractall(tmp, members=members)
         keys = Path(tmp) / "etc/apk/keys"
