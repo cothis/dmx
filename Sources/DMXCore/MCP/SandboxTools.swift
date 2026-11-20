@@ -101,7 +101,8 @@ let sandboxTools: [MCPTool] = [
                 case .bool(let b): writable = b
                 default: throw args.error("mount writable must be true or false")
                 }
-                return SandboxMount(host: (host as NSString).expandingTildeInPath, path: item["path"]?.string ?? host, writable: writable)
+                let expanded = (host as NSString).expandingTildeInPath
+                return SandboxMount(host: expanded, path: item["path"]?.string ?? expanded, writable: writable)
             }
         } else if args.values["mounts"] != nil && args.values["mounts"] != .null {
             throw args.error("mounts must be an array")

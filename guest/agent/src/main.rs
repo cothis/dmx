@@ -50,7 +50,11 @@ fn main() {
     loop {
         match listener.accept() {
             Ok(conn) => {
-                std::thread::spawn(move || serve(conn));
+                // Out of threads (a fork bomb in a container): drop this connection, not the agent.
+                if let Err(e) = std::thread::Builder::new().spawn(move || serve(conn)) {
+                    eprintln!("dmx-agent: cannot start a thread: {e}");
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
             }
             Err(e) => {
                 eprintln!("dmx-agent: accept: {e}");

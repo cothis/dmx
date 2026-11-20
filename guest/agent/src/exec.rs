@@ -78,6 +78,20 @@ impl InputQueue {
     }
 }
 
+/// A thread, or false if the guest is out of threads or memory (a fork bomb in a container):
+/// the caller ends that exec instead of the whole agent aborting on a panic.
+fn spawn<F: FnOnce() + Send + 'static>(f: F) -> bool {
+    std::thread::Builder::new().spawn(f).is_ok()
+}
+
+/// Ends an exec whose threads could not start: its process group goes, and the child is reaped.
+fn abandon(pid: libc::pid_t, child: &mut std::process::Child) {
+    eprintln!("dmx-agent: exec {pid}: cannot start a thread; killing it");
+    unsafe { libc::kill(-pid, libc::SIGKILL); }
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
 pub fn run(id: u64, p: Params, mut conn: Stream, out: Arc<Mutex<Stream>>) {
     if p.argv.is_empty() {
         crate::reply_err(&out, id, "bad_request", "argv is empty".into());
@@ -167,7 +181,7 @@ pub fn run(id: u64, p: Params, mut conn: Stream, out: Arc<Mutex<Stream>>) {
     let pumps = outputs.len();
     for (kind, mut src) in outputs {
         let (out, last, done, writing) = (out.clone(), last_output.clone(), done_tx.clone(), writing.clone());
-        std::thread::spawn(move || {
+        if !spawn(move || {
             let mut buf = vec![0u8; 32 << 10];
             // A pty master reads EIO once the last slave closes; treat it like EOF.
             while let Ok(n @ 1..) = src.read(&mut buf) {
@@ -181,7 +195,10 @@ pub fn run(id: u64, p: Params, mut conn: Stream, out: Arc<Mutex<Stream>>) {
                 }
             }
             let _ = done.send(());
-        });
+        }) {
+            abandon(pid, &mut child);
+            return;
+        }
     }
 
     // The reader never writes child stdin. Credit bounds queued bytes, leaving control live.
@@ -191,7 +208,7 @@ pub fn run(id: u64, p: Params, mut conn: Stream, out: Arc<Mutex<Stream>>) {
     {
         let input = input.clone();
         let out = out.clone();
-        std::thread::spawn(move || {
+        if !spawn(move || {
             while let Some(data) = input.take() {
                 if let Some(w) = stdin.as_mut() {
                     if w.write_all(&data).is_err() { stdin = None; }
@@ -201,13 +218,16 @@ pub fn run(id: u64, p: Params, mut conn: Stream, out: Arc<Mutex<Stream>>) {
                     if frame::write(&mut *out.lock().unwrap(), frame::JSON, event.to_string().as_bytes()).is_err() { break; }
                 }
             }
-        });
+        }) {
+            abandon(pid, &mut child);
+            return;
+        }
     }
     {
         let alive = alive.clone();
         let master = master.clone();
         let input = input.clone();
-        std::thread::spawn(move || {
+        if !spawn(move || {
             while let Ok(Some(f)) = frame::read(&mut conn) {
                 match f.kind {
                     frame::STDIN => {
@@ -225,7 +245,10 @@ pub fn run(id: u64, p: Params, mut conn: Stream, out: Arc<Mutex<Stream>>) {
             // Keep the unreaped PID reserved while signalling its process group.
             let live = alive.lock().unwrap();
             if *live { unsafe { libc::kill(-pid, libc::SIGKILL); } }
-        });
+        }) {
+            abandon(pid, &mut child);
+            return;
+        }
     }
 
     // Observe exit without reaping: the reader can signal until this point without PID reuse.

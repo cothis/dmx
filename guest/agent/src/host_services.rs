@@ -31,8 +31,14 @@ pub fn start() {
         // Any user: containers run as all kinds of users, and only those given the socket see it.
         let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o666));
         let spawned = std::thread::Builder::new().stack_size(forward::STACK).spawn(move || {
-            for client in listener.incoming().flatten() {
-                let _ = std::thread::Builder::new().stack_size(forward::STACK).spawn(move || relay(client, port));
+            for client in listener.incoming() {
+                match client {
+                    Ok(client) => {
+                        let _ = std::thread::Builder::new().stack_size(forward::STACK).spawn(move || relay(client, port));
+                    }
+                    // Out of descriptors: wait instead of spinning on the same error.
+                    Err(_) => std::thread::sleep(std::time::Duration::from_millis(100)),
+                }
             }
         });
         if let Err(e) = spawned {

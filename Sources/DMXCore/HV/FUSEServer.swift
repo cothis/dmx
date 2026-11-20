@@ -878,11 +878,28 @@ final class FUSEServer: @unchecked Sendable {
         return flags
     }
 
+    /// A slot for one handle, taken before anything is opened: a refusal for want of handles
+    /// must come before `O_TRUNC` or `O_CREAT` touch the file. Given back unless a handle took it.
+    final class Reservation {
+        var used = false
+        let budget: HandleBudget
+        init(_ budget: HandleBudget) { self.budget = budget }
+        deinit { if !used { budget.give() } }
+    }
+
+    private func reserveHandle() throws -> Reservation {
+        lock.lock()
+        let room = handles.count < handleLimit
+        lock.unlock()
+        guard room, Self.openBudget.take() else { throw FUSEError(Linux.ENFILE) }
+        return Reservation(Self.openBudget)
+    }
+
     /// Registers an open descriptor; the caller closes it if this throws.
-    private func addHandle(_ handle: Handle) throws -> UInt64 {
+    private func addHandle(_ handle: Handle, reserved: Reservation) throws -> UInt64 {
         lock.lock()
         defer { lock.unlock() }
-        guard handles.count < handleLimit, Self.openBudget.take() else { throw FUSEError(Linux.ENFILE) }
+        reserved.used = true
         let fh = nextHandle
         nextHandle += 1
         handles[fh] = handle
@@ -971,6 +988,7 @@ final class FUSEServer: @unchecked Sendable {
     /// retries, which succeeds whatever happened in between.
     private func openNode(_ id: UInt64, flags: UInt32, dropSetID drop: Bool) throws -> Data {
         guard !readOnly || !drop else { throw FUSEError(Linux.EROFS) }
+        let slot = try reserveHandle()
         let (fd, st) = try withNode(id) { dirfd, name, expected in
             let (fd, st) = try openFile(dirfd, name, flags)
             guard Inode(st) == Inode(expected) else { close(fd); throw FUSEError(Linux.ESTALE) }
@@ -989,7 +1007,7 @@ final class FUSEServer: @unchecked Sendable {
             throw FUSEError(Linux.ESTALE)
         }
         do {
-            return openReply(try addHandle(.file(fd, node: id)))
+            return openReply(try addHandle(.file(fd, node: id), reserved: slot))
         } catch {
             close(fd)
             throw error
@@ -1002,6 +1020,7 @@ final class FUSEServer: @unchecked Sendable {
         let openFlags = try r.u32()
         let name = try r.name()
         let owner = caller.uid != 0 || caller.gid != 0 ? (caller.uid, caller.gid) : nil
+        let slot = try reserveHandle()
         let (fd, opened) = try withDirectory(parent) { try openFile($0, name, flags, create: mode, owner: owner) }
         var st = opened
         if openFlags & FUSE.openKillSUIDGID != 0 {
@@ -1011,7 +1030,7 @@ final class FUSEServer: @unchecked Sendable {
         let fh: UInt64
         let a = attr(st, fd, nil)
         let id = remember(parent, name, a)
-        do { fh = try addHandle(.file(fd, node: id)) } catch { forget(id, 1); close(fd); throw error }
+        do { fh = try addHandle(.file(fd, node: id), reserved: slot) } catch { forget(id, 1); close(fd); throw error }
         var w = FUSEWriter(capacity: FUSE.entrySize + 16)
         putEntry(&w, id, a)
         w.data.append(openReply(fh))
@@ -1167,9 +1186,10 @@ final class FUSEServer: @unchecked Sendable {
 
     private func openDir(_ id: UInt64) throws -> Data {
         // A descriptor of its own: fdopendir takes it, and the listing uses its offset.
+        let slot = try reserveHandle()
         let fd = try withDirectory(id) { openat($0, ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC) }
         guard fd >= 0, let stream = fdopendir(fd) else { let e = FUSEError.last; if fd >= 0 { close(fd) }; throw e }
-        return openReply(try addHandle(.directory(Directory(dir: stream, node: id))))
+        return openReply(try addHandle(.directory(Directory(dir: stream, node: id)), reserved: slot))
     }
 
     /// Lists a directory. Offsets are indexes into a snapshot taken when the guest reads from

@@ -1150,8 +1150,9 @@ extension DockerCLI {
     /// `self args | other otherArgs`, the bytes going straight from one process to the other;
     /// returns the second one's output. The first failure is the one reported.
     static func pipe(_ a: DockerCLI, _ aArgs: [String], into b: DockerCLI, _ bArgs: [String], timeout: Double) async throws -> String {
-        try await onThread {
-            let first = a.process(aArgs), second = b.process(bArgs)
+        // Made here, so a cancelled caller can stop both rather than wait out the timeout.
+        let first = a.process(aArgs), second = b.process(bArgs)
+        return try await withTaskCancellationHandler { try await onThread {
             let link = Pipe(), out = Pipe(), err1 = Pipe(), err2 = Pipe()
             first.standardInput = FileHandle.nullDevice
             first.standardOutput = link
@@ -1194,6 +1195,9 @@ extension DockerCLI {
             if second.terminationStatus != 0 { throw failure(second, b, bArgs, e2.value) }
             if first.terminationStatus != 0 { throw failure(first, a, aArgs, e1.value) }
             return String(decoding: output, as: UTF8.self)
+        } } onCancel: {
+            if first.isRunning { first.terminate() }
+            if second.isRunning { second.terminate() }
         }
     }
 }

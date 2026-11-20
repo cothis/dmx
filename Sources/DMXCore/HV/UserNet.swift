@@ -708,7 +708,8 @@ final class GuestHostPorts: @unchecked Sendable {
 
     func set(_ new: Set<UInt16>) {
         lock.withLock { ports = new }
-        let file = Self.directory.appendingPathComponent("\(getpid())")
+        // `<pid>-<process start>`: a pid reused by another process is not this daemon.
+        let file = Self.directory.appendingPathComponent("\(getpid())-\(Import.processStart(getpid()) ?? 0)")
         if new.isEmpty {
             try? FileManager.default.removeItem(at: file)
         } else {
@@ -733,10 +734,11 @@ final class GuestHostPorts: @unchecked Sendable {
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: directory.path) else { return [] }
         var result: Set<UInt16> = []
         for name in names {
-            guard let pid = Int32(name), pid != getpid() else { continue }
+            let parts = name.split(separator: "-")
+            guard parts.count == 2, let pid = Int32(parts[0]), let start = Int(parts[1]), pid != getpid() else { continue }
             let file = directory.appendingPathComponent(name)
             // A daemon that is gone guards nothing.
-            guard kill(pid, 0) == 0 || errno == EPERM else { try? FileManager.default.removeItem(at: file); continue }
+            guard Import.processStart(pid) == start else { try? FileManager.default.removeItem(at: file); continue }
             let text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
             result.formUnion(text.split(separator: " ").compactMap { UInt16($0) })
         }

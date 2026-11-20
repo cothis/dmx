@@ -20,6 +20,12 @@ final class UDPRelay: @unchecked Sendable {
     /// server on the Mac's LAN sees far fewer at a time; past it new peers are dropped until
     /// idle ones expire.
     static let flowLimit = 512
+    /// Peers of all UDP forwards together (IPv4 and IPv6 relays of one forward count apart).
+    static let allFlows = HandleBudget(limit: 2048)
+    /// Bytes waiting for their stream while the VM boots, per relay: a boot can take a while
+    /// and datagrams can be large.
+    static let pendingBytesLimit = 1 << 20
+    private var pendingBytes = 0
     static let datagramLimit = 65507
 
     /// A peer's socket address (IPv4 or IPv6), as received.
@@ -110,14 +116,15 @@ final class UDPRelay: @unchecked Sendable {
             if n < 0 && errno == EINTR { continue }
             guard n >= 0 else { return }
             let key = withUnsafeBytes(of: &from) { Peer(bytes: Array($0.prefix(Int(length)))) }
-            guard flows[key] != nil || flows.count < Self.flowLimit else { continue }
+            guard flows[key] != nil || (flows.count < Self.flowLimit && Self.allFlows.take()) else { continue }
             let flow = flows[key] ?? open(key, from, length)
             flow.lastActive = .now
             let datagram = Data(buffer[..<n])
             if let connection = flow.connection {
                 send(datagram, on: connection, flow)
-            } else if flow.pending.count < Self.pendingLimit {
+            } else if flow.pending.count < Self.pendingLimit, pendingBytes + datagram.count <= Self.pendingBytesLimit {
                 flow.pending.append(datagram)
+                pendingBytes += datagram.count
             }
         }
     }
@@ -146,6 +153,7 @@ final class UDPRelay: @unchecked Sendable {
         flow.connection = connection
         _ = fcntl(connection.fd, F_SETFL, fcntl(connection.fd, F_GETFL) | O_NONBLOCK)
         for datagram in flow.pending { send(datagram, on: connection, flow) }
+        pendingBytes -= flow.pending.reduce(0) { $0 + $1.count }
         flow.pending = []
         senders += 1
         let thread = Thread { [self] in replies(flow, connection) }
@@ -183,6 +191,9 @@ final class UDPRelay: @unchecked Sendable {
     private func end(_ flow: Flow) {
         guard !flow.ended else { return }
         flow.ended = true
+        pendingBytes -= flow.pending.reduce(0) { $0 + $1.count }
+        flow.pending = []
+        Self.allFlows.give()
         flows = flows.filter { $0.value !== flow }
         snapshotLock.withLock { snapshot = (flows.count, total) }
         if let connection = flow.connection { shutdown(connection.fd, SHUT_RDWR) }

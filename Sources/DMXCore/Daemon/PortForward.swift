@@ -350,6 +350,9 @@ final class PortForwards {
     }
 
     static let connectionLimit = 1024
+    /// All TCP forwards together.
+    static let totalLimit = 4096
+    private var forwarding = 0
 
     private func accept(_ listener: Listener, _ source: DispatchSourceRead) {
         guard !listener.paused else { return }
@@ -371,7 +374,10 @@ final class PortForwards {
             _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
             // Connections at once per forward: each holds descriptors on both sides, and the
             // daemon's limit is shared with everything else it serves.
-            guard listener.active < Self.connectionLimit else { Darwin.close(fd); continue }
+            guard listener.active < Self.connectionLimit, forwarding < Self.totalLimit else { Darwin.close(fd); continue }
+            // Counted here, not when the task starts: one wakeup may accept many.
+            listener.active += 1
+            forwarding += 1
             configureForwardKeepalive(fd)
             var on: Int32 = 1
             _ = setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
@@ -383,7 +389,7 @@ final class PortForwards {
     /// Connects one accepted client to the guest port, booting the VM if it is stopped, and
     /// copies bytes until both sides are done.
     private func forward(_ client: Int32, _ listener: Listener) async {
-        listener.active += 1
+        defer { forwarding -= 1 }
         listener.total += 1
         open += 1
         using?(true)

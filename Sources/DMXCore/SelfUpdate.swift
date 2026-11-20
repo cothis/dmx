@@ -168,6 +168,7 @@ public struct SelfUpdate: Sendable {
         let expected = try await publishedSHA256(of: url)
         // Per process: two updates running at once must not share the directory one of them is
         // verifying, or the file checked and the file installed could be different.
+        removeStaleWorkDirectories(in: paths.downloads, prefix: "update-")
         let work = paths.downloads.appendingPathComponent("update-\(target)-\(getpid())", isDirectory: true)
         let fm = FileManager.default
         try? fm.removeItem(at: work)
@@ -240,17 +241,16 @@ public struct SelfUpdate: Sendable {
     /// it is asked for another version than the one written into it.
     func publishedSHA256(of archive: URL) async throws -> String {
         let url = URL(string: archive.absoluteString + ".sha256")!
-        let data: Data, response: URLResponse
+        // Through a file, a few KB at most: a checksum file is about a hundred bytes.
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("dmx-sha256-\(getpid())-\(UUID().uuidString.prefix(8))")
+        defer { try? FileManager.default.removeItem(at: file) }
         do {
-            (data, response) = try await URLSession.shared.data(from: url)
-        } catch {
-            throw DMXError("update_failed", "cannot download \(url.absoluteString): \(error.localizedDescription)",
+            _ = try await Transfer.run(url, to: file, from: 0, limit: 4096)
+        } catch let failure as Transfer.Failure {
+            throw DMXError("update_failed", "cannot download \(url.absoluteString): \(failure.message)",
                            hint: "check the version exists: \(baseURL.replacingOccurrences(of: "/download", with: ""))")
         }
-        if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-            throw DMXError("update_failed", "\(url.absoluteString) answered HTTP \(http.statusCode)",
-                           hint: "check the version exists: \(baseURL.replacingOccurrences(of: "/download", with: ""))")
-        }
+        let data = (try? Data(contentsOf: file)) ?? Data()
         // The file is "<hex>  <name>" as shasum writes it, or just the digest; either case.
         let hex = String(decoding: data, as: UTF8.self)
             .split(whereSeparator: \.isWhitespace).first.map { $0.lowercased() } ?? ""

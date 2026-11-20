@@ -45,11 +45,17 @@ public final class MCPServer: Sendable {
         // Cancelled calls stop their guest processes and clean up (a sandbox exec's kill, an
         // import's helpers) in the guest, which takes a moment: wait for them, a bounded time.
         let pending = calls.cancelAll()
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { for task in pending { await task.value } }
-            group.addTask { try? await Task.sleep(for: .seconds(10)) }
-            await group.next()
-            group.cancelAll()
+        // Whichever comes first; a task group would wait for both.
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            let once = OnceFlag()
+            Task {
+                for task in pending { await task.value }
+                if once.claim() { done.resume() }
+            }
+            Task {
+                try? await Task.sleep(for: .seconds(10))
+                if once.claim() { done.resume() }
+            }
         }
         mcpLog("stdin closed, exiting")
     }
@@ -192,10 +198,10 @@ public final class MCPServer: Sendable {
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            let failure = error as? DMXError ?? DMXError("internal", "\(name): \(error)")
+            let failure = error as? DMXError ?? DMXError("internal_error", "\(name): \(error)")
             mcpLog("\(name): \(failure.code): \(failure.message)")
             var text = "error (\(failure.code)): \(failure.message)"
-            if let hint = failure.hint { text += "\nhint: \(hint)" }
+            text += "\nhint: \(failure.hint ?? DMXError.defaultHint)"
             return ["content": [["type": "text", "text": .string(text)]], "isError": true]
         }
     }
@@ -321,4 +327,10 @@ func readLines(fd: Int32, maxLength: Int) -> AsyncStream<Line> {
 
 func mcpLog(_ message: String) {
     FileHandle.standardError.write(Data("dmx mcp: \(message)\n".utf8))
+}
+
+private final class OnceFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var claimed = false
+    func claim() -> Bool { lock.withLock { defer { claimed = true }; return !claimed } }
 }

@@ -57,6 +57,13 @@ public enum LaunchAgent {
         return report
     }
 
+    /// Whether launchd holds this DMX_HOME's sockets (the agent is loaded with this home): a
+    /// daemon started by hand must not take the path from it.
+    static func servesHome(_ paths: Paths) -> Bool {
+        guard let text = try? launchctl(["print", "\(domain)/\(label)"]) else { return false }
+        return text.contains("DMX_HOME => \(paths.home.path)")
+    }
+
     /// The pid of the job's running daemon, if launchd has one.
     private static func runningPid() -> pid_t? {
         guard let text = try? launchctl(["print", "\(domain)/\(label)"]) else { return nil }

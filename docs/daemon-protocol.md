@@ -31,7 +31,8 @@ One daemon runs per `DMX_HOME` (it holds a lock on `daemon.lock`). It logs to
   docker.sock. Sandboxes are containers; the daemon removes each when its TTL runs out
   ([sandbox.md](sandbox.md#lifetime-and-the-ttl)).
 - SIGTERM or SIGINT (also `dmx uninstall`, which unloads the launchd job) powers the guest off
-  through the agent, with a 10 s limit, and exits.
+  through the agent and exits. The guest gets 10 s from agreeing to power off (13 s if the agent
+  does not answer), so about 23 s at most before the daemon stops the VM itself.
 
 ## Requests
 
@@ -46,13 +47,15 @@ command to run.
 
 | Method | Params | Result |
 |---|---|---|
-| `hello` | none | `version`, `protocol` (1), `pid`, optional `activity_notifications` capability |
+| `hello` | none | `version`, `protocol` (1), `pid`, optional capabilities `activity_notifications` and `menu_control` (the `menu_*` methods) |
 | `status` | none | see below |
 | `start` | none | status, once the guest agent answers |
 | `stop` | none | status, once the VM is off |
 | `quit` | none | `{}`, then the daemon powers the VM off and exits (used by `dmx install`) |
-| `menu_release` | none | boolean: if the VM is still stopped with no VM users/running containers, release the standalone Docker keepalive; otherwise false. Does not stop or restart an active VM. |
-| `exec` | the agent's `exec` params | `pid`, then the connection carries the process's streams |
+| `menu_release` | none | boolean: true when the VM is stopped. Kept for the first menu app; it changes nothing (a Docker client's keepalive stays). |
+| `menu_state` | none | `pid`, `state` (as in `status`), without touching the VM |
+| `menu_docker`, `menu_docker_read` | none | `{}`, then the connection carries one Docker API stream to the guest's dockerd. Fails with `menu_engine_not_running` unless the VM is running. `menu_docker` counts as using the VM; `menu_docker_read` keeps it running without resetting the idle timer. |
+| `exec` | the agent's `exec` params | `pid` and `stdin_window` (the agent's stdin credit, when it grants one), then the connection carries the process's streams |
 | `simulate_pressure` | `level`: `normal`, `warning`, `critical`, or null for the host's real level again | status. For tests: the memory controller acts as if macOS reported that level. Does not count as using the VM. |
 | `port_add` | `host_port`, `guest_port`, `host_address` (default `127.0.0.1`), `protocol` (`tcp`, the default, or `udp`) | the forward, see below |
 | `port_rm` | `host_port`, `host_address` (default: every address) | `forwards`: those removed |
@@ -68,7 +71,7 @@ is also the process guest memory is charged to), `version`, `launchd`, `uptime_s
 `docker_socket`, `idle_timeout_s`, `idle_stop_in_s` (when nothing uses
 the VM), `socket`, `console_log`, `memory` (below), and `disk` (the data disk `~/.dmx/data.img`:
 `path`, `size_mb` as the guest sees it, `allocated_mb` it takes on the host; null before the first
-boot). Optional `log_warnings` lists diagnostic sinks disabled at startup; engine operations
+boot). `disk_error` (absent normally) is a `DMXError`, `disk_full` while the Mac's disk has no room and guest writes wait for it. Optional `log_warnings` lists diagnostic sinks disabled at startup; engine operations
 continue. The next VM boot retries disabled sinks and clears resolved warnings after the user
 repairs the log path/free space. `local_network` (`allowed`, `blocked`, `unknown`; absent while the VM
 is not running and from older daemons) is whether macOS lets this daemon's sockets reach the local network, asked of the kernel on each
@@ -106,7 +109,9 @@ Free page reporting returns what the guest frees by itself, within about 2 s. Th
   page (16 KB on Apple Silicon; four 4K guest pages, agent `reporting_order`) and the guest's slab caches free their empty slabs
   (`shrink_slabs`). Bursts of connections, processes or small files leave tens of MB free in
   blocks under 512 KB, which reporting at 512 KB never hands back. When the guest is used again,
-  reporting goes back to 512 KB blocks. `dmx status` counts these in `memory.sweeps`;
+  reporting goes back to 512 KB blocks. `dmx status` counts these in `memory.sweeps`. The sweep
+  also trims the data disk (agent `trim_disk`), so blocks the guest freed without discard go back
+  to the Mac; the daemon log says how much `data.img` gave back;
 - on macOS memory pressure (`DispatchSource.makeMemoryPressureSource`, and the level read with
   `kern.memorystatus_vm_pressure_level`): at warning, trims at once and after 5 s of idle; at
   critical, also pushes cold anonymous and tmpfs pages into zram and reduces free headroom to

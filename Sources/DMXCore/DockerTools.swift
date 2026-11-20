@@ -111,9 +111,15 @@ public enum DockerTools {
         // they would share the .part files and the unpacking directory. The checks below run
         // under the lock, so a process that waited finds the tools in place.
         try FileManager.default.createDirectory(at: paths.home, withIntermediateDirectories: true)
-        let lockFD = open(paths.home.appendingPathComponent("docker-tools.lock").path, O_RDWR | O_CREAT | O_CLOEXEC, 0o600)
-        defer { if lockFD >= 0 { close(lockFD) } }
-        if lockFD >= 0 { _ = try await onThread { flock(lockFD, LOCK_EX) } }
+        let lockPath = paths.home.appendingPathComponent("docker-tools.lock").path
+        let lockFD = open(lockPath, O_RDWR | O_CREAT | O_CLOEXEC, 0o600)
+        guard lockFD >= 0 else {
+            throw DMXError("docker_tools_failed", "cannot open \(lockPath): \(String(cString: strerror(errno)))",
+                           hint: "check that \(paths.home.path) is writable, then run `dmx tools install` again")
+        }
+        defer { close(lockFD) }
+        // Polled, so a cancelled install (the app quitting) stops waiting at once.
+        while flock(lockFD, LOCK_EX | LOCK_NB) != 0 { try await Task.sleep(for: .milliseconds(200)) }
         for tool in tools {
             try Task.checkCancellation()
             let dest = destination(tool, paths)
@@ -387,6 +393,8 @@ final class Transfer: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private let lock = NSLock()
     private let file: FileHandle
     private let offset: Int
+    /// Where the body starts in the file: `offset`, or 0 when the server sent the whole file.
+    private var base: Int
     /// Bytes a download may have in all (offset included); past it, it fails before it fills the disk.
     private let limit: Int
     private var written = 0
@@ -396,6 +404,7 @@ final class Transfer: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private init(file: FileHandle, offset: Int, limit: Int) {
         self.file = file
         self.offset = offset
+        self.base = offset
         self.limit = limit
     }
 
@@ -443,6 +452,7 @@ final class Transfer: NSObject, URLSessionDataDelegate, @unchecked Sendable {
             case 200:
                 // The whole file (no range asked, or the server ignored it).
                 try file.truncate(atOffset: 0)
+                base = 0
             case 416:
                 failure = Failure(message: "the server refused to resume (HTTP 416)", restart: true)
             default:
@@ -459,7 +469,7 @@ final class Transfer: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         guard failure == nil else { return }
-        guard offset + written + data.count <= limit else {
+        guard base + written + data.count <= limit else {
             failure = Failure(message: "the download is larger than the \(limit) bytes expected", retry: false, restart: true)
             dataTask.cancel()
             return

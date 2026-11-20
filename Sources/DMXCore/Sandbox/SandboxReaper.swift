@@ -19,7 +19,8 @@ final class SandboxReaper {
         guard let agent else { return }
         let sandboxes = Sandboxes(docker: DockerAPI {
             let connection = try await agent.connect(path: DockerBridge.guestSocket)
-            return DockerStream(fd: connection.fd) { connection.close() }
+            // A deadline per request: a dockerd that stops answering must not pile up threads.
+            return DockerStream(fd: connection.fd, timeoutSeconds: 60) { connection.close() }
         })
         task = Task {
             while !Task.isCancelled {

@@ -95,6 +95,10 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-11-20: Cleanup run inside a cancelled task does nothing if it goes through `DaemonClient.connect` (or anything
+  that checks cancellation first): a cancelled `dmx sandbox exec` never killed its command, and two review rounds missed
+  it because only the timeout path was tested. Run such cleanup in an unstructured `Task {}` and await it, and test the
+  cancel path. A task group does not bound a wait either: it waits for every child; race a continuation instead.
 - 2026-11-20: `make kernel`, `make qemu`, `make fex` and `make build` all re-sign `.build/release/dmx` in place
   (`codesign --force`). Starting one while a build VM runs from that binary slowed the running builds about
   30-fold (kernel 1 h 52 min unfinished, 3.5 min alone; FEX 45 s alone). Run them one at a time, and build a

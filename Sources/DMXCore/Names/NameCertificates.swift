@@ -31,6 +31,12 @@ public struct NameAuthority: Sendable {
     /// `constraints` other than nameConstraints only for tests (an older CA).
     static func loadOrCreate(_ directory: URL, constraints: Data) throws -> NameAuthority {
         if let existing = try load(directory) { return existing }
+        // Two setups at once must not each write half of a CA (a key and another's certificate).
+        try FileManager.default.createDirectory(at: directory.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let lockFD = open(directory.path + ".lock", O_RDWR | O_CREAT | O_CLOEXEC, 0o600)
+        if lockFD >= 0 { flock(lockFD, LOCK_EX) }
+        defer { if lockFD >= 0 { flock(lockFD, LOCK_UN); close(lockFD) } }
+        if let existing = try load(directory) { return existing }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
                                                 attributes: [.posixPermissions: 0o700])
         let key = try P256Key.generate()

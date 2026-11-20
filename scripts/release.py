@@ -418,7 +418,7 @@ def write_sha256(path: Path) -> str:
 def main():
     home = Path(os.environ.get("DMX_HOME", Path.home() / ".dmx"))
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--version", required=True, help="e.g. 0.1.0; must match `version` in Sources/dmx/DMX.swift")
+    ap.add_argument("--version", required=True, help="e.g. 0.1.0; must match `dmxVersion` in Sources/DMXCore/Version.swift")
     ap.add_argument("--out", type=Path, help="default .build/dist/v<version>")
     ap.add_argument("--guest", type=Path, default=home / "guest", help="what `make guest` wrote")
     ap.add_argument("--cache", type=Path, default=home / "cache",

@@ -258,4 +258,19 @@ import Testing
         _ = call(.setattr, f, args)
         #expect(stat(path, &st) == 0 && st.st_mode & 0o7777 == 0o755)
     }
+
+    /// Out of handles, an open with O_TRUNC is refused before the file is touched.
+    @Test func refusedOpenLeavesTheFileAlone() throws {
+        defer { cleanup() }
+        let path = root + "/d/kept"
+        try Data("contents".utf8).write(to: URL(fileURLWithPath: path))
+        let d = try #require(lookup(FUSE.rootID, "d"))
+        let f = try #require(lookup(d, "kept"))
+        var taken = 0
+        while FUSEServer.openBudget.take() { taken += 1 }
+        defer { FUSEServer.openBudget.give(taken) }
+        let reply = call(.open, f, u32(UInt32(Linux.O_TRUNC) | 1) + u32(0))
+        if case .error(let errno) = reply { #expect(errno == Linux.ENFILE) } else { Issue.record("open was not refused: \(reply)") }
+        #expect((try? String(contentsOfFile: path, encoding: .utf8)) == "contents")
+    }
 }

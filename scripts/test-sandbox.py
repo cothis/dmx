@@ -180,6 +180,16 @@ try:
     gone = wait_for(lambda: "sleep 123" not in c.call("dmx_exec", {"argv": ["ps", "-o", "args"]})["structuredContent"]["stdout"], 10)
     check("exec_timeout_kills", s.get("timed_out") is True and r["isError"] is True and s["exit_code"] is None and gone,
           f"timed_out {s.get('timed_out')}, processes gone {gone}")
+    # Ctrl-C on `dmx sandbox exec` cancels the call: the command must die too (v0.4.8 left it
+    # running, its kill ran inside the cancelled task).
+    cli = subprocess.Popen([str(DMX), "sandbox", "exec", "none", "--", "sh", "-c", "sleep 1236"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, env=ENV)
+    started = wait_for(lambda: "sleep 1236" in c.call("dmx_exec", {"argv": ["ps", "-o", "args"]})["structuredContent"]["stdout"], 20)
+    cli.send_signal(signal.SIGINT)
+    cli_err = cli.communicate(timeout=20)[1]
+    cli_code = cli.returncode
+    gone = wait_for(lambda: "sleep 1236" not in c.call("dmx_exec", {"argv": ["ps", "-o", "args"]})["structuredContent"]["stdout"], 10)
+    check("exec_cancel_kills", started and cli_code == 130 and gone, f"started {started}, exit {cli_code}, gone {gone}, {cli_err.strip()[-300:]}")
 
     # Egress: everything, and an allowlist of one host.
     r, ms = timed(c.call, "dmx_sandbox_create", {"name": "all", "network": "all", "ttl": "10m", "mounts": [f"{ro}:/w:rw"]})

@@ -151,7 +151,9 @@ public struct GuestStore: Sendable {
         }
         let fm = FileManager.default
         try fm.createDirectory(at: paths.home, withIntermediateDirectories: true)
-        let lock = try await lockGuest()
+        // One fetch at a time; the guest directory itself is locked only for the swap below,
+        // so a VM booting from the current guest does not wait out a download.
+        let lock = try await lockGuest(file: "guest-fetch.lock")
         defer { Darwin.close(lock) }
         if !force, !state().needsFetch {
             // Same boot files under a new release: keep them and record which release they are
@@ -164,6 +166,7 @@ public struct GuestStore: Sendable {
         }
 
         let started = ContinuousClock.now
+        removeStaleWorkDirectories(in: paths.home, prefix: "guest-download-")
         let work = paths.home.appendingPathComponent("guest-download-\(getpid())", isDirectory: true)
         try? fm.removeItem(at: work)
         try fm.createDirectory(at: work, withIntermediateDirectories: true)
@@ -197,7 +200,10 @@ public struct GuestStore: Sendable {
         try writeReceipt(pin, in: unpacked)
 
         // Swap directories. A VM that is running keeps its open docker.img; the kernel and
-        // initramfs were copied into guest RAM at boot.
+        // initramfs were copied into guest RAM at boot. A VM opening its files holds the lock
+        // shared (holdForBoot): the swap waits for it, and it never sees half a swap.
+        let swapLock = try await lockGuest()
+        defer { Darwin.close(swapLock) }
         // Not `fileExists`, which follows links: a link to a guest that is gone is replaced too.
         if (try? fm.attributesOfItem(atPath: paths.guest.path)) != nil {
             try fm.moveItem(at: paths.guest, to: work.appendingPathComponent("old", isDirectory: true))
@@ -224,8 +230,8 @@ public struct GuestStore: Sendable {
 
     /// One fetch at a time per DMX_HOME. Polls instead of blocking, so a daemon waiting here
     /// keeps answering its clients.
-    private func lockGuest(shared: Bool = false) async throws -> Int32 {
-        let path = paths.home.appendingPathComponent("guest.lock").path
+    private func lockGuest(file: String = "guest.lock", shared: Bool = false) async throws -> Int32 {
+        let path = paths.home.appendingPathComponent(file).path
         let fd = open(path, O_RDWR | O_CREAT | O_CLOEXEC, 0o600)
         guard fd >= 0 else {
             throw DMXError("guest_download_failed", "cannot open \(path): \(String(cString: strerror(errno)))", hint: "check that \(paths.home.path) is writable")

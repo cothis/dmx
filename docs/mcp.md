@@ -55,7 +55,9 @@ Every tool result has the JSON in `structuredContent` and the same JSON as text 
 Failures are results with `isError: true` and the text
 `error (<code>): <message>` plus `hint: <next step>`, with the codes of the CLI's `--json`
 errors (for example `daemon_unreachable`, `guest_missing`, `agent_exec_failed`,
-`bad_config_value`, and `bad_argument` for arguments that do not match the input schema).
+`bad_config_value`, `bad_argument` for arguments that do not match the input schema, and
+`bad_sandbox_policy` for sandbox limits out of range, such as a TTL under 10 s). A failure
+without a hint of its own gets `dmx doctor`'s; one that is not a dmx error is `internal_error`.
 An unknown tool name is a JSON-RPC error (-32602).
 
 | Tool | Arguments | Result |

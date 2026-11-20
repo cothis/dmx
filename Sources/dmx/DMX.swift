@@ -24,11 +24,12 @@ func report<T: Encodable>(_ global: GlobalOptions, _ body: () async throws -> (T
         // update copies, a move that fails): --json callers always get the envelope.
         let error = (error as? DMXError) ?? DMXError("internal_error", "\(error.localizedDescription)",
                                                      hint: "run `dmx doctor`; if it says nothing is wrong, report this message")
+        let reported = DMXError(error.code, error.message, hint: error.hint ?? DMXError.defaultHint)
         if global.json {
-            printJSON(ErrorEnvelope(error: error))
+            printJSON(ErrorEnvelope(error: reported))
         } else {
-            FileHandle.standardError.write(Data("error: \(error.message)\n".utf8))
-            if let hint = error.hint { FileHandle.standardError.write(Data("hint: \(hint)\n".utf8)) }
+            FileHandle.standardError.write(Data("error: \(reported.message)\n".utf8))
+            if let hint = reported.hint { FileHandle.standardError.write(Data("hint: \(hint)\n".utf8)) }
         }
         throw ExitCode(1)
     }
@@ -157,7 +158,7 @@ struct Boot: AsyncParsableCommand {
             try await GuestStore(paths: Paths()).ensure { message in
                 if !quiet { FileHandle.standardError.write(Data("dmx: \(message)\n".utf8)) }
             }
-        } catch let error as DMXError {
+        } catch {
             try await report(global) { () -> (Bool, String, Bool) in throw error }
             return
         }
@@ -165,7 +166,7 @@ struct Boot: AsyncParsableCommand {
             let status: Int32
             do {
                 status = try await runInGuest(paths: Paths(), spec: spec, argv: command, timeout: .seconds(timeout), echo: verbose)
-            } catch let error as DMXError {
+            } catch {
                 try await report(global) { () -> (Bool, String, Bool) in throw error }
                 return
             }
@@ -202,7 +203,10 @@ struct Boot: AsyncParsableCommand {
         if !verbose { spec.kernelArgs.append("quiet") }
         let machine: Machine
         do {
-            machine = try Machine(spec: spec, paths: Paths(), console: .standardOutput)
+            // A guest swap waits until the VM has its files open.
+            let guestLock = try await GuestStore(paths: Paths()).holdForBoot()
+            do { machine = try Machine(spec: spec, paths: Paths(), console: .standardOutput) } catch { Darwin.close(guestLock); throw error }
+            Darwin.close(guestLock)
             let terminal = RawTerminal()
             defer { terminal?.restore() }
             FileHandle.standardError.write(Data("dmx: booting (\(machine.spec.cpus) cpus, \(formatSize(machine.spec.maxMemory)) max). Ctrl-] powers off.\r\n".utf8))
@@ -213,7 +217,7 @@ struct Boot: AsyncParsableCommand {
             let exit = await machine.waitUntilStopped()
             terminal?.restore()
             if case .failed(let error) = exit { throw error }
-        } catch let error as DMXError {
+        } catch {
             try await report(global) { () -> (Bool, String, Bool) in throw error }
         }
     }

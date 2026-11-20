@@ -50,7 +50,11 @@ public func runSelftest(paths: Paths, spec: MachineSpec, timeout: Duration, echo
     }
 
     let capture = ConsoleCapture(echo: echo)
-    let machine = try Machine(spec: spec, paths: paths, console: capture.pipe.fileHandleForWriting)
+    // A guest swap waits until the VM has its files open (GuestStore.holdForBoot).
+    let guestLock = try await GuestStore(paths: paths).holdForBoot()
+    let machine: Machine
+    do { machine = try Machine(spec: spec, paths: paths, console: capture.pipe.fileHandleForWriting) } catch { Darwin.close(guestLock); throw error }
+    Darwin.close(guestLock)
 
     let started = ContinuousClock.now
     capture.start()

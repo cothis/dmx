@@ -11,3 +11,8 @@ public struct DMXError: Error, Codable, Sendable {
         self.hint = hint
     }
 }
+
+extension DMXError {
+    /// For a failure raised without a hint of its own: every failure names a next command.
+    public static let defaultHint = "run `dmx doctor`; if it finds nothing wrong, see `dmx status` and ~/.dmx/logs/daemon.log"
+}

@@ -58,6 +58,7 @@ extension Sandboxes {
         guard status == 200 else {
             throw DMXError("docker_failed", "dockerd answered \(status) for the logs of \(target): \(String(decoding: rest.prefix(300), as: UTF8.self))")
         }
+        try Self.checkOutputLimit(maxOutputBytes)
         let reader = LogReader(limit: maxOutputBytes)
         try await onThread {
             var frames = DockerFrames()

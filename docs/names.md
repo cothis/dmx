@@ -23,6 +23,8 @@ New after 0.4.8.
   the lowest-numbered replica. When it clashes with a container's own name, the service wins.
   The labels are the container's, which include its image's: an image that carries Compose's
   labels takes the service's name like Compose's own container would. Run images you trust.
+- Sandboxes ([sandbox.md](sandbox.md)) get no name: they are containers, but reaching one from
+  the Mac's browser would cross the network policy they were given.
 
 Connections go to the container's address in the VM on its web port: the label
 `dmx.http-port=<port>` if it has one, else 80 if it exposes 80, else the first of 8080, 3000,

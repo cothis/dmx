@@ -144,15 +144,15 @@ curl -fsSL https://github.com/cothis/dmx/releases/latest/download/install.sh | s
 claude mcp add dmx -- dmx mcp    # or any MCP client: the command is `dmx mcp` on stdio
 ```
 
-The agent gets `dmx_exec`, `dmx_status`, `dmx_sandbox_create/exec/checkpoint/rollback/fork/rm`,
-`dmx_logs` and `dmx_import`. A sandbox starts with no network and no host files; it gets only what it is
+The agent gets `dmx_exec`, `dmx_status`, `dmx_start`, `dmx_stop`, `dmx_config_get/set`,
+`dmx_sandbox_create/exec/list/checkpoint/rollback/fork/rm`, `dmx_logs` and `dmx_import`. A sandbox starts with no network and no host files; it gets only what it is
 granted:
 
 ```sh
 dmx sandbox create build --mount ~/src/app:/src --network dl-cdn.alpinelinux.org --ttl 1h
 dmx sandbox exec build -- apk add --no-cache make gcc musl-dev
 dmx sandbox checkpoint build tools
-dmx sandbox exec build -- make -C /src     # /src is read-only unless granted
+dmx sandbox exec build -- sh -c 'cp -r /src /build && make -C /build'   # /src is read-only; HOST:PATH:rw grants writes
 dmx sandbox rollback build                 # back to "tools"
 ```
 
@@ -201,9 +201,9 @@ settings, and the data disk `data.img` (a sparse file, 64 GB at most by default,
 containers and volumes). Space the guest frees on it goes back to the Mac when the files are
 deleted, and anything that missed that at the next idle moment.
 
-**Security model.** Defaults follow Docker Desktop. `/Users`, `/Volumes`, `/private`, `/tmp` and
-`/var/folders` are shared read-write with the VM at the same paths (`dmx config set shares` to
-narrow them); the Mac user maps to root in the guest. `~/.dmx/docker.sock` is readable only by the
+**Security model.** Defaults follow Docker Desktop. `/Users`, `/Volumes` and `/private` are shared
+read-write with the VM at the same paths, and Docker bind mounts of `/tmp` and `/var/folders`
+reach the Mac's (`dmx config set shares` to narrow them); the Mac user maps to root in the guest. `~/.dmx/docker.sock` is readable only by the
 user. `dmx port` forwards bind 127.0.0.1 unless told otherwise; Docker's published ports follow
 their bindings (`-p 8080:80` listens on all interfaces, as on Docker Desktop). The Mac's SSH agent
 is reachable in the VM at `/run/host-services/ssh-auth.sock`, so a container that mounts it can
@@ -243,8 +243,9 @@ that provide them. Progress is tracked in [docs/PLAN.md](docs/PLAN.md#next-up).
 **Uninstalling.**
 
 ```sh
-dmx uninstall          # remove the launchd agent, the docker context and the socket link; powers the VM off
-dmx tools uninstall    # remove dmx's docker, compose and buildx and their links
+dmx names remove       # only if you set up local names: takes the CA and /etc/resolver entry out of macOS
+dmx uninstall          # remove the launchd agent, the docker context, the socket link and dmx's docker,
+                       # compose and buildx; powers the VM off
 rm -rf ~/.dmx ~/.local/bin/dmx    # the guest, settings, and all images, containers and volumes
 ```
 

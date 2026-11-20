@@ -216,7 +216,7 @@ final class NamesService {
     /// the others.
     private func listenTCP(_ port: Int, _ accepted: @escaping @MainActor (Int32) -> Void) throws -> Held {
         let fd = socket(AF_INET, SOCK_STREAM, 0)
-        guard fd >= 0 else { throw DMXError("names_error", "socket: \(String(cString: strerror(errno)))", hint: "see `dmx names status`; `dmx doctor` checks the descriptors") }
+        guard fd >= 0 else { throw DMXError("names_error", "socket: \(String(cString: strerror(errno)))", hint: "see `dmx names ls`; `dmx doctor` checks the descriptors") }
         _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
         var on: Int32 = 1
         _ = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, socklen_t(MemoryLayout<Int32>.size))
@@ -261,7 +261,7 @@ final class NamesService {
 
     nonisolated private static func listenDNS(_ port: Int) throws -> Held {
         let fd = socket(AF_INET, SOCK_DGRAM, 0)
-        guard fd >= 0 else { throw DMXError("names_error", "socket: \(String(cString: strerror(errno)))", hint: "see `dmx names status`; `dmx doctor` checks the descriptors") }
+        guard fd >= 0 else { throw DMXError("names_error", "socket: \(String(cString: strerror(errno)))", hint: "see `dmx names ls`; `dmx doctor` checks the descriptors") }
         _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
         guard HostEndpoint.v4(0x7f00_0001, UInt16(port)).withSockaddr({ bind(fd, $0, $1) }) == 0 else {
             let code = errno
@@ -297,6 +297,8 @@ final class NamesService {
     /// client to the container the name leads to. A name with no running container gets a 404
     /// listing the names there are.
     private func serveHTTP(_ fd: Int32, tlsName: String?) async {
+        // Each connection holds several descriptors to the end: a bound on them all.
+        guard open < 1024 else { Darwin.close(fd); return }
         open += 1
         defer {
             Darwin.close(fd)
@@ -420,7 +422,8 @@ final class NamesService {
             }
             return port
         } catch {
-            tls[name] = nil
+            // Only this listener: the name may have a newer one by now.
+            if tls[name] === backend { tls[name] = nil; tlsPorts[name] = nil }
             throw error
         }
     }
@@ -512,8 +515,8 @@ final class TLSBackend: @unchecked Sendable {
                 listener.stateUpdateHandler = { state in
                     switch state {
                     case .ready: once.run { continuation.resume(returning: listener.port?.rawValue ?? 0) }
-                    case .failed(let error): once.run { continuation.resume(throwing: DMXError("names_error", "tls listener: \(error)", hint: "see `dmx names status`")) }
-                    case .cancelled: once.run { continuation.resume(throwing: DMXError("names_error", "tls listener cancelled", hint: "see `dmx names status`")) }
+                    case .failed(let error): once.run { continuation.resume(throwing: DMXError("names_error", "tls listener: \(error)", hint: "see `dmx names ls`")) }
+                    case .cancelled: once.run { continuation.resume(throwing: DMXError("names_error", "tls listener cancelled", hint: "see `dmx names ls`")) }
                     default: break
                     }
                 }

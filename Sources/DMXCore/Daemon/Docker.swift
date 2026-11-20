@@ -139,6 +139,10 @@ final class DockerBridge {
         }
     }
 
+    /// Docker API connections being proxied, at most connectionLimit.
+    private var proxied = 0
+    static let connectionLimit = 1024
+
     // MARK: Clients
 
     private func accept(_ listener: Int32) {
@@ -158,9 +162,13 @@ final class DockerBridge {
                 return
             }
             _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
+            // Each connection holds two threads and a guest stream; a runaway client must not
+            // take what everything else needs.
+            guard proxied < Self.connectionLimit else { Darwin.close(fd); continue }
+            proxied += 1
             var on: Int32 = 1
             _ = setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
-            Task { await forward(fd) }
+            Task { await forward(fd); proxied -= 1 }
         }
     }
 

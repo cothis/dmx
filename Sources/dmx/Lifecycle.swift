@@ -187,7 +187,7 @@ struct ConfigCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "config",
         abstract: "Read or change settings in ~/.dmx/config.json.",
-        discussion: "Settings: cpus, memory (ceiling, e.g. 8G), idle_timeout (e.g. 5m), disk_size (default 64G; ~/.dmx/data.img is sparse, so it costs only what the guest stores; a larger value grows an existing disk at the next boot, a smaller one is ignored: disks do not shrink), x86_emulator (fex, the default, or qemu: what runs x86_64 programs and linux/amd64 images). They apply the next time the VM boots. Mirrors for company networks: release_url (the guest, GitHub's layout <url>/<tag>/<asset>) and tools_url (the docker CLI tools, <url>/<upstream file name>); downloads are still checked against their pinned sha256.",
+        discussion: "Settings: cpus, memory (ceiling, e.g. 8G), idle_timeout (e.g. 5m), disk_size (default 64G; ~/.dmx/data.img is sparse, so it costs only what the guest stores; a larger value grows an existing disk at the next boot, a smaller one is ignored: disks do not shrink), x86_emulator (fex, the default, or qemu: what runs x86_64 programs and linux/amd64 images), shares (Mac directories the VM sees at the same paths, comma-separated, path:ro for read-only; default /Users,/Volumes,/private). They apply the next time the VM boots. Mirrors for company networks: release_url (the guest, GitHub's layout <url>/<tag>/<asset>) and tools_url (the docker CLI tools, <url>/<upstream file name>); downloads are still checked against their pinned sha256.",
         subcommands: [Get.self, Set.self, Unset.self]
     )
 
@@ -212,9 +212,7 @@ struct ConfigCommand: AsyncParsableCommand {
         func run() async throws {
             try await report(global) {
                 let paths = Paths()
-                var config = try DMXCore.Config.load(paths)
-                try config.set(key, value)
-                try config.save(paths)
+                try DMXCore.Config.update(paths) { try $0.set(key, value) }
                 return try configReport(paths, only: key)
             }
         }
@@ -229,9 +227,7 @@ struct ConfigCommand: AsyncParsableCommand {
         func run() async throws {
             try await report(global) {
                 let paths = Paths()
-                var config = try DMXCore.Config.load(paths)
-                try config.set(key, nil)
-                try config.save(paths)
+                try DMXCore.Config.update(paths) { try $0.set(key, nil) }
                 return try configReport(paths, only: key)
             }
         }

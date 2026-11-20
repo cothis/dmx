@@ -46,6 +46,10 @@ public final class Daemon {
     /// `dmx stop` or exiting since the last crash: a recovery boot that fails is not retried.
     private var recoveryStopped = false
     static let maxCrashStreak = 10
+    /// Accepting control connections is paused for a moment after running out of descriptors.
+    private var listenerPaused = false
+    /// Control connections at once (the CLI, the app, MCP servers): far more than real use.
+    static let clientLimit = 256
     private var recoveryAt: ContinuousClock.Instant?
 
     /// Open connections, and those among them that asked for the VM (start, exec).
@@ -80,6 +84,12 @@ public final class Daemon {
             listener = fd
             launchd = true
         } else {
+            // launchd listens on this home's sockets: binding here would take the path from it
+            // and socket activation would stop working until the next `dmx install`.
+            if LaunchAgent.servesHome(paths) {
+                throw DMXError("daemon_running", "launchd serves \(paths.controlSocket.path); a daemon started by hand would take it over",
+                               hint: "run `dmx start` (launchd starts the daemon), or `dmx uninstall` first to run one by hand")
+            }
             listener = try listenUnix(paths.controlSocket)
             launchd = false
         }
@@ -143,7 +153,23 @@ public final class Daemon {
     private func acceptClients() {
         while !exiting {
             let fd = accept(listener, nil, nil)
-            guard fd >= 0 else { return }
+            guard fd >= 0 else {
+                // Out of descriptors: the connection stays queued and the source would fire again
+                // at once; wait a moment instead of spinning.
+                if (errno == EMFILE || errno == ENFILE), let source = accepting, !listenerPaused {
+                    listenerPaused = true
+                    source.suspend()
+                    Task { @MainActor [weak self, source] in
+                        try? await Task.sleep(for: .milliseconds(100))
+                        source.resume()
+                        self?.listenerPaused = false
+                    }
+                }
+                return
+            }
+            _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
+            // A runaway client must not take every descriptor the VM needs.
+            guard clients < Self.clientLimit else { Darwin.close(fd); continue }
             clients += 1
             idleCheck?.cancel()
             let connection = FrameConnection(fd: fd, peer: .daemon) { _ = Darwin.close(fd) }
@@ -237,7 +263,7 @@ public final class Daemon {
                     throw DMXError("unknown_method", "the daemon has no method \"\(request.method)\"", hint: "update the daemon: `dmx stop`, then retry")
                 }
             } catch {
-                let failure = error as? DMXError ?? DMXError("internal", "\(request.method): \(error)")
+                let failure = error as? DMXError ?? DMXError("internal_error", "\(request.method): \(error)", hint: DMXError.defaultHint)
                 try? connection.send(DaemonFailure(id: request.id, error: failure))
             }
         }
@@ -515,20 +541,24 @@ public final class Daemon {
     /// boots a new VM after a backoff (1 s, doubling for each crash in a row up to 60 s), and
     /// dockerd starts again those whose restart policy brings them back. With nothing running,
     /// the VM stays stopped until a client needs it, as after an idle stop.
-    private func recover(reason: String, uptime: Duration?, busy: Bool, containers: Int) {
-        let delay = crashes.crashed(reason: reason, uptime: uptime)
-        do {
-            try RotatingLog(url: paths.guestCrashLog, limit: GuestCrashes.logLimit)
-                .append(GuestCrashes.record(reason: reason, uptime: uptime, consoleLog: paths.consoleLog))
-        } catch {
-            log("guest crash: \((error as? DMXError)?.message ?? "\(error)")")
+    /// `crashed: false`: a recovery boot failed; it waits the backoff again but is not a crash.
+    private func recover(reason: String, uptime: Duration?, busy: Bool, containers: Int, crashed: Bool = true) {
+        let delay = crashed ? crashes.crashed(reason: reason, uptime: uptime) : GuestCrashes.delay(streak: crashes.streak + recoveryBootFailures)
+        if crashed {
+            do {
+                try RotatingLog(url: paths.guestCrashLog, limit: GuestCrashes.logLimit)
+                    .append(GuestCrashes.record(reason: reason, uptime: uptime, consoleLog: paths.consoleLog))
+            } catch {
+                log("guest crash: \((error as? DMXError)?.message ?? "\(error)")")
+            }
         }
         let failure = DMXError("guest_crashed", "the guest crashed: \(reason)",
                                hint: "see the console tail in \(paths.guestCrashLog.path); `dmx start` boots a new VM")
         let streak = crashes.streak > 1 ? ", \(crashes.streak) in a row" : ""
         // A guest that crashes again and again (a container that panics it at every start)
         // must not boot every minute for ever: after ten in a row the VM stays down.
-        if busy, !exiting, crashes.streak > Self.maxCrashStreak {
+        if busy, !exiting, crashes.streak >= Self.maxCrashStreak {
+            recoveryBootFailures = 0
             log("guest crashed (\(reason)\(streak)); console tail in \(paths.guestCrashLog.lastPathComponent); not booting again after \(Self.maxCrashStreak) crashes in a row")
             scheduleIdleCheck()
             return publishActivity(reason: "guest_crashed", failure: DMXError("guest_crashed", "the guest crashed \(crashes.streak) times in a row: \(reason)",
@@ -562,9 +592,9 @@ public final class Daemon {
                     recoveryBootFailures += 1
                     // Try again with the backoff, a few times: a guest that cannot boot at all
                     // must not keep booting every minute.
-                    if recoveryBootFailures < 5 {
+                    if recoveryBootFailures <= 5 {
                         log("guest crash: the new VM did not boot (\(message)); trying again")
-                        return recover(reason: "the new VM did not boot: \(message)", uptime: nil, busy: true, containers: containers)
+                        return recover(reason: "the new VM did not boot: \(message)", uptime: nil, busy: true, containers: containers, crashed: false)
                     }
                     log("guest crash: the new VM did not boot \(recoveryBootFailures) times (\(message)); giving up until a client needs it")
                     recoveryBootFailures = 0
@@ -620,7 +650,8 @@ public final class Daemon {
         }
     }
 
-    /// Asks the guest to power off through the agent, and pulls the plug after 10 s.
+    /// Asks the guest to power off through the agent, and pulls the plug 10 s after it agreed,
+    /// or 13 s after asking if it never did (at most about 23 s in all).
     private func powerOff() async {
         defer { stopping = nil }
         guard let machine else { state = .stopped; return }
@@ -628,7 +659,7 @@ public final class Daemon {
         let started = ContinuousClock.now
         var deadline = Task {
             try await Task.sleep(for: .seconds(13))
-            log("guest did not power off within 10 s, stopping it")
+            log("guest did not power off within 13 s, stopping it")
             await machine.stop()
         }
         docker.vmStopped()

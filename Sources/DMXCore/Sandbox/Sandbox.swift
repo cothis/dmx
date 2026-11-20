@@ -478,7 +478,7 @@ public struct Sandboxes: Sendable {
 
     /// Runs a command in the guest (not in a sandbox) through the daemon.
     func guest(_ argv: [String]) async throws -> CappedExecResult {
-        guard let paths else { throw DMXError("internal", "no daemon to run \(argv[0]) through") }
+        guard let paths else { throw DMXError("internal_error", "no daemon to run \(argv[0]) through", hint: DMXError.defaultHint) }
         return try await execCapped(paths: paths, argv: argv, stdin: nil, env: [], cwd: nil, timeout: .seconds(60), maxOutputBytes: 8192)
     }
 }

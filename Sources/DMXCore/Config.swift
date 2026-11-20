@@ -41,8 +41,8 @@ public struct Config: Codable, Sendable, Equatable {
         do {
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
-            let config = try decoder.decode(Config.self, from: data)
-            try config.validate(paths)
+            var config = try decoder.decode(Config.self, from: data)
+            config.file = paths.config
             return config
         } catch let error as DMXError {
             throw error
@@ -51,18 +51,38 @@ public struct Config: Codable, Sendable, Equatable {
         }
     }
 
+    /// Where it was read from, for messages; not saved.
+    var file: URL?
+
+    /// What config.json holds (`file` is not part of it).
+    enum CodingKeys: String, CodingKey {
+        case cpus, memory, idleTimeout, shares, diskSize, releaseUrl, toolsUrl, x86Emulator
+    }
+
     /// What `dmx config set` refuses, also when the file was edited by hand: the emulator goes on
-    /// the kernel command line, and a tiny memory or timeout would stop the VM at once.
-    func validate(_ paths: Paths) throws {
+    /// the kernel command line, and a tiny memory would not boot. Checked where the values are
+    /// used (`spec`), not when the file is read, so `dmx config unset` can still fix it.
+    func validate() throws {
         func bad(_ key: String, _ why: String) -> DMXError {
-            DMXError("bad_config", "\(paths.config.path): \(key) \(why)", hint: "run `dmx config unset \(key)` or `dmx config set \(key) <value>`")
+            DMXError("bad_config", "\((file?.path).map { "\($0): " } ?? "")\(key) \(why)", hint: "run `dmx config unset \(key)` or `dmx config set \(key) <value>`")
         }
         if let x86Emulator, !Self.x86Emulators.contains(x86Emulator) { throw bad("x86_emulator", "must be fex or qemu") }
         if let cpus, cpus < 1 { throw bad("cpus", "must be at least 1") }
-        if let idleTimeout, idleTimeout < 1 { throw bad("idle_timeout", "must be at least 1 second") }
         if let memory {
             guard let bytes = try? parseSize(memory), bytes >= 512 << 20 else { throw bad("memory", "must be a size of at least 512M") }
         }
+    }
+
+    /// Reads, changes and writes config.json under a lock, so `dmx config set` and an agent's
+    /// `dmx_config_set` at the same moment do not lose one of the changes.
+    public static func update(_ paths: Paths, _ change: (inout Config) throws -> Void) throws {
+        try FileManager.default.createDirectory(at: paths.home, withIntermediateDirectories: true)
+        let fd = open(paths.home.appendingPathComponent("config.lock").path, O_RDWR | O_CREAT | O_CLOEXEC, 0o600)
+        if fd >= 0 { flock(fd, LOCK_EX) }
+        defer { if fd >= 0 { flock(fd, LOCK_UN); close(fd) } }
+        var config = try load(paths)
+        try change(&config)
+        try config.save(paths)
     }
 
     public func save(_ paths: Paths) throws {
@@ -75,11 +95,13 @@ public struct Config: Codable, Sendable, Equatable {
 
     public var spec: MachineSpec {
         get throws {
-            MachineSpec(cpus: cpus, maxMemory: try memory.map(parseSize), kernelArgs: ["dmx.x86=\(x86Emulator ?? "fex")"], shares: try shareList)
+            try validate()
+            return MachineSpec(cpus: cpus, maxMemory: try memory.map(parseSize), kernelArgs: ["dmx.x86=\(x86Emulator ?? "fex")"], shares: try shareList)
         }
     }
 
-    public var idleTimeoutSeconds: Int { idleTimeout ?? Self.defaultIdleTimeout }
+    /// A value below a second (a hand-edited file) means the default, not an instant stop.
+    public var idleTimeoutSeconds: Int { idleTimeout.flatMap { $0 >= 1 ? $0 : nil } ?? Self.defaultIdleTimeout }
 
     public var shareList: [Share] {
         get throws { try shares.map { try Share.parseList($0.joined(separator: ",")) } ?? Share.defaults }

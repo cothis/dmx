@@ -8,7 +8,11 @@ public func runInGuest(paths: Paths, spec: MachineSpec, argv: [String], timeout:
     var spec = spec
     if !echo { spec.kernelArgs.append("quiet") }
     let output = echo ? FileHandle.standardError : FileHandle(forWritingAtPath: "/dev/null")!
-    let machine = try Machine(spec: spec, paths: paths, console: output)
+    // A guest swap waits until the VM has its files open (GuestStore.holdForBoot).
+    let guestLock = try await GuestStore(paths: paths).holdForBoot()
+    let machine: Machine
+    do { machine = try Machine(spec: spec, paths: paths, console: output) } catch { Darwin.close(guestLock); throw error }
+    Darwin.close(guestLock)
     try machine.start()
 
     let status: Int32

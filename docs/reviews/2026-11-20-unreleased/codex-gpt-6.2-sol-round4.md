@@ -1,0 +1,35 @@
+`25ff416..609c671`의 변경을 감사 문서, 호출부, `scripts/`·`Tests/`와 대조했어요. `git diff --check`는 통과했어요. 검토는 읽기 전용으로 진행했고, 테스트나 dmx·Docker·VM은 실행하지 않았어요.
+
+### blocker
+
+- **공유 파일 열기가 `ENFILE`로 실패하면서 호스트 파일을 비울 수 있어요.** 두 공유가 전역 핸들 6,144개를 소진하면, 세 번째 공유는 자체 한도에 여유가 있어도 새 핸들을 받지 못해요. 그런데 `openNode`는 `addHandle`보다 먼저 호스트 파일을 `O_TRUNC`로 열어요. 호출자에게는 실패가 돌아가고 기존 내용은 이미 사라져요. `CREATE`도 같은 순서라 실패 후 빈 파일을 남길 수 있어요. **확신 높음.** [FUSEServer.swift:885](~/dev/dockermax/Sources/DMXCore/HV/FUSEServer.swift:885) · [FUSEServer.swift:975](~/dev/dockermax/Sources/DMXCore/HV/FUSEServer.swift:975) · [FUSEServer.swift:1005](~/dev/dockermax/Sources/DMXCore/HV/FUSEServer.swift:1005)
+
+- **크레딧 초과로 리셋하는 vsock 스트림을 두 번 정리할 수 있어요.** 양쪽의 송신이 닫힌 상태에서 호스트 쪽 대기 데이터가 남아 있으면, 새 초과 처리의 `send(.rst)`가 호출하는 `deliver()`에서 대기 데이터가 소진되는 순간 스트림을 먼저 `drop`할 수 있어요. 돌아온 초과 처리 코드가 같은 스트림을 다시 `drop`해요. 첫 정리에서 `readPaused`를 지우지 않으므로 두 번째 정리도 같은 Dispatch 소스를 `resume()`하고, 데몬이 종료될 수 있어요. **확신 높음.** [VirtioVsock.swift:323](~/dev/dockermax/Sources/DMXCore/HV/VirtioVsock.swift:323) · [VirtioVsock.swift:358](~/dev/dockermax/Sources/DMXCore/HV/VirtioVsock.swift:358) · [VirtioVsock.swift:399](~/dev/dockermax/Sources/DMXCore/HV/VirtioVsock.swift:399) · [VirtioVsock.swift:411](~/dev/dockermax/Sources/DMXCore/HV/VirtioVsock.swift:411)
+
+- **샌드박스 규칙 확인과 `exec`가 서로 다른 컨테이너 실행에 적용될 수 있어요.** 실행 중인 샌드박스의 마커를 확인한 직후 Docker가 같은 컨테이너 ID를 재시작하면, 이전 네트워크 네임스페이스의 규칙은 사라져요. 이어지는 Docker `exec`는 ID만 사용하므로 새 실행에서 규칙을 적용하기 전에 명령을 시작할 수 있어요. 기존 테스트는 최초 생성 시 규칙이 먼저 적용되는 경로를 확인해요. **확신 높음.** [SandboxExec.swift:29](~/dev/dockermax/Sources/DMXCore/Sandbox/SandboxExec.swift:29) · [SandboxExec.swift:107](~/dev/dockermax/Sources/DMXCore/Sandbox/SandboxExec.swift:107) · [SandboxExec.swift:136](~/dev/dockermax/Sources/DMXCore/Sandbox/SandboxExec.swift:136) · [test-sandbox.py:202](~/dev/dockermax/scripts/test-sandbox.py:202)
+
+### should fix
+
+- **샌드박스 정책 적용에 실패해도 컨테이너가 계속 실행될 수 있어요.** 실행 중인 컨테이너의 마커 조회에서 예외가 나면 `fenceOrStop`에 들어가기 전에 반환해요. 규칙 설치까지 갔다가 실패해도 종료 요청의 전송 오류와 HTTP 실패 상태를 모두 버려요. 규칙이 설치되기 전에 실패한 경우 호출자는 오류를 받고 컨테이너는 정책 없이 남을 수 있어요. **확신 높음.** [SandboxExec.swift:109](~/dev/dockermax/Sources/DMXCore/Sandbox/SandboxExec.swift:109) · [SandboxExec.swift:126](~/dev/dockermax/Sources/DMXCore/Sandbox/SandboxExec.swift:126)
+
+- **포트 포워딩 한도가 실제로 보유하는 소켓 수를 제어하지 못해요.** TCP의 `accept` 루프와 `active`를 늘리는 `forward` 작업은 둘 다 메인 액터에서 실행돼요. 한 번의 `accept` 콜백이 여러 소켓을 받으면 예약 없이 작업만 쌓여 같은 `active` 값으로 모두 통과해요. UDP는 IPv4와 IPv6가 별도 릴레이를 만들어 듀얼 스택 포워드 하나가 최대 1,024피어를 받아요. 포워드 간 공유 한도도 없어 여러 포트가 각자의 한도 이내여도 데몬의 FD가 고갈될 수 있어요. **확신 높음.** [PortForward.swift:332](~/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:332) · [PortForward.swift:354](~/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:354) · [PortForward.swift:385](~/dev/dockermax/Sources/DMXCore/Daemon/PortForward.swift:385) · [UDPForward.swift:113](~/dev/dockermax/Sources/DMXCore/Daemon/UDPForward.swift:113)
+
+- **MCP의 EOF 정리 대기가 10초를 넘길 수 있어요.** 타이머가 먼저 끝나도 `withTaskGroup`은 모든 자식이 끝날 때까지 반환하지 않아요. 다른 자식은 취소 후에도 `task.value`를 기다려요. 예를 들어 Docker API 읽기는 기본 타임아웃 없이 별도 스레드에서 대기할 수 있어서, 응답이 멈추면 MCP 프로세스도 남아요. 기존 EOF 테스트는 앞선 호출이 완료된 뒤 stdin을 닫아요. **확신 높음.** [MCPServer.swift:47](~/dev/dockermax/Sources/DMXCore/MCP/MCPServer.swift:47) · [DockerAPI.swift:110](~/dev/dockermax/Sources/DMXCore/Sandbox/DockerAPI.swift:110) · [DockerAPI.swift:204](~/dev/dockermax/Sources/DMXCore/Sandbox/DockerAPI.swift:204) · [test-mcp.py:299](~/dev/dockermax/scripts/test-mcp.py:299)
+
+- **정상 파일을 보내는 미러에서도 도구 다운로드 재개가 실패할 수 있어요.** 1 MiB를 넘는 `.part`가 있고 서버가 `Range`를 무시해 `200`으로 전체 파일을 보내면, 코드는 파일을 비우면서 기존 `offset`은 그대로 둬요. 새 상한 검사에서 이전 바이트를 다시 더하므로 올바른 고정 크기의 응답도 초과로 판정해 설치를 실패시켜요. 이 실패는 자동 재시도도 막아요. **확신 높음.** [DockerTools.swift:296](~/dev/dockermax/Sources/DMXCore/DockerTools.swift:296) · [DockerTools.swift:443](~/dev/dockermax/Sources/DMXCore/DockerTools.swift:443) · [DockerTools.swift:462](~/dev/dockermax/Sources/DMXCore/DockerTools.swift:462)
+
+- **Docker 도구 설치가 락 획득 실패를 무시하고, 락 대기 중 취소에도 응답하지 않아요.** `open`이 실패하거나 `flock`이 `-1`을 반환해도 공유 `.part`와 압축 해제 디렉터리를 그대로 사용해요. 락이 정상적으로 경합하는 경우에는 블로킹 `flock`이 반환한 뒤에야 취소를 확인해요. 기존 취소 테스트는 HTTP 전송이 이미 시작된 다음에 취소해요. **확신 높음.** [DockerTools.swift:113](~/dev/dockermax/Sources/DMXCore/DockerTools.swift:113) · [DockerAPI.swift:314](~/dev/dockermax/Sources/DMXCore/Sandbox/DockerAPI.swift:314) · [DockerToolsTests.swift:23](~/dev/dockermax/Tests/DMXCoreTests/DockerToolsTests.swift:23)
+
+- **게스트 교체 락이 정상 부팅을 다운로드 동안 막고, 포그라운드 부팅에는 적용되지 않아요.** `guest fetch --force`는 다운로드·압축 해제·검증 전에 배타 락을 잡아요. 이미 쓸 수 있는 게스트가 있어도 데몬 부팅은 전체 작업을 기다려요. 반면 `boot --selftest`는 공유 락 없이 `docker.img` 존재를 확인하고 커널·initramfs·디스크를 차례로 열어서, 교체가 겹치면 이전 파일과 새 파일을 섞거나 부팅에 실패할 수 있어요. **확신 높음.** [GuestStore.swift:154](~/dev/dockermax/Sources/DMXCore/GuestStore.swift:154) · [Daemon.swift:342](~/dev/dockermax/Sources/DMXCore/Daemon/Daemon.swift:342) · [Selftest.swift:48](~/dev/dockermax/Sources/DMXCore/Selftest.swift:48) · [Machine.swift:84](~/dev/dockermax/Sources/DMXCore/HV/Machine.swift:84)
+
+- **잘못된 설정을 고치라는 `config set`·`unset` 안내가 작동하지 않아요.** 유효하지 않은 `memory`나 `x86_emulator`를 읽으면 `Config.load`가 오류를 던져요. 안내된 두 명령도 값을 수정하기 전에 같은 검증을 호출하므로 파일을 직접 편집해야 해요. 반대로 `disk_size` 최솟값, `idle_timeout` 상한, 미러 URL 형식은 로드할 때 검사하지 않아 `config set`과 검증 기준이 달라요. **확신 높음.** [Config.swift:44](~/dev/dockermax/Sources/DMXCore/Config.swift:44) · [Config.swift:56](~/dev/dockermax/Sources/DMXCore/Config.swift:56) · [Config.swift:124](~/dev/dockermax/Sources/DMXCore/Config.swift:124) · [Lifecycle.swift:215](~/dev/dockermax/Sources/dmx/Lifecycle.swift:215) · [Lifecycle.swift:232](~/dev/dockermax/Sources/dmx/Lifecycle.swift:232)
+
+- **`boot --json`에서 파일 오류가 JSON 없이 빠져나가요.** 크기 파싱 오류는 새 `report`를 통과해요. 그 뒤 게스트 준비, 명령 부팅, 콘솔 부팅은 `DMXError`만 잡아요. 커널 파일은 존재하지만 읽을 수 없는 경우처럼 Foundation 오류가 발생하면 `report`의 `internal_error` 변환에 도달하지 않아요. `report`에 도달한 기존 `DMXError`도 `hint`가 비어 있으면 그대로 출력돼요. **확신 높음.** [DMX.swift:25](~/dev/dockermax/Sources/dmx/DMX.swift:25) · [DMX.swift:155](~/dev/dockermax/Sources/dmx/DMX.swift:155) · [DMX.swift:205](~/dev/dockermax/Sources/dmx/DMX.swift:205) · [Machine.swift:84](~/dev/dockermax/Sources/DMXCore/HV/Machine.swift:84)
+
+- **업데이트의 체크섬 응답은 크기 제한보다 먼저 전부 메모리에 올라와요.** `update`는 제한된 아카이브 다운로드에 들어가기 전에 `.sha256`을 `URLSession.data`로 받아요. 미러가 큰 응답을 보내면 형식 검증에 도달하기 전에 업데이트 프로세스의 메모리를 소진할 수 있어요. **확신 높음.** [SelfUpdate.swift:168](~/dev/dockermax/Sources/DMXCore/SelfUpdate.swift:168) · [SelfUpdate.swift:241](~/dev/dockermax/Sources/DMXCore/SelfUpdate.swift:241)
+
+### minor
+
+- **연속 크래시 상한이 문서보다 한 번 늦게 적용돼요.** 크래시를 먼저 집계하고 `streak > 10`을 검사하므로 열 번째 크래시 뒤에도 자동 부팅을 예약해요. 복구 부팅 실패도 같은 `recover`를 호출해 크래시 수를 늘리므로, 두 종류의 실패가 섞이면 별도의 복구 부팅 실패 한도보다 먼저 중단될 수 있어요. 기존 `crashtest`의 중지 사례는 복구 대기 중 `stop`을 확인해요. **확신 높음.** [Daemon.swift:519](~/dev/dockermax/Sources/DMXCore/Daemon/Daemon.swift:519) · [Daemon.swift:531](~/dev/dockermax/Sources/DMXCore/Daemon/Daemon.swift:531) · [Daemon.swift:565](~/dev/dockermax/Sources/DMXCore/Daemon/Daemon.swift:565) · [test-crash.py:214](~/dev/dockermax/scripts/test-crash.py:214)
+
+RELEASE BLOCKERS

@@ -199,6 +199,16 @@ public enum Bench {
         let name = r.name
         // Its own name: the cleanup removes by name, and must never meet someone else's container.
         let container = "dmx-bench-\(getpid())-\(UUID().uuidString.prefix(8).lowercased())-\(name)"
+        // What an interrupted bench left (a 2 GiB tmpfs container keeps the VM busy): its pid
+        // in the label is gone.
+        if let rows = try? await cli.run(["ps", "-a", "--filter", "label=dmx.bench", "--format", "{{.ID}} {{.Label \"dmx.bench\"}}"], timeout: 30) {
+            for row in rows.split(separator: "\n") {
+                let parts = row.split(separator: " ")
+                guard parts.count == 2, let pid = Int32(parts[1].split(separator: "-").dropFirst(2).first ?? ""),
+                      pid != getpid(), kill(pid, 0) != 0, errno == ESRCH else { continue }
+                _ = try? await cli.run(["rm", "-fv", String(parts[0])], timeout: 60)
+            }
+        }
         do {
             progress("\(name): asking the engine")
             let info = try JSONDecoder().decode(JSONValue.self, from: Data(try await cli.run(["info", "--format", "{{json .}}"], timeout: 180).utf8))
@@ -437,9 +447,9 @@ struct DockerCLI: Sendable {
 
     func run(_ args: [String], timeout: Double) async throws -> String {
         let docker = docker, socket = socket
-        let cli = self
-        return try await onThread {
-            let process = cli.process(args)
+        // Made here, so a cancelled caller (an MCP import) can stop it rather than wait out its timeout.
+        let process = self.process(args)
+        return try await withTaskCancellationHandler { try await onThread {
             let out = Pipe(), err = Pipe()
             process.standardOutput = out
             process.standardError = err
@@ -468,7 +478,7 @@ struct DockerCLI: Sendable {
                                hint: "check the engine with `DOCKER_HOST=unix://\(socket.path) docker info`")
             }
             return String(decoding: outData, as: UTF8.self)
-        }
+        } } onCancel: { if process.isRunning { process.terminate() } }
     }
 }
 

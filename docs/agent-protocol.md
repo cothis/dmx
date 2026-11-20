@@ -43,6 +43,7 @@ The host turns them into `DMXError` codes prefixed with `agent_`.
 | `swap_on` | none | `size` (bytes), `enabled_now` (false if it was on). zram0 with lz4, a quarter of MemTotal, priority 100; sets `vm.swappiness` 100 and `vm.page-cluster` 0. |
 | `reporting_order` | `order`: smallest free block that free page reporting hands to the host, in guest pages (`page_size << order` bytes). Busy reporting is 512 KB (order 7 for 4K, 5 for 16K); idle reporting covers a host page (order 2 for 4K guests on a 16K Mac, 0 for 16K guests). | `previous`. Writes `/sys/module/page_reporting/parameters/page_reporting_order`; the kernel reports about 2 s after the next free, and rejects orders above its largest. |
 | `shrink_slabs` | none | `free_before`, `free_after` (MemFree). Writes `1` to every `/sys/kernel/slab/<cache>/shrink`: per-CPU slabs are flushed and empty slabs freed; no object is evicted. |
+| `trim_disk` | none | `trimmed` (bytes the kernel reports discarded). FITRIM on the data disk at `/var/lib`, as `fstrim` does, so the host punches the freed blocks out of `data.img`; it catches blocks freed without online discard (a journal replay, a discard lost when the VM was killed). The host calls it in the idle sweep. Fails when `/var/lib` is not a separate disk. |
 | `time_sync` | `unix_ns` (host clock when sent); optional `measure` (change nothing), `adjust_ns` (move the clock by this much from where it is on arrival, instead of to `unix_ns`), `slew_below_ns` (a change smaller than this is slewed, not stepped; default 0) | `offset_ns`: guest minus `unix_ns` on arrival, before any change; `slewed`; `measured` (absent from agents before 0.4.7, which ignore the options and set the clock to `unix_ns`) |
 | `shutdown` | none | `{}`, then the guest stops dockerd if it runs (SIGTERM, at most 7 s, so containers stop cleanly), syncs, freezes the data disk at `/var/lib` (its journal is left clean) and powers off |
 | `docker_start` | `config` (optional: dockerd's daemon.json, written to `/run/dmx/daemon.json` mode 0600 before dockerd starts; without it the script writes dmx's keys alone), `ca_certificates` (optional PEM text, written to `/run/dmx/host-ca.pem` and added to dockerd's CA bundle) | `started` (false if dockerd answered already), `ms`, `running` (true). Runs `/sbin/dmx-docker` (`guest/docker`) unless `/var/run/docker.sock` answers and returns once it does (at most 120 s); concurrent calls wait for one start. See [docker.md](docker.md). |
@@ -87,8 +88,9 @@ a new one per exec (`AgentClient` does this). A control call unanswered after 60
 `agent_timeout`; the host then shuts that connection down (ending the calls queued on it) and
 opens another, so an agent thread that died or hung mid-call (a guest kernel oops did this once)
 does not leave every later call waiting. `dmx status` waits at most 2 s for guest memory.
-Shutdown and clock operations use independent connections with a 2 s reply deadline, so a
-reclaim cannot queue in front of poweroff or a Docker process's clock synchronization.
+Shutdown and clock operations use independent connections with their own reply deadline (2 s;
+15 s for the clock set after a boot or wake, which can wait on a busy guest), so a reclaim cannot
+queue in front of poweroff or a Docker process's clock synchronization.
 
 ## connect
 

@@ -179,9 +179,8 @@ let mcpTools: [MCPTool] = [
             throw DMXError("bad_config_key", "an agent can change \(Config.agentKeys.joined(separator: ", ")), not \(key)",
                            hint: "ask the user to run `dmx config set \(key) <value>`")
         }
-        var config = try Config.load(paths)
-        try config.set(key, try args.string("value"))
-        try config.save(paths)
+        let value = try args.string("value")
+        try Config.update(paths) { try $0.set(key, value) }
         return MCPToolResult(structured: try configResult(paths, only: key))
     },
 

@@ -45,3 +45,14 @@ func sha256Hex(of file: URL) throws -> String {
     }
     return hash.finalize().map { String(format: "%02x", $0) }.joined()
 }
+
+/// Removes `<prefix><pid>` (or `<prefix>...-<pid>`) directories in `dir` left by processes that
+/// are gone (killed while downloading): each can hold a whole guest or release.
+func removeStaleWorkDirectories(in dir: URL, prefix: String) {
+    guard let names = try? FileManager.default.contentsOfDirectory(atPath: dir.path) else { return }
+    for name in names where name.hasPrefix(prefix) {
+        guard let pid = Int32(name.split(separator: "-").last ?? ""), pid != getpid(),
+              kill(pid, 0) != 0, errno == ESRCH else { continue }
+        try? FileManager.default.removeItem(at: dir.appendingPathComponent(name))
+    }
+}

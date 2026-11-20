@@ -71,6 +71,7 @@ final class VirtioVsock: VirtioDevice, @unchecked Sendable {
         var readSource: DispatchSourceRead?
         var writeSource: DispatchSourceWrite?
         var readPaused = false, writeArmed = false
+        var dropped = false
         var outbox = ByteQueue() // read from the host, not yet sent to the guest
         var inbox = ByteQueue()  // from the guest, not yet written to the host
         var txCount: UInt32 = 0  // bytes sent to the guest
@@ -409,6 +410,10 @@ final class VirtioVsock: VirtioDevice, @unchecked Sendable {
     }
 
     private func drop(_ c: Connection, error: DMXError?) {
+        // Once: sending an RST can deliver what was pending and drop the stream on the way,
+        // and resuming or cancelling its sources a second time would trap.
+        guard !c.dropped else { return }
+        c.dropped = true
         connections[c.key] = nil
         if let continuation = c.connecting {
             c.connecting = nil
@@ -451,9 +456,10 @@ struct ByteQueue {
         if head == storage.count { removeAll() }
     }
 
-    /// Keeps up to 1 MB of capacity for the next burst; a larger buffer goes back to the system.
+    /// Keeps up to 64 KB of capacity for the next burst; a larger buffer goes back to the
+    /// system, so a keep-alive connection that once moved a lot does not hold it for its life.
     mutating func removeAll() {
-        storage.removeAll(keepingCapacity: storage.capacity <= 1 << 20)
+        storage.removeAll(keepingCapacity: storage.capacity <= 64 << 10)
         head = 0
     }
 

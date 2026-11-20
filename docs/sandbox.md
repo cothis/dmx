@@ -18,8 +18,10 @@ dmx sandbox rm build build-b
 
 Every command takes `--json`; failures carry a stable code and a hint (`sandbox_not_found`,
 `sandbox_exists`, `bad_sandbox_policy`, `mount_not_shared`, `checkpoint_not_found`,
-`checkpoint_exists`, `bad_name`, `image_pull_failed`, `sandbox_create_failed`,
-`sandbox_egress_failed`, `sandbox_exec_failed`, `sandbox_not_running`, `container_not_found`).
+`checkpoint_exists`, `checkpoint_failed`, `bad_name`, `image_pull_failed`, `sandbox_create_failed`,
+`sandbox_egress_failed`, `sandbox_exec_failed`, `sandbox_not_running`, `container_not_found`,
+`bad_argument` for an out-of-range option such as an output limit, and Docker's own
+`docker_failed`, `docker_timeout`, `daemon_unreachable`).
 
 ## What a sandbox is
 

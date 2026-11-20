@@ -7,6 +7,7 @@ extension Sandboxes {
     public func exec(_ name: String, argv: [String], stdin: Data?, env: [String], cwd: String?,
                      timeout: Duration, maxOutputBytes: Int) async throws -> CappedExecResult {
         let started = ContinuousClock.now
+        try Self.checkOutputLimit(maxOutputBytes)
         let capture = Captures(limit: maxOutputBytes)
         let (code, timedOut) = try await run(name, argv: argv, stdin: stdin, env: env, cwd: cwd, timeout: timeout) { stream, data in
             capture.append(stream, data)
@@ -85,7 +86,10 @@ extension Sandboxes {
         await feed.value
 
         if killer.killed {
-            await kill(execID)
+            // Not in this task: once it is cancelled, the guest call that does the killing would
+            // stop at its first cancellation check, and the command would run on.
+            let me = self
+            await Task { await me.kill(execID) }.value
             return (nil, killer.timedOut)
         }
         // The stream ends a moment before dockerd records the exit code.
@@ -105,8 +109,13 @@ extension Sandboxes {
         let policy = labels[Self.policyLabel]?.string.flatMap { try? FrameConnection.decoder.decode(SandboxPolicy.self, from: Data($0.utf8)) } ?? SandboxPolicy()
         let allowed = (labels[Self.allowedLabel]?.string ?? "").split(separator: ",").map(String.init)
         if c["State"]?.string == "running" {
-            // Running without its rules (started by anything but this path): set them, or stop it.
-            if policy.network == "allowlist", try await !fenced(id) { try await fenceOrStop(id: id, policy: policy, allowed: allowed) }
+            // Running without its rules (started by anything but this path): set them, or stop
+            // it. One that cannot be checked is stopped too.
+            if policy.network == "allowlist" {
+                let ok: Bool
+                do { ok = try await fenced(id) } catch { try await stopUnfenced(id); throw error }
+                if !ok { try await fenceOrStop(id: id, policy: policy, allowed: allowed) }
+            }
             return id
         }
         if let expires = Int(labels[Self.expiresLabel]?.string ?? ""), expires <= Int(Date().timeIntervalSince1970) {
@@ -127,8 +136,17 @@ extension Sandboxes {
         do {
             try await fence(id: id, policy: policy, allowed: allowed)
         } catch {
-            _ = try? await docker.call("POST", "/containers/\(id)/kill")
+            try await stopUnfenced(id)
             throw error
+        }
+    }
+
+    /// Kills a sandbox that must not run without its rules; if even that fails, says so.
+    private func stopUnfenced(_ id: String) async throws {
+        let status = (try? await docker.call("POST", "/containers/\(id)/kill"))?.status
+        guard let status, status < 300 || status == 409 else {
+            throw DMXError("sandbox_egress_failed", "the sandbox runs without its egress rules and could not be stopped",
+                           hint: "remove it: `dmx sandbox rm <name>`")
         }
     }
 
@@ -183,6 +201,16 @@ final class StreamKiller: @unchecked Sendable {
             done = true
             byTimeout = timedOut
             stream.shutdown()
+        }
+    }
+}
+
+extension Sandboxes {
+    /// What a caller may ask to keep per stream, as dmx_exec allows: 0 to 1 MiB.
+    static func checkOutputLimit(_ bytes: Int) throws {
+        guard (0...(1 << 20)).contains(bytes) else {
+            throw DMXError("bad_argument", "the output limit must be between 0 and 1048576 bytes, not \(bytes)",
+                           hint: "pass --max-output-bytes (max_output_bytes) between 0 and 1048576")
         }
     }
 }

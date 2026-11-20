@@ -22,7 +22,7 @@ sha256 built into dmx (`Sources/DMXCore/DockerTools.swift`), and put them in `~/
 
 | Tool | Version | From | Installed as |
 |---|---|---|---|
-| docker CLI | 29.9.2 (as dockerd in the guest) | download.docker.com `mac/static/stable/aarch64/docker-29.9.2.tgz` (19 MB) | `~/.dmx/bin/docker` (41 MB) |
+| docker CLI | 29.9.2 (dockerd in the guest is 29.9.3; the API is the same) | download.docker.com `mac/static/stable/aarch64/docker-29.9.2.tgz` (19 MB) | `~/.dmx/bin/docker` (41 MB) |
 | docker-credential-osxkeychain | 0.9.12 | github.com/docker/docker-credential-helpers (2.3 MB) | `~/.dmx/bin/docker-credential-osxkeychain` |
 | Compose | 5.6.1 | github.com/docker/compose `docker-compose-darwin-aarch64` (29 MB) | `~/.dmx/cli-plugins/docker-compose` |
 | Buildx | 0.38.1 | github.com/docker/buildx `buildx-v0.38.1.darwin-arm64` (62 MB) | `~/.dmx/cli-plugins/docker-buildx` |
@@ -32,7 +32,7 @@ the pins match; download.docker.com publishes none for the static CLI, so its pi
 first downloaded (and the sha256 of `docker/docker` inside it).
 
 - **Downloads** go to `~/.dmx/downloads/<file>.part` and resume from there (HTTP range) when
-  interrupted or rerun; failed attempts are retried four times. Only a file with the pinned size
+  interrupted or rerun; each download is tried up to four times. Only a file with the pinned size
   and sha256 is used; it is renamed over the installed file, so a half-written binary is never in
   place and a running copy keeps its file. A mismatch deletes the download (`checksum_mismatch`);
   network trouble keeps it (`download_failed`, hint: run `dmx tools install` again). Installed
@@ -69,7 +69,7 @@ docker CLI ──▶ ~/.dmx/docker.sock ──▶ dmx daemon ──vsock──�
 ```
 
 - **Versions**, pinned by sha256 in `scripts/build-guest.py` from Alpine 3.24 aarch64:
-  docker-engine 29.9.2 (dockerd, docker-proxy), containerd 2.3.7, runc 1.4.3, tini-static 0.19.0
+  docker-engine 29.9.3 (dockerd, docker-proxy), containerd 2.3.7, runc 1.4.4, tini-static 0.19.0
   (docker-init), iptables 1.8.13 (nf_tables backend) with libxtables, libnftnl, libmnl,
   libseccomp 2.6.1, ca-certificates-bundle 20261020. Signatures were checked against the Alpine
   keys in the minirootfs when they were pinned.
@@ -173,7 +173,7 @@ docker CLI ──▶ ~/.dmx/docker.sock ──▶ dmx daemon ──vsock──�
   BuildKit) reads. Read when dockerd starts; containers keep their images' own bundles.
 - **Configuration** (`/run/dmx/daemon.json`): `host-gateway-ips` 192.168.127.254 and
   fd64:646d:7800::254 (the Mac, so `--add-host x:host-gateway` works as on Docker Desktop),
-  `shutdown-timeout` 5 s (the host powers the guest off within 10 s; the agent
+  `shutdown-timeout` 5 s (the host gives the guest 10 s after it agrees to power off; the agent
   sends dockerd SIGTERM and waits up to 7 s so containers stop cleanly). New containers default
   to json-file logging with `max-size: "10m"` and `max-file: "2"`. Explicit settings in the user's
   `daemon.json` and per-container logging options win; other logging drivers receive no json-file
@@ -374,9 +374,12 @@ second engine and checks the whole path into a throwaway `DMX_HOME`; `docs/PLAN.
 
 Ports a running container publishes, TCP and UDP, are forwarded from the Mac, like Docker
 Desktop does, through the same machinery as `dmx port` ([daemon protocol](daemon-protocol.md#port-forwarding)).
-Each forward takes at most 1024 TCP connections and 512 UDP peers at once, so a sender on the
-LAN cannot use up the daemon's descriptors; past that, new ones are refused or dropped until
-others end:
+Each forward takes at most 1024 TCP connections and 512 UDP peers at once, and all forwards
+together 4096 TCP connections and 2048 UDP peers (datagrams waiting for the VM to boot are capped
+at 1 MiB per listening address),
+so a sender on the LAN cannot use up the daemon's descriptors; past that, new ones are refused or
+dropped until others end. docker.sock likewise serves at most 1024 connections at once and the
+control socket 256:
 each TCP connection, and each UDP peer, becomes a vsock stream to the agent, which connects to
 the port on the guest's loopback, where docker-proxy listens.
 

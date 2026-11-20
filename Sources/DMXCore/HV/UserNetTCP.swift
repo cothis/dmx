@@ -180,6 +180,10 @@ extension UserNet {
             setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, intSize)  // the guest's stack already batches
             setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &size, intSize)
             setsockopt(fd, SOL_SOCKET, SO_SNDLOWAT, &low, intSize)  // window updates in large steps
+            // The guest's own keepalive probes are answered here, so they cannot tell a peer that
+            // went away (the Mac slept, the network changed); the host side probes for it and
+            // the flow ends, and frees its descriptor, when nothing answers.
+            configureForwardKeepalive(fd)
         }
         flow.socket = NetSocket(fd: fd, queue: queue,
                                 onRead: { [unowned self, unowned flow] in self.readHost(flow) },
