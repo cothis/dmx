@@ -42,7 +42,15 @@ public final class MCPServer: Sendable {
                 receive(data)
             }
         }
-        calls.cancelAll()
+        // Cancelled calls stop their guest processes and clean up (a sandbox exec's kill, an
+        // import's helpers) in the guest, which takes a moment: wait for them, a bounded time.
+        let pending = calls.cancelAll()
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { for task in pending { await task.value } }
+            group.addTask { try? await Task.sleep(for: .seconds(10)) }
+            await group.next()
+            group.cancelAll()
+        }
         mcpLog("stdin closed, exiting")
     }
 
@@ -258,8 +266,11 @@ private final class RunningCalls: @unchecked Sendable {
         lock.withLock { tasks[id]?.task }?.cancel()
     }
 
-    func cancelAll() {
-        lock.withLock { tasks.values.map(\.task) }.forEach { $0.cancel() }
+    @discardableResult
+    func cancelAll() -> [Task<Void, Never>] {
+        let running = lock.withLock { tasks.values.map(\.task) }
+        running.forEach { $0.cancel() }
+        return running
     }
 }
 

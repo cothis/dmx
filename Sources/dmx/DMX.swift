@@ -17,7 +17,13 @@ func report<T: Encodable>(_ global: GlobalOptions, _ body: () async throws -> (T
         let (value, text, ok) = try await body()
         if global.json { printJSON(value) } else { print(text) }
         if !ok { throw ExitCode(1) }
-    } catch let error as DMXError {
+    } catch let error as ExitCode {
+        throw error
+    } catch {
+        // Every failure leaves as a DMXError, also one from Foundation (a full disk while an
+        // update copies, a move that fails): --json callers always get the envelope.
+        let error = (error as? DMXError) ?? DMXError("internal_error", "\(error.localizedDescription)",
+                                                     hint: "run `dmx doctor`; if it says nothing is wrong, report this message")
         if global.json {
             printJSON(ErrorEnvelope(error: error))
         } else {
@@ -138,9 +144,14 @@ struct Boot: AsyncParsableCommand {
     @MainActor
     func run() async throws {
         MallocSettings.reexecIfNeeded()
-        var spec = MachineSpec(cpus: cpus, maxMemory: try memory.map(parseSize), kernelArgs: kernelArgs,
+        var spec = MachineSpec(cpus: cpus, kernelArgs: kernelArgs)
+        do {
+            spec = MachineSpec(cpus: cpus, maxMemory: try memory.map(parseSize), kernelArgs: kernelArgs,
                                shares: try Share.parseList(shares.joined(separator: ",")))
-        spec.bootMemory = try bootMemory.map(parseSize)
+            spec.bootMemory = try bootMemory.map(parseSize)
+        } catch {
+            return try await report(global) { () -> (Bool, String, Bool) in throw error }
+        }
         do {
             let quiet = global.json
             try await GuestStore(paths: Paths()).ensure { message in

@@ -107,6 +107,13 @@ public enum DockerTools {
                                progress: @Sendable (String) -> Void = { _ in }) async throws -> Report {
         var installed: [Installed] = []
         let mirror = mirror(paths: paths, environment: environment)
+        // One install at a time (the app on first launch and `dmx install` can run together):
+        // they would share the .part files and the unpacking directory. The checks below run
+        // under the lock, so a process that waited finds the tools in place.
+        try FileManager.default.createDirectory(at: paths.home, withIntermediateDirectories: true)
+        let lockFD = open(paths.home.appendingPathComponent("docker-tools.lock").path, O_RDWR | O_CREAT | O_CLOEXEC, 0o600)
+        defer { if lockFD >= 0 { close(lockFD) } }
+        if lockFD >= 0 { _ = try await onThread { flock(lockFD, LOCK_EX) } }
         for tool in tools {
             try Task.checkCancellation()
             let dest = destination(tool, paths)
@@ -285,7 +292,8 @@ public enum DockerTools {
             }
             if attempt > 1 { try await Task.sleep(for: .seconds(attempt - 1)) }
             do {
-                transferred += try await Transfer.run(url, to: part, from: have)
+                // The pinned size, with a little room for a mirror's own packaging.
+                transferred += try await Transfer.run(url, to: part, from: have, limit: tool.size + (1 << 20))
             } catch let error as Transfer.Failure {
                 lastError = error.message
                 if error.restart { try? fm.removeItem(at: part) }
@@ -367,7 +375,7 @@ extension Paths {
 
 /// One HTTP GET into a file, appending from `offset` when the server honours the range. A
 /// delegate streams the body to disk instead of holding 65 MB in memory.
-private final class Transfer: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+final class Transfer: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     struct Failure: Error {
         let message: String
         /// Worth another attempt (network trouble, a server error).
@@ -379,16 +387,19 @@ private final class Transfer: NSObject, URLSessionDataDelegate, @unchecked Senda
     private let lock = NSLock()
     private let file: FileHandle
     private let offset: Int
+    /// Bytes a download may have in all (offset included); past it, it fails before it fills the disk.
+    private let limit: Int
     private var written = 0
     private var failure: Failure?
     private var continuation: CheckedContinuation<Int, Error>?
 
-    private init(file: FileHandle, offset: Int) {
+    private init(file: FileHandle, offset: Int, limit: Int) {
         self.file = file
         self.offset = offset
+        self.limit = limit
     }
 
-    static func run(_ url: URL, to part: URL, from offset: Int) async throws -> Int {
+    static func run(_ url: URL, to part: URL, from offset: Int, limit: Int = .max) async throws -> Int {
         if !FileManager.default.fileExists(atPath: part.path) {
             FileManager.default.createFile(atPath: part.path, contents: nil)
         }
@@ -396,7 +407,7 @@ private final class Transfer: NSObject, URLSessionDataDelegate, @unchecked Senda
             throw Failure(message: "cannot write \(part.path)", retry: false)
         }
         defer { try? file.close() }
-        let transfer = Transfer(file: file, offset: offset)
+        let transfer = Transfer(file: file, offset: offset, limit: limit)
         var request = URLRequest(url: url)
         if offset > 0 { request.setValue("bytes=\(offset)-", forHTTPHeaderField: "Range") }
         let configuration = URLSessionConfiguration.ephemeral
@@ -448,6 +459,11 @@ private final class Transfer: NSObject, URLSessionDataDelegate, @unchecked Senda
         lock.lock()
         defer { lock.unlock() }
         guard failure == nil else { return }
+        guard offset + written + data.count <= limit else {
+            failure = Failure(message: "the download is larger than the \(limit) bytes expected", retry: false, restart: true)
+            dataTask.cancel()
+            return
+        }
         do {
             try file.write(contentsOf: data)
             written += data.count

@@ -43,7 +43,10 @@ They do not boot the VM.
   `Host` header or TLS server name to the container, through the guest agent's `connect`, as
   port forwards do. macOS lets a user listen on ports below 1024 only on the wildcard address,
   so the daemon listens on `0.0.0.0` and closes every connection that did not arrive on
-  `127.0.0.0/8`: other machines get nothing. Containers get nothing either: their connections to
+  `127.0.0.0/8`: other machines get nothing. Other accounts on the same Mac do reach them (the
+  ports are the Mac's), so the web ports of your containers are open to them while names are on;
+  while the daemon is not running, another account could listen on these ports and answer
+  `http://` names (HTTPS needs the CA's key, which is yours only). Containers get nothing either: their connections to
   the Mac (`host.docker.internal`) are refused on these two ports while names hold them, since
   names reach every container's web port and would skip Docker's network isolation. HTTPS
   listeners exist only for the names of running containers, and accept only names' own

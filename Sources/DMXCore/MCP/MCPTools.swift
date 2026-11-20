@@ -165,7 +165,7 @@ let mcpTools: [MCPTool] = [
         "inputSchema": [
             "type": "object",
             "properties": [
-                "key": ["type": "string", "enum": .array(Config.keys.map { .string($0) })],
+                "key": ["type": "string", "enum": .array(Config.agentKeys.map { .string($0) })],
                 "value": ["type": ["string", "null"], "description": "The new value; null for the default."],
             ],
             "required": ["key", "value"],
@@ -174,6 +174,11 @@ let mcpTools: [MCPTool] = [
         "annotations": ["idempotentHint": true, "destructiveHint": false, "openWorldHint": false],
     ]) { paths, args in
         guard let key = try args.string("key") else { throw args.error("key is required") }
+        // Where updates come from and which Mac folders the VM sees stay the user's to change.
+        guard Config.agentKeys.contains(key) else {
+            throw DMXError("bad_config_key", "an agent can change \(Config.agentKeys.joined(separator: ", ")), not \(key)",
+                           hint: "ask the user to run `dmx config set \(key) <value>`")
+        }
         var config = try Config.load(paths)
         try config.set(key, try args.string("value"))
         try config.save(paths)

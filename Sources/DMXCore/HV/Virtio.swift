@@ -33,11 +33,19 @@ struct VirtqueueChain {
     var readable: [UnsafeMutableRawBufferPointer] = []
     var writable: [UnsafeMutableRawBufferPointer] = []
 
+    /// What the device reads, at most 1 MiB: a guest chain of large descriptors must not make
+    /// the host copy gigabytes (vsock packets, console writes and requests are far smaller).
     var readableBytes: Data {
         var data = Data()
-        for buffer in readable { data.append(contentsOf: buffer) }
+        for buffer in readable {
+            let room = Self.readLimit - data.count
+            guard room > 0 else { break }
+            data.append(contentsOf: UnsafeMutableRawBufferPointer(rebasing: buffer.prefix(room)))
+        }
         return data
     }
+
+    static let readLimit = 1 << 20
 
     var writableCapacity: Int { writable.reduce(0) { $0 + $1.count } }
 

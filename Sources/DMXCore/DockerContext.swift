@@ -64,7 +64,10 @@ public enum DockerContext {
     /// Reads config.json (an empty object if there is none), changes it, and writes it back with
     /// its permissions. A file that is not a JSON object is left alone.
     static func updateConfig(_ configDir: URL, _ change: (inout [String: Any]) -> Void) throws {
-        let file = configDir.appendingPathComponent("config.json")
+        // A config.json that is a link (dotfiles managers) is changed where it points: writing over
+        // the link would replace it with a file, and the link's own mode is not the file's.
+        let link = configDir.appendingPathComponent("config.json")
+        let file = URL(fileURLWithPath: link.resolvingSymlinksInPath().path)
         var config: [String: Any] = [:]
         var mode: Int = 0o600
         if let data = try? Data(contentsOf: file) {
@@ -73,7 +76,8 @@ public enum DockerContext {
                                hint: "fix it, then run `dmx install` again, or select the context yourself: `docker context use \(name)`")
             }
             config = object
-            mode = (try? FileManager.default.attributesOfItem(atPath: file.path)[.posixPermissions] as? Int) ?? mode
+            var st = stat()
+            if stat(file.path, &st) == 0 { mode = Int(st.st_mode & 0o777) }
         }
         change(&config)
         do {

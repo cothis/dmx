@@ -425,9 +425,16 @@ final class NamesService {
         }
     }
 
+    /// Connections between accept and their head, at most this many at once.
+    nonisolated static let heads = HandleBudget(limit: 256)
+
     /// Reads until `parse` is satisfied, at most 64 KiB and 10 s.
     nonisolated static func readHead(_ fd: Int32, parse: @escaping @Sendable ([UInt8]) -> LocalNames.Head) async -> ([UInt8], LocalNames.Head)? {
-        await withCheckedContinuation { continuation in
+        // Each connection gets a thread to read its head (up to 10 s): a program opening many
+        // and sending nothing must not use up threads and descriptors. Past the limit, none.
+        guard heads.take() else { return nil }
+        defer { heads.give() }
+        return await withCheckedContinuation { (continuation: CheckedContinuation<([UInt8], LocalNames.Head)?, Never>) in
             Thread.detachNewThread {
                 var bytes: [UInt8] = []
                 var buffer = [UInt8](repeating: 0, count: 16384)

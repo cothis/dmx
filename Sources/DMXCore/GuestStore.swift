@@ -171,7 +171,7 @@ public struct GuestStore: Sendable {
         let archive = work.appendingPathComponent(pin.archive)
         log("downloading guest \(pin.tag) (\(formatSize(UInt64(pin.bytes)))) from \(url.absoluteString)")
         do {
-            try await downloadVerified(url, to: archive, sha256: pin.sha256)
+            try await downloadVerified(url, to: archive, sha256: pin.sha256, maxBytes: pin.bytes)
         } catch let error as DMXError where error.code == "download_failed" {
             throw DMXError("guest_download_failed", error.message,
                            hint: "check the network (or the mirror: release_url, DMX_RELEASE_URL), then `dmx guest fetch`; or build the guest from source: `make guest`")
@@ -208,6 +208,10 @@ public struct GuestStore: Sendable {
         return GuestFetchReport(fetched: true, url: url.absoluteString, bytes: pin.bytes, ms: ms, guest: state())
     }
 
+    /// Held while a VM opens the guest's files, so a `dmx guest fetch --force` swaps the directory
+    /// before or after, never between the kernel and docker.img. Release with `close`.
+    public func holdForBoot() async throws -> Int32 { try await lockGuest(shared: true) }
+
     /// Records which release the guest in `dir` came from (`release.json`, read by `state()`).
     func writeReceipt(_ release: GuestRelease, in dir: URL? = nil) throws {
         let encoder = JSONEncoder()
@@ -220,11 +224,13 @@ public struct GuestStore: Sendable {
 
     /// One fetch at a time per DMX_HOME. Polls instead of blocking, so a daemon waiting here
     /// keeps answering its clients.
-    private func lockGuest() async throws -> Int32 {
+    private func lockGuest(shared: Bool = false) async throws -> Int32 {
         let path = paths.home.appendingPathComponent("guest.lock").path
         let fd = open(path, O_RDWR | O_CREAT | O_CLOEXEC, 0o600)
-        guard fd >= 0 else { throw DMXError("guest_download_failed", "cannot open \(path): \(String(cString: strerror(errno)))") }
-        while flock(fd, LOCK_EX | LOCK_NB) != 0 {
+        guard fd >= 0 else {
+            throw DMXError("guest_download_failed", "cannot open \(path): \(String(cString: strerror(errno)))", hint: "check that \(paths.home.path) is writable")
+        }
+        while flock(fd, (shared ? LOCK_SH : LOCK_EX) | LOCK_NB) != 0 {
             do { try await Task.sleep(for: .milliseconds(200)) } catch { Darwin.close(fd); throw error }
         }
         return fd

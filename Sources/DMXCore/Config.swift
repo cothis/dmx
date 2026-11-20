@@ -31,6 +31,8 @@ public struct Config: Codable, Sendable, Equatable {
     public static let defaultDiskSize: UInt64 = 64 << 30
     public static let keys = ["cpus", "memory", "idle_timeout", "shares", "disk_size", "release_url", "tools_url", "x86_emulator"]
     public static let x86Emulators = ["fex", "qemu"]
+    /// What `dmx_config_set` (MCP) may change: the VM's size and idle stop.
+    public static let agentKeys = ["cpus", "memory", "idle_timeout"]
 
     public init() {}
 
@@ -39,9 +41,27 @@ public struct Config: Codable, Sendable, Equatable {
         do {
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
-            return try decoder.decode(Config.self, from: data)
+            let config = try decoder.decode(Config.self, from: data)
+            try config.validate(paths)
+            return config
+        } catch let error as DMXError {
+            throw error
         } catch {
             throw DMXError("bad_config", "cannot read \(paths.config.path): \(error)", hint: "fix or delete the file, or run `dmx config unset <key>`")
+        }
+    }
+
+    /// What `dmx config set` refuses, also when the file was edited by hand: the emulator goes on
+    /// the kernel command line, and a tiny memory or timeout would stop the VM at once.
+    func validate(_ paths: Paths) throws {
+        func bad(_ key: String, _ why: String) -> DMXError {
+            DMXError("bad_config", "\(paths.config.path): \(key) \(why)", hint: "run `dmx config unset \(key)` or `dmx config set \(key) <value>`")
+        }
+        if let x86Emulator, !Self.x86Emulators.contains(x86Emulator) { throw bad("x86_emulator", "must be fex or qemu") }
+        if let cpus, cpus < 1 { throw bad("cpus", "must be at least 1") }
+        if let idleTimeout, idleTimeout < 1 { throw bad("idle_timeout", "must be at least 1 second") }
+        if let memory {
+            guard let bytes = try? parseSize(memory), bytes >= 512 << 20 else { throw bad("memory", "must be a size of at least 512M") }
         }
     }
 
@@ -90,14 +110,14 @@ public struct Config: Codable, Sendable, Equatable {
         case "cpus":
             guard let value else { cpus = nil; return }
             guard let n = Int(value), n >= 1 else {
-                throw DMXError("bad_config_value", "cpus must be a whole number of at least 1, not \"\(value)\"")
+                throw DMXError("bad_config_value", "cpus must be a whole number of at least 1, not \"\(value)\"", hint: "run `dmx config set` with a value as `dmx config --help` describes")
             }
             cpus = n
         case "memory":
             guard let value else { memory = nil; return }
             let bytes = try parseSize(value)
             guard bytes >= 512 << 20 else {
-                throw DMXError("bad_config_value", "memory must be at least 512M, not \"\(value)\"")
+                throw DMXError("bad_config_value", "memory must be at least 512M, not \"\(value)\"", hint: "run `dmx config set` with a value as `dmx config --help` describes")
             }
             memory = value.uppercased()
         case "idle_timeout":
@@ -110,7 +130,7 @@ public struct Config: Codable, Sendable, Equatable {
             // Applies at the next boot: a new data.img is made this size, a smaller one grows.
             guard let value else { diskSize = nil; return }
             guard try parseSize(value) >= 1 << 30 else {
-                throw DMXError("bad_config_value", "disk_size must be at least 1G, not \"\(value)\"")
+                throw DMXError("bad_config_value", "disk_size must be at least 1G, not \"\(value)\"", hint: "run `dmx config set` with a value as `dmx config --help` describes")
             }
             diskSize = value.uppercased()
         case "release_url":

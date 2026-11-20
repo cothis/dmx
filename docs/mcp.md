@@ -65,7 +65,7 @@ An unknown tool name is a JSON-RPC error (-32602).
 | `dmx_start` | none | status, once the guest agent answers |
 | `dmx_stop` | none | status, once the VM is off |
 | `dmx_config_get` | `key` | `settings` (values in effect), `configured` (keys set in the file), `file` |
-| `dmx_config_set` | `key`, `value` (null resets it) | the same, for that key; applies at the next boot |
+| `dmx_config_set` | `key` (`cpus`, `memory`, `idle_timeout`), `value` (null resets it) | the same, for that key; applies at the next boot. Shares, the release and tools URLs and the x86 emulator stay the user's (`dmx config set`) |
 | `dmx_import` | `from` (`docker-desktop`, `orbstack`, `colima`, `rancher-desktop` or `unix:///path`; default the one that answers), `projects` (Compose projects), `dry_run` | `dmx import --json`: `ok`, `dry_run`, `source`, `items` (`kind`, `name`, `action`: `imported`, `planned`, `exists`, `skipped`, `failed`; `detail`), `warnings`, `next`; `isError` when an item failed. The other engine is left as it was (helper containers there are removed again); containers are created, not started; see [docker.md](docker.md#importing-from-another-engine) |
 | `dmx_sandbox_create` | `name`, `image`, `network` (`"none"`, `"all"` or an array of hosts and CIDRs), `mounts` (`[{host, path, writable}]`), `cpus`, `memory`, `pids`, `ttl` (seconds or `"30m"`), `env`, `workdir`, `command` | the sandbox: `name`, `state`, `policy`, `allowed`, `expires_at`, `expires_in_s`, `checkpoints`, ... |
 | `dmx_sandbox_exec` | `name`, `argv` (required), `stdin`, `env`, `cwd`, `timeout`, `max_output_bytes` | as `dmx_exec` (`signal` is always null) |

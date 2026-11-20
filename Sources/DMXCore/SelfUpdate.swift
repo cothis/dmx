@@ -64,6 +64,12 @@ public struct SelfUpdate: Sendable {
 
     /// `--version` reaches a URL and a directory name that is later removed, so it has to look
     /// like a version and nothing else.
+    /// The newest release's install.sh: GitHub serves it at releases/latest/download/, not
+    /// releases/download/latest/ (that names a tag "latest").
+    static func latestInstallScript(_ base: String) -> String {
+        base.hasSuffix("/releases/download") ? String(base.dropLast("/download".count)) + "/latest/download/install.sh" : "\(base)/latest/install.sh"
+    }
+
     static func checked(version: String) throws -> String {
         let ok = version.range(of: "^[0-9]+\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.]+)?$", options: .regularExpression) != nil
         guard ok else {
@@ -126,7 +132,8 @@ public struct SelfUpdate: Sendable {
             throw DMXError("update_check_failed", "\(page) led to \(landed), which names no release",
                            hint: "name the version: `dmx update --version <x.y.z>`")
         }
-        return String(tag.dropFirst())
+        // The same check as a version given by hand: the tag goes into URLs and paths.
+        return try Self.checked(version: String(tag.dropFirst()))
     }
 
     /// Resolves what an update would install without downloading anything.
@@ -269,7 +276,7 @@ public struct SelfUpdate: Sendable {
         let dir = (AppInstallation.containing(executable) ?? executable).deletingLastPathComponent().path
         guard FileManager.default.isWritableFile(atPath: dir) else {
             throw DMXError("update_not_writable", "\(dir) is not writable by this user",
-                           hint: "install it where you can write: `curl -fsSL \(baseURL)/latest/install.sh | PREFIX=$HOME/.local sh`")
+                           hint: "install it where you can write: `curl -fsSL \(Self.latestInstallScript(baseURL)) | PREFIX=$HOME/.local sh`")
         }
     }
 

@@ -87,6 +87,13 @@ public final class Machine: @unchecked Sendable {
         var resolved = spec
         resolved.cpus = min(max(spec.cpus, 1), ProcessInfo.processInfo.activeProcessorCount)
         resolved.maxMemory = max(spec.maxMemory, 256 << 20) & ~UInt64((2 << 20) - 1)
+        // What is plugged later comes in Linux memory blocks: the ceiling above boot RAM is a
+        // whole number of them (`memory 3000M` would leave 56 MB over and stop the VirtioMem
+        // precondition at every boot).
+        let boot = Self.bootSize(spec: resolved)
+        if boot < resolved.maxMemory {
+            resolved.maxMemory = boot + (resolved.maxMemory - boot) / VirtioMem.linuxBlockSize * VirtioMem.linuxBlockSize
+        }
         self.spec = resolved
         ramSize = resolved.maxMemory
         bootSize = Self.bootSize(spec: resolved)

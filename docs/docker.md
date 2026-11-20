@@ -289,7 +289,9 @@ boot then brings back containers as in [Restart policies](#restart-policies): `a
 `unless-stopped` and `on-failure` ones that were running come back (dockerd counts dying with the
 VM as a failure), `no` ones and `unless-stopped` ones stopped with `docker stop` stay exited, and
 published ports come back. `dmx stop` during the wait cancels the reboot. With nothing running,
-the VM stays stopped until a client needs it, as after an idle stop. A guest that powers itself
+the VM stays stopped until a client needs it, as after an idle stop. After ten crashes in a row
+(none after five minutes up) dmx stops booting new VMs; a failed recovery boot is tried again
+five times; `dmx stop` during one ends it. A guest that powers itself
 off is not a crash. `make crashtest` checks this with forced panics and a forced VMM fault (a
 guest load the VMM cannot emulate, `scripts/fixtures/vmm-fault-aarch64.S`); `docs/PLAN.md` has
 the runs.
@@ -371,7 +373,10 @@ second engine and checks the whole path into a throwaway `DMX_HOME`; `docs/PLAN.
 ## Published ports
 
 Ports a running container publishes, TCP and UDP, are forwarded from the Mac, like Docker
-Desktop does, through the same machinery as `dmx port` ([daemon protocol](daemon-protocol.md#port-forwarding)):
+Desktop does, through the same machinery as `dmx port` ([daemon protocol](daemon-protocol.md#port-forwarding)).
+Each forward takes at most 1024 TCP connections and 512 UDP peers at once, so a sender on the
+LAN cannot use up the daemon's descriptors; past that, new ones are refused or dropped until
+others end:
 each TCP connection, and each UDP peer, becomes a vsock stream to the agent, which connects to
 the port on the guest's loopback, where docker-proxy listens.
 

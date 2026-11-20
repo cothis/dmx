@@ -253,7 +253,9 @@ final class VCPU: @unchecked Sendable {
             hv_vcpu_get_vtimer_offset(id, &offset)
             let now = mach_absolute_time() &- offset
             if cval <= now { return }
-            let ns = (cval - now) * UInt64(Self.timebase.numer) / UInt64(Self.timebase.denom)
+            // The guest picks cval: a far one must not overflow (it waits up to the 1 s cap anyway).
+            let (scaled, overflow) = (cval - now).multipliedReportingOverflow(by: UInt64(Self.timebase.numer))
+            let ns = overflow ? UInt64.max : scaled / UInt64(Self.timebase.denom)
             deadline = min(deadline, DispatchTime.now() + .nanoseconds(Int(min(ns, 1_000_000_000))))
         }
         cond.lock()

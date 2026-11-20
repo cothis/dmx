@@ -88,7 +88,9 @@ public enum LocalNames {
             out.append(Entry(name: name, container: container, address: ip, port: port(c)))
         }
         func number(_ c: [String: Any]) -> Int { Int(((c["Labels"] as? [String: String]) ?? [:])["com.docker.compose.container-number"] ?? "") ?? Int.max }
-        let sorted = containers.sorted { (number($0), name($0)) < (number($1), name($1)) }
+        // Sandboxes are an agent's, with their own egress rules; names would open them to the Mac.
+        let named = containers.filter { ((($0["Labels"] as? [String: String]) ?? [:])[Sandboxes.label]) == nil }
+        let sorted = named.sorted { (number($0), name($0)) < (number($1), name($1)) }
         // Services first, so a container named like another project's service does not hide it.
         for c in sorted {
             let labels = c["Labels"] as? [String: String] ?? [:]

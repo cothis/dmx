@@ -15,6 +15,11 @@ import Foundation
 final class UDPRelay: @unchecked Sendable {
     static let idleTimeout: Duration = .seconds(60)
     static let pendingLimit = 64
+    /// Peers at once per forward: each costs a guest stream, a thread and descriptors, and a
+    /// sender varying its source port must not use up the daemon's descriptors. A DNS or game
+    /// server on the Mac's LAN sees far fewer at a time; past it new peers are dropped until
+    /// idle ones expire.
+    static let flowLimit = 512
     static let datagramLimit = 65507
 
     /// A peer's socket address (IPv4 or IPv6), as received.
@@ -105,6 +110,7 @@ final class UDPRelay: @unchecked Sendable {
             if n < 0 && errno == EINTR { continue }
             guard n >= 0 else { return }
             let key = withUnsafeBytes(of: &from) { Peer(bytes: Array($0.prefix(Int(length)))) }
+            guard flows[key] != nil || flows.count < Self.flowLimit else { continue }
             let flow = flows[key] ?? open(key, from, length)
             flow.lastActive = .now
             let datagram = Data(buffer[..<n])

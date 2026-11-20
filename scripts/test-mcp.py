@@ -278,8 +278,11 @@ try:
     for ttl in [1e100, -1e100]:
         r = c.call("dmx_sandbox_create", {"ttl": ttl})
         check(f"ttl_out_of_range_{ttl}", r["isError"] is True and "ttl" in r["content"][0]["text"], r)
-    r = c.call("dmx_config_set", {"key": "disk_size", "value": "9223372036854775808"})
+    r = c.call("dmx_config_set", {"key": "memory", "value": "9223372036854775808"})
     check("config_size_overflow", r["isError"] is True and "bad_size" in r["content"][0]["text"], r)
+    # Where updates come from stays the user's to change.
+    r = c.call("dmx_config_set", {"key": "release_url", "value": "https://example.com/x"})
+    check("config_agent_keys_only", r["isError"] is True and "bad_config_key" in r["content"][0]["text"], r)
 
     # Status, stop, start.
     r = c.call("dmx_status", modern=True)

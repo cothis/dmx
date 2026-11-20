@@ -189,6 +189,9 @@ public struct Sandboxes: Sendable {
         ipt -A OUTPUT -p tcp -j REJECT --reject-with tcp-reset
         ipt -A OUTPUT -j REJECT --reject-with icmp-admin-prohibited
         ipt -P OUTPUT DROP
+        # The rules are IPv4: the sandbox gets no IPv6 at all, whatever the network says.
+        nsenter -t "$pid" -n sh -c '[ ! -e /proc/sys/net/ipv6/conf/all/disable_ipv6 ] || { echo 1 > /proc/sys/net/ipv6/conf/all/disable_ipv6 && echo 1 > /proc/sys/net/ipv6/conf/default/disable_ipv6; }'
+
         touch "/proc/$pid/root/dev/.dmx-fenced"
         """#
 
@@ -462,13 +465,14 @@ public struct Sandboxes: Sendable {
         let (status, _) = try await docker.call("GET", "/networks/\(Self.network)")
         if status == 200 { return }
         let (created, body) = try await docker.call("POST", "/networks/create", body: [
-            "Name": .string(Self.network), "Driver": "bridge",
+            "Name": .string(Self.network), "Driver": "bridge", "EnableIPv6": false,
             "Options": ["com.docker.network.bridge.enable_icc": "false"],
             "Labels": .object([Self.label: "network"]),
         ])
         // 409: another client created it meanwhile.
         guard (200..<300).contains(created) || created == 409 else {
-            throw DMXError("sandbox_create_failed", "cannot create the \(Self.network) network: \(String(decoding: body.prefix(300), as: UTF8.self))")
+            throw DMXError("sandbox_create_failed", "cannot create the \(Self.network) network: \(String(decoding: body.prefix(300), as: UTF8.self))",
+                           hint: "see `docker network ls`; `docker network rm \(Self.network)` lets dmx make it again")
         }
     }
 

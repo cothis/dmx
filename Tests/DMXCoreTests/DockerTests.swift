@@ -6,6 +6,26 @@ import Testing
 /// The host side of Docker support that needs no VM: the docker context, the launchd job,
 /// which published ports become forwards, and the names the gateway's DNS answers.
 @Suite struct DockerTests {
+    /// A config.json that is a link (dotfiles) stays a link; the file it points to is changed
+    /// and keeps its own mode.
+    @Test func changesALinkedDockerConfigWhereItPoints() throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory() + "dmx-docker-link-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let dotfiles = dir.appendingPathComponent("dotfiles"), config = dir.appendingPathComponent("docker")
+        try FileManager.default.createDirectory(at: dotfiles, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: config, withIntermediateDirectories: true)
+        let target = dotfiles.appendingPathComponent("docker-config.json")
+        try Data(#"{"auths": {"example.com": {"auth": "x"}}}"#.utf8).write(to: target)
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: target.path)
+        try FileManager.default.createSymbolicLink(at: config.appendingPathComponent("config.json"), withDestinationURL: target)
+        _ = try DockerContext.install(socket: URL(fileURLWithPath: "/tmp/dmx-x/docker.sock"), configDir: config)
+        let link = config.appendingPathComponent("config.json").path
+        #expect((try? FileManager.default.destinationOfSymbolicLink(atPath: link)) == target.path)
+        let object = try JSONSerialization.jsonObject(with: Data(contentsOf: target)) as? [String: Any]
+        #expect(object?["currentContext"] as? String == "dmx")
+        #expect((try FileManager.default.attributesOfItem(atPath: target.path)[.posixPermissions] as? Int) == 0o600)
+    }
+
     @Test func certificatesFromAFile() throws {
         let home = URL(fileURLWithPath: NSTemporaryDirectory() + "dmx-ca-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: home) }

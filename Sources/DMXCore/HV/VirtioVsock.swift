@@ -318,6 +318,13 @@ final class VirtioVsock: VirtioDevice, @unchecked Sendable {
                     continuation.resume(returning: c.hostFD)
                 }
             case .rw:
+                // The guest may send what our credit allows (bufferSize); past that it ignores
+                // the protocol, and the stream goes rather than the host's memory.
+                guard c.inbox.count + payload.count <= Int(VirtioVsock.bufferSize) else {
+                    send(c, .rst)
+                    drop(c, error: DMXError("vm_error", "the guest overran a vsock stream's credit", hint: "run `dmx doctor`"))
+                    continue
+                }
                 c.inbox.append(contentsOf: payload)
                 flushInbox(c)
             case .creditRequest:

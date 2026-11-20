@@ -56,6 +56,10 @@ final class FUSEServer: @unchecked Sendable {
     private let ttl: UInt64 = 1
     /// Open files and directories the guest may hold at once.
     private let handleLimit = 4096
+    /// Open handles of every share together: each is a host descriptor, and the daemon's limit
+    /// (OPEN_MAX, 10240) also holds the NAT's sockets (up to 2560), the vsock streams, port
+    /// forwards and its own sockets. Three default shares at 4096 each would pass it.
+    static let openBudget = HandleBudget(limit: 6144)
 
     private struct Inode: Hashable {
         let dev: Int32
@@ -172,6 +176,7 @@ final class FUSEServer: @unchecked Sendable {
     func closeAll() {
         lock.lock()
         let open = handles.values
+        Self.openBudget.give(handles.count)
         handles.removeAll()
         nodes = nodes.filter { $0.key == FUSE.rootID }
         byInode = [rootInode: FUSE.rootID]
@@ -250,7 +255,10 @@ final class FUSEServer: @unchecked Sendable {
                 lock.lock()
                 let handle = handles.removeValue(forKey: fh)
                 lock.unlock()
-                if let handle { release(handle) }
+                if let handle {
+                    Self.openBudget.give()
+                    release(handle)
+                }
                 return .data(Data())
             case .flush: return .data(Data())  // nothing is buffered on the host
             case .fsync, .fsyncdir:
@@ -874,7 +882,7 @@ final class FUSEServer: @unchecked Sendable {
     private func addHandle(_ handle: Handle) throws -> UInt64 {
         lock.lock()
         defer { lock.unlock() }
-        guard handles.count < handleLimit else { throw FUSEError(Linux.ENFILE) }
+        guard handles.count < handleLimit, Self.openBudget.take() else { throw FUSEError(Linux.ENFILE) }
         let fh = nextHandle
         nextHandle += 1
         handles[fh] = handle
@@ -1230,3 +1238,13 @@ func slice(_ buffers: [iovec], from offset: Int, count: Int) -> [iovec] {
 
 @_silgen_name("pthread_fchdir_np")
 private func pthread_fchdir_np(_ fd: Int32) -> Int32
+
+/// A count shared by the FUSE servers of one process.
+final class HandleBudget: @unchecked Sendable {
+    private let lock = NSLock()
+    private var used = 0
+    let limit: Int
+    init(limit: Int) { self.limit = limit }
+    func take() -> Bool { lock.withLock { guard used < limit else { return false }; used += 1; return true } }
+    func give(_ n: Int = 1) { lock.withLock { used = max(0, used - n) } }
+}

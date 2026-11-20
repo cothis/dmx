@@ -113,7 +113,8 @@ final class MemoryPlugPolicy: @unchecked Sendable {
         // Pages in the balloon count as allocated in the guest, but the host asked for them under
         // pressure and the guest takes them back before it OOM-kills (DEFLATE_ON_OOM). Plugging
         // more for them would let the balloon and the plug chase each other up to the ceiling.
-        available += balloon.size.actual
+        // Guest-reported numbers: saturate rather than trap on nonsense.
+        available = available.addingReportingOverflow(balloon.size.actual).overflow ? .max : available + balloon.size.actual
         let state = plug.state
         let changed = lastPlugged != state.plugged
         lastPlugged = state.plugged
@@ -168,7 +169,8 @@ final class MemoryPlugPolicy: @unchecked Sendable {
     }
 
     private func requestUnplug(present: UInt64, excess: UInt64) {
-        let want = present > boot + excess ? present - excess - boot : 0
+        let floor = boot.addingReportingOverflow(excess).overflow ? UInt64.max : boot + excess
+        let want = present > floor ? present - floor : 0
         // Round up to whole Linux memory blocks so removing one returns its whole memmap.
         let before = plug.state.requested
         if want < before {

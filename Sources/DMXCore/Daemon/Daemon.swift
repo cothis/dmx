@@ -43,6 +43,9 @@ public final class Daemon {
     private var recovery: Task<Void, Never>?
     /// Boots after a crash that failed in a row.
     private var recoveryBootFailures = 0
+    /// `dmx stop` or exiting since the last crash: a recovery boot that fails is not retried.
+    private var recoveryStopped = false
+    static let maxCrashStreak = 10
     private var recoveryAt: ContinuousClock.Instant?
 
     /// Open connections, and those among them that asked for the VM (start, exec).
@@ -338,12 +341,19 @@ public final class Daemon {
                 // A missing guest, or one from an older release, is downloaded first (GuestStore).
                 try await GuestStore(paths: paths).ensure(log: log)
                 try Task.checkCancellation()
+                // Until the VM has its files open: a guest swap waits (GuestStore.holdForBoot).
+                let guestLock = try await GuestStore(paths: paths).holdForBoot()
+                var guestLockHeld = true
+                defer { if guestLockHeld { Darwin.close(guestLock) } }
                 if FileManager.default.fileExists(atPath: paths.dockerImage.path) {
                     spec.extraDisks = [DataDisk(url: paths.dockerImage, size: 0, readOnly: true, id: "dmx-docker")]
                 }
                 diagnosticLogs.retryDisabled()
                 diagnosticLogs.console?.append(Data("\n--- dmx VM boot \(ISO8601DateFormatter().string(from: Date())) ---\n".utf8))
                 let machine = try Machine(spec: spec, paths: paths, output: .log(diagnosticLogs.console))
+                // Kernel, initramfs and docker.img are open now.
+                Darwin.close(guestLock)
+                guestLockHeld = false
                 self.machine = machine
                 try machine.start()
                 // Generous: on a loaded Mac a first boot that formats the data disk can take 30 s,
@@ -516,6 +526,15 @@ public final class Daemon {
         let failure = DMXError("guest_crashed", "the guest crashed: \(reason)",
                                hint: "see the console tail in \(paths.guestCrashLog.path); `dmx start` boots a new VM")
         let streak = crashes.streak > 1 ? ", \(crashes.streak) in a row" : ""
+        // A guest that crashes again and again (a container that panics it at every start)
+        // must not boot every minute for ever: after ten in a row the VM stays down.
+        if busy, !exiting, crashes.streak > Self.maxCrashStreak {
+            log("guest crashed (\(reason)\(streak)); console tail in \(paths.guestCrashLog.lastPathComponent); not booting again after \(Self.maxCrashStreak) crashes in a row")
+            scheduleIdleCheck()
+            return publishActivity(reason: "guest_crashed", failure: DMXError("guest_crashed", "the guest crashed \(crashes.streak) times in a row: \(reason)",
+                                                                              hint: "see \(paths.guestCrashLog.path); stop the container that crashes it, then `dmx start`"))
+        }
+        recoveryStopped = false
         guard busy, !exiting else {
             log("guest crashed (\(reason)\(streak)); console tail in \(paths.guestCrashLog.lastPathComponent); no container was running, so the VM stays stopped until it is needed")
             scheduleIdleCheck()
@@ -535,6 +554,11 @@ public final class Daemon {
                     recoveryBootFailures = 0
                 } catch {
                     let message = (error as? DMXError)?.message ?? "\(error)"
+                    if recoveryStopped || (error as? DMXError)?.code == "start_cancelled" {
+                        log("guest crash: the new VM's boot was stopped; not booting again")
+                        recoveryBootFailures = 0
+                        return scheduleIdleCheck()
+                    }
                     recoveryBootFailures += 1
                     // Try again with the backoff, a few times: a guest that cannot boot at all
                     // must not keep booting every minute.
@@ -554,6 +578,9 @@ public final class Daemon {
 
     /// `dmx stop` or the daemon exiting: no reboot after a crash.
     private func cancelRecovery() {
+        // A recovery boot already under way is cancelled by the stop itself; this says not to
+        // count that as a failed boot to retry.
+        recoveryStopped = true
         guard let recovery else { return }
         recovery.cancel()
         self.recovery = nil

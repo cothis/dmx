@@ -3,24 +3,26 @@ import Foundation
 
 /// Downloads `url` to `destination` and checks it against `sha256` before anything uses it.
 /// A file that does not match is deleted. Nothing is fetched without a pinned hash.
-func downloadVerified(_ url: URL, to destination: URL, sha256 expected: String) async throws {
+/// `maxBytes`: the expected size, or a bound on it; a larger answer fails while it downloads,
+/// before the hash could tell, so a wrong server cannot fill the disk.
+func downloadVerified(_ url: URL, to destination: URL, sha256 expected: String, maxBytes: Int = 512 << 20) async throws {
     let fm = FileManager.default
     try? fm.removeItem(at: destination)
-    let temporary: URL, response: URLResponse
     do {
-        (temporary, response) = try await URLSession.shared.download(from: url)
+        _ = try await Transfer.run(url, to: destination, from: 0, limit: maxBytes)
+    } catch let failure as Transfer.Failure {
+        try? fm.removeItem(at: destination)
+        throw DMXError("download_failed", "cannot download \(url.absoluteString): \(failure.message)",
+                       hint: "check the network and the release URL (`dmx config get release_url`), then try again")
     } catch {
-        throw DMXError("download_failed", "cannot download \(url.absoluteString): \(error.localizedDescription)")
+        try? fm.removeItem(at: destination)
+        throw error
     }
-    defer { try? fm.removeItem(at: temporary) }
-    if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-        throw DMXError("download_failed", "\(url.absoluteString) answered HTTP \(http.statusCode)")
-    }
-    try fm.moveItem(at: temporary, to: destination)
     let actual = try sha256Hex(of: destination)
     guard actual == expected else {
         try? fm.removeItem(at: destination)
-        throw DMXError("checksum_mismatch", "\(url.absoluteString) has sha256 \(actual), expected \(expected)")
+        throw DMXError("checksum_mismatch", "\(url.absoluteString) has sha256 \(actual), expected \(expected)",
+                       hint: "the file changed on its way or on the server; try again, and report it if it stays so")
     }
 }
 

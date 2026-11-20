@@ -102,19 +102,41 @@ extension Sandboxes {
     func running(_ name: String) async throws -> String {
         try Self.checkName(name)
         guard let c = try await find(name), let id = c["Id"]?.string, let labels = c["Labels"]?.object else { throw notFound(name) }
-        if c["State"]?.string == "running" { return id }
+        let policy = labels[Self.policyLabel]?.string.flatMap { try? FrameConnection.decoder.decode(SandboxPolicy.self, from: Data($0.utf8)) } ?? SandboxPolicy()
+        let allowed = (labels[Self.allowedLabel]?.string ?? "").split(separator: ",").map(String.init)
+        if c["State"]?.string == "running" {
+            // Running without its rules (started by anything but this path): set them, or stop it.
+            if policy.network == "allowlist", try await !fenced(id) { try await fenceOrStop(id: id, policy: policy, allowed: allowed) }
+            return id
+        }
         if let expires = Int(labels[Self.expiresLabel]?.string ?? ""), expires <= Int(Date().timeIntervalSince1970) {
             _ = try? await remove(name, reason: "ttl")
             throw notFound(name)
         }
-        let policy = labels[Self.policyLabel]?.string.flatMap { try? FrameConnection.decoder.decode(SandboxPolicy.self, from: Data($0.utf8)) } ?? SandboxPolicy()
         if policy.command != nil {
             throw DMXError("sandbox_not_running", "\(name)'s command has exited (\(c["Status"]?.string ?? "stopped"))",
                            hint: "read its output with `dmx sandbox logs \(name)`; roll it back or remove it")
         }
         try await docker.json("POST", "/containers/\(id)/start", code: "sandbox_exec_failed")
-        try await fence(id: id, policy: policy, allowed: (labels[Self.allowedLabel]?.string ?? "").split(separator: ",").map(String.init))
+        try await fenceOrStop(id: id, policy: policy, allowed: allowed)
         return id
+    }
+
+    /// Sets the egress rules; a sandbox that cannot get them does not keep running without them.
+    private func fenceOrStop(id: String, policy: SandboxPolicy, allowed: [String]) async throws {
+        do {
+            try await fence(id: id, policy: policy, allowed: allowed)
+        } catch {
+            _ = try? await docker.call("POST", "/containers/\(id)/kill")
+            throw error
+        }
+    }
+
+    /// Whether the fence script's mark is in the sandbox's root.
+    private func fenced(_ id: String) async throws -> Bool {
+        let state = try await docker.json("GET", "/containers/\(id)/json", code: "sandbox_exec_failed")["State"]
+        guard case .int(let pid) = state?["Pid"] ?? .null, pid > 0 else { return false }
+        return try await guest(["test", "-e", "/proc/\(pid)/root/dev/.dmx-fenced"]).exitCode == 0
     }
 
     /// Kills a timed out or cancelled exec and everything it started. Docker has no call for

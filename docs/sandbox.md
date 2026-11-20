@@ -86,8 +86,11 @@ into the sandbox's namespace from the guest, so nothing is added to the image.
   around it waits for a marker the rule script leaves), so it never runs unfenced; that needs
   `sh` in the image.
 - If something with access to the Docker socket starts a sandbox's container itself
-  (`docker start dmx-sandbox-x`), it runs without the rules. dmx only starts sandboxes through
-  its own path, which sets them first; whoever holds the Docker socket can run anything anyway.
+  (`docker start dmx-sandbox-x`), it runs without the rules until the next `exec`, which finds
+  the rule script's mark missing and sets them (or stops the sandbox if it cannot). A sandbox
+  whose rules cannot be set is stopped, not left running without them. The rules are IPv4; the
+  rule script also turns IPv6 off inside the sandbox, whatever its network says. Whoever holds
+  the Docker socket can run anything anyway. Sandboxes get no local names.
 
 ## Lifetime and the TTL
 
