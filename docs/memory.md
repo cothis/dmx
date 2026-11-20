@@ -91,6 +91,9 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-11-20: Two sessions worked in this checkout at once, and one's "docs only" commit carried the other's
+  uncommitted code (842165a). Stage the paths you changed (`git add <paths>`), not `git add -A`, and check
+  `git status` for files you did not write before committing; leave those to their session.
 - 2026-11-20: macOS's trust-settings and `osascript` administrator dialogs wait until someone answers; an agent's call
   just times out. Tell the maintainer before triggering one and give it minutes. Trust changes need the GUI dialog even
   with sudo; a root file step can use sudo when the maintainer offers it (never write a password down).
