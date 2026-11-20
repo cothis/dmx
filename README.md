@@ -22,13 +22,20 @@ Host memory of the whole engine, VM included, while a container takes 2 GiB and 
 | While a container holds 2 GiB | **2390 MB** | 2693 MB | 3160 MB | 3154 MB |
 | After it frees the 2 GiB (within 10 s) | **356 MB** | 2699 MB | 3164 MB | 3157 MB |
 | Idle CPU (one core) | **0.4 %** | 0.5 % | 0.7 % | 0.5 % |
-| Warm `docker run --rm alpine true` | 104 ms | 97 ms | 52 ms | 63 ms |
+| Warm `docker run alpine true` | 104 ms | 97 ms | 52 ms | 63 ms |
 
 OrbStack gives the 2 GiB back about 20 s later; Colima and Docker Desktop still hold it five
 minutes later. dmx's `docker run` is the slowest of the four because it keeps the data disk's
 write order across a power cut ([why](docs/benchmark.md#warm-docker-run-profile-2026-10-25)).
 Medians of three rounds on a quiet Mac with dmx 0.3.0, re-checked with 0.3.6
 ([method, raw data and caveats](docs/benchmark.md#results-2026-10-26-dmx-030-quiet-mac)).
+
+![dmx's host memory while a container takes 2 GiB and frees it: about 270 MB before, 2380 MB while held, 330 MB two seconds after the container frees it and 282 MB from four seconds on](docs/images/bench-memory.svg)
+
+Measure your own Mac with `dmx bench` (new after 0.4.8; build from source until the next release), and add the engine you use now with
+`--engine NAME=SOCKET,PID` to see both side by side. The graph above is `dmx bench --svg` from
+`main` after 0.4.8, on a 2 CPU / 4 GiB VM ([how it measures, and each engine's socket and processes](docs/benchmark.md#dmx-bench),
+[raw data](docs/measurements/2026-11-20-dmx-bench.json)).
 
 ## Why dmx
 
@@ -77,6 +84,7 @@ dmx stop                         # power off now instead of waiting for the idle
 dmx config set memory 8G         # also: cpus, idle_timeout, disk_size, shares; next boot
 dmx port add 8080:80             # forward a host port to the VM (Docker's -p needs no command)
 dmx doctor                       # check this Mac and the installation
+dmx bench                        # measure dmx's memory, and other engines' with --engine
 dmx update                       # install the newest release over this one
 ```
 

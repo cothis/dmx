@@ -42,6 +42,7 @@ public enum JSONValue: Codable, Hashable, Sendable {
 
     public var string: String? { if case .string(let v) = self { v } else { nil } }
     public var object: [String: JSONValue]? { if case .object(let v) = self { v } else { nil } }
+    public var int: Int? { if case .int(let v) = self { v } else { nil } }
 
     /// Any encodable value as JSON, keys in snake_case like the CLI's `--json` output.
     public init(encoding value: some Encodable) throws {

@@ -599,11 +599,14 @@ to switch. One item per session, in this order; each is verified on the real VM.
       numbers that prove it first, Quick start before details, AI native as the third reason.
       Done when: the first screen says what dmx is, why to switch and how to install, and every
       number on it links to its measurement.
-- [ ] `dmx bench`: the comparison users can run themselves. Memory over time while a container
+- [x] `dmx bench`: the comparison users can run themselves. Memory over time while a container
       takes and frees 2 GiB, idle footprint and warm `docker run`, for dmx and any other engine
       running beside it (`--endpoint`/process detection as `scripts/benchmark.py` does). `--json`
       output and a plotted SVG for the README. Done when: the README graph comes from `dmx bench`
-      on this Mac with the method linked.
+      on this Mac with the method linked. Done 2026-11-20: `--engine NAME=SOCKET,PID...` (explicit
+      PIDs, as the script; no guessing), `--svg`; README graph from `dmx bench --svg`
+      ([method](benchmark.md#dmx-bench)). Not yet run against OrbStack, Colima or Docker Desktop
+      (none installed); the `--engine` path was checked against a second dmx.
 - [ ] Soak check: hundreds of `docker run --rm` and Compose up/down cycles, then idle footprint,
       guest memory, open fds and daemon threads against the start. Opt-in from selftest. Done when:
       it runs on the real VM and the numbers are recorded here.
@@ -625,8 +628,12 @@ to switch. One item per session, in this order; each is verified on the real VM.
 ## Next up
 
 **Phase 13 started** (2026-11-20): see [Phase 13](#phase-13-easier-to-try-and-to-trust-2026-11-20).
-The README front page is rewritten. Next: `dmx bench` (the README graph depends on it), then the soak check, crash recovery and
-`dmx import`. The Homebrew tap and local names wait for the maintainer.
+The README front page is rewritten, and `dmx bench` measures dmx (and other engines with
+`--engine`) and drew the README graph ([finding](#dmx-bench-first-runs-2026-11-20)). Next: the
+soak check, then crash recovery and `dmx import`. The Homebrew tap and local names wait for the
+maintainer. Open from bench: warm `docker run` is bimodal on this Mac (77–80 or 143–251 ms).
+`make guest` needs `make kernel` first here: `~/.dmx/cache` no longer has the kernel tarball
+(the bench session verified with the installed v0.4.8 guest; the guest was not changed).
 
 
 **v0.4.8 is published** (2026-11-12), signed, notarized and stapled, from tag commit `5cb05c3`.
@@ -888,6 +895,22 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### dmx bench first runs (2026-11-20)
+
+`dmx bench` on this Mac (12 cores, 32 GB, macOS 27.2.1; not the Mac of the README table), dmx
+alone in a throwaway `DMX_HOME` at 2 CPUs / 4 GiB, four rounds, host load 2.0–4.1: idle 200 MB
+(193–228) steady, 144 (138–210) floor, 0.43 % of one core; 2375 MB holding 2 GiB, 292 MB
+(282–320) 10 s after freeing it, back within 64 MB in 4.1 s (2.0–4.7); `docker run alpine true`
+151 ms (145–159). Memory agrees with the 0.4.7 re-check. The footprint drops in two steps after
+the free (to ~330 MB at +2 s, ~285 MB at +4 s). Warm `docker run` samples are bimodal (77–80 or
+143–251 ms), also when the docker CLI is timed from Python, so it is not the bench; not explained.
+`docker run --rm` adds about 25 ms to a run; the bench times the run and not the removal, as
+`scripts/benchmark.py` always did (the README row said `--rm`; corrected). Docker's MemTotal for
+dmx is the plugged RAM (1244–1372 MB at a 4G ceiling), so the report adds `memory_ceiling`.
+A unit test caught the first `--engine` check missing a Docker Desktop path linked to dmx's
+socket (`/var` vs `/private/var`, and a link to a socket that does not exist yet).
+[Raw](measurements/2026-11-20-dmx-bench.json), [method](benchmark.md#dmx-bench).
 
 ### v0.4.8 release qualification (2026-11-12)
 
@@ -1788,6 +1811,8 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 | 2026-10-27 | Pre-announcement review of 0.3.3 | Six code findings fixed, stale docs corrected. Unit 59/59; selftest 23/23; daemon 57/57; MCP 33/33; x86 47/47; Docker 69/69; sandbox 44/44; image matrix 24/24; pressure 12/12 rounds (12 GiB host allocation). Selftest host footprint 97 MiB before, 94–97 after; final 1 GiB reclaim 1123 → 103 MiB in 329 ms (before 1122 → 102 in 214 ms). Published 0.3.3 installer, guest fetch, strict signature/notarization check, selftest (97 MiB) and signed same-version update pass; local guest hashes match published. [Review](review-2026-10-27.md), [bounded results](measurements/2026-10-27-preannouncement-review.json). These fixes are not released. |
 
 ## Progress log
+
+- 2026-11-20: Added `dmx bench` (DMXCore/Bench.swift, BenchChart.swift): idle window, idle CPU, warm `docker run`, and memory every 100 ms while a container takes and frees 2 GiB, for dmx and each `--engine NAME=SOCKET,PID...`; `--json` and `--svg`. README graph and benchmark.md section from it; four rounds recorded. Unit 142 (5 new), selftest 23/23 (99 MB). `make guest` could not run: the kernel tarball is gone from `~/.dmx/cache` (the musl Rust target was also missing and is installed now). Next: the soak check.
 
 - 2026-11-20: Started Phase 13 after comparing dmx with Kiri: bench, soak, crash recovery, import, then the Homebrew tap and local names (maintainer decisions). Rewrote the README front page: one claim, install in three lines, the comparison table first, AI native as the last reason. Docs only.
 

@@ -63,6 +63,71 @@ CPU is shown as a percentage of one core; the footprint peak is sampled every 10
 lifetime peak. `--cpus` and `--ceiling-gb` support other acceptance profiles, but comparisons
 must use the same profile for every engine; the container workload remains limited to 2 CPUs.
 
+## dmx bench
+
+`dmx bench` runs the memory part of this protocol from the installed CLI, so anyone can compare
+dmx with what they use now on their own Mac. It measures dmx (the engine `DMX_HOME` points at,
+started if needed) and then each `--engine`, one at a time, with dmx's pinned docker CLI and an
+empty docker config of its own:
+
+1. pull the digest-pinned Alpine arm64 image (not timed);
+2. idle footprint at 35, 50, 65, 80 and 95 s after the pull (`idle.steady_mb` is the last,
+   `idle.min_mb` the floor), then 10 s of idle CPU;
+3. five warm `docker run --network none alpine true`, timed as `scripts/benchmark.py` times them:
+   the run, not the removal after it (removing adds about 25 ms);
+4. a container writes 2 GiB into its tmpfs, holds it 3 s and deletes it; the footprint is read
+   every 100 ms from 3 s before the container starts until 30 s after it freed the memory
+   (`take_and_free.timeline`, `at_s` relative to the free). `after_ten_seconds_mb` is the
+   README's "after" column, `back_to_baseline_s` when the footprint was within 64 MB of the
+   reading before the container started.
+
+```sh
+dmx bench                                     # dmx alone, a table on stdout, about 3 minutes
+dmx bench --json --svg memory.svg             # the report as JSON, and the graph
+dmx bench --engine orbstack=unix://$HOME/.orbstack/run/docker.sock,PID
+```
+
+Another engine is `NAME=unix:///path/to/docker.sock,PID[,PID...]`: the Docker API cannot say
+which processes an engine's memory is charged to, so name every one (the report lists each
+with its command). What earlier comparisons measured, with their default sockets:
+
+| Engine | Socket | Processes |
+|---|---|---|
+| OrbStack | `~/.orbstack/run/docker.sock` | `OrbStack Helper` (its VM, `vmgr`); also `OrbStack` if its window app runs |
+| Colima | `~/.colima/default/docker.sock` | both `limactl`, the `com.apple.Virtualization.VirtualMachine` it started, the `ssh: ... [mux]` |
+| Docker Desktop | `~/.docker/run/docker.sock` | everything under `/Applications/Docker.app` (`com.docker.backend`, `com.docker.build`, `com.docker.virtualization`, `Docker Desktop` and its helpers, `docker-agent`) and its `com.apple.Virtualization.VirtualMachine` |
+
+`ps -axo pid,rss,command` lists them. dmx refuses an `--engine` socket that leads to dmx's own
+(`dmx install` links `~/.docker/run/docker.sock` to dmx when Docker Desktop is not serving it).
+
+What it does not do, unlike `scripts/benchmark.py`: it measures engines as they are set up
+(each report has the engine's CPUs, memory and containers already running, which count in every
+number), it does not boot a fresh dmx VM, and it skips the SHA-256 workload and cold start. For a
+fair comparison give every engine the same CPUs and memory, stop what else runs, and repeat in
+alternating order.
+
+First runs, 2026-11-20 (`main` after 0.4.8, installed v0.4.8 guest), dmx alone in a throwaway
+`DMX_HOME` with 2 CPUs, a 4 GiB ceiling and no shares, a fresh daemon per round, four rounds at
+host load 2.0 to 4.1 on a Mac with 12 cores, 32 GB and macOS 27.2.1 (not the Mac of the tables
+below) ([raw](measurements/2026-11-20-dmx-bench.json)). Medians, with ranges:
+
+| | dmx bench |
+|---|---|
+| Idle, steady state at 95 s, MB | 200 (193–228) |
+| Idle, lowest reading in the window, MB | 144 (138–210) |
+| Idle CPU, % of one core | 0.43 (0.36–0.45) |
+| Holding 2 GiB in tmpfs, MB | 2375 (2372–2395) |
+| 10 s after freeing it, MB | 292 (282–320) |
+| Back within 64 MB of the reading before the container | 4.1 s (2.0–4.7) |
+| `docker run alpine true`, ms | 151 (145–159) |
+
+The memory rows agree with the 0.4.7 re-check. The footprint falls in two steps (about 2 s after
+the container frees the memory, to ~330 MB, then to ~285 MB about 2 s later), so the time back
+within 64 MB lands either side of the second step. `docker run` is slower than the 96 ms of
+0.4.7 on the earlier Mac, and its samples are bimodal here (77–80 ms or 143–251 ms; the docker
+CLI timed from Python shows the same), which is not explained yet. The `--engine` path was
+checked against a second throwaway dmx running beside the first.
+
 ## dmx re-check, 2026-11-06 (0.4.7)
 
 0.3.7 to 0.4.7 added the menu app, bounded logs, FEX, DNS and guest clock changes, so dmx alone was measured again
