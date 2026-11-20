@@ -146,12 +146,21 @@ struct DockerAPI: Sendable {
     /// Sends a request and returns the stream positioned after the reply's header, with the
     /// status code. A JSON `body` goes out with its length.
     func start(_ method: String, _ path: String, body: JSONValue? = nil) async throws -> (status: Int, stream: DockerStream, rest: Data) {
+        let (status, stream, rest, _, _) = try await send(method, path, body: body)
+        return (status, stream, rest)
+    }
+
+    /// `start`, with the reply's Content-Length when it has one, and whether its body is chunked.
+    private func send(_ method: String, _ path: String, body: JSONValue? = nil) async throws
+        -> (status: Int, stream: DockerStream, rest: Data, length: Int?, chunked: Bool) {
         let stream = try await open()
         do {
             let payload = body.map(\.compactData) ?? Data()
-            let head = "\(method) \(apiVersion.isEmpty ? "" : "/" + apiVersion)\(path) HTTP/1.0\r\nHost: docker\r\n"
+            // Connection: close because some engines' sockets (OrbStack's) answer an HTTP/1.0
+            // request in HTTP/1.1 and keep the connection open, so reading to the end would wait.
+            let head = "\(method) \(apiVersion.isEmpty ? "" : "/" + apiVersion)\(path) HTTP/1.0\r\nHost: docker\r\nConnection: close\r\n"
                 + (body != nil ? "Content-Type: application/json\r\nContent-Length: \(payload.count)\r\n" : "") + "\r\n"
-            let (status, rest) = try await onThread { () throws -> (Int, Data) in
+            let (status, rest, length, chunked) = try await onThread { () throws -> (Int, Data, Int?, Bool) in
                 try stream.writeAll(Data(head.utf8) + payload)
                 var reply = Data()
                 while true {
@@ -160,7 +169,15 @@ struct DockerAPI: Sendable {
                         guard let code = line.split(separator: " ").dropFirst().first.flatMap({ Int($0) }) else {
                             throw DMXError("docker_failed", "dockerd sent a bad reply to \(method) \(path): \(line.prefix(80))")
                         }
-                        return (code, Data(reply[end.upperBound...]))
+                        let header = String(decoding: reply[..<end.lowerBound], as: UTF8.self)
+                        var fields: [String: String] = [:]
+                        for field in header.split(separator: "\r\n").dropFirst() {
+                            let parts = field.split(separator: ":", maxSplits: 1)
+                            if parts.count == 2 { fields[parts[0].trimmingCharacters(in: .whitespaces).lowercased()] = parts[1].trimmingCharacters(in: .whitespaces) }
+                        }
+                        // OrbStack's socket also sends HTTP/1.1 chunked bodies to an HTTP/1.0 request.
+                        let chunked = fields["transfer-encoding"]?.lowercased().contains("chunked") ?? false
+                        return (code, Data(reply[end.upperBound...]), chunked ? nil : fields["content-length"].flatMap { Int($0) }, chunked)
                     }
                     let chunk = try stream.read()
                     guard !chunk.isEmpty, reply.count < 1 << 20 else {
@@ -170,7 +187,7 @@ struct DockerAPI: Sendable {
                     reply.append(chunk)
                 }
             }
-            return (status, stream, rest)
+            return (status, stream, rest, length, chunked)
         } catch {
             stream.close()
             throw error
@@ -179,18 +196,36 @@ struct DockerAPI: Sendable {
 
     /// A whole request: the status and the body (at most 64 MB).
     func call(_ method: String, _ path: String, body: JSONValue? = nil) async throws -> (status: Int, body: Data) {
-        let (status, stream, rest) = try await start(method, path, body: body)
+        let (status, stream, rest, length, chunked) = try await send(method, path, body: body)
         defer { stream.close() }
         let data = try await onThread { () throws -> Data in
             var data = rest
-            while data.count < 64 << 20 {
+            while data.count < min(length ?? .max, 64 << 20) {
                 let chunk = try stream.read()
                 if chunk.isEmpty { break }
                 data.append(chunk)
             }
             return data
         }
-        return (status, data)
+        return (status, chunked ? Self.unchunk(data) : data)
+    }
+
+    /// An HTTP/1.1 chunked body, read to the end, as its bytes: `<hex size>[;ext]\r\n<bytes>\r\n`
+    /// until a zero size. What does not parse is kept as it came.
+    static func unchunk(_ body: Data) -> Data {
+        var out = Data(), index = body.startIndex
+        let crlf = Data("\r\n".utf8)
+        while let line = body.range(of: crlf, in: index..<body.endIndex) {
+            let sizeText = String(decoding: body[index..<line.lowerBound], as: UTF8.self).split(separator: ";").first ?? ""
+            guard let size = Int(sizeText.trimmingCharacters(in: .whitespaces), radix: 16) else { return body }
+            if size == 0 { return out }
+            let start = line.upperBound
+            guard body.distance(from: start, to: body.endIndex) >= size else { return body }
+            let end = body.index(start, offsetBy: size)
+            out.append(body[start..<end])
+            index = body.index(end, offsetBy: min(2, body.distance(from: end, to: body.endIndex)))
+        }
+        return out.isEmpty ? body : out
     }
 
     /// A request that must succeed (2xx); returns the JSON reply, or null for an empty body.

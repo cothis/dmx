@@ -648,9 +648,10 @@ to switch. One item per session, in this order; each is verified on the real VM.
 ## Next up
 
 **Phase 13 is done; its open ends are closed except two that need the maintainer** (2026-11-20).
-Waiting for the maintainer: `dmx import` from OrbStack and Docker Desktop (licence and administrator
-prompts), and local names in Safari and Chrome (`dmx names setup`'s trust dialog). Then the
-reviews the maintainer asked for, and a release is the maintainer's decision. Everything since
+`dmx import` now passes from OrbStack and Docker Desktop too ([finding](#import-from-orbstack-and-docker-desktop-2026-11-20)).
+Waiting for the maintainer: local names in Safari and Chrome (`dmx names setup`'s trust dialog).
+Then the reviews the maintainer asked for (a full audit with Mythos 5.2, a review with Codex
+gpt-6.2-sol), and a release is the maintainer's decision. Everything since
 v0.4.8 is unreleased, now including a guest rebuilt from re-pinned inputs (Docker 29.9.3, runc
 1.4.4, the restart rule), libmalloc's space-efficient mode and vCPU threads at userInitiated
 ([finding](#open-ends-2026-11-20)). The rebuilt guest lives in a separate DMX_HOME on this Mac;
@@ -935,6 +936,20 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### Import from OrbStack and Docker Desktop (2026-11-20)
+
+OrbStack 2.2.5 (dockerd 29.8.2) and Docker Desktop 4.99.0 (dockerd 29.9.3), both with the
+containerd image store, installed for the check, the maintainer answering their licence and
+administrator prompts, and removed afterwards with everything they wrote outside their folders.
+`make importtest FROM=orbstack` first failed at the source check: OrbStack's socket answers an
+HTTP/1.0 request in HTTP/1.1, keeps the connection open, and sends larger bodies chunked, so
+`DockerAPI.call` waited for a close until its 5 s deadline, then read chunk sizes as JSON. Requests
+now say `Connection: close`, a reply is read to its Content-Length, and a chunked body is decoded
+(two unit tests; dmx's own dockerd answers HTTP/1.0 and is unaffected: sandboxtest 44/44, mcptest
+38/38, daemontest 63/63). Then OrbStack 29/29 twice (import 3.2–3.3 s) and Docker Desktop 29/29
+twice (2.9–3.0 s); without `--from`, `dmx import` found Docker Desktop by itself.
+[Raw](measurements/2026-11-20-import-orbstack-docker-desktop.json).
 
 ### Open ends (2026-11-20)
 
@@ -2052,6 +2067,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-20: `dmx import` from OrbStack and Docker Desktop: 29/29 twice each, after fixing `DockerAPI` for sockets that keep HTTP/1.0 connections open and send chunked bodies (OrbStack's). Both engines installed for the check and removed. Left for the maintainer: local names in browsers, the audit and review, release.
 - 2026-11-20: Closed Phase 13's open ends. Re-pinned the guest inputs Alpine had removed (Docker 29.9.3, runc 1.4.4; kernel, FEX and qemu rebuilt byte-identical to v0.4.8) with `scripts/verify-apk.py`; the agent's restart rule now matches dockerd's (`docker stop` keeps only `unless-stopped` down; `on-failure` that died with the VM comes back); `make crashtest` forces a VMM fault too (40/40, 37/40 on the old guest); the daemon runs with libmalloc's space-efficient mode (13.7/25.0 → 3.5/3.9 MB dirty, selftest 99 → 96 MB); vCPU threads at userInitiated (busy-Mac `docker run` 116 → 86 ms median; the bimodal runs were efficiency cores). Full real-VM qualification of the new guest passed. Left for the maintainer: import from OrbStack/Docker Desktop, local names in browsers, reviews, release.
 - 2026-11-20: `dmx import` from the classic image store: Compose's image label is recomputed for dmx, so such projects are not recreated (importtest's recreate check had missed "Recreated"; fixed). importtest 29/29 from Colima with each store. `dmx bench --engine` against a real Colima, two rounds: Colima kept the 2 GiB (3106 MB idle in round 2), dmx back to 299–324 MB in about 4 s. Unit 163, selftest 23/23 (100 MB). Colima removed again.
 - 2026-11-20: Local names verified for real with the maintainer's dialogs: the resolver file wins over mDNS for `.local`; `curl` and `nscurl` reach `https://web.dmx.local` with no flags; `dmx names remove` undid trust, keychain item, resolver file (by sudo after its dialog timed out) and the CA. Phase 13 done. Docs only.

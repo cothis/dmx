@@ -187,6 +187,35 @@ import Testing
         #expect(Import.unsharedBinds(c, shares: [Share(path: "/Users/me")]) == ["/tmp/x", "/opt/homebrew/etc"])
     }
 
+    /// OrbStack's socket answers an HTTP/1.0 request in HTTP/1.1 and keeps the connection open;
+    /// a reply is read to its Content-Length, not to a close that never comes.
+    @Test func readsAReplyFromASocketThatStaysOpen() async throws {
+        var pair: [Int32] = [0, 0]
+        #expect(socketpair(AF_UNIX, SOCK_STREAM, 0, &pair) == 0)
+        let client = pair[0], server = pair[1]
+        defer { Darwin.close(server) }
+        let api = DockerAPI(open: { DockerStream(fd: client, timeoutSeconds: 5) { _ = Darwin.close(client) } }, apiVersion: "")
+        let serving = Thread {
+            var request = [UInt8](repeating: 0, count: 4096)
+            let n = read(server, &request, request.count)
+            let text = String(decoding: request.prefix(max(0, n)), as: UTF8.self)
+            let reply = text.contains("Connection: close") ? "HTTP/1.1 200 OK\r\nContent-Length: 2\r\nContent-Type: text/plain\r\n\r\nOK" : "HTTP/1.1 400 Bad\r\nContent-Length: 0\r\n\r\n"
+            _ = reply.withCString { write(server, $0, strlen($0)) }
+        }
+        serving.start()
+        let started = ContinuousClock.now
+        let (status, body) = try await api.call("GET", "/_ping")
+        #expect(status == 200)
+        #expect(String(decoding: body, as: UTF8.self) == "OK")
+        #expect(ContinuousClock.now - started < .seconds(2))
+    }
+
+    @Test func readsAChunkedBody() {
+        let body = Data("4\r\n[{\"a\r\n5;x=1\r\n\":1}]\r\n0\r\n\r\n".utf8)
+        #expect(String(decoding: DockerAPI.unchunk(body), as: UTF8.self) == "[{\"a\":1}]")
+        #expect(DockerAPI.unchunk(Data("not chunked".utf8)) == Data("not chunked".utf8))
+    }
+
     @Test func refusesASourceItCannotUse() async throws {
         let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("import-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }

@@ -82,7 +82,11 @@ This repo is public: no private hostnames, IPs or personal details here.
   outside their own folders. Docker Desktop: PATH blocks in `~/.zprofile` and `~/.profile`, a
   completion block with `compinit` in `~/.zshrc`, `credsStore` in `~/.docker/config.json` (the
   helper goes with the app, which breaks later pulls), a `com.docker.helper` launchd job. OrbStack:
-  `~/.zprofile` and `~/.ssh/config` includes, `~/OrbStack`, its group container. Colima: an
+  `~/.zprofile` and `~/.ssh/config` includes, `~/OrbStack` (read-only: `chmod u+w` first), its group container,
+  `~/.docker` (`credsStore`, contexts, cli-plugins links), and as root `/var/run/docker.sock`, its privileged
+  helper and LaunchDaemon, and `orb`/`orbctl`/`docker`/`kubectl` links in `/usr/local/bin` (2026-11-20). Docker
+  Desktop 4.99: its `Contents/MacOS/uninstall` asks for the administrator once and removes the root parts; also
+  restore `~/.docker` (bin, cli-plugins, daemon.json, models, mutagen) and dmx's `~/.docker/run/docker.sock` link. Colima: an
   `~/.ssh/config` include, `~/Library/Caches/colima` (317 MB).
 - Delegate simple checks (summaries, disassembly, reviews) to Sonnet subagents while doing the hard reasoning
   yourself (2026-10-27: "단순작업은 sonnet으로 확인하면서"). Verify what they report before relying on it.

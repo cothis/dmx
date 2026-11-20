@@ -1,0 +1,681 @@
+{
+ "date": "2026-11-20",
+ "check": "make importtest (scripts/test-import.py) into a DMX_HOME with the rebuilt guest",
+ "orbstack": {
+  "version": "2.2.5",
+  "dockerd": "29.8.2, containerd store",
+  "runs": [
+   {
+    "ok": true,
+    "source": "orbstack",
+    "source_engine": "29.8.2 overlayfs",
+    "import_s": 3.3,
+    "items": [
+     "image dmximport-web:test imported",
+     "image alpine@sha256:e311ae748b imported",
+     "volume dmximport_data imported",
+     "network dmximport_front imported",
+     "network dmximport_back imported",
+     "container dmximport-web-1 imported",
+     "volume 46db96adc5e6e2db1f2d397e imported",
+     "container dmximport-sidecar-1 imported",
+     "container dmximport-worker-1 imported",
+     "volume 9ca9dbeb8d4877fa4c25b345 imported"
+    ],
+    "total_s": 10,
+    "checks": [
+     {
+      "name": "docker_tools",
+      "ok": true,
+      "detail": "/tmp/dmx-dev/bin/docker and /tmp/dmx-dev/cli-plugins/docker-compose; run `dmx tools install`"
+     },
+     {
+      "name": "source_answers",
+      "ok": true,
+      "detail": "~/.orbstack/run/docker.sock"
+     },
+     {
+      "name": "source_up",
+      "ok": true,
+      "detail": "import-sidecar-1 Creating \n Container dmximport-sidecar-1 Created \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-sidecar-1 Started \n"
+     },
+     {
+      "name": "source_fill",
+      "ok": true,
+      "detail": ""
+     },
+     {
+      "name": "source_stop",
+      "ok": true,
+      "detail": " Container dmximport-sidecar-1 Stopping \n Container dmximport-sidecar-1 Stopped \n Container dmximport-web-1 Stopping \n Container dmximport-web-1 Stopped \n"
+     },
+     {
+      "name": "dmx_start",
+      "ok": true,
+      "detail": ""
+     },
+     {
+      "name": "dry_run",
+      "ok": true,
+      "detail": "[('image', 'planned'), ('image', 'planned'), ('volume', 'planned'), ('network', 'planned'), ('network', 'planned'), ('container', 'planned'), ('volume', 'planned'), ('container', 'planned'), ('container', 'planned'), ('volume', 'planned')]"
+     },
+     {
+      "name": "dry_run_changes_nothing",
+      "ok": true,
+      "detail": "{'containers': [], 'images': [], 'volumes': [], 'networks': ['bridge', 'host', 'none']}"
+     },
+     {
+      "name": "import_ok",
+      "ok": true,
+      "detail": "[]"
+     },
+     {
+      "name": "import_counts",
+      "ok": true,
+      "detail": "{'image': 2, 'volume': 3, 'network': 2, 'container': 3}"
+     },
+     {
+      "name": "running_noted",
+      "ok": true,
+      "detail": "{'action': 'imported', 'detail': 'running in orbstack; created here, not started', 'kind': 'container', 'name': 'dmximport-worker-1'}"
+     },
+     {
+      "name": "live_copy_warned",
+      "ok": true,
+      "detail": "['volume dmximport_data was copied while dmximport-worker-1 ran in orbstack; for a consistent copy stop it there, then `docker volume rm dmximport_data` in dmx and import again', 'volume 9ca9dbeb8d4877fa4c25b3450ace991937ed9ef49b818104ec72701f43d57366 was copied while dmximport-worker-1 ran in orbstack; for a consistent copy stop it there, then remove dmximport-worker-1 with `docker rm -v` in dmx "
+     },
+     {
+      "name": "created_not_started",
+      "ok": true,
+      "detail": "['dmximport-sidecar-1:created', 'dmximport-web-1:created', 'dmximport-worker-1:created']"
+     },
+     {
+      "name": "second_run_exists",
+      "ok": true,
+      "detail": "[('image', 'exists'), ('image', 'exists'), ('volume', 'exists'), ('network', 'exists'), ('network', 'exists'), ('container', 'exists'), ('container', 'exists'), ('container', 'exists')]"
+     },
+     {
+      "name": "mcp_tool_listed",
+      "ok": true,
+      "detail": "{'listed': True, 'results': [{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': '{\"dry_run\":true,\"items\":[{\"action\":\"exists\",\"detail\":\"13 MB\",\"kind\":\"image\",\"name\":\"dmximport-web:test\"},{\"action\":\"exists\",\"detail\":\"13 MB\",\"kind\":\"image\",\"name\":\"alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42\"},{"
+     },
+     {
+      "name": "mcp_dry_run",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': '{\"dry_run\":true,\"items\":[{\"action\":\"exists\",\"detail\":\"13 MB\",\"kind\":\"image\",\"name\":\"dmximport-web:test\"},{\"action\":\"exists\",\"detail\":\"13 MB\",\"kind\":\"image\",\"name\":\"alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42\"},{\"action\":\"exists\",\"detail\":\"d"
+     },
+     {
+      "name": "mcp_second_run_exists",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': '{\"dry_run\":false,\"items\":[{\"action\":\"exists\",\"detail\":\"13 MB\",\"kind\":\"image\",\"name\":\"dmximport-web:test\"},{\"action\":\"exists\",\"detail\":\"13 MB\",\"kind\":\"image\",\"name\":\"alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42\"},{\"action\":\"exists\",\"detail\":\""
+     },
+     {
+      "name": "compose_up",
+      "ok": true,
+      "detail": "port-sidecar-1 Recreate \n Container dmximport-sidecar-1 Recreated \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-sidecar-1 Started \n"
+     },
+     {
+      "name": "compose_no_recreate",
+      "ok": true,
+      "detail": " Container dmximport-sidecar-1 Recreate \n Container dmximport-sidecar-1 Recreated \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-sidecar-1 Started \n"
+     },
+     {
+      "name": "digest_name_kept",
+      "ok": true,
+      "detail": "alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42"
+     },
+     {
+      "name": "compose_running",
+      "ok": true,
+      "detail": "sidecar:running\nweb:running\nworker:running\n"
+     },
+     {
+      "name": "data",
+      "ok": true,
+      "detail": "built-on-source\n999 999 700\n2\nsecret/f\nhi\nanon\n"
+     },
+     {
+      "name": "shared_namespace",
+      "ok": true,
+      "detail": "container:a00de5d172b37b7d7e9e9932622830db929e7f97870a5317caf7fb83eb669b58 vs web a00de5d172b3"
+     },
+     {
+      "name": "port",
+      "ok": true,
+      "detail": "127.0.0.1:20181"
+     },
+     {
+      "name": "service_alias",
+      "ok": true,
+      "detail": "{\"dmximport_back\":{\"IPAMConfig\":null,\"Links\":null,\"Aliases\":[\"dmximport-worker-1\",\"worker\"],\"DriverOpts\":null,\"GwPriority\":0,\"NetworkID\":\"36cb827a0d3d199710e52e7ca7bd4c1d2093622ae99d72497b25c5383fffb2"
+     },
+     {
+      "name": "compose_down",
+      "ok": true,
+      "detail": " dmximport-web-1 Stopped \n Container dmximport-web-1 Removing \n Container dmximport-web-1 Removed \n Network dmximport_back Removing \n Volume dmximport_data Removing \n Network dmximport_front Removing \n Volume dmximport_data Removed \n Network dmximport_back Removed \n Network dmximport_front Removed \n"
+     },
+     {
+      "name": "down_removes_everything",
+      "ok": true,
+      "detail": "{'containers': [], 'images': ['alpine:<none>@e311ae748be7', 'dmximport-web:test@567ae1d24795'], 'volumes': [], 'networks': ['bridge', 'host', 'none']}"
+     },
+     {
+      "name": "source_unchanged",
+      "ok": true,
+      "detail": "{}"
+     },
+     {
+      "name": "no_source_helpers",
+      "ok": true,
+      "detail": "[]"
+     }
+    ]
+   },
+   {
+    "ok": true,
+    "source": "orbstack",
+    "source_engine": "29.8.2 overlayfs",
+    "import_s": 3.2,
+    "items": [
+     "image dmximport-web:test imported",
+     "image alpine@sha256:e311ae748b imported",
+     "volume dmximport_data imported",
+     "network dmximport_back imported",
+     "network dmximport_front imported",
+     "container dmximport-web-1 imported",
+     "volume 6c88b3ca0447bee240b957e6 imported",
+     "container dmximport-sidecar-1 imported",
+     "container dmximport-worker-1 imported",
+     "volume 65199a71ee8a18a4292124aa imported"
+    ],
+    "total_s": 10,
+    "checks": [
+     {
+      "name": "docker_tools",
+      "ok": true,
+      "detail": "/tmp/dmx-dev/bin/docker and /tmp/dmx-dev/cli-plugins/docker-compose; run `dmx tools install`"
+     },
+     {
+      "name": "source_answers",
+      "ok": true,
+      "detail": "~/.orbstack/run/docker.sock"
+     },
+     {
+      "name": "source_up",
+      "ok": true,
+      "detail": "mximport-worker-1 Created \n Container dmximport-sidecar-1 Created \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-sidecar-1 Started \n"
+     },
+     {
+      "name": "source_fill",
+      "ok": true,
+      "detail": ""
+     },
+     {
+      "name": "source_stop",
+      "ok": true,
+      "detail": " Container dmximport-sidecar-1 Stopping \n Container dmximport-sidecar-1 Stopped \n Container dmximport-web-1 Stopping \n Container dmximport-web-1 Stopped \n"
+     },
+     {
+      "name": "dmx_start",
+      "ok": true,
+      "detail": ""
+     },
+     {
+      "name": "dry_run",
+      "ok": true,
+      "detail": "[('image', 'planned'), ('image', 'planned'), ('volume', 'planned'), ('network', 'planned'), ('network', 'planned'), ('container', 'planned'), ('volume', 'planned'), ('container', 'planned'), ('container', 'planned'), ('volume', 'planned')]"
+     },
+     {
+      "name": "dry_run_changes_nothing",
+      "ok": true,
+      "detail": "{'containers': [], 'images': [], 'volumes': [], 'networks': ['bridge', 'host', 'none']}"
+     },
+     {
+      "name": "import_ok",
+      "ok": true,
+      "detail": "[]"
+     },
+     {
+      "name": "import_counts",
+      "ok": true,
+      "detail": "{'image': 2, 'volume': 3, 'network': 2, 'container': 3}"
+     },
+     {
+      "name": "running_noted",
+      "ok": true,
+      "detail": "{'action': 'imported', 'detail': 'running in orbstack; created here, not started', 'kind': 'container', 'name': 'dmximport-worker-1'}"
+     },
+     {
+      "name": "live_copy_warned",
+      "ok": true,
+      "detail": "['volume dmximport_data was copied while dmximport-worker-1 ran in orbstack; for a consistent copy stop it there, then `docker volume rm dmximport_data` in dmx and import again', 'volume 65199a71ee8a18a4292124aa23afa4bbc1111c578cc51d19ad332bf98f5b3dac was copied while dmximport-worker-1 ran in orbstack; for a consistent copy stop it there, then remove dmximport-worker-1 with `docker rm -v` in dmx "
+     },
+     {
+      "name": "created_not_started",
+      "ok": true,
+      "detail": "['dmximport-sidecar-1:created', 'dmximport-web-1:created', 'dmximport-worker-1:created']"
+     },
+     {
+      "name": "second_run_exists",
+      "ok": true,
+      "detail": "[('image', 'exists'), ('image', 'exists'), ('volume', 'exists'), ('network', 'exists'), ('network', 'exists'), ('container', 'exists'), ('container', 'exists'), ('container', 'exists')]"
+     },
+     {
+      "name": "mcp_tool_listed",
+      "ok": true,
+      "detail": "{'listed': True, 'results': [{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': '{\"dry_run\":true,\"items\":[{\"action\":\"exists\",\"detail\":\"13 MB\",\"kind\":\"image\",\"name\":\"dmximport-web:test\"},{\"action\":\"exists\",\"detail\":\"13 MB\",\"kind\":\"image\",\"name\":\"alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42\"},{"
+     },
+     {
+      "name": "mcp_dry_run",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': '{\"dry_run\":true,\"items\":[{\"action\":\"exists\",\"detail\":\"13 MB\",\"kind\":\"image\",\"name\":\"dmximport-web:test\"},{\"action\":\"exists\",\"detail\":\"13 MB\",\"kind\":\"image\",\"name\":\"alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42\"},{\"action\":\"exists\",\"detail\":\"d"
+     },
+     {
+      "name": "mcp_second_run_exists",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': '{\"dry_run\":false,\"items\":[{\"action\":\"exists\",\"detail\":\"13 MB\",\"kind\":\"image\",\"name\":\"dmximport-web:test\"},{\"action\":\"exists\",\"detail\":\"13 MB\",\"kind\":\"image\",\"name\":\"alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42\"},{\"action\":\"exists\",\"detail\":\""
+     },
+     {
+      "name": "compose_up",
+      "ok": true,
+      "detail": "port-sidecar-1 Recreate \n Container dmximport-sidecar-1 Recreated \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-sidecar-1 Started \n"
+     },
+     {
+      "name": "compose_no_recreate",
+      "ok": true,
+      "detail": " Container dmximport-sidecar-1 Recreate \n Container dmximport-sidecar-1 Recreated \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-sidecar-1 Started \n"
+     },
+     {
+      "name": "digest_name_kept",
+      "ok": true,
+      "detail": "alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42"
+     },
+     {
+      "name": "compose_running",
+      "ok": true,
+      "detail": "sidecar:running\nweb:running\nworker:running\n"
+     },
+     {
+      "name": "data",
+      "ok": true,
+      "detail": "built-on-source\n999 999 700\n2\nsecret/f\nhi\nanon\n"
+     },
+     {
+      "name": "shared_namespace",
+      "ok": true,
+      "detail": "container:f46f7e0f38feb9ba2409d31736236399fba63066bf04fad6808d4a8d5ac3dc67 vs web f46f7e0f38fe"
+     },
+     {
+      "name": "port",
+      "ok": true,
+      "detail": "127.0.0.1:20181"
+     },
+     {
+      "name": "service_alias",
+      "ok": true,
+      "detail": "{\"dmximport_back\":{\"IPAMConfig\":null,\"Links\":null,\"Aliases\":[\"dmximport-worker-1\",\"worker\"],\"DriverOpts\":null,\"GwPriority\":0,\"NetworkID\":\"6a07ece2de04dc0abf9ce617d1c916dd2aee243adc51f638eb645b1f410dd7"
+     },
+     {
+      "name": "compose_down",
+      "ok": true,
+      "detail": " dmximport-web-1 Stopped \n Container dmximport-web-1 Removing \n Container dmximport-web-1 Removed \n Network dmximport_back Removing \n Volume dmximport_data Removing \n Network dmximport_front Removing \n Volume dmximport_data Removed \n Network dmximport_back Removed \n Network dmximport_front Removed \n"
+     },
+     {
+      "name": "down_removes_everything",
+      "ok": true,
+      "detail": "{'containers': [], 'images': ['alpine:<none>@e311ae748be7', 'dmximport-web:test@c32e0dda7299'], 'volumes': [], 'networks': ['bridge', 'host', 'none']}"
+     },
+     {
+      "name": "source_unchanged",
+      "ok": true,
+      "detail": "{}"
+     },
+     {
+      "name": "no_source_helpers",
+      "ok": true,
+      "detail": "[]"
+     }
+    ]
+   }
+  ]
+ },
+ "docker_desktop": {
+  "version": "4.99.0",
+  "dockerd": "29.9.3, containerd store",
+  "runs": [
+   {
+    "ok": true,
+    "source": "docker-desktop",
+    "source_engine": "29.9.3 overlayfs",
+    "import_s": 3.0,
+    "items": [
+     "image dmximport-web:test imported",
+     "image alpine@sha256:e311ae748b imported",
+     "volume dmximport_data imported",
+     "network dmximport_back imported",
+     "network dmximport_front imported",
+     "container dmximport-web-1 imported",
+     "volume 5dc7cff943bb0999648a8868 imported",
+     "container dmximport-sidecar-1 imported",
+     "container dmximport-worker-1 imported",
+     "volume e21bfeea3cf08c60dca86ef6 imported"
+    ],
+    "total_s": 12,
+    "checks": [
+     {
+      "name": "docker_tools",
+      "ok": true,
+      "detail": "/tmp/dmx-dev/bin/docker and /tmp/dmx-dev/cli-plugins/docker-compose; run `dmx tools install`"
+     },
+     {
+      "name": "source_answers",
+      "ok": true,
+      "detail": "~/.docker/run/docker.sock"
+     },
+     {
+      "name": "source_up",
+      "ok": true,
+      "detail": "import-sidecar-1 Creating \n Container dmximport-sidecar-1 Created \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-sidecar-1 Started \n"
+     },
+     {
+      "name": "source_fill",
+      "ok": true,
+      "detail": ""
+     },
+     {
+      "name": "source_stop",
+      "ok": true,
+      "detail": " Container dmximport-sidecar-1 Stopping \n Container dmximport-sidecar-1 Stopped \n Container dmximport-web-1 Stopping \n Container dmximport-web-1 Stopped \n"
+     },
+     {
+      "name": "dmx_start",
+      "ok": true,
+      "detail": ""
+     },
+     {
+      "name": "dry_run",
+      "ok": true,
+      "detail": "[('image', 'planned'), ('image', 'planned'), ('volume', 'planned'), ('network', 'planned'), ('network', 'planned'), ('container', 'planned'), ('volume', 'planned'), ('container', 'planned'), ('container', 'planned'), ('volume', 'planned')]"
+     },
+     {
+      "name": "dry_run_changes_nothing",
+      "ok": true,
+      "detail": "{'containers': [], 'images': [], 'volumes': [], 'networks': ['bridge', 'host', 'none']}"
+     },
+     {
+      "name": "import_ok",
+      "ok": true,
+      "detail": "[]"
+     },
+     {
+      "name": "import_counts",
+      "ok": true,
+      "detail": "{'image': 2, 'volume': 3, 'network': 2, 'container': 3}"
+     },
+     {
+      "name": "running_noted",
+      "ok": true,
+      "detail": "{'action': 'imported', 'detail': 'running in docker-desktop; created here, not started', 'kind': 'container', 'name': 'dmximport-worker-1'}"
+     },
+     {
+      "name": "live_copy_warned",
+      "ok": true,
+      "detail": "['volume dmximport_data was copied while dmximport-worker-1 ran in docker-desktop; for a consistent copy stop it there, then `docker volume rm dmximport_data` in dmx and import again', 'volume e21bfeea3cf08c60dca86ef65a6a03ebcc8eec92430dfe06b7b01f41e1eddbe1 was copied while dmximport-worker-1 ran in docker-desktop; for a consistent copy stop it there, then remove dmximport-worker-1 with `docker rm"
+     },
+     {
+      "name": "created_not_started",
+      "ok": true,
+      "detail": "['dmximport-sidecar-1:created', 'dmximport-web-1:created', 'dmximport-worker-1:created']"
+     },
+     {
+      "name": "second_run_exists",
+      "ok": true,
+      "detail": "[('image', 'exists'), ('image', 'exists'), ('volume', 'exists'), ('network', 'exists'), ('network', 'exists'), ('container', 'exists'), ('container', 'exists'), ('container', 'exists')]"
+     },
+     {
+      "name": "mcp_tool_listed",
+      "ok": true,
+      "detail": "{'listed': True, 'results': [{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': '{\"dry_run\":true,\"items\":[{\"action\":\"exists\",\"detail\":\"12 MB\",\"kind\":\"image\",\"name\":\"dmximport-web:test\"},{\"action\":\"exists\",\"detail\":\"12 MB\",\"kind\":\"image\",\"name\":\"alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42\"},{"
+     },
+     {
+      "name": "mcp_dry_run",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': '{\"dry_run\":true,\"items\":[{\"action\":\"exists\",\"detail\":\"12 MB\",\"kind\":\"image\",\"name\":\"dmximport-web:test\"},{\"action\":\"exists\",\"detail\":\"12 MB\",\"kind\":\"image\",\"name\":\"alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42\"},{\"action\":\"exists\",\"detail\":\"d"
+     },
+     {
+      "name": "mcp_second_run_exists",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': '{\"dry_run\":false,\"items\":[{\"action\":\"exists\",\"detail\":\"12 MB\",\"kind\":\"image\",\"name\":\"dmximport-web:test\"},{\"action\":\"exists\",\"detail\":\"12 MB\",\"kind\":\"image\",\"name\":\"alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42\"},{\"action\":\"exists\",\"detail\":\""
+     },
+     {
+      "name": "compose_up",
+      "ok": true,
+      "detail": "port-sidecar-1 Recreate \n Container dmximport-sidecar-1 Recreated \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-sidecar-1 Started \n"
+     },
+     {
+      "name": "compose_no_recreate",
+      "ok": true,
+      "detail": " Container dmximport-sidecar-1 Recreate \n Container dmximport-sidecar-1 Recreated \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-sidecar-1 Started \n"
+     },
+     {
+      "name": "digest_name_kept",
+      "ok": true,
+      "detail": "alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42"
+     },
+     {
+      "name": "compose_running",
+      "ok": true,
+      "detail": "sidecar:running\nweb:running\nworker:running\n"
+     },
+     {
+      "name": "data",
+      "ok": true,
+      "detail": "built-on-source\n999 999 700\n2\nsecret/f\nhi\nanon\n"
+     },
+     {
+      "name": "shared_namespace",
+      "ok": true,
+      "detail": "container:9652afa2127e41258fd0039c48cf82258700782a1675fa926c8eeed0ea116164 vs web 9652afa2127e"
+     },
+     {
+      "name": "port",
+      "ok": true,
+      "detail": "127.0.0.1:20181"
+     },
+     {
+      "name": "service_alias",
+      "ok": true,
+      "detail": "{\"dmximport_back\":{\"IPAMConfig\":null,\"Links\":null,\"Aliases\":[\"dmximport-worker-1\",\"worker\"],\"DriverOpts\":null,\"GwPriority\":0,\"NetworkID\":\"100305e0bf56ce90022df94d5c4ca4bfd00dcf1804efabad1c09a918a8c447"
+     },
+     {
+      "name": "compose_down",
+      "ok": true,
+      "detail": " dmximport-web-1 Stopped \n Container dmximport-web-1 Removing \n Container dmximport-web-1 Removed \n Network dmximport_back Removing \n Volume dmximport_data Removing \n Network dmximport_front Removing \n Volume dmximport_data Removed \n Network dmximport_back Removed \n Network dmximport_front Removed \n"
+     },
+     {
+      "name": "down_removes_everything",
+      "ok": true,
+      "detail": "{'containers': [], 'images': ['alpine:<none>@e311ae748be7', 'dmximport-web:test@e2a7798cba4c'], 'volumes': [], 'networks': ['bridge', 'host', 'none']}"
+     },
+     {
+      "name": "source_unchanged",
+      "ok": true,
+      "detail": "{}"
+     },
+     {
+      "name": "no_source_helpers",
+      "ok": true,
+      "detail": "[]"
+     }
+    ]
+   },
+   {
+    "ok": true,
+    "source": "docker-desktop",
+    "source_engine": "29.9.3 overlayfs",
+    "import_s": 2.9,
+    "items": [
+     "image dmximport-web:test imported",
+     "image alpine@sha256:e311ae748b imported",
+     "volume dmximport_data imported",
+     "network dmximport_back imported",
+     "network dmximport_front imported",
+     "container dmximport-web-1 imported",
+     "volume b370f37c1d19b8c19340054e imported",
+     "container dmximport-sidecar-1 imported",
+     "container dmximport-worker-1 imported",
+     "volume f3a4fa647266fa1454242c31 imported"
+    ],
+    "total_s": 9,
+    "checks": [
+     {
+      "name": "docker_tools",
+      "ok": true,
+      "detail": "/tmp/dmx-dev/bin/docker and /tmp/dmx-dev/cli-plugins/docker-compose; run `dmx tools install`"
+     },
+     {
+      "name": "source_answers",
+      "ok": true,
+      "detail": "~/.docker/run/docker.sock"
+     },
+     {
+      "name": "source_up",
+      "ok": true,
+      "detail": "import-sidecar-1 Creating \n Container dmximport-sidecar-1 Created \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-sidecar-1 Started \n"
+     },
+     {
+      "name": "source_fill",
+      "ok": true,
+      "detail": ""
+     },
+     {
+      "name": "source_stop",
+      "ok": true,
+      "detail": " Container dmximport-sidecar-1 Stopping \n Container dmximport-sidecar-1 Stopped \n Container dmximport-web-1 Stopping \n Container dmximport-web-1 Stopped \n"
+     },
+     {
+      "name": "dmx_start",
+      "ok": true,
+      "detail": ""
+     },
+     {
+      "name": "dry_run",
+      "ok": true,
+      "detail": "[('image', 'planned'), ('image', 'planned'), ('volume', 'planned'), ('network', 'planned'), ('network', 'planned'), ('container', 'planned'), ('volume', 'planned'), ('container', 'planned'), ('container', 'planned'), ('volume', 'planned')]"
+     },
+     {
+      "name": "dry_run_changes_nothing",
+      "ok": true,
+      "detail": "{'containers': [], 'images': [], 'volumes': [], 'networks': ['bridge', 'host', 'none']}"
+     },
+     {
+      "name": "import_ok",
+      "ok": true,
+      "detail": "[]"
+     },
+     {
+      "name": "import_counts",
+      "ok": true,
+      "detail": "{'image': 2, 'volume': 3, 'network': 2, 'container': 3}"
+     },
+     {
+      "name": "running_noted",
+      "ok": true,
+      "detail": "{'action': 'imported', 'detail': 'running in docker-desktop; created here, not started', 'kind': 'container', 'name': 'dmximport-worker-1'}"
+     },
+     {
+      "name": "live_copy_warned",
+      "ok": true,
+      "detail": "['volume dmximport_data was copied while dmximport-worker-1 ran in docker-desktop; for a consistent copy stop it there, then `docker volume rm dmximport_data` in dmx and import again', 'volume f3a4fa647266fa1454242c31eda5eb586114c2ba0c26a45ba05a5f6ca4be7555 was copied while dmximport-worker-1 ran in docker-desktop; for a consistent copy stop it there, then remove dmximport-worker-1 with `docker rm"
+     },
+     {
+      "name": "created_not_started",
+      "ok": true,
+      "detail": "['dmximport-sidecar-1:created', 'dmximport-web-1:created', 'dmximport-worker-1:created']"
+     },
+     {
+      "name": "second_run_exists",
+      "ok": true,
+      "detail": "[('image', 'exists'), ('image', 'exists'), ('volume', 'exists'), ('network', 'exists'), ('network', 'exists'), ('container', 'exists'), ('container', 'exists'), ('container', 'exists')]"
+     },
+     {
+      "name": "mcp_tool_listed",
+      "ok": true,
+      "detail": "{'listed': True, 'results': [{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': '{\"dry_run\":true,\"items\":[{\"action\":\"exists\",\"detail\":\"12 MB\",\"kind\":\"image\",\"name\":\"dmximport-web:test\"},{\"action\":\"exists\",\"detail\":\"12 MB\",\"kind\":\"image\",\"name\":\"alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42\"},{"
+     },
+     {
+      "name": "mcp_dry_run",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': '{\"dry_run\":true,\"items\":[{\"action\":\"exists\",\"detail\":\"12 MB\",\"kind\":\"image\",\"name\":\"dmximport-web:test\"},{\"action\":\"exists\",\"detail\":\"12 MB\",\"kind\":\"image\",\"name\":\"alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42\"},{\"action\":\"exists\",\"detail\":\"d"
+     },
+     {
+      "name": "mcp_second_run_exists",
+      "ok": true,
+      "detail": "{'_meta': {'io.modelcontextprotocol/serverInfo': {'name': 'dmx', 'title': 'dmx', 'version': '0.4.8'}}, 'content': [{'text': '{\"dry_run\":false,\"items\":[{\"action\":\"exists\",\"detail\":\"12 MB\",\"kind\":\"image\",\"name\":\"dmximport-web:test\"},{\"action\":\"exists\",\"detail\":\"12 MB\",\"kind\":\"image\",\"name\":\"alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42\"},{\"action\":\"exists\",\"detail\":\""
+     },
+     {
+      "name": "compose_up",
+      "ok": true,
+      "detail": "port-sidecar-1 Recreate \n Container dmximport-sidecar-1 Recreated \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-sidecar-1 Started \n"
+     },
+     {
+      "name": "compose_no_recreate",
+      "ok": true,
+      "detail": " Container dmximport-sidecar-1 Recreate \n Container dmximport-sidecar-1 Recreated \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-sidecar-1 Started \n"
+     },
+     {
+      "name": "digest_name_kept",
+      "ok": true,
+      "detail": "alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42"
+     },
+     {
+      "name": "compose_running",
+      "ok": true,
+      "detail": "sidecar:running\nweb:running\nworker:running\n"
+     },
+     {
+      "name": "data",
+      "ok": true,
+      "detail": "built-on-source\n999 999 700\n2\nsecret/f\nhi\nanon\n"
+     },
+     {
+      "name": "shared_namespace",
+      "ok": true,
+      "detail": "container:5bbcc0feab2693ea2e365479db992e43c6a7a3a0bf5f41d79047b382ba0069ba vs web 5bbcc0feab26"
+     },
+     {
+      "name": "port",
+      "ok": true,
+      "detail": "127.0.0.1:20181"
+     },
+     {
+      "name": "service_alias",
+      "ok": true,
+      "detail": "{\"dmximport_back\":{\"IPAMConfig\":null,\"Links\":null,\"Aliases\":[\"dmximport-worker-1\",\"worker\"],\"DriverOpts\":null,\"GwPriority\":0,\"NetworkID\":\"1cc75d9247f4bc13f41524273d3a211c1ff66ddcb47097a2d3d7d1e40f8e86"
+     },
+     {
+      "name": "compose_down",
+      "ok": true,
+      "detail": " dmximport-web-1 Stopped \n Container dmximport-web-1 Removing \n Container dmximport-web-1 Removed \n Network dmximport_front Removing \n Volume dmximport_data Removing \n Network dmximport_back Removing \n Volume dmximport_data Removed \n Network dmximport_front Removed \n Network dmximport_back Removed \n"
+     },
+     {
+      "name": "down_removes_everything",
+      "ok": true,
+      "detail": "{'containers': [], 'images': ['alpine:<none>@e311ae748be7', 'dmximport-web:test@1839e67ef45c'], 'volumes': [], 'networks': ['bridge', 'host', 'none']}"
+     },
+     {
+      "name": "source_unchanged",
+      "ok": true,
+      "detail": "{}"
+     },
+     {
+      "name": "no_source_helpers",
+      "ok": true,
+      "detail": "[]"
+     }
+    ]
+   }
+  ]
+ },
+ "note": "both installed for the check (licence and administrator prompts answered by the maintainer) and removed afterwards"
+}
