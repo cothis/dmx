@@ -281,6 +281,11 @@ public final class Machine: @unchecked Sendable {
             }
             thread.name = "dmx.vcpu.\(index)"
             thread.stackSize = 1 << 20
+            // At the default QoS macOS moves vCPUs to efficiency cores whenever the Mac is
+            // busy, and a warm `docker run` took 145-420 ms instead of 80 (docs/PLAN.md). One
+            // step above, below the UI's userInteractive: medians 116/120 -> 86/83 ms with every
+            // core busy, unchanged on a quiet Mac. Idle vCPUs wait in WFI and cost nothing.
+            thread.qualityOfService = .userInitiated
             thread.start()
         }
         for _ in vcpus { ready.wait() }

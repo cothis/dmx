@@ -23,16 +23,28 @@ import Testing
         func close() { lock.withLock { closed=true; for c in connections { c.close() }; connections=[] } }
     }
     @Test @MainActor func unreadGuestCannotBlockCountsOrClose() async throws {
-        let reserve=socket(AF_INET,SOCK_DGRAM,0)
-        var address=sockaddr_in();address.sin_len=UInt8(MemoryLayout<sockaddr_in>.size)
-        address.sin_family=sa_family_t(AF_INET);address.sin_addr.s_addr=inet_addr("127.0.0.1")
-        let bound=withUnsafePointer(to:&address) { $0.withMemoryRebound(to:sockaddr.self,capacity:1) { bind(reserve,$0,socklen_t(MemoryLayout<sockaddr_in>.size)) } }
-        #expect(bound==0)
-        var length=socklen_t(MemoryLayout<sockaddr_in>.size)
-        _ = withUnsafeMutablePointer(to:&address) { $0.withMemoryRebound(to:sockaddr.self,capacity:1) { getsockname(reserve,$0,&length) } }
-        Darwin.close(reserve)
+        // The port is free only between this close and the relay's bind; a test running beside
+        // this one can take it meanwhile, so a taken port means another try with a new one.
         let peers=Peers()
-        let relay=try UDPRelay(PortForward(hostAddress:"127.0.0.1",hostPort:Int(UInt16(bigEndian:address.sin_port)),guestPort:9999,proto:"udp"),connect:{try peers.open()},using:{_ in})
+        var address=sockaddr_in()
+        var made: UDPRelay?
+        for attempt in 1...5 {
+            let reserve=socket(AF_INET,SOCK_DGRAM,0)
+            address=sockaddr_in();address.sin_len=UInt8(MemoryLayout<sockaddr_in>.size)
+            address.sin_family=sa_family_t(AF_INET);address.sin_addr.s_addr=inet_addr("127.0.0.1")
+            let bound=withUnsafePointer(to:&address) { $0.withMemoryRebound(to:sockaddr.self,capacity:1) { bind(reserve,$0,socklen_t(MemoryLayout<sockaddr_in>.size)) } }
+            #expect(bound==0)
+            var length=socklen_t(MemoryLayout<sockaddr_in>.size)
+            _ = withUnsafeMutablePointer(to:&address) { $0.withMemoryRebound(to:sockaddr.self,capacity:1) { getsockname(reserve,$0,&length) } }
+            Darwin.close(reserve)
+            do {
+                made=try UDPRelay(PortForward(hostAddress:"127.0.0.1",hostPort:Int(UInt16(bigEndian:address.sin_port)),guestPort:9999,proto:"udp"),connect:{try peers.open()},using:{_ in})
+                break
+            } catch let error as DMXError where error.code == "port_in_use" && attempt < 5 {
+                continue
+            }
+        }
+        let relay=try #require(made)
         defer { peers.close(); relay.close() }
         let destination=address
         let flood=Task.detached {
@@ -60,16 +72,28 @@ import Testing
         #expect(closed)
     }
     @Test @MainActor func unansweredAndFragmentedRepliesDoNotInventDatagrams() async throws {
-        let reserve=socket(AF_INET,SOCK_DGRAM,0)
-        var address=sockaddr_in();address.sin_len=UInt8(MemoryLayout<sockaddr_in>.size)
-        address.sin_family=sa_family_t(AF_INET);address.sin_addr.s_addr=inet_addr("127.0.0.1")
-        let bound=withUnsafePointer(to:&address) { $0.withMemoryRebound(to:sockaddr.self,capacity:1) { bind(reserve,$0,socklen_t(MemoryLayout<sockaddr_in>.size)) } }
-        #expect(bound==0)
-        var length=socklen_t(MemoryLayout<sockaddr_in>.size)
-        _ = withUnsafeMutablePointer(to:&address) { $0.withMemoryRebound(to:sockaddr.self,capacity:1) { getsockname(reserve,$0,&length) } }
-        Darwin.close(reserve)
+        // The port is free only between this close and the relay's bind; a test running beside
+        // this one can take it meanwhile, so a taken port means another try with a new one.
         let peers=Peers()
-        let relay=try UDPRelay(PortForward(hostAddress:"127.0.0.1",hostPort:Int(UInt16(bigEndian:address.sin_port)),guestPort:9999,proto:"udp"),connect:{try peers.open()},using:{_ in})
+        var address=sockaddr_in()
+        var made: UDPRelay?
+        for attempt in 1...5 {
+            let reserve=socket(AF_INET,SOCK_DGRAM,0)
+            address=sockaddr_in();address.sin_len=UInt8(MemoryLayout<sockaddr_in>.size)
+            address.sin_family=sa_family_t(AF_INET);address.sin_addr.s_addr=inet_addr("127.0.0.1")
+            let bound=withUnsafePointer(to:&address) { $0.withMemoryRebound(to:sockaddr.self,capacity:1) { bind(reserve,$0,socklen_t(MemoryLayout<sockaddr_in>.size)) } }
+            #expect(bound==0)
+            var length=socklen_t(MemoryLayout<sockaddr_in>.size)
+            _ = withUnsafeMutablePointer(to:&address) { $0.withMemoryRebound(to:sockaddr.self,capacity:1) { getsockname(reserve,$0,&length) } }
+            Darwin.close(reserve)
+            do {
+                made=try UDPRelay(PortForward(hostAddress:"127.0.0.1",hostPort:Int(UInt16(bigEndian:address.sin_port)),guestPort:9999,proto:"udp"),connect:{try peers.open()},using:{_ in})
+                break
+            } catch let error as DMXError where error.code == "port_in_use" && attempt < 5 {
+                continue
+            }
+        }
+        let relay=try #require(made)
         let client=socket(AF_INET,SOCK_DGRAM,0)
         _ = fcntl(client,F_SETFL,O_NONBLOCK)
         defer { peers.close(); relay.close(); Darwin.close(client) }

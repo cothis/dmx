@@ -125,7 +125,9 @@ The memory rows agree with the 0.4.7 re-check. The footprint falls in two steps 
 the container frees the memory, to ~330 MB, then to ~285 MB about 2 s later), so the time back
 within 64 MB lands either side of the second step. `docker run` is slower than the 96 ms of
 0.4.7 on the earlier Mac, and its samples are bimodal here (77–80 ms or 143–251 ms; the docker
-CLI timed from Python shows the same), which is not explained yet. The `--engine` path was
+CLI timed from Python shows the same). Explained later that day: the slow runs had vCPU threads
+on efficiency cores (forced there, 255–355 ms); they now run at QoS userInitiated, and with every
+core busy the median went from 116 to 86 ms (docs/PLAN.md, open ends 2026-11-20). The `--engine` path was
 checked against a second throwaway dmx running beside the first.
 
 Against a real Colima, 2026-11-20: Colima 0.10.3 (vz, 2 CPU, 4 GiB, docker 29.5.2) installed for

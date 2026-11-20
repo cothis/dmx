@@ -137,6 +137,7 @@ struct Boot: AsyncParsableCommand {
 
     @MainActor
     func run() async throws {
+        MallocSettings.reexecIfNeeded()
         var spec = MachineSpec(cpus: cpus, maxMemory: try memory.map(parseSize), kernelArgs: kernelArgs,
                                shares: try Share.parseList(shares.joined(separator: ",")))
         spec.bootMemory = try bootMemory.map(parseSize)

@@ -169,6 +169,7 @@ struct Daemon: AsyncParsableCommand {
 
     @MainActor
     func run() async throws {
+        MallocSettings.reexecIfNeeded()
         do {
             let daemon = try DMXCore.Daemon(paths: Paths(), version: version)
             await daemon.run()

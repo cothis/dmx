@@ -647,12 +647,15 @@ to switch. One item per session, in this order; each is verified on the real VM.
 
 ## Next up
 
-**Phase 13 is done** (2026-11-20): local names work end to end on this Mac (real setup with
-both dialogs, `.local` resolves through the resolver file, curl and URLSession trust the CA with no
-flags; [finding](#local-names-2026-11-20)); the Homebrew tap is declined. Open from local names:
-Safari and Chrome not seen by the agent; HTTPS bursts leave 7–10 MB of malloc free pages in the
-daemon. Everything since v0.4.8 (bench, soak, crash recovery, import and `dmx_import`, local
-names) is unreleased; a release is the maintainer's decision.
+**Phase 13 is done; its open ends are closed except two that need the maintainer** (2026-11-20).
+Waiting for the maintainer: `dmx import` from OrbStack and Docker Desktop (licence and administrator
+prompts), and local names in Safari and Chrome (`dmx names setup`'s trust dialog). Then the
+reviews the maintainer asked for, and a release is the maintainer's decision. Everything since
+v0.4.8 is unreleased, now including a guest rebuilt from re-pinned inputs (Docker 29.9.3, runc
+1.4.4, the restart rule), libmalloc's space-efficient mode and vCPU threads at userInitiated
+([finding](#open-ends-2026-11-20)). The rebuilt guest lives in a separate DMX_HOME on this Mac;
+the installed v0.4.8 guest is untouched. Still open from local names: Network.framework's TLS
+cost per burst is now mostly given back (malloc), not measured with real browsers.
 
 Earlier in Phase 13 (2026-11-20): README front
 page, `dmx bench` ([finding](#dmx-bench-first-runs-2026-11-20)), the soak check ([finding](#soak-check-2026-11-20)),
@@ -932,6 +935,59 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### Open ends (2026-11-20)
+
+**Guest inputs re-pinned.** `make kernel` failed with 404: Alpine had removed 15 of the 196 pinned
+packages (the Alpine kernel that boots build VMs, docker-engine 29.9.2-r0, runc 1.4.3-r2 and
+toolchain packages). Re-pinned with each build script's `--lock` and the current versions
+(linux-virt 6.18.64-r0 for the build VM, docker-engine 29.9.3-r1, runc 1.4.4-r0; same
+dependencies), every new file checked with the new `scripts/verify-apk.py` (signature against the
+minirootfs's Alpine keys, data against the signed datahash; 122 ok, a flipped byte fails). The
+dmx kernel stays kernel.org 6.18.58: its config is identical to v0.4.8's, and the Image,
+qemu-x86_64 and FEX came out byte-identical to v0.4.8's with the new toolchains (kernel 209 s,
+FEX 45 s, qemu 30 s). The guest was built into a separate DMX_HOME. A first attempt ran the
+kernel, qemu and FEX builds side by side: each `make` target re-signs `.build/release/dmx` while
+the other build VMs ran from it, and the builds slowed about 30-fold (docs/memory.md).
+
+**Restart rule.** On the real VM dockerd 29 started again, at its start, an `always` and an
+`on-failure` container stopped with `docker stop`, and an `on-failure` container that was running
+when the VM died; it kept down a never-started `always`, an `on-failure` that exited 0 and an
+`unless-stopped` stopped by hand (moby's RestartManager checks `docker stop` only for
+`unless-stopped`). The agent's `docker_autostart` now counts exactly that, so those containers come
+back at boot without a Docker client (agent unit test; fails with the old rule). A container
+started less than a few seconds before the VM dies comes back as `Created`: dockerd writes its
+start record without fsync and ext4 commits every 5 s, as on a Linux host losing power.
+
+**VMM fault forced.** `scripts/fixtures/vmm-fault-aarch64.S` maps an unclaimed MMIO page through
+`/dev/mem` and reads it with `ldp`, which gives the hypervisor no syndrome: the VM stops as `VM
+failed: vcpu N: data abort without a valid syndrome`, and recovery boots a new one in 1 s as for a
+panic. `make crashtest` now has that phase (only an `on-failure` container running, back without a
+Docker client) and a plain boot by `dmx exec` after `docker stop` (`always` and `on-failure` back,
+`unless-stopped` and `no` down): 40/40 with the new guest, 37/40 with the installed v0.4.8 guest
+(exactly the three new-rule checks fail).
+
+**malloc.** The daemon's default zone held 13.7 MB dirty right after starting, 89 % of it free
+fragments, and 25.0 MB 165 s after three bursts of 200 HTTPS requests (1.3 MB allocated);
+`malloc_zone_pressure_relief` did not return it. With libmalloc's `MallocSpaceEfficient=1` the same
+runs read 3.5 MB before and 3.9 MB after. `dmx daemon` and `dmx boot` now set it and execute
+themselves again at start (same pid and descriptors, so launchd's sockets survive; older plists
+need no change). Selftest footprint alternating off/on: 99/96, 99/96 MB. No cost seen: soak `docker
+run` median 142 ms and Compose cycle 0.94 s (both as before), soak footprint 220 → 239 MB (before:
+239 → 253), HTTPS 100 MB 0.46 s (before 0.41–0.49).
+
+**Warm `docker run` bimodal: efficiency cores.** On a quiet Mac 78–90 ms over 40 runs, whatever the
+guest (new or v0.4.8) or malloc mode; after 3 s idle about 105 ms (clock ramp; the page reporting
+order 0, 7 or 10 makes no difference, so it is not free page reporting). With the daemon forced to
+efficiency cores (`taskpolicy -b`) 255–355 ms, and with every core busy the slow group of the
+bench came back (median 116/120 ms, up to 303/418). This Mac has 2 Super, 4 Performance and 6
+Efficiency cores. vCPU threads now run at QoS userInitiated, one step below the UI: with every
+core busy medians 86/83 ms (max 184/147), quiet unchanged (76–86, 100–114 after 3 s).
+
+**Also:** `UDPBackpressureTests` takes a new port when the one it reserved was taken meanwhile.
+New guest qualification (separate DMX_HOME, this build): daemontest 63/63 (twice), dockertest
+81/81, namestest 32/32, mcptest 38/38, soaktest 28/28, importtest 29/29 (the installed dmx as the
+source), imagetest 24/24, selftest 23/23 at 93–96 MB, unit 163. [Raw](measurements/2026-11-20-open-ends.json).
 
 ### Local names (2026-11-20)
 
@@ -1996,6 +2052,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-20: Closed Phase 13's open ends. Re-pinned the guest inputs Alpine had removed (Docker 29.9.3, runc 1.4.4; kernel, FEX and qemu rebuilt byte-identical to v0.4.8) with `scripts/verify-apk.py`; the agent's restart rule now matches dockerd's (`docker stop` keeps only `unless-stopped` down; `on-failure` that died with the VM comes back); `make crashtest` forces a VMM fault too (40/40, 37/40 on the old guest); the daemon runs with libmalloc's space-efficient mode (13.7/25.0 → 3.5/3.9 MB dirty, selftest 99 → 96 MB); vCPU threads at userInitiated (busy-Mac `docker run` 116 → 86 ms median; the bimodal runs were efficiency cores). Full real-VM qualification of the new guest passed. Left for the maintainer: import from OrbStack/Docker Desktop, local names in browsers, reviews, release.
 - 2026-11-20: `dmx import` from the classic image store: Compose's image label is recomputed for dmx, so such projects are not recreated (importtest's recreate check had missed "Recreated"; fixed). importtest 29/29 from Colima with each store. `dmx bench --engine` against a real Colima, two rounds: Colima kept the 2 GiB (3106 MB idle in round 2), dmx back to 299–324 MB in about 4 s. Unit 163, selftest 23/23 (100 MB). Colima removed again.
 - 2026-11-20: Local names verified for real with the maintainer's dialogs: the resolver file wins over mDNS for `.local`; `curl` and `nscurl` reach `https://web.dmx.local` with no flags; `dmx names remove` undid trust, keychain item, resolver file (by sudo after its dialog timed out) and the CA. Phase 13 done. Docs only.
 - 2026-11-20: Local names: `dmx names setup|ls|remove` (DMXCore/Names): DNS on 127.0.0.1:53530 for `/etc/resolver/dmx.local`, HTTP/HTTPS on 80/443 routed by Host and SNI to `<container>.dmx.local` and `<service>.<project>.dmx.local`, a name-constrained CA with leaves issued per name. `make namestest` 32/32 (macOS left alone), unit 162, selftest 23/23 (99 MB), daemontest 63/63. The real setup (two dialogs) waits for the maintainer. Homebrew tap declined (no second public repository).

@@ -1,0 +1,197 @@
+{
+ "date": "2026-11-20",
+ "guest": {
+  "note": "rebuilt from re-pinned inputs (Alpine removed 15 pinned packages); built into a separate DMX_HOME",
+  "kernel_image_sha256": "fa487e1461eac6012fb5c43281b815e36cfea99d4f4ce4ed30498811f7650bf3",
+  "kernel_image_same_as_0.4.8": true,
+  "kernel_config_same_as_0.4.8": true,
+  "qemu_x86_64_sha256": "e5e7c40cde4a9489019e1b580b8ce5936ef3b4b19c9f528be4406d708e1d4ed4",
+  "fex_sha256": "a75324c3ee1e228ead62b88a71c7b42734e8ce7420fdeb592366217af19c7682",
+  "x86_tar_same_as_0.4.8": true,
+  "docker_engine": "29.9.2-r0 -> 29.9.3-r1",
+  "runc": "1.4.3-r2 -> 1.4.4-r0",
+  "docker_img_sha256": "bcca26b2517a1c99d6143909a2de358a7023fa26c79d38957dd7aef2815c0c11",
+  "build_seconds": {
+   "kernel": 209,
+   "fex": 45,
+   "qemu": 30,
+   "guest": 6.5
+  }
+ },
+ "qualification_new_guest": {
+  "daemon": {
+   "ok": true,
+   "passed": 63,
+   "checks": 63
+  },
+  "docker": {
+   "ok": true,
+   "passed": 81,
+   "checks": 81
+  },
+  "names": {
+   "ok": true,
+   "passed": 32,
+   "checks": 32
+  },
+  "mcp": {
+   "ok": true,
+   "passed": 38,
+   "checks": 38
+  },
+  "soak": {
+   "ok": true,
+   "passed": 28,
+   "checks": 28
+  },
+  "import": {
+   "ok": true,
+   "passed": 29,
+   "checks": 29
+  },
+  "images": {
+   "ok": true,
+   "passed": 24,
+   "checks": 24
+  }
+ },
+ "crashtest": {
+  "new_guest": "40/40",
+  "installed_0.4.8_guest": "37/40 (fails vmm_fault_onfail_back_without_client, vmm_fault_always_back_without_client, boot_always_onfail_back_without_client)"
+ },
+ "soak": {
+  "run_ms": {
+   "median": 142,
+   "max": 176
+  },
+  "compose_cycle_ms": {
+   "median": 940,
+   "max": 972
+  },
+  "footprint_mb": [
+   220,
+   239
+  ],
+  "guest_used_mb": [
+   118,
+   122
+  ]
+ },
+ "names": {
+  "https_100mb_s": 0.46,
+  "http_100mb_s": 0.05
+ },
+ "malloc_space_efficient": {
+  "metric": "DefaultMallocZone dirty MB of the daemon (vmmap -summary), 3 bursts of 200 HTTPS requests 50 at a time through local names",
+  "off": {
+   "before": 13.7,
+   "5s_after": 24.8,
+   "165s_after": 25.0,
+   "allocated_mb_165s": 1.3
+  },
+  "on": {
+   "before": 3.5,
+   "5s_after": 9.3,
+   "165s_after": 3.9
+  },
+  "on_by_reexec_without_env": {
+   "before": 3.2,
+   "165s_after": 4.0
+  },
+  "selftest_footprint_mb": {
+   "off": [
+    99,
+    99
+   ],
+   "on": [
+    96,
+    96
+   ]
+  }
+ },
+ "warm_docker_run_ms": {
+  "setup": "docker run --network none alpine true, run only, throwaway DMX_HOME 2 CPU / 4G, new guest unless noted",
+  "quiet_gap0": "78-90 (40 runs); new/old guest x malloc on/off all 77-93",
+  "quiet_gap3s": "98-111; page_reporting_order 7/10/0 all ~105 (not page reporting)",
+  "daemon_forced_to_efficiency_cores": "255-355 (taskpolicy -b)",
+  "every_core_busy_12_yes": {
+   "default_qos": [
+    [
+     105,
+     107,
+     108,
+     108,
+     110,
+     111,
+     114,
+     116,
+     127,
+     131,
+     149,
+     204,
+     295,
+     298,
+     303
+    ],
+    [
+     102,
+     104,
+     106,
+     108,
+     112,
+     115,
+     117,
+     120,
+     147,
+     154,
+     168,
+     176,
+     180,
+     218,
+     418
+    ]
+   ],
+   "user_initiated": [
+    [
+     75,
+     77,
+     78,
+     78,
+     82,
+     83,
+     83,
+     86,
+     100,
+     106,
+     112,
+     149,
+     157,
+     158,
+     184
+    ],
+    [
+     76,
+     79,
+     79,
+     80,
+     80,
+     82,
+     83,
+     83,
+     87,
+     97,
+     131,
+     133,
+     133,
+     134,
+     147
+    ]
+   ]
+  },
+  "quiet_user_initiated": {
+   "gap0": "76-86",
+   "gap3s": "100-114"
+  }
+ },
+ "host": "Apple M6, 2 Super + 4 Performance + 6 Efficiency cores, 32 GB, macOS 27.2.1"
+}
