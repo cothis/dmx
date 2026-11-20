@@ -157,6 +157,25 @@ def import_json(*extra):
         return r.returncode, {"stdout": r.stdout[-300:], "stderr": r.stderr[-300:]}
 
 
+def mcp_import(*calls):
+    """Starts `dmx mcp`, checks dmx_import is listed, and calls it once per argument object."""
+    proc = subprocess.Popen([str(DMX), "mcp"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL, env=DMX_ENV, text=True)
+    def request(id, method, params):
+        proc.stdin.write(json.dumps({"jsonrpc": "2.0", "id": id, "method": method, "params": params}) + "\n")
+        proc.stdin.flush()
+        return json.loads(proc.stdout.readline())
+    try:
+        request(0, "initialize", {"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "test-import", "version": "1"}})
+        tools = request(1, "tools/list", {})["result"]["tools"]
+        listed = any(t["name"] == "dmx_import" for t in tools)
+        out = [request(2 + n, "tools/call", {"name": "dmx_import", "arguments": a}).get("result") for n, a in enumerate(calls)]
+        return {"listed": listed, "results": out}
+    finally:
+        proc.stdin.close()
+        proc.wait(timeout=10)
+
+
 had_alpine = False
 try:
     if not check("docker_tools", os.access(DOCKER, os.X_OK) and (PLUGINS / "docker-compose").exists(),
@@ -213,6 +232,18 @@ try:
     code, again = import_json()
     check("second_run_exists", code == 0 and again.get("items") and all(i["action"] == "exists" for i in again["items"]),
           [(i["kind"], i["action"]) for i in again.get("items", [])])
+
+    # The same through `dmx mcp`, as an agent would call it: the tool returns the CLI's report.
+    progress("dmx_import through dmx mcp")
+    mcp = mcp_import({"from": args.source, "projects": [PROJECT], "dry_run": True},
+                     {"from": args.source, "projects": [PROJECT]})
+    check("mcp_tool_listed", mcp.get("listed"), mcp)
+    dry_mcp, again_mcp = mcp.get("results", [None, None])
+    check("mcp_dry_run", dry_mcp and not dry_mcp["isError"] and dry_mcp["structuredContent"].get("dry_run")
+          and sorted((i["kind"], i["name"]) for i in dry_mcp["structuredContent"]["items"])
+          == sorted((i["kind"], i["name"]) for i in again["items"]), dry_mcp)
+    check("mcp_second_run_exists", again_mcp and not again_mcp["isError"] and again_mcp["structuredContent"].get("ok")
+          and all(i["action"] == "exists" for i in again_mcp["structuredContent"]["items"]), again_mcp)
 
     progress("docker compose up -d in dmx")
     r = dst("compose", "up", "-d", cwd=APP, timeout=300)

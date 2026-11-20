@@ -131,7 +131,7 @@ try:
     r = c.request("tools/list")
     tools = {t["name"]: t for t in r["result"]["tools"]}
     results["tools"] = sorted(tools)
-    check("tools_list", {"dmx_exec", "dmx_status", "dmx_start", "dmx_stop", "dmx_config_get", "dmx_config_set"} <= set(tools)
+    check("tools_list", {"dmx_exec", "dmx_status", "dmx_start", "dmx_stop", "dmx_config_get", "dmx_config_set", "dmx_import"} <= set(tools)
           and all(t["inputSchema"]["type"] == "object" for t in tools.values()), sorted(tools))
 
     # Stateless revision: per-request _meta, server/discover, unsupported versions.
@@ -246,6 +246,13 @@ try:
     check("bad_argument", r["isError"] is True and "bad_argument" in r["content"][0]["text"] and "hint:" in r["content"][0]["text"], r)
     r = c.call("dmx_exec", {"argv": ["nosuch-binary"]})
     check("missing_binary", r["isError"] is True and "nosuch-binary" in r["content"][0]["text"], r)
+    # dmx_import's real runs are in test-import.py; here, its argument and setup errors. This
+    # DMX_HOME has no bin/docker, so a valid call stops at the tools check with its hint.
+    r = c.call("dmx_import", {"dry_run": "yes"})
+    check("import_bad_argument", r["isError"] is True and "dry_run must be true or false" in r["content"][0]["text"], r)
+    r = c.call("dmx_import", {"from": "colima", "dry_run": True})
+    check("import_tools_missing", r["isError"] is True and "docker_tools_missing" in r["content"][0]["text"]
+          and "dmx tools install" in r["content"][0]["text"], r)
     r = c.request("tools/call", {"name": "nosuch", "arguments": {}})
     check("unknown_tool", r.get("error", {}).get("code") == -32602, r)
     r = c.request("nosuch/method")

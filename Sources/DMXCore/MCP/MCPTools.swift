@@ -179,6 +179,62 @@ let mcpTools: [MCPTool] = [
         try config.save(paths)
         return MCPToolResult(structured: try configResult(paths, only: key))
     },
+
+    MCPTool(definition: [
+        "name": "dmx_import",
+        "title": "Import from another Docker engine",
+        "description": .string("""
+            Brings images, volumes with their data, user bridge networks and containers over from \
+            another engine on this Mac (Docker Desktop, OrbStack, Colima, Rancher Desktop or a Docker \
+            socket) into dmx, like `dmx import --json`. The other engine is only read. Containers are \
+            created in dmx, not started; whatever dmx already has (a tag, volume, network or container \
+            name) is left alone and reported as "exists", so calling it again imports only what is \
+            missing. Use dry_run first to see the plan. Copying images and volume data can take minutes.
+            """),
+        "inputSchema": [
+            "type": "object",
+            "properties": [
+                "from": ["type": "string", "description": .string(
+                    "\(Import.knownEngines.map(\.name).joined(separator: ", ")) or unix:///path/to/docker.sock; default: the one engine that answers at its usual socket.")],
+                "projects": ["type": "array", "items": ["type": "string"],
+                             "description": "Only these Compose projects (their containers, images, volumes and networks); default everything."],
+                "dry_run": ["type": "boolean", "description": "List what would be imported, changing nothing (default false)."],
+            ],
+            "additionalProperties": false,
+        ],
+        "outputSchema": [
+            "type": "object",
+            "properties": [
+                "ok": ["type": "boolean"],
+                "dry_run": ["type": "boolean"],
+                "source": ["type": "object", "description": "name, socket, server_version, architecture"],
+                "projects": ["type": "array", "items": ["type": "string"]],
+                "items": ["type": "array", "items": [
+                    "type": "object",
+                    "properties": [
+                        "kind": ["type": "string", "description": "image, volume, network or container"],
+                        "name": ["type": "string"],
+                        "action": ["type": "string", "enum": ["imported", "planned", "exists", "skipped", "failed"]],
+                        "detail": ["type": "string"],
+                    ],
+                    "required": ["kind", "name", "action"],
+                ]],
+                "warnings": ["type": "array", "items": ["type": "string"]],
+                "next": ["type": "string", "description": "What to do next."],
+            ],
+            "required": ["ok", "dry_run", "source", "projects", "items", "warnings"],
+        ],
+        "annotations": ["idempotentHint": true, "destructiveHint": false, "openWorldHint": true],
+    ]) { paths, args in
+        var options = Import.Options()
+        options.from = try args.string("from")
+        options.projects = try args.strings("projects") ?? []
+        options.dryRun = try args.bool("dry_run") ?? false
+        let report = try await Import.run(paths: paths, options: options, progress: { mcpLog("dmx_import: \($0)") })
+        let counts = Dictionary(grouping: report.items, by: \.action).mapValues(\.count)
+        mcpLog("dmx_import from \(report.source.name): " + (counts.isEmpty ? "nothing" : counts.sorted { $0.key < $1.key }.map { "\($0.value) \($0.key)" }.joined(separator: ", ")))
+        return MCPToolResult(structured: try JSONValue(encoding: report), isError: !report.ok)
+    },
 ]
 
 /// Settings in effect, which of them the file sets, and the file; like `dmx config get --json`.
@@ -251,6 +307,12 @@ struct MCPArguments: Sendable {
         case .double(let n) where n == n.rounded() && abs(n) < 1e15: return Int(n)
         default: throw error("\(key) must be a whole number")
         }
+    }
+
+    func bool(_ key: String) throws -> Bool? {
+        guard let v = try value(key) else { return nil }
+        guard let b = v.bool else { throw error("\(key) must be true or false") }
+        return b
     }
 
     func strings(_ key: String) throws -> [String]? {

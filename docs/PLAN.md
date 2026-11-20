@@ -628,6 +628,7 @@ to switch. One item per session, in this order; each is verified on the real VM.
       save/load or by digest, volume data by `docker cp` between never-started helpers, bridge
       networks, containers created not started; `make importtest FROM=colima` 26/26 against a
       real Colima ([finding](#dmx-import-2026-11-20)). OrbStack and Docker Desktop not tried.
+      MCP tool `dmx_import` (same report) added the same day.
 - [ ] Homebrew tap (maintainer decision: a new public repository `cothis/homebrew-dmx`): a cask
       for the notarized app archive, `auto_updates true`, uninstall of the launchd agent and a zap
       of `~/.dmx`; the release script updates version and sha256. Homebrew stays optional.
@@ -643,9 +644,9 @@ page, `dmx bench` ([finding](#dmx-bench-first-runs-2026-11-20)), the soak check 
 guest crash recovery ([finding](#guest-crash-recovery-2026-11-20)) and `dmx import`
 ([finding](#dmx-import-2026-11-20)). Next: the Homebrew tap and local names, both waiting for the
 maintainer (a new public repository; an admin prompt and a trusted CA). Without those, the open
-ends: `dmx import` was run against Colima only (OrbStack and Docker Desktop not tried; their
-sockets are known, and the classic image store, where image IDs differ from the containerd
-store's, was not a source), and it is not an MCP tool yet. From crash recovery, both guest-side
+ends: `dmx import` (CLI and the `dmx_import` MCP tool) was run against Colima and a second dmx
+only (OrbStack and Docker Desktop not tried; their sockets are known, and the classic image
+store, where image IDs differ from the containerd store's, was not a source). From crash recovery, both guest-side
 (`docker_autostart`'s count, needs a guest build): an `always` container stopped with `docker
 stop` does not start dockerd at boot although dockerd restarts it once started, and an
 `on-failure` container running at a crash is not counted. From bench: warm `docker run` is
@@ -960,6 +961,14 @@ name, the shared namespace, the port and the service alias are there; `compose d
 container, volume or network; Colima's containers, images, volumes and networks are unchanged and
 no helper is left. Unit 154 (9 new), selftest 23/23 at 99 MB.
 [Raw](measurements/2026-11-20-import.json).
+
+The same day `dmx_import` went into `dmx mcp` (`from`, `projects`, `dry_run`; the result is the
+`--json` report, `isError` when an item failed). `make importtest` now also lists it and calls it
+through `dmx mcp` for a dry run and a second import (all `exists`): 29/29 with the installed
+v0.4.8 dmx as the source (`FROM=unix://$HOME/.dmx/docker.sock`, dockerd 29.9.2; Colima is no
+longer installed), import 3.0 s, the check 12 s; the source was left with no container. `make
+mcptest` 38/38 (argument and missing-tools errors), unit 154, selftest 23/23 at 99 MB. No memory
+path changed.
 
 ### Guest crash recovery (2026-11-20)
 
@@ -1920,6 +1929,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-20: Added the MCP tool `dmx_import` (the `dmx import --json` report; `from`, `projects`, `dry_run`). `make importtest` 29/29 with a second dmx as the source, `make mcptest` 38/38, unit 154, selftest 23/23 (99 MB). Phase 13's remaining items still wait for the maintainer.
 - 2026-11-20: Added `dmx import` (DMXCore/Import.swift): images, volumes with their data, bridge networks and containers (created, not started) from Docker Desktop, OrbStack, Colima, Rancher Desktop or any socket; `--project`, `--dry-run`, `--json`; existing names are never overwritten, the source is never changed. `make importtest` (`scripts/test-import.py`) 26/26 against a real Colima, installed for the check and removed; unit 154, selftest 23/23 (99 MB). Phase 13's remaining items wait for the maintainer.
 - 2026-11-20: Guest crash recovery. Fixed a guest kernel panic leaving the VM "running" at about 1200% CPU (`panic=-1`; SYSTEM_RESET is now `Machine.Exit.guestReset`). The daemon keeps the crashed boot's console tail in `logs/guest-crash.log`, shows `guest_crash` in status, and with containers running boots a new VM after 1 s doubling to 60 s, cancelled by `dmx stop`. `make crashtest` 30/30 (fails on v0.4.8); unit 145, selftest 23/23 (99–100 MB, unchanged), daemontest 63/63, menu script 25/25. Next: `dmx import`.
 - 2026-11-20: Added the soak check, `make soaktest` (`scripts/test-soak.py`): 300 `docker run --rm` and 50 Compose cycles, then footprint, guest memory, daemon fds/threads, guest dockerd/containerd/agent fds/threads/RSS and leftovers against the start, each after the idle sweep. 28/28 at 300/50 and at 1500/250; no leak found. Unit 142, selftest 23/23 (99 MB). Next: guest crash recovery.

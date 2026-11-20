@@ -66,6 +66,7 @@ An unknown tool name is a JSON-RPC error (-32602).
 | `dmx_stop` | none | status, once the VM is off |
 | `dmx_config_get` | `key` | `settings` (values in effect), `configured` (keys set in the file), `file` |
 | `dmx_config_set` | `key`, `value` (null resets it) | the same, for that key; applies at the next boot |
+| `dmx_import` | `from` (`docker-desktop`, `orbstack`, `colima`, `rancher-desktop` or `unix:///path`; default the one that answers), `projects` (Compose projects), `dry_run` | `dmx import --json`: `ok`, `dry_run`, `source`, `items` (`kind`, `name`, `action`: `imported`, `planned`, `exists`, `skipped`, `failed`; `detail`), `warnings`, `next`; `isError` when an item failed. The other engine is only read; containers are created, not started; see [docker.md](docker.md#importing-from-another-engine) |
 | `dmx_sandbox_create` | `name`, `image`, `network` (`"none"`, `"all"` or an array of hosts and CIDRs), `mounts` (`[{host, path, writable}]`), `cpus`, `memory`, `pids`, `ttl` (seconds or `"30m"`), `env`, `workdir`, `command` | the sandbox: `name`, `state`, `policy`, `allowed`, `expires_at`, `expires_in_s`, `checkpoints`, ... |
 | `dmx_sandbox_exec` | `name`, `argv` (required), `stdin`, `env`, `cwd`, `timeout`, `max_output_bytes` | as `dmx_exec` (`signal` is always null) |
 | `dmx_sandbox_list` | none | `sandboxes`; those past their TTL are removed first |
@@ -110,4 +111,5 @@ the isolation does and does not guarantee, and measurements are in [sandbox.md](
 `make mcptest` (`scripts/test-mcp.py`) starts `dmx mcp` in a throwaway `DMX_HOME`, drives it over
 pipes with both protocol eras, and checks every tool, the output cap and its memory, UTF-8
 cuts, timeout and cancellation (the guest processes are gone afterwards), errors, and exit on
-EOF. `make sandboxtest` (`scripts/test-sandbox.py`) does the same for the sandbox and logs tools.
+EOF. `make importtest` (`scripts/test-import.py`) also calls `dmx_import` against a real second
+engine. `make sandboxtest` (`scripts/test-sandbox.py`) does the same for the sandbox and logs tools.

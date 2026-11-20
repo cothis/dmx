@@ -142,8 +142,8 @@ curl -fsSL https://github.com/cothis/dmx/releases/latest/download/install.sh | s
 claude mcp add dmx -- dmx mcp    # or any MCP client: the command is `dmx mcp` on stdio
 ```
 
-The agent gets `dmx_exec`, `dmx_status`, `dmx_sandbox_create/exec/checkpoint/rollback/fork/rm`
-and `dmx_logs`. A sandbox starts with no network and no host files; it gets only what it is
+The agent gets `dmx_exec`, `dmx_status`, `dmx_sandbox_create/exec/checkpoint/rollback/fork/rm`,
+`dmx_logs` and `dmx_import`. A sandbox starts with no network and no host files; it gets only what it is
 granted:
 
 ```sh
