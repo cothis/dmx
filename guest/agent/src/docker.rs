@@ -212,7 +212,17 @@ fn answers() -> bool {
 /// back when dockerd next starts, but does not by itself bring Docker up at boot. Read from
 /// dockerd's own records, which it writes on every state change.
 fn restartable_containers() -> usize {
-    let Ok(dirs) = std::fs::read_dir(CONTAINERS) else { return 0 };
+    restartable_in(Path::new(CONTAINERS))
+}
+
+/// The containers dockerd will start again when it starts, by its own rule (moby's
+/// RestartManager.ShouldRestart at daemon restore): started at least once, and `always`, or
+/// `unless-stopped` not stopped with `docker stop`, or `on-failure` after a non-zero exit. A
+/// container still recorded as running died with the VM (a crash); dockerd counts that as a
+/// failure, so an `on-failure` one comes back too. `docker stop` does not keep an `always` or
+/// `on-failure` container down at dockerd's start, and so it does not keep Docker down at boot.
+fn restartable_in(containers: &Path) -> usize {
+    let Ok(dirs) = std::fs::read_dir(containers) else { return 0 };
     let read = |path: std::path::PathBuf| -> Option<Value> { serde_json::from_slice(&std::fs::read(path).ok()?).ok() };
     dirs.flatten()
         .filter(|dir| {
@@ -222,16 +232,54 @@ fn restartable_containers() -> usize {
             let policy = host["RestartPolicy"]["Name"].as_str().unwrap_or("");
             let stopped_by_user = state["HasBeenManuallyStopped"].as_bool().unwrap_or(false);
             let started_before = state["HasBeenStartedBefore"].as_bool().unwrap_or(false);
-            let failed = state["State"]["ExitCode"].as_i64().unwrap_or(0) != 0;
+            let died_running = state["State"]["Running"].as_bool().unwrap_or(false);
+            let failed = died_running || state["State"]["ExitCode"].as_i64().unwrap_or(0) != 0;
             started_before
-                && !stopped_by_user
                 && match policy {
-                    "always" | "unless-stopped" => true,
+                    "always" => true,
+                    "unless-stopped" => !stopped_by_user,
                     "on-failure" => failed,
                     _ => false,
                 }
         })
         .count()
+}
+
+#[cfg(test)]
+mod restart_tests {
+    use super::*;
+
+    fn container(root: &Path, name: &str, policy: &str, started: bool, manual: bool, running: bool, exit: i64) {
+        let dir = root.join(name);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("hostconfig.json"), format!(r#"{{"RestartPolicy":{{"Name":"{policy}","MaximumRetryCount":0}}}}"#)).unwrap();
+        std::fs::write(dir.join("config.v2.json"), format!(
+            r#"{{"HasBeenStartedBefore":{started},"HasBeenManuallyStopped":{manual},"State":{{"Running":{running},"ExitCode":{exit}}}}}"#)).unwrap();
+    }
+
+    /// What dockerd 29 started again after a clean stop and after a guest crash, on the real VM.
+    #[test]
+    fn counts_what_dockerd_restarts() {
+        let root = std::env::temp_dir().join(format!("dmx-restart-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let cases = [
+            ("always-stopped-by-user", "always", true, true, false, 137, true),
+            ("always-running-at-crash", "always", true, false, true, 0, true),
+            ("always-never-started", "always", false, false, false, 0, false),
+            ("unless-stopped-running", "unless-stopped", true, false, false, 0, true),
+            ("unless-stopped-by-user", "unless-stopped", true, true, false, 137, false),
+            ("on-failure-stopped-by-user", "on-failure", true, true, false, 137, true),
+            ("on-failure-running-at-crash", "on-failure", true, false, true, 0, true),
+            ("on-failure-exit-0", "on-failure", true, false, false, 0, false),
+            ("no-policy", "no", true, false, true, 1, false),
+        ];
+        for (i, (name, policy, started, manual, running, exit, expected)) in cases.iter().enumerate() {
+            let one = root.join(format!("case{i}"));
+            container(&one, name, policy, *started, *manual, *running, *exit);
+            assert_eq!(restartable_in(&one), *expected as usize, "{name}");
+        }
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }
 
 /// Before power off: asks dockerd to stop its containers and exit, for at most `limit`.

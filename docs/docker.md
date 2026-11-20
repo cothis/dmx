@@ -260,16 +260,19 @@ Containers with `--restart always`, `unless-stopped` or `on-failure` come back w
 as they do when Docker Desktop starts, without waiting for a Docker client. After every boot the
 daemon asks the agent (`docker_autostart`), which reads dockerd's own records
 (`/var/lib/docker/containers/*/hostconfig.json` and `config.v2.json`) and starts dockerd only if a
-container would come back: one that was started before, was not stopped with `docker stop`, and
-whose policy is `always` or `unless-stopped`, or `on-failure` after a non-zero exit. dockerd then
-restarts them itself; their published ports are forwarded and they keep the VM running. A VM
-whose containers have no restart policy, or were stopped by hand, starts no dockerd at boot and
-costs what it did before: the check reads one directory that does not exist yet.
+container would come back by dockerd's own rule when it starts: one that was started before and is
+`always`, or `unless-stopped` and not stopped with `docker stop`, or `on-failure` after a non-zero
+exit. A container still recorded as running died with the VM (a crash), which dockerd counts as a
+failure. dockerd then restarts them itself; their published ports are forwarded and they keep the
+VM running. A VM whose containers have no restart policy, or only ones that would stay down,
+starts no dockerd at boot and costs what it did before: the check reads one directory.
 
-- A container stopped with `docker stop` does not bring Docker up at boot. dockerd still starts
-  an `always` container again whenever dockerd itself starts (as on Linux after a daemon
-  restart), so it comes back with the next Docker client after the VM was stopped. On Docker
-  Desktop the VM keeps running, so this differs only after an idle stop or `dmx stop`.
+- `docker stop` keeps an `unless-stopped` container down, not an `always` or `on-failure` one:
+  dockerd starts those again whenever dockerd itself starts (as on Linux after a daemon restart
+  or a reboot, and on Docker Desktop after it restarts), and so dmx starts Docker for them at
+  boot. To keep one down, `docker update --restart no` it or remove it. Until the guest after
+  0.4.8, `docker stop` kept Docker down at boot, and an `on-failure` container running at a crash
+  came back only with the next Docker client.
 - What boots the VM is unchanged: a dmx command, a Docker client, or a connection to a forwarded
   port. dmx does not start at login; Docker Desktop does if "Start Docker Desktop when you sign
   in" is on. With `dmx install` the daemon starts on the first connection, but the VM, and so
@@ -282,15 +285,17 @@ so a panic resets the VM at once) or the VMM failed, the daemon keeps the consol
 boot in `~/.dmx/logs/guest-crash.log` (bounded, rotated like the other logs) and shows the crash in
 `dmx status` (`guest_crash`). If containers were running it boots a new VM after 1 s, doubling the
 wait for each crash in a row up to 60 s (a VM that ran 5 minutes starts the count again); the
-boot then brings back containers as in [Restart policies](#restart-policies): `always` and
-`unless-stopped` ones run again, `no` ones and those stopped with `docker stop` stay exited, and
+boot then brings back containers as in [Restart policies](#restart-policies): `always`,
+`unless-stopped` and `on-failure` ones that were running come back (dockerd counts dying with the
+VM as a failure), `no` ones and `unless-stopped` ones stopped with `docker stop` stay exited, and
 published ports come back. `dmx stop` during the wait cancels the reboot. With nothing running,
 the VM stays stopped until a client needs it, as after an idle stop. A guest that powers itself
-off is not a crash. `make crashtest` checks this with forced panics (`docs/PLAN.md` has the run).
+off is not a crash. `make crashtest` checks this with forced panics and a forced VMM fault (a
+guest load the VMM cannot emulate, `scripts/fixtures/vmm-fault-aarch64.S`); `docs/PLAN.md` has
+the runs.
 
 Before this, a panic left the VM reported as running, unreachable, with the daemon at about 1200%
-of the Mac's CPU until it was stopped. An `on-failure` container that was running at the crash
-has not been checked: dockerd's record still says exit code 0 then.
+of the Mac's CPU until it was stopped.
 
 ## Importing from another engine
 

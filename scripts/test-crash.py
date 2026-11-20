@@ -4,7 +4,12 @@ must reset the VM rather than leave it spinning, keep the console tail in guest-
 with containers running, boot a new VM that brings back `always` and `unless-stopped` containers
 while `no` ones and one stopped with `docker stop` stay exited. Then: a second crash in a row
 waits longer (backoff), a crash with nothing running leaves the VM stopped, and `dmx stop`
-during the backoff cancels the reboot.
+during the backoff cancels the reboot. Then a VMM fault (scripts/fixtures/vmm-fault-aarch64.S,
+a guest load the VMM cannot emulate) with only an `on-failure` container running: the new VM
+brings it back without a Docker client, as dockerd counts a container that died running as
+failed. Last, a plain boot by `dmx exec` (no Docker client) brings back an `always` and an
+`on-failure` container stopped with `docker stop`, as dockerd does whenever it starts, while
+`unless-stopped` and `no` ones stay down.
 
 Runs in a throwaway DMX_HOME (its own data disk and daemon) with dmx's own docker CLI
 (`dmx tools install`). Needs the guest with Docker in it and the internet (busybox). Host port
@@ -22,6 +27,8 @@ import tempfile
 import time
 import urllib.request
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
 
 DMX = Path(sys.argv[1] if len(sys.argv) > 1 else ".build/release/dmx").resolve()
 USER_DMX = Path(os.environ.get("DMX_HOME") or Path.home() / ".dmx")
@@ -112,6 +119,25 @@ def crash():
     started = time.monotonic()
     r = dmx("exec", "--", "sh", "-c", "echo c > /proc/sysrq-trigger", timeout=30)
     return started, r
+
+
+def vmm_fault_binary():
+    """scripts/fixtures/vmm-fault-aarch64.S, assembled and linked with Xcode's clang and rustup's lld."""
+    toolchain = Path(subprocess.check_output(["rustc", "--print", "sysroot"], text=True).strip())
+    linker = toolchain / "lib/rustlib/aarch64-apple-darwin/bin/rust-lld"
+    with tempfile.TemporaryDirectory(prefix="dmx-fixture-build-") as tmp:
+        obj, binary = Path(tmp) / "vmm-fault.o", Path(tmp) / "vmm-fault"
+        subprocess.run(["xcrun", "clang", "--target=aarch64-linux-gnu", "-c", str(ROOT / "scripts/fixtures/vmm-fault-aarch64.S"),
+                        "-o", str(obj)], check=True)
+        subprocess.run([str(linker), "-flavor", "gnu", "-m", "aarch64linux", "-static", "-o", str(binary), str(obj)],
+                       check=True, env={**os.environ, "DYLD_LIBRARY_PATH": str(toolchain / "lib")})
+        return binary.read_bytes()
+
+
+def guest_has(pattern):
+    """Whether a guest process matches, asked without a Docker client (which would start dockerd)."""
+    # [s]leep matches "sleep" but not this shell's own command line, which holds "[s]leep".
+    return dmx("exec", "--", "sh", "-c", f"pgrep -f '[{pattern[0]}]{pattern[1:]}' >/dev/null", timeout=30).returncode == 0
 
 
 def crash_log():
@@ -209,6 +235,36 @@ try:
     # As on any dockerd start: `always` comes back even after `docker stop`, the others do not.
     check("idle_crash_containers_stay_stopped", all(st.get(n, "").startswith("exited") for n in ("c-unless", "c-no", "c-unless-stopped")), st)
     check("idle_crash_always_back_on_next_start", st.get("c-always") == "running", st)
+
+    # 5. A VMM fault with only an on-failure container running.
+    progress("crash 5: VMM fault with an on-failure container running")
+    fault = vmm_fault_binary()
+    r = docker("stop", "-t", "1", "c-always")
+    check("stop_always_again", r.returncode == 0, r.stderr[-300:])
+    r = docker("run", "-d", "--init", "--name", "c-onfail", "--restart", "on-failure", "busybox", "sleep", "3601")
+    check("run_c-onfail", r.returncode == 0, r.stderr[-300:])
+    # dockerd writes the start record without fsync and ext4 commits every 5 s: a VM that dies
+    # within seconds of `docker run` forgets the start (the container is "Created" again), as a
+    # Linux host losing power would. The check is about the restart rule, so the record goes to disk.
+    r = dmx("exec", "--", "sync")
+    check("sync_before_fault", r.returncode == 0, r.stderr[-300:])
+    r = subprocess.run([str(DMX), "exec", "--", "sh", "-c", "cat > /tmp/vmm-fault && chmod +x /tmp/vmm-fault && exec /tmp/vmm-fault"],
+                       input=fault, capture_output=True, timeout=30, env=ENV)
+    reason = (wait(lambda: (status().get("guest_crash") or {}).get("streak") == 5 and status().get("guest_crash"), 15) or {}).get("reason", "")
+    check("vmm_fault_reason", "VM failed" in reason and "without a valid syndrome" in reason, reason or r.stderr[-200:])
+    back = wait(lambda: status().get("state") == "running" and guest_has("sleep 3601"), 40)
+    check("vmm_fault_onfail_back_without_client", back, f"{status().get('state')}")
+    check("vmm_fault_always_back_without_client", guest_has("httpd -f -p 80"), "")
+
+    # 6. A plain boot without a Docker client after `docker stop`: dockerd's own rule.
+    progress("boot 6: always and on-failure stopped by hand, booted by dmx exec")
+    r = docker("stop", "-t", "1", "c-always", "c-onfail")
+    check("stop_always_onfail", r.returncode == 0, r.stderr[-300:])
+    r = dmx("stop", "--json")
+    check("stop_before_boot", r.returncode == 0, r.stderr[-300:])
+    back = wait(lambda: guest_has("httpd -f -p 80") and guest_has("sleep 3601"), 40)
+    check("boot_always_onfail_back_without_client", back, "")
+    check("boot_others_stay_down", not guest_has("sleep 3600"), "")
     check("same_daemon_at_end", status().get("pid") == pid, "")
 except subprocess.TimeoutExpired as e:
     check("no_timeout", False, f"{e.cmd} timed out after {e.timeout} s")
