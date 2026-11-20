@@ -1,0 +1,1125 @@
+{
+ "date": "2026-11-20",
+ "command": "make soaktest (scripts/test-soak.py); long run: --runs 1500 --compose 250 --sample-every 300",
+ "host": "12 cores, 32 GB, macOS 27.2.1, load 1.6-2.5; dmx 0.4.8 build of main with the installed v0.4.8 guest, defaults (throwaway DMX_HOME)",
+ "note": "settle samples thinned to every third second. Two earlier 300/50 runs with a fixed 35 s wait passed too (footprint 237->249 and 239->250 MB); a 1500/250 run with that wait read 230->529 MB because it measured before the idle trim, which the sweep wait fixed.",
+ "default": {
+  "ok": true,
+  "runs": 300,
+  "compose_cycles": 50,
+  "before": {
+   "host_footprint_mb": 239,
+   "guest_used_mb": 111,
+   "idle_sweep_after_s": 31.0,
+   "settle": [
+    {
+     "s": 1.0,
+     "footprint_mb": 390,
+     "guest_used_mb": 129,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 4.1,
+     "footprint_mb": 390,
+     "guest_used_mb": 127,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 7.2,
+     "footprint_mb": 389,
+     "guest_used_mb": 128,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 10.3,
+     "footprint_mb": 389,
+     "guest_used_mb": 128,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 13.4,
+     "footprint_mb": 389,
+     "guest_used_mb": 128,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 16.5,
+     "footprint_mb": 389,
+     "guest_used_mb": 128,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 19.6,
+     "footprint_mb": 389,
+     "guest_used_mb": 128,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 22.7,
+     "footprint_mb": 389,
+     "guest_used_mb": 128,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 25.8,
+     "footprint_mb": 390,
+     "guest_used_mb": 128,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 28.9,
+     "footprint_mb": 390,
+     "guest_used_mb": 128,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 32.0,
+     "footprint_mb": 394,
+     "guest_used_mb": 111,
+     "guest_cache_mb": 75,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 35.1,
+     "footprint_mb": 240,
+     "guest_used_mb": 111,
+     "guest_cache_mb": 75,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 38.2,
+     "footprint_mb": 239,
+     "guest_used_mb": 111,
+     "guest_cache_mb": 75,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 41.3,
+     "footprint_mb": 239,
+     "guest_used_mb": 111,
+     "guest_cache_mb": 75,
+     "trims": 1,
+     "sweeps": 1
+    }
+   ],
+   "daemon_fds": 19,
+   "daemon_fd_kinds": {
+    "CHR": 3,
+    "REG": 5,
+    "unix": 7,
+    "DIR": 4
+   },
+   "daemon_threads": 20,
+   "guest": {
+    "dockerd": {
+     "fds": 26,
+     "threads": 20,
+     "rss_kb": 43508
+    },
+    "containerd": {
+     "fds": 18,
+     "threads": 15,
+     "rss_kb": 45676
+    },
+    "dmx-agent": {
+     "fds": 20,
+     "threads": 12,
+     "rss_kb": 760
+    },
+    "user_processes": 7,
+    "kernel_threads": 140,
+    "user_process_names": [
+     "containerd",
+     "dmx-agent",
+     "dockerd",
+     "init",
+     "init",
+     "sh",
+     "sh"
+    ],
+    "shims": 0,
+    "veths": 0,
+    "mounts": 13,
+    "netns": 0
+   },
+   "containers": 0,
+   "networks": 3,
+   "volumes": 0,
+   "forwards": 0
+  },
+  "soak_s": 90,
+  "run_ms": {
+   "median": 143,
+   "max": 169
+  },
+  "compose_cycle_ms": {
+   "median": 937,
+   "max": 960
+  },
+  "timeline": [
+   {
+    "runs": 0,
+    "compose": 0,
+    "s": 52.3,
+    "daemon_fds": 19,
+    "daemon_threads": 20,
+    "dockerd_rss_mb": 51,
+    "containerd_rss_mb": 45
+   },
+   {
+    "runs": 50,
+    "compose": 8,
+    "s": 67.2,
+    "daemon_fds": 19,
+    "daemon_threads": 25,
+    "dockerd_rss_mb": 72,
+    "containerd_rss_mb": 49
+   },
+   {
+    "runs": 100,
+    "compose": 16,
+    "s": 82.1,
+    "daemon_fds": 19,
+    "daemon_threads": 25,
+    "dockerd_rss_mb": 72,
+    "containerd_rss_mb": 49
+   },
+   {
+    "runs": 150,
+    "compose": 25,
+    "s": 97.6,
+    "daemon_fds": 19,
+    "daemon_threads": 26,
+    "dockerd_rss_mb": 73,
+    "containerd_rss_mb": 51
+   },
+   {
+    "runs": 200,
+    "compose": 33,
+    "s": 112.3,
+    "daemon_fds": 19,
+    "daemon_threads": 27,
+    "dockerd_rss_mb": 74,
+    "containerd_rss_mb": 51
+   },
+   {
+    "runs": 250,
+    "compose": 41,
+    "s": 127.0,
+    "daemon_fds": 19,
+    "daemon_threads": 27,
+    "dockerd_rss_mb": 75,
+    "containerd_rss_mb": 51
+   },
+   {
+    "runs": 300,
+    "compose": 50,
+    "s": 142.6,
+    "daemon_fds": 19,
+    "daemon_threads": 27,
+    "dockerd_rss_mb": 75,
+    "containerd_rss_mb": 52
+   }
+  ],
+  "after": {
+   "host_footprint_mb": 253,
+   "guest_used_mb": 118,
+   "idle_sweep_after_s": 35.1,
+   "settle": [
+    {
+     "s": 1.0,
+     "footprint_mb": 438,
+     "guest_used_mb": 140,
+     "guest_cache_mb": 199,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 4.1,
+     "footprint_mb": 438,
+     "guest_used_mb": 140,
+     "guest_cache_mb": 199,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 7.2,
+     "footprint_mb": 437,
+     "guest_used_mb": 141,
+     "guest_cache_mb": 199,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 10.3,
+     "footprint_mb": 437,
+     "guest_used_mb": 141,
+     "guest_cache_mb": 199,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 13.4,
+     "footprint_mb": 437,
+     "guest_used_mb": 141,
+     "guest_cache_mb": 199,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 16.5,
+     "footprint_mb": 437,
+     "guest_used_mb": 141,
+     "guest_cache_mb": 199,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 19.6,
+     "footprint_mb": 437,
+     "guest_used_mb": 141,
+     "guest_cache_mb": 199,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 22.7,
+     "footprint_mb": 437,
+     "guest_used_mb": 141,
+     "guest_cache_mb": 199,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 25.8,
+     "footprint_mb": 437,
+     "guest_used_mb": 141,
+     "guest_cache_mb": 199,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 28.9,
+     "footprint_mb": 437,
+     "guest_used_mb": 141,
+     "guest_cache_mb": 199,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 32.0,
+     "footprint_mb": 437,
+     "guest_used_mb": 141,
+     "guest_cache_mb": 199,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 35.1,
+     "footprint_mb": 437,
+     "guest_used_mb": 117,
+     "guest_cache_mb": 41,
+     "trims": 2,
+     "sweeps": 2
+    },
+    {
+     "s": 38.2,
+     "footprint_mb": 236,
+     "guest_used_mb": 117,
+     "guest_cache_mb": 41,
+     "trims": 2,
+     "sweeps": 2
+    },
+    {
+     "s": 41.3,
+     "footprint_mb": 253,
+     "guest_used_mb": 118,
+     "guest_cache_mb": 69,
+     "trims": 2,
+     "sweeps": 2
+    },
+    {
+     "s": 44.4,
+     "footprint_mb": 253,
+     "guest_used_mb": 118,
+     "guest_cache_mb": 69,
+     "trims": 2,
+     "sweeps": 2
+    },
+    {
+     "s": 45.4,
+     "footprint_mb": 253,
+     "guest_used_mb": 118,
+     "guest_cache_mb": 69,
+     "trims": 2,
+     "sweeps": 2
+    }
+   ],
+   "daemon_fds": 19,
+   "daemon_fd_kinds": {
+    "CHR": 3,
+    "REG": 5,
+    "unix": 7,
+    "DIR": 4
+   },
+   "daemon_threads": 20,
+   "guest": {
+    "dockerd": {
+     "fds": 26,
+     "threads": 21,
+     "rss_kb": 61564
+    },
+    "containerd": {
+     "fds": 18,
+     "threads": 16,
+     "rss_kb": 35648
+    },
+    "dmx-agent": {
+     "fds": 20,
+     "threads": 12,
+     "rss_kb": 760
+    },
+    "user_processes": 7,
+    "kernel_threads": 146,
+    "user_process_names": [
+     "containerd",
+     "dmx-agent",
+     "dockerd",
+     "init",
+     "init",
+     "sh",
+     "sh"
+    ],
+    "shims": 0,
+    "veths": 0,
+    "mounts": 13,
+    "netns": 0
+   },
+   "containers": 0,
+   "networks": 3,
+   "volumes": 0,
+   "forwards": 0
+  },
+  "total_s": 189,
+  "checks": [
+   {
+    "name": "docker_tools",
+    "ok": true,
+    "detail": "/Users/cothis/.dmx/bin/docker and /Users/cothis/.dmx/cli-plugins/docker-compose; run `dmx tools install`"
+   },
+   {
+    "name": "start",
+    "ok": true,
+    "detail": "b''"
+   },
+   {
+    "name": "daemon_pid",
+    "ok": true,
+    "detail": "status pid 23342, daemons [23342]"
+   },
+   {
+    "name": "pull_alpine",
+    "ok": true,
+    "detail": "b''"
+   },
+   {
+    "name": "pull_busybox",
+    "ok": true,
+    "detail": "b''"
+   },
+   {
+    "name": "warm_up",
+    "ok": true,
+    "detail": "[]"
+   },
+   {
+    "name": "all_cycles_ok",
+    "ok": true,
+    "detail": "0 failed: []"
+   },
+   {
+    "name": "idle_sweep",
+    "ok": true,
+    "detail": "before 31.0 s, after 35.1 s"
+   },
+   {
+    "name": "daemon_alive",
+    "ok": true,
+    "detail": "the daemon kept its pid"
+   },
+   {
+    "name": "left_containers",
+    "ok": true,
+    "detail": "0 -> 0"
+   },
+   {
+    "name": "left_networks",
+    "ok": true,
+    "detail": "3 -> 3"
+   },
+   {
+    "name": "left_volumes",
+    "ok": true,
+    "detail": "0 -> 0"
+   },
+   {
+    "name": "left_forwards",
+    "ok": true,
+    "detail": "0 -> 0"
+   },
+   {
+    "name": "left_guest_shims",
+    "ok": true,
+    "detail": "0 -> 0"
+   },
+   {
+    "name": "left_guest_veths",
+    "ok": true,
+    "detail": "0 -> 0"
+   },
+   {
+    "name": "left_guest_mounts",
+    "ok": true,
+    "detail": "13 -> 13"
+   },
+   {
+    "name": "left_guest_netns",
+    "ok": true,
+    "detail": "0 -> 0"
+   },
+   {
+    "name": "left_guest_user_processes",
+    "ok": true,
+    "detail": "7 -> 7, new [], gone []"
+   },
+   {
+    "name": "daemon_fds",
+    "ok": true,
+    "detail": "19 -> 19 ({'CHR': 3, 'REG': 5, 'unix': 7, 'DIR': 4} -> {'CHR': 3, 'REG': 5, 'unix': 7, 'DIR': 4})"
+   },
+   {
+    "name": "daemon_threads",
+    "ok": true,
+    "detail": "20 -> 20"
+   },
+   {
+    "name": "guest_dockerd_fds",
+    "ok": true,
+    "detail": "26 -> 26"
+   },
+   {
+    "name": "guest_dockerd_threads",
+    "ok": true,
+    "detail": "20 -> 21"
+   },
+   {
+    "name": "guest_containerd_fds",
+    "ok": true,
+    "detail": "18 -> 18"
+   },
+   {
+    "name": "guest_containerd_threads",
+    "ok": true,
+    "detail": "15 -> 16"
+   },
+   {
+    "name": "guest_dmx-agent_fds",
+    "ok": true,
+    "detail": "20 -> 20"
+   },
+   {
+    "name": "guest_dmx-agent_threads",
+    "ok": true,
+    "detail": "12 -> 12"
+   },
+   {
+    "name": "host_footprint",
+    "ok": true,
+    "detail": "239 -> 253 MB"
+   },
+   {
+    "name": "guest_used",
+    "ok": true,
+    "detail": "111 -> 118 MB"
+   }
+  ]
+ },
+ "long": {
+  "ok": true,
+  "runs": 1500,
+  "compose_cycles": 250,
+  "before": {
+   "host_footprint_mb": 239,
+   "guest_used_mb": 113,
+   "idle_sweep_after_s": 31.0,
+   "settle": [
+    {
+     "s": 1.0,
+     "footprint_mb": 391,
+     "guest_used_mb": 129,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 4.1,
+     "footprint_mb": 391,
+     "guest_used_mb": 128,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 7.2,
+     "footprint_mb": 391,
+     "guest_used_mb": 128,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 10.3,
+     "footprint_mb": 391,
+     "guest_used_mb": 128,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 13.4,
+     "footprint_mb": 391,
+     "guest_used_mb": 128,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 16.5,
+     "footprint_mb": 391,
+     "guest_used_mb": 128,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 19.6,
+     "footprint_mb": 391,
+     "guest_used_mb": 128,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 22.7,
+     "footprint_mb": 391,
+     "guest_used_mb": 128,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 25.8,
+     "footprint_mb": 391,
+     "guest_used_mb": 128,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 28.9,
+     "footprint_mb": 391,
+     "guest_used_mb": 128,
+     "guest_cache_mb": 174,
+     "trims": 0,
+     "sweeps": 0
+    },
+    {
+     "s": 32.1,
+     "footprint_mb": 394,
+     "guest_used_mb": 112,
+     "guest_cache_mb": 73,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 35.1,
+     "footprint_mb": 239,
+     "guest_used_mb": 113,
+     "guest_cache_mb": 73,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 38.2,
+     "footprint_mb": 238,
+     "guest_used_mb": 113,
+     "guest_cache_mb": 73,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 41.3,
+     "footprint_mb": 238,
+     "guest_used_mb": 113,
+     "guest_cache_mb": 73,
+     "trims": 1,
+     "sweeps": 1
+    }
+   ],
+   "daemon_fds": 19,
+   "daemon_fd_kinds": {
+    "CHR": 3,
+    "REG": 5,
+    "unix": 7,
+    "DIR": 4
+   },
+   "daemon_threads": 21,
+   "guest": {
+    "dockerd": {
+     "fds": 26,
+     "threads": 21,
+     "rss_kb": 43616
+    },
+    "containerd": {
+     "fds": 18,
+     "threads": 15,
+     "rss_kb": 47004
+    },
+    "dmx-agent": {
+     "fds": 20,
+     "threads": 12,
+     "rss_kb": 760
+    },
+    "user_processes": 7,
+    "kernel_threads": 139,
+    "user_process_names": [
+     "containerd",
+     "dmx-agent",
+     "dockerd",
+     "init",
+     "init",
+     "sh",
+     "sh"
+    ],
+    "shims": 0,
+    "veths": 0,
+    "mounts": 13,
+    "netns": 0
+   },
+   "containers": 0,
+   "networks": 3,
+   "volumes": 0,
+   "forwards": 0
+  },
+  "soak_s": 457,
+  "run_ms": {
+   "median": 143,
+   "max": 404
+  },
+  "compose_cycle_ms": {
+   "median": 942,
+   "max": 1295
+  },
+  "timeline": [
+   {
+    "runs": 0,
+    "compose": 0,
+    "s": 51.8,
+    "daemon_fds": 19,
+    "daemon_threads": 21,
+    "dockerd_rss_mb": 51,
+    "containerd_rss_mb": 46
+   },
+   {
+    "runs": 300,
+    "compose": 50,
+    "s": 142.1,
+    "daemon_fds": 19,
+    "daemon_threads": 27,
+    "dockerd_rss_mb": 74,
+    "containerd_rss_mb": 51
+   },
+   {
+    "runs": 600,
+    "compose": 100,
+    "s": 232.1,
+    "daemon_fds": 19,
+    "daemon_threads": 27,
+    "dockerd_rss_mb": 75,
+    "containerd_rss_mb": 51
+   },
+   {
+    "runs": 900,
+    "compose": 150,
+    "s": 322.0,
+    "daemon_fds": 19,
+    "daemon_threads": 27,
+    "dockerd_rss_mb": 76,
+    "containerd_rss_mb": 53
+   },
+   {
+    "runs": 1200,
+    "compose": 200,
+    "s": 412.0,
+    "daemon_fds": 19,
+    "daemon_threads": 26,
+    "dockerd_rss_mb": 77,
+    "containerd_rss_mb": 53
+   },
+   {
+    "runs": 1500,
+    "compose": 250,
+    "s": 508.7,
+    "daemon_fds": 19,
+    "daemon_threads": 28,
+    "dockerd_rss_mb": 77,
+    "containerd_rss_mb": 53
+   }
+  ],
+  "after": {
+   "host_footprint_mb": 247,
+   "guest_used_mb": 119,
+   "idle_sweep_after_s": 35.1,
+   "settle": [
+    {
+     "s": 1.0,
+     "footprint_mb": 522,
+     "guest_used_mb": 160,
+     "guest_cache_mb": 268,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 4.2,
+     "footprint_mb": 522,
+     "guest_used_mb": 159,
+     "guest_cache_mb": 268,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 7.3,
+     "footprint_mb": 522,
+     "guest_used_mb": 159,
+     "guest_cache_mb": 268,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 10.4,
+     "footprint_mb": 522,
+     "guest_used_mb": 159,
+     "guest_cache_mb": 268,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 13.5,
+     "footprint_mb": 522,
+     "guest_used_mb": 159,
+     "guest_cache_mb": 268,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 16.5,
+     "footprint_mb": 522,
+     "guest_used_mb": 159,
+     "guest_cache_mb": 268,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 19.6,
+     "footprint_mb": 522,
+     "guest_used_mb": 159,
+     "guest_cache_mb": 268,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 22.7,
+     "footprint_mb": 522,
+     "guest_used_mb": 159,
+     "guest_cache_mb": 268,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 25.8,
+     "footprint_mb": 522,
+     "guest_used_mb": 159,
+     "guest_cache_mb": 268,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 28.9,
+     "footprint_mb": 522,
+     "guest_used_mb": 159,
+     "guest_cache_mb": 268,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 32.0,
+     "footprint_mb": 522,
+     "guest_used_mb": 159,
+     "guest_cache_mb": 268,
+     "trims": 1,
+     "sweeps": 1
+    },
+    {
+     "s": 35.1,
+     "footprint_mb": 522,
+     "guest_used_mb": 119,
+     "guest_cache_mb": 31,
+     "trims": 2,
+     "sweeps": 2
+    },
+    {
+     "s": 38.2,
+     "footprint_mb": 243,
+     "guest_used_mb": 119,
+     "guest_cache_mb": 63,
+     "trims": 2,
+     "sweeps": 2
+    },
+    {
+     "s": 41.3,
+     "footprint_mb": 243,
+     "guest_used_mb": 119,
+     "guest_cache_mb": 63,
+     "trims": 2,
+     "sweeps": 2
+    },
+    {
+     "s": 44.4,
+     "footprint_mb": 247,
+     "guest_used_mb": 119,
+     "guest_cache_mb": 68,
+     "trims": 2,
+     "sweeps": 2
+    },
+    {
+     "s": 45.4,
+     "footprint_mb": 247,
+     "guest_used_mb": 119,
+     "guest_cache_mb": 68,
+     "trims": 2,
+     "sweeps": 2
+    }
+   ],
+   "daemon_fds": 19,
+   "daemon_fd_kinds": {
+    "CHR": 3,
+    "REG": 5,
+    "unix": 7,
+    "DIR": 4
+   },
+   "daemon_threads": 23,
+   "guest": {
+    "dockerd": {
+     "fds": 26,
+     "threads": 22,
+     "rss_kb": 67192
+    },
+    "containerd": {
+     "fds": 18,
+     "threads": 17,
+     "rss_kb": 37832
+    },
+    "dmx-agent": {
+     "fds": 20,
+     "threads": 12,
+     "rss_kb": 760
+    },
+    "user_processes": 7,
+    "kernel_threads": 148,
+    "user_process_names": [
+     "containerd",
+     "dmx-agent",
+     "dockerd",
+     "init",
+     "init",
+     "sh",
+     "sh"
+    ],
+    "shims": 0,
+    "veths": 0,
+    "mounts": 13,
+    "netns": 0
+   },
+   "containers": 0,
+   "networks": 3,
+   "volumes": 0,
+   "forwards": 0
+  },
+  "total_s": 556,
+  "checks": [
+   {
+    "name": "docker_tools",
+    "ok": true,
+    "detail": "/Users/cothis/.dmx/bin/docker and /Users/cothis/.dmx/cli-plugins/docker-compose; run `dmx tools install`"
+   },
+   {
+    "name": "start",
+    "ok": true,
+    "detail": "b''"
+   },
+   {
+    "name": "daemon_pid",
+    "ok": true,
+    "detail": "status pid 18849, daemons [18849]"
+   },
+   {
+    "name": "pull_alpine",
+    "ok": true,
+    "detail": "b''"
+   },
+   {
+    "name": "pull_busybox",
+    "ok": true,
+    "detail": "b''"
+   },
+   {
+    "name": "warm_up",
+    "ok": true,
+    "detail": "[]"
+   },
+   {
+    "name": "all_cycles_ok",
+    "ok": true,
+    "detail": "0 failed: []"
+   },
+   {
+    "name": "idle_sweep",
+    "ok": true,
+    "detail": "before 31.0 s, after 35.1 s"
+   },
+   {
+    "name": "daemon_alive",
+    "ok": true,
+    "detail": "the daemon kept its pid"
+   },
+   {
+    "name": "left_containers",
+    "ok": true,
+    "detail": "0 -> 0"
+   },
+   {
+    "name": "left_networks",
+    "ok": true,
+    "detail": "3 -> 3"
+   },
+   {
+    "name": "left_volumes",
+    "ok": true,
+    "detail": "0 -> 0"
+   },
+   {
+    "name": "left_forwards",
+    "ok": true,
+    "detail": "0 -> 0"
+   },
+   {
+    "name": "left_guest_shims",
+    "ok": true,
+    "detail": "0 -> 0"
+   },
+   {
+    "name": "left_guest_veths",
+    "ok": true,
+    "detail": "0 -> 0"
+   },
+   {
+    "name": "left_guest_mounts",
+    "ok": true,
+    "detail": "13 -> 13"
+   },
+   {
+    "name": "left_guest_netns",
+    "ok": true,
+    "detail": "0 -> 0"
+   },
+   {
+    "name": "left_guest_user_processes",
+    "ok": true,
+    "detail": "7 -> 7, new [], gone []"
+   },
+   {
+    "name": "daemon_fds",
+    "ok": true,
+    "detail": "19 -> 19 ({'CHR': 3, 'REG': 5, 'unix': 7, 'DIR': 4} -> {'CHR': 3, 'REG': 5, 'unix': 7, 'DIR': 4})"
+   },
+   {
+    "name": "daemon_threads",
+    "ok": true,
+    "detail": "21 -> 23"
+   },
+   {
+    "name": "guest_dockerd_fds",
+    "ok": true,
+    "detail": "26 -> 26"
+   },
+   {
+    "name": "guest_dockerd_threads",
+    "ok": true,
+    "detail": "21 -> 22"
+   },
+   {
+    "name": "guest_containerd_fds",
+    "ok": true,
+    "detail": "18 -> 18"
+   },
+   {
+    "name": "guest_containerd_threads",
+    "ok": true,
+    "detail": "15 -> 17"
+   },
+   {
+    "name": "guest_dmx-agent_fds",
+    "ok": true,
+    "detail": "20 -> 20"
+   },
+   {
+    "name": "guest_dmx-agent_threads",
+    "ok": true,
+    "detail": "12 -> 12"
+   },
+   {
+    "name": "host_footprint",
+    "ok": true,
+    "detail": "239 -> 247 MB"
+   },
+   {
+    "name": "guest_used",
+    "ok": true,
+    "detail": "113 -> 119 MB"
+   }
+  ]
+ }
+}

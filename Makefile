@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build app install-app apptest localnettest localnetupdatetest menutest install kernel qemu fex guest selftest daemontest mcptest clocktest sandboxtest x86test dockertest imagetest javatest storagetest pressuretest benchmark test formaltest lifecycletest remaininglifecycletest release clean
+.PHONY: build app install-app apptest localnettest localnetupdatetest menutest install kernel qemu fex guest selftest daemontest mcptest clocktest sandboxtest x86test dockertest soaktest imagetest javatest storagetest pressuretest benchmark test formaltest lifecycletest remaininglifecycletest release clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -90,6 +90,11 @@ x86test: build
 # in a throwaway DMX_HOME (needs the internet; a few minutes).
 dockertest: build
 	python3 -I scripts/test-docker.py $(BIN)
+
+# 300 `docker run --rm` and 50 Compose up/down cycles, then fds, threads, guest processes and
+# memory against the start, each after the idle sweep (needs the internet; about 4 min).
+soaktest: build
+	python3 -I scripts/test-soak.py $(BIN)
 
 # Workloads in nine digest-pinned images, arm64/amd64 and six available 386 images; no skipped failures.
 imagetest: build

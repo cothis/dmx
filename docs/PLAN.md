@@ -607,9 +607,12 @@ to switch. One item per session, in this order; each is verified on the real VM.
       PIDs, as the script; no guessing), `--svg`; README graph from `dmx bench --svg`
       ([method](benchmark.md#dmx-bench)). Not yet run against OrbStack, Colima or Docker Desktop
       (none installed); the `--engine` path was checked against a second dmx.
-- [ ] Soak check: hundreds of `docker run --rm` and Compose up/down cycles, then idle footprint,
+- [x] Soak check: hundreds of `docker run --rm` and Compose up/down cycles, then idle footprint,
       guest memory, open fds and daemon threads against the start. Opt-in from selftest. Done when:
-      it runs on the real VM and the numbers are recorded here.
+      it runs on the real VM and the numbers are recorded here. Done 2026-11-20: `make soaktest`
+      (`scripts/test-soak.py`, a target of its own beside selftest, which has no dockerd), 28
+      checks, 300/50 cycles by default; nothing leaked, also over 1500/250
+      ([finding](#soak-check-2026-11-20)).
 - [ ] Guest crash recovery: when the guest dies (kernel panic, VMM fault), keep the console tail,
       boot a new VM with backoff, and restart containers whose policy is `always` or
       `unless-stopped`. Done when: a forced guest crash in a test brings those containers back
@@ -627,13 +630,14 @@ to switch. One item per session, in this order; each is verified on the real VM.
 
 ## Next up
 
-**Phase 13 started** (2026-11-20): see [Phase 13](#phase-13-easier-to-try-and-to-trust-2026-11-20).
-The README front page is rewritten, and `dmx bench` measures dmx (and other engines with
-`--engine`) and drew the README graph ([finding](#dmx-bench-first-runs-2026-11-20)). Next: the
-soak check, then crash recovery and `dmx import`. The Homebrew tap and local names wait for the
-maintainer. Open from bench: warm `docker run` is bimodal on this Mac (77–80 or 143–251 ms).
-`make guest` needs `make kernel` first here: `~/.dmx/cache` no longer has the kernel tarball
-(the bench session verified with the installed v0.4.8 guest; the guest was not changed).
+**Phase 13 in progress** (2026-11-20): see [Phase 13](#phase-13-easier-to-try-and-to-trust-2026-11-20).
+Done: README front page, `dmx bench` ([finding](#dmx-bench-first-runs-2026-11-20)) and the soak
+check, `make soaktest` ([finding](#soak-check-2026-11-20)). Next: guest crash recovery (a forced
+guest crash brings `always`/`unless-stopped` containers back, `no` ones stay stopped), then
+`dmx import`. The Homebrew tap and local names wait for the maintainer. Open from bench: warm
+`docker run` is bimodal on this Mac (77–80 or 143–251 ms). `make guest` needs `make kernel` first
+here: `~/.dmx/cache` no longer has the kernel tarball (bench and soak sessions verified with the
+installed v0.4.8 guest; the guest was not changed).
 
 
 **v0.4.8 is published** (2026-11-12), signed, notarized and stapled, from tag commit `5cb05c3`.
@@ -895,6 +899,27 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### Soak check (2026-11-20)
+
+`make soaktest` on this Mac (12 cores, 32 GB, load 1.6–2.5), dmx defaults in a throwaway
+`DMX_HOME`, installed v0.4.8 guest. 300 `docker run --rm alpine true` and 50 Compose cycles (busybox
+httpd on a published port with a named volume, an alpine worker; up `--wait`, one HTTP GET, down
+`-v`): 0 failures in 90 s, run median 142 ms, Compose cycle median 0.94 s. Before → after, each
+10 s after the idle sweep: host footprint 239 → 253 MB, guest used 111 → 118 MB, daemon 19 → 19
+fds and 20 → 20 threads, dockerd/containerd/dmx-agent fds 26/18/20 unchanged, threads +1/+1/0;
+no container, network, volume, port forward, shim, veth, netns, mount or user process left.
+Five times as long (1500/250, 457 s): 239 → 247 MB, guest 113 → 119 MB, fds unchanged, daemon
+threads 21 → 23 (20–29 during the run); dockerd RSS rises 43 → 72 MB in the first 150 runs and
+then only to 77 MB by 1500, so it settles rather than leaks. Two runs with the first version also
+passed (237 → 249, 239 → 250 MB).
+
+A fixed 35 s wait was not enough: one long run read 230 → 529 MB. The idle trim needs 30 s
+without activity and a quiet guest CPU, checked every 5 s, so after a soak it came at 35.1 s;
+1 s samples show 522 MB until then and 240 MB 2 s later. The check now waits for the sweep
+counter in `dmx status` and 10 s more. Also: `/proc` files read as size 0 (`[ -s ]` is always
+false), and PID 1 `sleep`/`httpd` ignore SIGTERM, so `compose down` waited 10 s per cycle until
+the services got `init: true`. [Raw](measurements/2026-11-20-soak.json).
 
 ### dmx bench first runs (2026-11-20)
 
@@ -1812,6 +1837,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-20: Added the soak check, `make soaktest` (`scripts/test-soak.py`): 300 `docker run --rm` and 50 Compose cycles, then footprint, guest memory, daemon fds/threads, guest dockerd/containerd/agent fds/threads/RSS and leftovers against the start, each after the idle sweep. 28/28 at 300/50 and at 1500/250; no leak found. Unit 142, selftest 23/23 (99 MB). Next: guest crash recovery.
 - 2026-11-20: Added `dmx bench` (DMXCore/Bench.swift, BenchChart.swift): idle window, idle CPU, warm `docker run`, and memory every 100 ms while a container takes and frees 2 GiB, for dmx and each `--engine NAME=SOCKET,PID...`; `--json` and `--svg`. README graph and benchmark.md section from it; four rounds recorded. Unit 142 (5 new), selftest 23/23 (99 MB). `make guest` could not run: the kernel tarball is gone from `~/.dmx/cache` (the musl Rust target was also missing and is installed now). Next: the soak check.
 
 - 2026-11-20: Started Phase 13 after comparing dmx with Kiri: bench, soak, crash recovery, import, then the Homebrew tap and local names (maintainer decisions). Rewrote the README front page: one claim, install in three lines, the comparison table first, AI native as the last reason. Docs only.
