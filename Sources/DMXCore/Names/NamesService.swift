@@ -27,6 +27,8 @@ final class NamesService {
     private var state: [String: String] = [:]
     /// TLS listeners on 127.0.0.1 by server name, each with that name's leaf.
     private var tls: [String: TLSBackend] = [:]
+    /// Their ports, once listening: guarded from the guest like the web ports.
+    private var tlsPorts: [String: UInt16] = [:]
     private var agent: (@MainActor () async throws -> AgentClient)?
     private var using: (@MainActor (Bool) -> Void)?
     /// Whether a `dmx port` or Docker forward listens on a TCP host port.
@@ -84,14 +86,31 @@ final class NamesService {
         retry = nil
         for backend in tls.values { backend.listener.cancel() }
         tls = [:]
+        tlsPorts = [:]
         state = [:]
         settings = nil
         syncGuestGuard()
     }
 
+    /// A container started, stopped, was renamed or changed networks: until the next listing the
+    /// table may send a name to an address another container has taken. Connections wait for it.
+    private var staleSince: ContinuousClock.Instant?
+
+    /// A forward stopped listening: take back a port names gave up to it.
+    func portsReleased() {
+        guard enabled else { return }
+        listenWeb()
+    }
+
+    func markStale() {
+        guard enabled, staleSince == nil else { return }
+        staleSince = .now
+    }
+
     /// The running containers changed. Ports given up to a container are taken back once no
     /// forward holds them.
     func update(_ containers: [[String: Any]]) {
+        staleSince = nil
         guard enabled else { return }
         let new = LocalNames.entries(containers)
         if new != entries {
@@ -102,7 +121,9 @@ final class NamesService {
             for (name, backend) in tls where !live.contains(name) {
                 backend.listener.cancel()
                 tls[name] = nil
+                tlsPorts[name] = nil
             }
+            syncGuestGuard()
         }
         listenWeb()
     }
@@ -136,7 +157,8 @@ final class NamesService {
     /// (see GuestHostPorts).
     private func syncGuestGuard() {
         guard let settings else { return GuestHostPorts.shared.set([]) }
-        var held: Set<UInt16> = []
+        // The TLS listeners on 127.0.0.1 too: reached directly, they serve their name's container.
+        var held = Set(tlsPorts.values)
         if http != nil { held.insert(UInt16(settings.httpPort)) }
         if https != nil { held.insert(UInt16(settings.httpsPort)) }
         GuestHostPorts.shared.set(held)
@@ -280,6 +302,13 @@ final class NamesService {
         }
         guard let (prefix, head) = await Self.readHead(fd, parse: LocalNames.requestHost) else { return }
         guard case .host(let header) = head else { return }
+        // A table an event made stale is not used: wait for the listing, briefly.
+        let waitUntil = ContinuousClock.now + .seconds(3)
+        while staleSince != nil, ContinuousClock.now < waitUntil { try? await Task.sleep(for: .milliseconds(50)) }
+        if staleSince != nil {
+            Self.write(fd, LocalNames.httpReply("503 Service Unavailable", "dmx: the containers changed and their list is not read yet; try again"))
+            return
+        }
         let host = tlsName ?? header
         guard let host, let entry = entries.first(where: { $0.name == host }) else {
             let known = entries.isEmpty ? "no container is running" : "names: " + entries.map(\.name).joined(separator: ", ")
@@ -357,7 +386,12 @@ final class NamesService {
         }
         tls[name] = backend
         do {
-            return try await backend.port.value
+            let port = try await backend.port.value
+            if tls[name] === backend {
+                tlsPorts[name] = port
+                syncGuestGuard()
+            }
+            return port
         } catch {
             tls[name] = nil
             throw error

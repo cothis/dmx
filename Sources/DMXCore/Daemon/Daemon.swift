@@ -121,7 +121,9 @@ public final class Daemon {
             publishActivity()
         }
         docker.onContainers = { [unowned self] in names.update($0) }
+        docker.onEvent = { [unowned self] in names.markStale() }
         ports.willListen = { [unowned self] in names.yield($0) }
+        ports.released = { [unowned self] in names.portsReleased() }
         names.start(agent: { [unowned self] in try await runningInTime() }, using: using,
                     forwarded: { [unowned self] in ports.holdsTCP($0) })
         log("listening on \(paths.controlSocket.path) (\(launchd ? "launchd" : "standalone"), pid \(getpid()))")

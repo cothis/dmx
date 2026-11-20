@@ -267,6 +267,43 @@ import Testing
         #expect(ContinuousClock.now - started < .seconds(2))
     }
 
+    /// A killed run's entries mark what it was copying; a live run's do not.
+    @Test func journalKnowsWhatAnInterruptedRunLeft() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("import-journal-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let journal = Import.Journal(paths: Paths(environment: ["DMX_HOME": root.path]))
+        journal.begin("volume:data")
+        #expect(journal.interrupted().isEmpty)  // this process is alive
+        // A run that died: a pid that is no process (a child that exited).
+        let child = Process()
+        child.executableURL = URL(fileURLWithPath: "/usr/bin/true")
+        try child.run()
+        child.waitUntilExit()
+        try "\(child.processIdentifier) volume:old\n\(getpid()) volume:data".write(to: root.appendingPathComponent("import-journal.json"), atomically: true, encoding: .utf8)
+        #expect(journal.interrupted() == ["volume:old"])
+        journal.end("volume:data")
+        journal.forget("volume:old")
+        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("import-journal.json").path))
+    }
+
+    @Test func refusesANegativeContentLength() async throws {
+        var pair: [Int32] = [0, 0]
+        #expect(socketpair(AF_UNIX, SOCK_STREAM, 0, &pair) == 0)
+        let client = pair[0], server = pair[1]
+        let api = DockerAPI(open: { DockerStream(fd: client, timeoutSeconds: 5) { _ = Darwin.close(client) } }, apiVersion: "")
+        Thread {
+            var request = [UInt8](repeating: 0, count: 4096)
+            _ = read(server, &request, request.count)
+            let reply = "HTTP/1.1 200 OK\r\nContent-Length: -1\r\n\r\n[]"
+            _ = reply.withCString { write(server, $0, strlen($0)) }
+            Darwin.close(server)
+        }.start()
+        let (status, body) = try await api.call("GET", "/x")
+        #expect(status == 200)
+        #expect(body == Data("[]".utf8))
+    }
+
     @Test func refusesASourceItCannotUse() async throws {
         let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("import-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }

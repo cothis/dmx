@@ -25,6 +25,11 @@ public struct NameAuthority: Sendable {
 
     /// Loads the authority from `directory`, or makes one there.
     public static func loadOrCreate(_ directory: URL) throws -> NameAuthority {
+        try loadOrCreate(directory, constraints: nameConstraints)
+    }
+
+    /// `constraints` other than nameConstraints only for tests (an older CA).
+    static func loadOrCreate(_ directory: URL, constraints: Data) throws -> NameAuthority {
         if let existing = try load(directory) { return existing }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
                                                 attributes: [.posixPermissions: 0o700])
@@ -42,7 +47,7 @@ public struct NameAuthority: Sendable {
                 // permittedSubtrees: dNSName "dmx.local", which covers every name under it. A
                 // constraint binds only names of its own kind, so excludedSubtrees takes every
                 // IPv4 and IPv6 address too: a leaf for https://<address> is refused as well.
-                DER.ext(DER.oid.nameConstraints, critical: true, Self.nameConstraints),
+                DER.ext(DER.oid.nameConstraints, critical: true, constraints),
             ])
         let certificate = try DER.signed(tbs, with: key.key)
         let keyFile = directory.appendingPathComponent("ca.key")
@@ -59,6 +64,11 @@ public struct NameAuthority: Sendable {
         guard let keyBits = try? Data(contentsOf: keyFile), let text = try? String(contentsOf: certFile, encoding: .utf8) else { return nil }
         guard let der = HostCertificates.pemBlocks(text).first.flatMap(derOfPEM), let key = try? P256Key(privateBits: keyBits) else {
             throw DMXError("names_bad_authority", "\(directory.path) holds a CA dmx cannot read",
+                           hint: "run `dmx names remove`, then `dmx names setup` to make a new one")
+        }
+        // A CA made before its constraints excluded IP addresses could vouch for https://<address>.
+        guard der.range(of: nameConstraints) != nil else {
+            throw DMXError("names_bad_authority", "the CA in \(directory.path) is from an earlier dmx and does not exclude IP addresses",
                            hint: "run `dmx names remove`, then `dmx names setup` to make a new one")
         }
         return NameAuthority(certificate: der, key: SecKeySendable(key.key))

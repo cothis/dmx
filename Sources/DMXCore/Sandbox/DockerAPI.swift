@@ -98,6 +98,8 @@ struct DockerAPI: Sendable {
     /// The path prefix of every request; empty asks for the server's own newest version, which
     /// suits reading another engine whose dockerd may be older than 1.47.
     var apiVersion = DockerAPI.version
+    /// The socket's path, to tell engines apart in records; empty when not a socket path.
+    var label = ""
 
     /// API version sent with every request: dockerd 29 serves 1.44 and later; 1.47 has
     /// everything used here.
@@ -121,7 +123,7 @@ struct DockerAPI: Sendable {
 
     /// Any engine's socket, for example another engine's to import from.
     static func unix(_ url: URL, timeoutSeconds: Int? = nil, apiVersion: String = DockerAPI.version) -> DockerAPI {
-        DockerAPI(open: { try connectUnix(url, timeoutSeconds: timeoutSeconds) }, apiVersion: apiVersion)
+        DockerAPI(open: { try connectUnix(url, timeoutSeconds: timeoutSeconds) }, apiVersion: apiVersion, label: url.path)
     }
 
     static func connectUnix(_ url: URL, timeoutSeconds: Int? = nil) throws -> DockerStream {
@@ -167,7 +169,8 @@ struct DockerAPI: Sendable {
                     if let end = reply.range(of: Data("\r\n\r\n".utf8)) {
                         let line = String(decoding: reply[..<end.lowerBound], as: UTF8.self).prefix { $0 != "\r" }
                         guard let code = line.split(separator: " ").dropFirst().first.flatMap({ Int($0) }) else {
-                            throw DMXError("docker_failed", "dockerd sent a bad reply to \(method) \(path): \(line.prefix(80))")
+                            throw DMXError("docker_failed", "dockerd sent a bad reply to \(method) \(path): \(line.prefix(80))",
+                                           hint: "check the engine with `docker info`")
                         }
                         let header = String(decoding: reply[..<end.lowerBound], as: UTF8.self)
                         var fields: [String: String] = [:]
@@ -177,7 +180,10 @@ struct DockerAPI: Sendable {
                         }
                         // OrbStack's socket also sends HTTP/1.1 chunked bodies to an HTTP/1.0 request.
                         let chunked = fields["transfer-encoding"]?.lowercased().contains("chunked") ?? false
-                        return (code, Data(reply[end.upperBound...]), chunked ? nil : fields["content-length"].flatMap { Int($0) }, chunked)
+                        // 204 and 304 have no body, whatever the headers say (RFC 9112 6.3).
+                        let length = code == 204 || code == 304 ? 0
+                            : chunked ? nil : fields["content-length"].flatMap { Int($0) }.flatMap { $0 >= 0 ? $0 : nil }
+                        return (code, Data(reply[end.upperBound...]), length, chunked && code != 204 && code != 304)
                     }
                     let chunk = try stream.read()
                     guard !chunk.isEmpty, reply.count < 1 << 20 else {
@@ -237,7 +243,15 @@ struct DockerAPI: Sendable {
             let sizeText = String(decoding: body[index..<line.lowerBound], as: UTF8.self).split(separator: ";").first ?? ""
             let digits = sizeText.trimmingCharacters(in: .whitespaces)
             guard !digits.isEmpty, digits.count <= 15, digits.allSatisfy(\.isHexDigit), let size = Int(digits, radix: 16) else { return .malformed }
-            if size == 0 { return .complete(out) }
+            if size == 0 {
+                // Trailer lines, if any, then an empty line end the body.
+                var trailer = line.upperBound
+                while let next = body.range(of: crlf, in: trailer..<body.endIndex) {
+                    if next.lowerBound == trailer { return .complete(out) }
+                    trailer = next.upperBound
+                }
+                return .incomplete
+            }
             let start = line.upperBound
             guard body.distance(from: start, to: body.endIndex) >= size + 2 else { return .incomplete }
             let end = body.index(start, offsetBy: size)
@@ -257,7 +271,8 @@ struct DockerAPI: Sendable {
             if status == 404, let notFound { throw notFound }
             let message = (try? JSONDecoder().decode(JSONValue.self, from: data))?["message"]?.string
                 ?? String(decoding: data.prefix(300), as: UTF8.self)
-            throw DMXError(code, "dockerd: \(message.trimmingCharacters(in: .whitespacesAndNewlines))")
+            throw DMXError(code, "dockerd: \(message.trimmingCharacters(in: .whitespacesAndNewlines))",
+                           hint: "check the engine with `docker info`, then try again")
         }
         if data.isEmpty { return .null }
         return (try? JSONDecoder().decode(JSONValue.self, from: data)) ?? .null

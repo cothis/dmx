@@ -316,15 +316,22 @@ docker compose up -d             # in the project's directory, after stopping it
 
 The other engine is left as it was: dmx only reads it, except for the two helper containers each
 volume copy makes there and removes (and, if it has no image at all, the pinned alpine pulled
-for them and removed again at the end); a run that is interrupted leaves its helpers, and the next
-run removes them. Images go through `docker save | docker load` (with
+for them and removed again at the end); a run that is interrupted leaves its helpers and that
+image, and the next run removes them (only helpers made on this Mac by a run that is gone,
+never started, with the helper's mount). A cancelled MCP call stops between items. Images go through `docker save | docker load` (with
 `--platform` when a multi-platform image has only some platforms there); an image a container
 names by digest (`alpine@sha256:...`) is pulled by that digest instead, because a load cannot
 bring that name back. Each volume's files, owners, modes and links are copied with `docker cp`
 between two containers that are created with the volume mounted (`volume-nocopy`, so an empty
 volume gets none of the helper image's files) and never started; any image each engine has will
-do for them. A container whose volume could not be copied, or was skipped, is not created, so it
-cannot start on an empty volume; a dry run does not start a stopped dmx (it then says it cannot
+do for them. A volume the import makes carries the label `dmx.import.run` (Compose compares only
+its own config-hash label): dockerd answers a create for a name it already has with that volume,
+and the label in the reply is what tells a new volume from one made meanwhile, which is left
+alone. While a volume or a container's anonymous volumes are copied, `~/.dmx/import-journal.json`
+says so; a run killed midway leaves the entry, and the next one reports that volume or container
+as incomplete (remove it in dmx and import again) instead of taking it as whole. A container
+whose volume could not be copied, or was skipped, is not created, so it cannot start on an empty
+volume; a dry run does not start a stopped dmx (it then says it cannot
 tell what dmx has already). User bridge networks are
 created with their labels and options, without the other VM's bridge name, and with the subnet
 only when a container had a fixed address in it. Containers are created with their own

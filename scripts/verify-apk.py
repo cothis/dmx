@@ -50,7 +50,12 @@ def verify(path, keys):
         if len(segs) != 3:
             return False, f"{len(segs)} gzip streams, not 3"
         signature = tarfile.open(fileobj=io.BytesIO(segs[0][1]))
-        member = next(m for m in signature.getmembers() if m.name.startswith(".SIGN."))
+        # The first stream holds the signature and nothing else: build-guest.py would package any
+        # other file in it, and no signature covers that stream.
+        members = signature.getmembers()
+        if len(members) != 1 or not members[0].name.startswith(".SIGN.") or not members[0].isfile():
+            return False, f"signature stream holds {[m.name for m in members]}"
+        member = members[0]
         key_name = member.name.split(".", 3)[3]
         if "/" in key_name or key_name.startswith("."):
             return False, f"key name {key_name!r}"

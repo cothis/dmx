@@ -53,6 +53,10 @@ extension LocalNames {
                 progress("writing \(resolverFile): macOS asks for an administrator's password")
                 try writeResolver(settings)
                 changes.append("wrote \(resolverFile)")
+                settings.ownsResolver = true
+            } else if settings.ownsResolver == nil {
+                // The file is there as this home would write it, by another home's setup.
+                settings.ownsResolver = false
             }
         }
         try save(settings, paths)
@@ -75,21 +79,30 @@ extension LocalNames {
         let authority = try? NameAuthority.load(directory)
         // Only a setup that changed macOS from this DMX_HOME removes the resolver file: another
         // DMX_HOME (a test's, with --no-system) must not take away the one the user set up.
-        let changedSystem = Self.settings(paths)?.system ?? false
+        let current = Self.settings(paths)
+        let changedSystem = (current?.system ?? false) && (current?.ownsResolver ?? true)
+        // The settings go last: if a dialog is cancelled, running remove again still knows that
+        // this home changed macOS. The daemon stops listening now all the same.
+        let settingsData = try? Data(contentsOf: settingsFile(paths))
         try? FileManager.default.removeItem(at: settingsFile(paths))
         if let client = try await DaemonClient.connect(paths: paths, start: false) {
             defer { client.close() }
             _ = try? await client.reloadNames()
         }
+        func restoreSettings() {
+            if let settingsData, !FileManager.default.fileExists(atPath: settingsFile(paths).path) {
+                try? settingsData.write(to: settingsFile(paths))
+            }
+        }
         if let authority, trusts(authority) || keychainHas(authority) {
             progress("removing the CA from this user's trust settings: macOS may ask for your password")
-            try untrust(authority, directory)
+            do { try untrust(authority, directory) } catch { restoreSettings(); throw error }
             changes.append("removed the CA from this user's keychain and trust settings")
         }
         if changedSystem, FileManager.default.fileExists(atPath: resolverFile),
            (try? String(contentsOfFile: resolverFile, encoding: .utf8))?.hasPrefix("# dmx local names") ?? false {
             progress("removing \(resolverFile): macOS asks for an administrator's password")
-            try administrator("/bin/rm -f \(shellQuote(resolverFile))")
+            do { try administrator("/bin/rm -f \(shellQuote(resolverFile))") } catch { restoreSettings(); throw error }
             changes.append("removed \(resolverFile)")
         }
         // Without its key the CA cannot be read, so its trust could not be checked or removed:

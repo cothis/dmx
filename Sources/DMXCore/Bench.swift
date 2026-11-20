@@ -162,7 +162,7 @@ public enum Bench {
                             image: image)
 
         // The idle window lasts 105 s; a shorter idle timeout stops dmx's VM inside it.
-        if let config = try? Config.load(paths), config.idleTimeoutSeconds > 0, config.idleTimeoutSeconds < 120 {
+        if let config = try? Config.load(paths), config.idleTimeoutSeconds > 0, config.idleTimeoutSeconds < 110 {
             let warning = "dmx's idle_timeout is \(config.idleTimeoutSeconds) s, inside the 105 s idle window: the idle numbers are of a stopped VM; "
                 + "`dmx config set idle_timeout 5m` for the measurement"
             report.warnings.append(warning)
@@ -234,7 +234,7 @@ public enum Bench {
                 // As scripts/benchmark.py: `docker run` is timed, the removal after it is not.
                 let t = ContinuousClock.now
                 _ = try await cli.run(["run", "--pull", "never", "--platform", "linux/arm64", "--network", "none",
-                                       "--name", container, image, "true"], timeout: 120)
+                                       "--name", container, "--label", "dmx.bench=\(container)", image, "true"], timeout: 120)
                 times.append((seconds(ContinuousClock.now - t) * 100_000).rounded() / 100)
                 _ = try await cli.run(["rm", "-fv", container], timeout: 60)
             }
@@ -251,7 +251,11 @@ public enum Bench {
             r.error = asDMXError(error)
             progress("\(name): \(r.error!.message)")
         }
-        _ = try? await cli.run(["rm", "-fv", container], timeout: 60)
+        // What this run made and an error left behind, found by its label: a container that took
+        // the name meanwhile is not this run's.
+        if let ids = try? await cli.run(["ps", "-aq", "--filter", "label=dmx.bench=\(container)"], timeout: 30) {
+            for id in ids.split(separator: "\n") where !id.isEmpty { _ = try? await cli.run(["rm", "-fv", String(id)], timeout: 60) }
+        }
         return r
     }
 
@@ -261,7 +265,7 @@ public enum Bench {
         defer { sampler.stop() }
         try await Task.sleep(for: .seconds(3))
         let baseline = try total(pids)
-        _ = try await cli.run(["run", "-d", "--pull", "never", "--platform", "linux/arm64", "--name", container,
+        _ = try await cli.run(["run", "-d", "--pull", "never", "--platform", "linux/arm64", "--name", container, "--label", "dmx.bench=\(container)",
                                "--network", "none", "--memory", "3g", "--cpus", "2", "--pids-limit", "256",
                                "--tmpfs", "/data:size=3g", image, "sh", "-c",
                                "dd if=/dev/zero of=/data/big bs=1M count=2048 2>/dev/null && echo filled; "

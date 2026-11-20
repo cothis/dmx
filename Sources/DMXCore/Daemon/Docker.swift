@@ -28,6 +28,8 @@ final class DockerBridge {
     private var changed: (@MainActor () -> Void)?
     /// Gets each listing of running containers, and [] when they are gone (local names).
     var onContainers: (@MainActor ([[String: Any]]) -> Void)?
+    /// A container or network event came; the next listing (onContainers) catches up with it.
+    var onEvent: (@MainActor () -> Void)?
     /// Sets the guest clock if the Mac slept or its clock moved (Daemon.syncClockIfKnown).
     private var clock: (@MainActor () async -> Void)?
 
@@ -55,6 +57,8 @@ final class DockerBridge {
     private(set) var runningAtLastListing = 0
     /// An event came after the last listing: a container may have started that it does not count.
     private var eventsSinceListing = false
+    /// Events so far: a listing clears eventsSinceListing only if none came after it was asked for.
+    private var eventCount = 0
     /// What a crash takes down, for the decision to boot a new VM: the last listing, or at least
     /// one when an event came after it (the agent then starts dockerd only if dockerd would
     /// restart something, and an idle VM stops again).
@@ -396,7 +400,11 @@ final class DockerBridge {
                     // The task already holds self until dockerd or the VM goes away.
                     await DockerHTTP.lines(stream) {
                         DispatchQueue.main.async { MainActor.assumeIsolated {
-                            if epoch == self.epoch { self.eventsSinceListing = true }
+                            if epoch == self.epoch {
+                                self.eventsSinceListing = true
+                                self.eventCount += 1
+                                self.onEvent?()
+                            }
                             if epoch == self.epoch && generation == self.listingGeneration { self.syncSoon(agent, epoch) }
                         } }
                     }
@@ -422,8 +430,8 @@ final class DockerBridge {
         }
     }
 
-    // Network connect and disconnect too: local names route to a container's address, which they change.
-    private static let eventsPath = "/events?filters=" + (#"{"type":["container","network"],"event":["start","die","connect","disconnect"]}"#
+    // Rename, network connect and disconnect too: local names follow a container's name and address.
+    private static let eventsPath = "/events?filters=" + (#"{"type":["container","network"],"event":["start","die","rename","connect","disconnect"]}"#
         .addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "")
 
     private func resetListing() {
@@ -484,6 +492,7 @@ final class DockerBridge {
     }
 
     private func sync(_ agent: AgentClient, _ epoch: Int, _ generation: Int) async -> Bool {
+        let eventsBefore = eventCount
         let list: [[String: Any]]
         do {
             if let listContainers { list = try await listContainers(agent) }
@@ -514,7 +523,8 @@ final class DockerBridge {
         ports.setDockerForwards(Self.published(list))
         onContainers?(list)
         runningAtLastListing = list.count
-        eventsSinceListing = false
+        // An event after this listing was asked for is not in it (the next one, already due, is).
+        if eventCount == eventsBefore { eventsSinceListing = false }
         if containers != list.count {
             containers = list.count
             changed?()

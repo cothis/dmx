@@ -241,11 +241,28 @@ try:
     fds_after = daemon_fds()
     check("tls_failures_leave_no_fds", fds_before is not None and fds_after is not None and fds_after <= fds_before + 4,
           f"{fds_before} -> {fds_after}")
-    # A container reaching the Mac's port: names would hand it any container's web port.
-    r = docker("run", "--rm", "--network", "bridge", "alpine", "sh", "-c",
-               f"wget -q -T 5 -O - --header 'Host: web.dmx.local' http://host.docker.internal:{HTTP}/ >/dev/null 2>&1 && echo reached || echo refused",
-               timeout=120)
-    check("container_cannot_reach_names", r.stdout.strip() == "refused", (r.stdout + r.stderr)[-200:])
+    # A container reaching the Mac: names would hand it any container's web port, so the web
+    # ports and the per-name TLS listeners on 127.0.0.1 refuse it. A plain Mac port answers (the
+    # control: a refusal must be the guard, not a container that cannot connect at all).
+    control = socket.socket()
+    control.bind(("127.0.0.1", 0))
+    control.listen(8)
+    control_port = control.getsockname()[1]
+    tls_ports = []
+    pid = (daemon_pids() or [None])[0]
+    if pid:
+        out = subprocess.run(["lsof", "-nP", "-a", "-p", str(pid), "-iTCP@127.0.0.1", "-sTCP:LISTEN", "-F", "n"],
+                             capture_output=True, text=True).stdout
+        tls_ports = sorted({int(l.rsplit(":", 1)[1]) for l in out.splitlines() if l.startswith("n127.0.0.1:")} - {HTTP, HTTPS})
+    probe = " ; ".join(f"nc -z -w 3 host.docker.internal {p} && echo {p}:open || echo {p}:closed"
+                       for p in [control_port, HTTP, HTTPS] + tls_ports)
+    r = docker("run", "--rm", "--network", "bridge", "alpine", "sh", "-c", probe, timeout=120)
+    control.close()
+    seen = dict(line.split(":") for line in r.stdout.split() if ":" in line)
+    check("container_reaches_mac_port", seen.get(str(control_port)) == "open", seen)
+    check("container_cannot_reach_names", seen.get(str(HTTP)) == "closed" and seen.get(str(HTTPS)) == "closed", seen)
+    check("container_cannot_reach_tls_listeners", tls_ports and all(seen.get(str(p)) == "closed" for p in tls_ports),
+          f"tls listener ports {tls_ports}: {seen}")
 
     lan = lan_address()
     if lan:

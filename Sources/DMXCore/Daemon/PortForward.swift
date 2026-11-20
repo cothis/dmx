@@ -152,6 +152,8 @@ final class PortForwards {
     private var trim: Task<Void, Never>?
     /// Called before listening on a TCP host port, so local names can give it up.
     var willListen: (@MainActor (Int) -> Void)?
+    /// Forwards stopped listening: a port given up to one may be free again.
+    var released: (@MainActor () -> Void)?
 
     init(paths: Paths) { self.paths = paths }
 
@@ -197,6 +199,7 @@ final class PortForwards {
             log("stopped forwarding \(listener.forward.hostEndpoint) (docker)")
         }
         listeners.removeAll(where: unwanted)
+        released?()
         for listener in listeners where listener.reserved && wanted.contains(listener.forward) { listener.reserved = false }
         for forward in wanted where !listeners.contains(where: { $0.docker && $0.forward == forward }) {
             if let taken = listeners.first(where: { $0.forward.overlaps(forward) }) {
@@ -238,6 +241,7 @@ final class PortForwards {
         } catch {
             for listener in made { listener.close() }
             listeners.removeAll { l in made.contains { $0 === l } }
+            released?()
             throw error
         }
         for listener in made { log("forwarding \(listener.forward.hostEndpoint) to guest port \(listener.forward.guestPort) (docker, starting)") }
@@ -285,6 +289,7 @@ final class PortForwards {
             listener.close()
             log("stopped forwarding \(listener.forward.hostEndpoint)")
         }
+        released?()
         try save()
         return removed
     }

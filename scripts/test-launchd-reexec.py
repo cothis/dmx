@@ -24,7 +24,8 @@ from pathlib import Path
 DMX = Path(sys.argv[1] if len(sys.argv) > 1 else ".build/release/dmx").resolve()
 USER_DMX = Path(os.environ.get("DMX_HOME") or Path.home() / ".dmx")
 DOCKER = str(USER_DMX / "bin" / "docker")
-LABEL = "io.github.cothis.dmx.reexectest"
+# Its own label per run: two runs at once must not take down each other's job.
+LABEL = f"io.github.cothis.dmx.reexectest.{os.getpid()}"
 DOMAIN = f"gui/{os.getuid()}"
 HOME = Path(os.path.realpath(tempfile.mkdtemp(prefix="dmx-launchd-", dir="/tmp")))
 (HOME / "guest").symlink_to(USER_DMX / "guest")
@@ -71,6 +72,10 @@ def env_of(pid):
 
 
 try:
+    # launchd's own environment must not give the daemon the variable, or finding it would not
+    # show the re-exec.
+    inherited = subprocess.run(["launchctl", "getenv", "MallocSpaceEfficient"], capture_output=True, text=True).stdout.strip()
+    check("not_inherited_from_launchd", inherited == "", inherited)
     # As LaunchAgent.plistData writes it, under another label and home.
     PLIST.write_bytes(plistlib.dumps({
         "Label": LABEL, "ProgramArguments": [str(DMX), "daemon"], "EnvironmentVariables": {"DMX_HOME": str(HOME)},

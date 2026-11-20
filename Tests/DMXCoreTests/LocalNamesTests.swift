@@ -149,11 +149,23 @@ import Testing
         #expect(!Self.evaluate(try authority.issue("web.dmx.local", leafKey: key, addresses: [Data([127, 0, 0, 1])]), authority, name: "127.0.0.1"))
         #expect(!Self.evaluate(try authority.issue("web.dmx.local", leafKey: key, addresses: [Data([10, 0, 0, 1])]), authority, name: "10.0.0.1"))
         #expect(Self.evaluate(try authority.issue("web.dmx.local", leafKey: key, addresses: [Data([127, 0, 0, 1])]), authority, name: "web.dmx.local") == false)
+        var loopback6 = Data(count: 16)
+        loopback6[15] = 1
+        #expect(!Self.evaluate(try authority.issue("web.dmx.local", leafKey: key, addresses: [loopback6]), authority, name: "::1"))
         // Loading gives the same CA, and it still signs.
         let again = try #require(try NameAuthority.load(dir))
         #expect(again.sha1 == authority.sha1)
         #expect(Self.evaluate(try again.issue("api.dmx.local", leafKey: key), authority, name: "api.dmx.local"))
         _ = try again.identity("api.dmx.local", leafKey: key)
+    }
+
+    /// A CA from before the IP exclusion is refused, so `dmx names setup` cannot keep using it.
+    @Test func refusesACAWithoutTheAddressExclusion() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("dmx-names-old-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let old = DER.sequence([DER.tagged(0xa0, DER.sequence([DER.tagged(0x82, Data(LocalNames.domain.utf8))]))])
+        _ = try NameAuthority.loadOrCreate(dir, constraints: old)
+        #expect(throws: DMXError.self) { try NameAuthority.load(dir) }
     }
 
     @Test func resolverFileNamesThePort() {

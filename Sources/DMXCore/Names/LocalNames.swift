@@ -20,6 +20,9 @@ public enum LocalNames {
         public var httpsPort = 443
         /// Whether setup changed macOS (trusted the CA, wrote the resolver file).
         public var system = true
+        /// Whether this home wrote /etc/resolver/dmx.local; one another home wrote is left to it.
+        /// Absent (older settings): taken as written here.
+        public var ownsResolver: Bool?
         public init() {}
     }
 
