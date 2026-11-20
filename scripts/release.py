@@ -18,6 +18,8 @@ Nothing is uploaded, tagged or pushed: docs/release.md says how the maintainer p
 Only the Python standard library is used (plus cargo, for the agent's crate licenses).
 """
 
+from __future__ import annotations
+
 import argparse
 import gzip
 import hashlib

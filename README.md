@@ -7,7 +7,7 @@ within seconds, and when nothing runs for 5 minutes the VM powers off and costs 
 `docker` CLI, Compose and BuildKit work unchanged, because dmx runs the real dockerd.
 
 ```sh
-curl -fsSL https://github.com/cothis/dmx/releases/download/v0.4.8/install.sh | sh
+curl -fsSL https://github.com/cothis/dmx/releases/download/v0.5.0/install.sh | sh
 dmx install                # docker context "dmx", started on demand by launchd
 docker run --rm hello-world
 ```
@@ -59,7 +59,7 @@ Free for commercial use (Apache-2.0); see [Using dmx at work](#using-dmx-at-work
 Requires macOS 15 or later on Apple Silicon. Intel Macs are not supported.
 
 ```sh
-curl -fsSL https://github.com/cothis/dmx/releases/download/v0.4.8/install.sh | sh
+curl -fsSL https://github.com/cothis/dmx/releases/download/v0.5.0/install.sh | sh
 dmx install                      # launchd starts dmx on demand; installs docker, compose, buildx
                                  # and selects the docker context "dmx"
 docker run --rm hello-world      # the first run downloads the Linux guest (~62 MB, sha256-checked)

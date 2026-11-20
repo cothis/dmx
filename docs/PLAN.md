@@ -1188,6 +1188,51 @@ A unit test caught the first `--engine` check missing a Docker Desktop path link
 socket (`/var` vs `/private/var`, and a link to a socket that does not exist yet).
 [Raw](measurements/2026-11-20-dmx-bench.json), [method](benchmark.md#dmx-bench).
 
+### v0.5.0 release qualification (2026-11-20)
+
+The maintainer asked for the release after the second audit round ("리리즈해라"). The version is
+0.5.0 because `dmx import`, local names, `dmx bench` and crash recovery are new commands and
+behaviour. The guest was rebuilt from the release commit's tree into `.build/guest-0.5.0`; it is
+byte-identical to the guest every suite since the re-pin ran on. The suites ran with
+DMX_HOME=/tmp/dmx-rel050 on the 0.5.0 build:
+
+| Suite | Result |
+|---|---|
+| Swift unit tests | 174 |
+| formal models | 15 |
+| formal code probes | 17 |
+| selftest | 23/23 at 96 MB |
+| daemon | 63/63 |
+| MCP | 39/39 |
+| x86 | 77/77 |
+| Docker | 81/81 |
+| sandbox | 45/45 |
+| crash | 40/40 |
+| names | 37/37 |
+| launchd | 10/10 |
+| soak | 28/28 |
+| storage | 64/64 |
+| images | 24/24 |
+| amd64 Java | 100/100 |
+| menu | 25/25, plus its VM test |
+| app install | 14/14, plus its unit test |
+| LAN | 13/13 (`lan` and `compared` true; access blocked) |
+| lifecycle cycles | 4/4 |
+| remaining lifecycle | 19/19 |
+
+Two things in the test kit needed repair; neither touched the product:
+
+- **x86test.** Alpine had dropped three of its pinned x86_64 packages, so the check failed on a
+  404. They are re-pinned: libexpat 2.10.0-r0, nodejs 24.22.3-r0, python3 3.14.10-r1. Each
+  passed `verify-apk`'s signature and datahash check against the keys in the x86_64
+  minirootfs.
+- **formaltest.** It needs `~/.cache/proof-skills/tla2tools.jar`, which was gone after the Mac
+  migration. The jar the v0.3.12 evidence names (sha256 `fc6878c6…`) matches no tlaplus release
+  between v1.7.1 and v1.8.0; it was probably a v1.8.0 nightly. The official v1.8.0 jar
+  (`fdffef24…`) ran it.
+- **release.py.** It used `Path | None` annotations, which the Xcode Python 3.9 left on this Mac
+  cannot evaluate. It now uses `from __future__ import annotations`.
+
 ### v0.4.8 release qualification (2026-11-12)
 
 Four independent-model review rounds finished clean on Sonnet 5.5 and Sol 6.1 high. Review

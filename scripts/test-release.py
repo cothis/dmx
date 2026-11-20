@@ -7,7 +7,7 @@ a running VM, container and volume, and the release's own fix. Isolated from ~/.
 import ctypes, http.server, json, os, plistlib, shutil, socketserver, subprocess, sys, tempfile, threading, time
 from pathlib import Path
 
-VERSION, PREVIOUS = "0.4.8", "0.4.7"
+VERSION, PREVIOUS = "0.5.0", "0.4.8"
 mode = sys.argv[1]
 PUBLIC = "https://github.com/cothis/dmx/releases/download"
 checks = []
@@ -144,6 +144,35 @@ try:
     for platform, want in (("linux/arm64", "aarch64"), ("linux/amd64", "x86_64"), ("linux/386", "x86_64")):
         r = docker(env, area, "run", "--rm", "--platform", platform, "alpine", "uname", "-m")
         check(f"fresh_container_{platform.replace('/', '_')}", r.stdout.decode().strip() == want, r.stdout + r.stderr[-200:])
+    # 0.5.0's own fixes. Ctrl-C on `dmx sandbox exec` kills the command (0.4.8 left it running).
+    def guest_ps():
+        return dmx(area, env, "exec", "--", "ps", "-o", "args").stdout.decode()
+    r = dmx(area, env, "sandbox", "create", "relcancel", "--json", timeout=300)
+    check("fix_sandbox_create", r.returncode == 0, r.stderr[-300:])
+    cli = subprocess.Popen([str(area / "prefix/bin/dmx"), "sandbox", "exec", "relcancel", "--", "sh", "-c", "sleep 1237"],
+                           env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    began = time.time()
+    while "sleep 1237" not in guest_ps() and time.time() - began < 30:
+        time.sleep(0.5)
+    cli.send_signal(2)
+    cli_err = cli.communicate(timeout=30)[1]
+    began = time.time()
+    while "sleep 1237" in guest_ps() and time.time() - began < 15:
+        time.sleep(0.5)
+    check("fix_sandbox_cancel_kills", cli.returncode == 130 and "sleep 1237" not in guest_ps(), {"exit": cli.returncode, "stderr": cli_err[-200:]})
+    dmx(area, env, "sandbox", "rm", "relcancel", "--json")
+    # A guest kernel panic with a restart-policy container running: a new VM brings it back.
+    r = docker(env, area, "run", "-d", "--name", "relcrash", "--restart", "always", "busybox", "sleep", "3600")
+    check("fix_crash_container", r.returncode == 0, r.stderr[-200:])
+    dmx(area, env, "exec", "--", "sh", "-c", "echo c > /proc/sysrq-trigger", timeout=30)
+    began, back = time.time(), False
+    while time.time() - began < 90 and not back:
+        time.sleep(2)
+        st = status(area, env)
+        back = st.get("state") == "running" and docker(env, area, "inspect", "-f", "{{.State.Running}}", "relcrash", timeout=30).stdout.strip() == b"true"
+    crashed = (status(area, env).get("guest_crash") or {})
+    check("fix_crash_recovers", back and crashed.get("streak", 0) >= 1, {"seconds": round(time.time() - began), "guest_crash": crashed})
+    docker(env, area, "rm", "-f", "relcrash")
     # Lifecycle fixes on the installed, signed helper and its downloaded guest.
     payload = bytes(range(256)) * 4096
     r = run([str(area / "prefix/bin/dmx"), "exec", "--", "cat"], env, stdin=payload)
