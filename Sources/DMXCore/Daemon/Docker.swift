@@ -47,6 +47,10 @@ final class DockerBridge {
     private var epoch = 0
     /// Running containers while the daemon follows dockerd; nil before Docker is used after a boot.
     private(set) var containers: Int?
+    /// Running containers at the last listing in this VM. Kept when dockerd stops answering,
+    /// which a crashing VM shows first (its vsock closes before it has stopped), so the daemon
+    /// knows what was running when it decides whether to boot a new VM (Daemon.recover).
+    private(set) var runningAtLastListing = 0
     /// A Docker client connected since the daemon started (or since the last `dmx stop`).
     var used = false
 
@@ -102,6 +106,7 @@ final class DockerBridge {
     /// The VM stopped: dockerd and its containers are gone, and so are their forwards.
     func vmStopped() {
         epoch += 1
+        runningAtLastListing = 0
         up = false
         starting = nil
         client = nil
@@ -489,6 +494,7 @@ final class DockerBridge {
         listingUnknown = false
         changed?()
         ports.setDockerForwards(Self.published(list))
+        runningAtLastListing = list.count
         if containers != list.count {
             containers = list.count
             changed?()

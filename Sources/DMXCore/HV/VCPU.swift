@@ -230,8 +230,11 @@ final class VCPU: @unchecked Sendable {
         case 0x8400_0001, 0xc400_0001:  // CPU_SUSPEND: like WFI
             waitForInterrupt()
             setX(0, 0)
-        case 0x8400_0008, 0x8400_0009:  // SYSTEM_OFF, SYSTEM_RESET
+        case 0x8400_0008:  // SYSTEM_OFF
             machine.stop(.guestStopped)
+            return false
+        case 0x8400_0009:  // SYSTEM_RESET: a panic (panic=-1) or a reboot
+            machine.stop(.guestReset)
             return false
         default:
             setX(0, notSupported)

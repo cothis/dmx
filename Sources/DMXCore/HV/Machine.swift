@@ -21,7 +21,10 @@ enum HVLayout {
 /// hold only one such VM at a time; once `waitUntilStopped()` returns, it can create the next.
 public final class Machine: @unchecked Sendable {
     public enum Exit: Sendable {
+        /// PSCI SYSTEM_OFF: the guest powered off.
         case guestStopped
+        /// PSCI SYSTEM_RESET: the guest kernel panicked (`panic=-1`) or was told to reboot.
+        case guestReset
         case failed(DMXError)
     }
 
@@ -392,6 +395,10 @@ public final class Machine: @unchecked Sendable {
 
     static let baseKernelArgs = [
         "console=ttyAMA0", "earlycon=pl011,0x\(String(HVLayout.uart, radix: 16))", "swiotlb=noforce",
+        // A panicked kernel resets the machine at once rather than spinning forever: with the
+        // default of 0 a panic left the VM "running", unreachable, at about 1200% of the Mac's CPU.
+        // The daemon then keeps the console tail and boots a new VM (Daemon.recover).
+        "panic=-1",
         // Hash tables the kernel sizes by the memory ceiling (14 MB at 8 GB, zeroed at boot).
         // Fixed sizes cost 1.6 MB; a million cached dentries would average 8 per chain.
         "dhash_entries=131072", "ihash_entries=65536", "thash_entries=16384",

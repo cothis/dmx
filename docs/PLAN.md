@@ -613,10 +613,14 @@ to switch. One item per session, in this order; each is verified on the real VM.
       (`scripts/test-soak.py`, a target of its own beside selftest, which has no dockerd), 28
       checks, 300/50 cycles by default; nothing leaked, also over 1500/250
       ([finding](#soak-check-2026-11-20)).
-- [ ] Guest crash recovery: when the guest dies (kernel panic, VMM fault), keep the console tail,
+- [x] Guest crash recovery: when the guest dies (kernel panic, VMM fault), keep the console tail,
       boot a new VM with backoff, and restart containers whose policy is `always` or
       `unless-stopped`. Done when: a forced guest crash in a test brings those containers back
-      and leaves `no` ones stopped.
+      and leaves `no` ones stopped. Done 2026-11-20: `panic=-1` (a panic used to leave the VM
+      "running" and spinning), PSCI SYSTEM_RESET as `Machine.Exit.guestReset`, `guest-crash.log`,
+      backoff 1 s doubling to 60 s, `guest_crash` in status; `make crashtest` 30/30, fails on
+      v0.4.8 ([finding](#guest-crash-recovery-2026-11-20)). A VMM fault takes the same path but
+      was not forced.
 - [ ] `dmx import`: bring images, volumes and (stopped) container definitions over from Docker
       Desktop, OrbStack or Colima through their Docker sockets. Done when: an import from a real
       second engine restores an image, a named volume's data and a Compose project.
@@ -631,10 +635,15 @@ to switch. One item per session, in this order; each is verified on the real VM.
 ## Next up
 
 **Phase 13 in progress** (2026-11-20): see [Phase 13](#phase-13-easier-to-try-and-to-trust-2026-11-20).
-Done: README front page, `dmx bench` ([finding](#dmx-bench-first-runs-2026-11-20)) and the soak
-check, `make soaktest` ([finding](#soak-check-2026-11-20)). Next: guest crash recovery (a forced
-guest crash brings `always`/`unless-stopped` containers back, `no` ones stay stopped), then
-`dmx import`. The Homebrew tap and local names wait for the maintainer. Open from bench: warm
+Done: README front page, `dmx bench` ([finding](#dmx-bench-first-runs-2026-11-20)), the soak
+check, `make soaktest` ([finding](#soak-check-2026-11-20)), and guest crash recovery, `make
+crashtest` ([finding](#guest-crash-recovery-2026-11-20)). Next: `dmx import` (images, a named
+volume's data and a Compose project from a real second engine; none is installed here now, so it
+needs Docker Desktop, OrbStack or Colima installed briefly under the comparison rules in
+docs/memory.md). The Homebrew tap and local names wait for the maintainer. Open from crash
+recovery, both guest-side (`docker_autostart`'s count, needs a guest build): an `always`
+container stopped with `docker stop` does not start dockerd at boot although dockerd restarts it
+once started, and an `on-failure` container running at a crash is not counted. Open from bench: warm
 `docker run` is bimodal on this Mac (77–80 or 143–251 ms). `make guest` needs `make kernel` first
 here: `~/.dmx/cache` no longer has the kernel tarball (bench and soak sessions verified with the
 installed v0.4.8 guest; the guest was not changed).
@@ -899,6 +908,28 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### Guest crash recovery (2026-11-20)
+
+Before the change a guest kernel panic (`echo c > /proc/sysrq-trigger` in `dmx exec`) left the
+VM `running` in `dmx status`, `dmx exec` failing with "no answer from the guest", and the daemon
+at 1172% CPU until stopped: the kernel's default `panic=0` waits forever. Now the guest boots with
+`panic=-1`, a panic resets it through PSCI SYSTEM_RESET, and the daemon keeps that boot's console
+tail (32 KiB at most) in `guest-crash.log`. With containers running it boots a new VM after a
+backoff. The first version never rebooted: the crashing VM's vsock closes before it has
+stopped, the events stream ends first and `dockerdStopped` cleared the container count, so the
+daemon saw nothing running. It now uses the count from the last listing.
+
+`make crashtest` (this Mac, installed v0.4.8 guest, throwaway `DMX_HOME`): 30/30. Four busybox
+containers, `always` (httpd on a published port), `unless-stopped`, `no`, and `unless-stopped`
+after `docker stop`. Panic 1: `always` and `unless-stopped` running again and the port answering
+1.7 s after the panic (1 s backoff included); the other two exited; same daemon pid; the daemon
+at 3% CPU afterwards; footprint 394 MB before and 346 MB after. Panic 2 right after: 2 s backoff, back in 2.7 s.
+Panic 3 with `dmx stop` during the 4 s backoff: no reboot. Panic 4 with nothing running: the VM
+stays stopped; the next Docker client boots it and only `always` comes back (as on any dockerd
+start). Against v0.4.8 the check fails at the first panic: `dmx exec` does not return in 30 s.
+Selftest footprint alternating v0.4.8/new on the same guest: 102/100, 100/100, 100/99 MB.
+[Raw](measurements/2026-11-20-crash.json).
 
 ### Soak check (2026-11-20)
 
@@ -1837,6 +1868,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-20: Guest crash recovery. Fixed a guest kernel panic leaving the VM "running" at about 1200% CPU (`panic=-1`; SYSTEM_RESET is now `Machine.Exit.guestReset`). The daemon keeps the crashed boot's console tail in `logs/guest-crash.log`, shows `guest_crash` in status, and with containers running boots a new VM after 1 s doubling to 60 s, cancelled by `dmx stop`. `make crashtest` 30/30 (fails on v0.4.8); unit 145, selftest 23/23 (99–100 MB, unchanged), daemontest 63/63, menu script 25/25. Next: `dmx import`.
 - 2026-11-20: Added the soak check, `make soaktest` (`scripts/test-soak.py`): 300 `docker run --rm` and 50 Compose cycles, then footprint, guest memory, daemon fds/threads, guest dockerd/containerd/agent fds/threads/RSS and leftovers against the start, each after the idle sweep. 28/28 at 300/50 and at 1500/250; no leak found. Unit 142, selftest 23/23 (99 MB). Next: guest crash recovery.
 - 2026-11-20: Added `dmx bench` (DMXCore/Bench.swift, BenchChart.swift): idle window, idle CPU, warm `docker run`, and memory every 100 ms while a container takes and frees 2 GiB, for dmx and each `--engine NAME=SOCKET,PID...`; `--json` and `--svg`. README graph and benchmark.md section from it; four rounds recorded. Unit 142 (5 new), selftest 23/23 (99 MB). `make guest` could not run: the kernel tarball is gone from `~/.dmx/cache` (the musl Rust target was also missing and is installed now). Next: the soak check.
 

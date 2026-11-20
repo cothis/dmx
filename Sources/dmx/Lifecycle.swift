@@ -314,6 +314,11 @@ func describe(_ s: DaemonStatus) -> String {
     if let clients = s.clients, let execs = s.execs, s.state != "not_running" {
         lines.append("  clients: \(clients), execs: \(execs)")
     }
+    if let crash = s.guestCrash {
+        lines.append("  last guest crash: \(formatElapsed(crash.secondsAgo)) ago, \(crash.reason)" + (crash.streak > 1 ? " (\(crash.streak) in a row)" : "")
+                     + (crash.rebootInS.map { ", booting a new VM in \($0)s" } ?? ""))
+        lines.append("    console tail: \(crash.log)")
+    }
     for warning in s.logWarnings ?? [] { lines.append("  log warning: \(warning)") }
     if s.localNetwork == .blocked {
         lines.append("  local network: \(LocalNetworkAccess.blockedDetail)")

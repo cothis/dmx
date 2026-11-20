@@ -60,6 +60,10 @@ public struct DaemonStatus: Codable, Sendable {
     /// so asking about a stopped engine does not raise macOS's prompt.
     public var localNetwork: LocalNetworkAccess? = nil
 
+    /// The last time the VM died under the daemon (a guest kernel panic or a VMM error), and
+    /// the reboot after it; nil if it has not happened since the daemon started.
+    public var guestCrash: GuestCrashStatus? = nil
+
     public static func notRunning(_ paths: Paths, config: Config) -> DaemonStatus {
         DaemonStatus(state: "not_running", pid: nil, version: nil, launchd: nil, uptimeS: nil, cpus: nil,
                      maxMemory: nil, guestUsedMb: nil, hostFootprintMb: nil, hostPeakFootprintMb: nil,

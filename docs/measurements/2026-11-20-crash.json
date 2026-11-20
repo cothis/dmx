@@ -1,0 +1,214 @@
+{
+  "date": "2026-11-20",
+  "command": "python3 -I scripts/test-crash.py .build/release/dmx",
+  "guest": "installed v0.4.8 guest (unchanged)",
+  "new_build": {
+    "before_footprint_mb": 394,
+    "crash1_exec_s": 0.0,
+    "crash1_back_s": 1.7,
+    "crash1_status": {
+      "log": "/private/tmp/dmx-crash-74z6cxkx/logs/guest-crash.log",
+      "reason": "kernel reset (panic or reboot)",
+      "seconds_ago": 1,
+      "streak": 1
+    },
+    "crash1_states": {
+      "c-unless-stopped": "exited",
+      "c-no": "exited",
+      "c-unless": "running",
+      "c-always": "running"
+    },
+    "daemon_cpu_after_recovery_pct": 3,
+    "after_footprint_mb": 346,
+    "crash2_status": {
+      "log": "/private/tmp/dmx-crash-74z6cxkx/logs/guest-crash.log",
+      "reason": "kernel reset (panic or reboot)",
+      "reboot_in_s": 1,
+      "seconds_ago": 0,
+      "streak": 2
+    },
+    "crash2_back_s": 2.7,
+    "checks": [
+      {
+        "name": "docker_tools",
+        "ok": true,
+        "detail": "/Users/cothis/.dmx/bin/docker; run `dmx tools install`"
+      },
+      {
+        "name": "start",
+        "ok": true,
+        "detail": "b''"
+      },
+      {
+        "name": "daemon_pid",
+        "ok": true,
+        "detail": "status pid 27088, daemons [27088]"
+      },
+      {
+        "name": "pull",
+        "ok": true,
+        "detail": "b''"
+      },
+      {
+        "name": "run_c-always",
+        "ok": true,
+        "detail": "b''"
+      },
+      {
+        "name": "run_c-unless",
+        "ok": true,
+        "detail": "b''"
+      },
+      {
+        "name": "run_c-no",
+        "ok": true,
+        "detail": "b''"
+      },
+      {
+        "name": "run_c-unless-stopped",
+        "ok": true,
+        "detail": "b''"
+      },
+      {
+        "name": "stop_c-unless-stopped",
+        "ok": true,
+        "detail": "b''"
+      },
+      {
+        "name": "port_before",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "exec_ends",
+        "ok": true,
+        "detail": "0.0 s, rc 1"
+      },
+      {
+        "name": "crash1_containers_back",
+        "ok": true,
+        "detail": "after 1.7 s: {'c-unless-stopped': 'exited', 'c-no': 'exited', 'c-unless': 'running', 'c-always': 'running'}"
+      },
+      {
+        "name": "same_daemon",
+        "ok": true,
+        "detail": "27088 -> 27088"
+      },
+      {
+        "name": "status_reason",
+        "ok": true,
+        "detail": "{'log': '/private/tmp/dmx-crash-74z6cxkx/logs/guest-crash.log', 'reason': 'kernel reset (panic or reboot)', 'seconds_ago': 1, 'streak': 1}"
+      },
+      {
+        "name": "status_streak_1",
+        "ok": true,
+        "detail": "{'log': '/private/tmp/dmx-crash-74z6cxkx/logs/guest-crash.log', 'reason': 'kernel reset (panic or reboot)', 'seconds_ago': 1, 'streak': 1}"
+      },
+      {
+        "name": "no_stays_exited",
+        "ok": true,
+        "detail": "{'c-unless-stopped': 'exited', 'c-no': 'exited', 'c-unless': 'running', 'c-always': 'running'}"
+      },
+      {
+        "name": "docker_stopped_stays_exited",
+        "ok": true,
+        "detail": "{'c-unless-stopped': 'exited', 'c-no': 'exited', 'c-unless': 'running', 'c-always': 'running'}"
+      },
+      {
+        "name": "port_after",
+        "ok": true,
+        "detail": ""
+      },
+      {
+        "name": "console_tail_kept",
+        "ok": true,
+        "detail": "99942]  el0_svc+0x48/0x22c\n[    4.400074]  el0t_64_sync_handler+0xb8/0xfc\n[    4.400242]  el0t_64_sync+0x198/0x19c\n[    4.400401] SMP: stopping secondary CPUs\n[    4.400631] Kernel Offset: disabled\n[    4.401151] CPU features: 0x0000000,00018001,062c2281,94267723\n[    4.401970] Memory Limit: none\n\n\n"
+      },
+      {
+        "name": "console_tail_this_boot",
+        "ok": true,
+        "detail": "1 boot markers"
+      },
+      {
+        "name": "daemon_cpu_quiet",
+        "ok": true,
+        "detail": "3%"
+      },
+      {
+        "name": "crash2_backoff",
+        "ok": true,
+        "detail": "['2026-11-20T02:56:50Z dmx-daemon: guest crashed (kernel reset (panic or reboot)); console tail in guest-crash.log; booting a new VM in 1s for the 3 running containers', '2026-11-20T02:56:57Z dmx-daemon: guest crashed (kernel reset (panic or reboot), 2 in a row); console tail in guest-crash.log; booting a new VM in 2s for the 2 running containers']"
+      },
+      {
+        "name": "crash2_containers_back",
+        "ok": true,
+        "detail": "after 2.7 s: {'c-unless-stopped': 'exited', 'c-no': 'exited', 'c-unless': 'running', 'c-always': 'running'}"
+      },
+      {
+        "name": "stop_during_backoff",
+        "ok": true,
+        "detail": "b''"
+      },
+      {
+        "name": "stop_cancels_reboot",
+        "ok": true,
+        "detail": "stopped"
+      },
+      {
+        "name": "stop_all",
+        "ok": true,
+        "detail": "b''"
+      },
+      {
+        "name": "idle_crash_stays_stopped",
+        "ok": true,
+        "detail": "stopped {'log': '/private/tmp/dmx-crash-74z6cxkx/logs/guest-crash.log', 'reason': 'kernel reset (panic or reboot)', 'seconds_ago': 10, 'streak': 4}"
+      },
+      {
+        "name": "idle_crash_containers_stay_stopped",
+        "ok": true,
+        "detail": "{'c-unless-stopped': 'exited', 'c-no': 'exited', 'c-unless': 'exited', 'c-always': 'running'}"
+      },
+      {
+        "name": "idle_crash_always_back_on_next_start",
+        "ok": true,
+        "detail": "{'c-unless-stopped': 'exited', 'c-no': 'exited', 'c-unless': 'exited', 'c-always': 'running'}"
+      },
+      {
+        "name": "same_daemon_at_end",
+        "ok": true,
+        "detail": ""
+      }
+    ],
+    "passed": 30,
+    "failed": []
+  },
+  "old_build_v0.4.8": {
+    "command": "python3 -I scripts/test-crash.py ~/.local/bin/dmx",
+    "passed": 10,
+    "failed": [
+      {
+        "name": "no_timeout",
+        "ok": false,
+        "detail": "['/Users/cothis/Applications/dmx.app/Contents/MacOS/dmx', 'exec', '--', 'sh', '-c', 'echo c > /proc/sysrq-trigger'] timed out after 30 s"
+      }
+    ]
+  },
+  "selftest_footprint_mb_alternating": {
+    "v0.4.8": [
+      102,
+      100,
+      100
+    ],
+    "new": [
+      100,
+      100,
+      99
+    ]
+  },
+  "panic_before_fix": {
+    "state": "running",
+    "exec": "vsock connect to port 1024: no answer from the guest",
+    "daemon_cpu_pct": 1172
+  }
+}

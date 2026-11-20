@@ -275,6 +275,23 @@ costs what it did before: the check reads one directory that does not exist yet.
   in" is on. With `dmx install` the daemon starts on the first connection, but the VM, and so
   the restartable containers, wait for one.
 
+## Guest crashes
+
+If the VM dies under the daemon, because the guest kernel panicked (dmx boots it with `panic=-1`,
+so a panic resets the VM at once) or the VMM failed, the daemon keeps the console output of that
+boot in `~/.dmx/logs/guest-crash.log` (bounded, rotated like the other logs) and shows the crash in
+`dmx status` (`guest_crash`). If containers were running it boots a new VM after 1 s, doubling the
+wait for each crash in a row up to 60 s (a VM that ran 5 minutes starts the count again); the
+boot then brings back containers as in [Restart policies](#restart-policies): `always` and
+`unless-stopped` ones run again, `no` ones and those stopped with `docker stop` stay exited, and
+published ports come back. `dmx stop` during the wait cancels the reboot. With nothing running,
+the VM stays stopped until a client needs it, as after an idle stop. A guest that powers itself
+off is not a crash. `make crashtest` checks this with forced panics (`docs/PLAN.md` has the run).
+
+Before this, a panic left the VM reported as running, unreachable, with the daemon at about 1200%
+of the Mac's CPU until it was stopped. An `on-failure` container that was running at the crash
+has not been checked: dockerd's record still says exit code 0 then.
+
 ## Published ports
 
 Ports a running container publishes, TCP and UDP, are forwarded from the Mac, like Docker

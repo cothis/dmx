@@ -29,6 +29,8 @@ public struct Paths: Sendable {
     public var activity: URL { activityDirectory.appendingPathComponent("engine.json") }
     /// Bounded guest console history across boots; .1/.2 are size rotations, not boot boundaries.
     public var consoleLog: URL { logs.appendingPathComponent("console.log") }
+    /// The console tail of each boot that crashed (GuestCrash.swift), bounded like the other logs.
+    public var guestCrashLog: URL { logs.appendingPathComponent("guest-crash.log") }
     /// The guest's data disk (/var/lib), a sparse raw image.
     public var dataDisk: URL { home.appendingPathComponent("data.img") }
     /// Docker for the guest (dockerd and what it runs), a read-only disk `make guest` writes.

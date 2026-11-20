@@ -37,6 +37,11 @@ public final class Daemon {
     private var clockFailing = false
     private var clockRetry = ContinuousClock.now
     private var idleTimeout = Config.defaultIdleTimeout
+    /// Guest crashes and the boot that follows one (GuestCrash.swift). While a reboot is
+    /// pending the daemon stays up, as it does for a running VM.
+    private var crashes = GuestCrashes()
+    private var recovery: Task<Void, Never>?
+    private var recoveryAt: ContinuousClock.Instant?
 
     /// Open connections, and those among them that asked for the VM (start, exec).
     private var clients = 0
@@ -168,6 +173,7 @@ public final class Daemon {
                     try connection.send(DaemonReply(id: request.id, result: await status()))
                 case "stop":
                     docker.used = false  // a daemon the CLI started may exit again
+                    cancelRecovery()
                     await stopVM(reason: "stop requested")
                     try connection.send(DaemonReply(id: request.id, result: await status()))
                 case "port_add", "port_rm", "port_ls":
@@ -255,7 +261,12 @@ public final class Daemon {
             guestUsedMb: used, hostFootprintMb: host?.footprintMb, hostPeakFootprintMb: host?.peakFootprintMb,
             clients: others, execs: execs, containers: docker.containers, idleTimeoutS: idleTimeout, idleStopInS: idleStopIn,
             socket: paths.controlSocket.path, consoleLog: paths.consoleLog.path,
-            memory: memory.status(guest: guest), disk: DataDisk.usage(paths.dataDisk), diskError: machine?.diskError, dockerSocket: paths.dockerSocket.path, logWarnings: diagnosticLogs.warnings.isEmpty ? nil : diagnosticLogs.warnings, localNetwork: state == .running ? LocalNetworkAccess.probe() : nil)
+            memory: memory.status(guest: guest), disk: DataDisk.usage(paths.dataDisk), diskError: machine?.diskError, dockerSocket: paths.dockerSocket.path, logWarnings: diagnosticLogs.warnings.isEmpty ? nil : diagnosticLogs.warnings, localNetwork: state == .running ? LocalNetworkAccess.probe() : nil,
+            guestCrash: crashes.last.map { last in
+                GuestCrashStatus(secondsAgo: max(0, Int(Date().timeIntervalSince(last.at))), reason: last.reason, streak: crashes.streak,
+                                 rebootInS: recoveryAt.map { max(0, Int(($0 - ContinuousClock.now).components.seconds)) },
+                                 log: paths.guestCrashLog.path)
+            })
     }
 
     // MARK: VM lifecycle
@@ -286,6 +297,10 @@ public final class Daemon {
     }
 
     private func boot() {
+        // A client came before the reboot a crash scheduled: this boot is that one.
+        recovery?.cancel()
+        recovery = nil
+        recoveryAt = nil
         state = .starting
         publishActivity()
         idleCheck?.cancel()
@@ -439,12 +454,22 @@ public final class Daemon {
         await task.value
     }
 
-    /// Notices a VM that stopped by itself (guest poweroff or a VMM error).
+    /// Notices a VM that stopped by itself: a guest poweroff, or a crash (a kernel panic resets
+    /// the guest; the VMM can fail), after which `recover` boots a new one.
     private func watch(_ machine: Machine) {
         Task {
             let exit = await machine.waitUntilStopped()
             guard self.machine === machine, state == .running else { return }
-            if case .failed(let error) = exit { log("VM failed: \(error.message)") } else { log("VM stopped by the guest") }
+            let crash: String?
+            switch exit {
+            case .guestStopped: crash = nil; log("VM stopped by the guest")
+            case .guestReset: crash = "kernel reset (panic or reboot)"
+            case .failed(let error): crash = "VM failed: \(error.message)"
+            }
+            let uptime = bootedAt.map { ContinuousClock.now - $0 }
+            // Read before vmStopped forgets them. The events stream may have ended already.
+            let containers = docker.runningAtLastListing
+            let busy = docker.busy || containers > 0
             memory.detach()
             docker.vmStopped()
             agent?.close()
@@ -453,12 +478,58 @@ public final class Daemon {
             bootedAt = nil
             state = .stopped
             quietSince = .now
+            if let crash { return recover(reason: crash, uptime: uptime, busy: busy, containers: containers) }
             scheduleIdleCheck()
-            let failure: DMXError
-            if case .failed(let error) = exit { failure = error }
-            else { failure = DMXError("guest_stopped", "the guest powered off unexpectedly", hint: "run `dmx doctor`, then start dmx again") }
-            publishActivity(reason: "guest_stopped", failure: failure)
+            publishActivity(reason: "guest_stopped", failure: DMXError("guest_stopped", "the guest powered off unexpectedly", hint: "run `dmx doctor`, then start dmx again"))
         }
+    }
+
+    /// The VM crashed: keeps the console tail of its boot, then, if containers were running,
+    /// boots a new VM after a backoff (1 s, doubling for each crash in a row up to 60 s), and
+    /// dockerd starts again those whose restart policy brings them back. With nothing running,
+    /// the VM stays stopped until a client needs it, as after an idle stop.
+    private func recover(reason: String, uptime: Duration?, busy: Bool, containers: Int) {
+        let delay = crashes.crashed(reason: reason, uptime: uptime)
+        do {
+            try RotatingLog(url: paths.guestCrashLog, limit: GuestCrashes.logLimit)
+                .append(GuestCrashes.record(reason: reason, uptime: uptime, consoleLog: paths.consoleLog))
+        } catch {
+            log("guest crash: \((error as? DMXError)?.message ?? "\(error)")")
+        }
+        let failure = DMXError("guest_crashed", "the guest crashed: \(reason)",
+                               hint: "see the console tail in \(paths.guestCrashLog.path); `dmx start` boots a new VM")
+        let streak = crashes.streak > 1 ? ", \(crashes.streak) in a row" : ""
+        guard busy, !exiting else {
+            log("guest crashed (\(reason)\(streak)); console tail in \(paths.guestCrashLog.lastPathComponent); no container was running, so the VM stays stopped until it is needed")
+            scheduleIdleCheck()
+            return publishActivity(reason: "guest_crashed", failure: failure)
+        }
+        let what = containers > 0 ? "\(containers) running container\(containers == 1 ? "" : "s")" : "running containers"
+        log("guest crashed (\(reason)\(streak)); console tail in \(paths.guestCrashLog.lastPathComponent); booting a new VM in \(formatDuration(Int(delay.components.seconds))) for the \(what)")
+        recoveryAt = .now + delay
+        recovery = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard let self, !Task.isCancelled else { return }
+            recovery = nil
+            recoveryAt = nil
+            if state == .stopped && !exiting {
+                do { _ = try await running() } catch {
+                    log("guest crash: the new VM did not boot: \((error as? DMXError)?.message ?? "\(error)")")
+                }
+            }
+            scheduleIdleCheck()
+        }
+        scheduleIdleCheck()
+        publishActivity(reason: "guest_crashed", failure: failure)
+    }
+
+    /// `dmx stop` or the daemon exiting: no reboot after a crash.
+    private func cancelRecovery() {
+        guard let recovery else { return }
+        recovery.cancel()
+        self.recovery = nil
+        recoveryAt = nil
+        log("guest crash: not booting a new VM (\(exiting ? "daemon exiting" : "stop requested"))")
     }
 
     private func stopVM(reason: String) async {
@@ -539,7 +610,7 @@ public final class Daemon {
         switch state {
         case .running where users == 0 && !docker.busy:
             deadline = idleSince + .seconds(idleTimeout)
-        case .stopped where clients == 0 && ports.isEmpty && !docker.keepsDaemon:
+        case .stopped where clients == 0 && ports.isEmpty && !docker.keepsDaemon && recovery == nil:
             deadline = quietSince + Self.linger
         default:
             return
@@ -550,7 +621,7 @@ public final class Daemon {
             switch state {
             case .running where users == 0 && !docker.busy:
                 await stopVM(reason: "idle for \(formatDuration(idleTimeout))")
-            case .stopped where clients == 0 && ports.isEmpty && !docker.keepsDaemon:
+            case .stopped where clients == 0 && ports.isEmpty && !docker.keepsDaemon && recovery == nil:
                 await shutdown()
             default:
                 break
@@ -566,6 +637,7 @@ public final class Daemon {
         accepting?.cancel()
         accepting = nil
         idleCheck?.cancel()
+        cancelRecovery()
         ports.stop()
         docker.stop()
         await stopVM(reason: "daemon exiting")
