@@ -95,6 +95,9 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-11-20: A test against a throwaway DMX_HOME must set DOCKER_HOST as well. Without it the `docker` CLI uses the
+  `dmx` context, the maintainer's installed engine: it woke that engine and ran test containers in it. Its failures also
+  looked like a product bug: a launchd engine has macOS's local network access blocked, so `.local` lookups fail there.
 - 2026-11-20: Cleanup run inside a cancelled task does nothing if it goes through `DaemonClient.connect` (or anything
   that checks cancellation first): a cancelled `dmx sandbox exec` never killed its command, and two review rounds missed
   it because only the timeout path was tested. Run such cleanup in an unstructured `Task {}` and await it, and test the

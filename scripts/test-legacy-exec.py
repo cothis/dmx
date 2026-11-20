@@ -2,7 +2,9 @@
 """New host + previous guest: bounded input, clear upgrade error, and responsive cancellation."""
 import argparse,contextlib,fcntl,hashlib,http.server,json,os,shutil,signal,socket,struct,subprocess,tempfile,threading,time
 from pathlib import Path
-p=argparse.ArgumentParser(description=__doc__);p.add_argument('binary');p.add_argument('guest');p.add_argument('--require-fallback',action='store_true');args=p.parse_args()
+p=argparse.ArgumentParser(description=__doc__);p.add_argument('binary');p.add_argument('guest');p.add_argument('--require-fallback',action='store_true')
+# A guest from 0.4.8 on grants stdin byte credit: bulk input is then held back, not refused.
+p.add_argument('--credit',action='store_true');args=p.parse_args()
 binary=Path(args.binary).resolve();old=Path(args.guest).resolve();checks=[]
 def check(name,ok,detail=None):
  checks.append(dict(name=name,ok=bool(ok),detail=detail));print(json.dumps(checks[-1]),flush=True);assert ok,(name,detail)
@@ -33,11 +35,13 @@ with tempfile.TemporaryDirectory(prefix='dmx-legacy-',dir='/private/tmp') as dir
      try:child.stdin.write(b'x'*((1<<20) if large else 4096));child.stdin.flush()
      except (OSError,ValueError):pass
     writer=threading.Thread(target=feed,daemon=True);writer.start()
+    if large and args.credit:time.sleep(1);check('legacy_bulk_held_by_credit',child.poll() is None,child.poll());child.send_signal(signal.SIGINT)
     if not large:time.sleep(.1);child.send_signal(signal.SIGINT)
     start=time.monotonic();child.wait(timeout=2);writer.join(timeout=1)
     if child.stdin:child.stdin.close();child.stdin=None
     out,err=child.communicate(timeout=2)
-    if large:check('legacy_bulk_fails_with_upgrade_hint',child.returncode!=0 and b'byte credit' in err and b'guest fetch --force' in err,dict(code=child.returncode,stderr=err.decode(errors='replace')))
+    if large and args.credit:check('legacy_bulk_sigint_returns',child.returncode==130 and time.monotonic()-start<2,dict(code=child.returncode,seconds=round(time.monotonic()-start,3),stderr=err.decode(errors='replace')[-200:]))
+    elif large:check('legacy_bulk_fails_with_upgrade_hint',child.returncode!=0 and b'byte credit' in err and b'guest fetch --force' in err,dict(code=child.returncode,stderr=err.decode(errors='replace')))
     else:check('legacy_sigint_returns',child.returncode==130 and time.monotonic()-start<2,dict(code=child.returncode,seconds=round(time.monotonic()-start,3)))
     check('legacy_'+name+'_reaped',gone(marker))
    finally:

@@ -1230,6 +1230,24 @@ Two things in the test kit needed repair; neither touched the product:
   migration. The jar the v0.3.12 evidence names (sha256 `fc6878c6…`) matches no tlaplus release
   between v1.7.1 and v1.8.0; it was probably a v1.8.0 nightly. The official v1.8.0 jar
   (`fdffef24…`) ran it.
+- **test-release local, first run 38/41, second run 40/41.** The failures are explained:
+  - `fix_crash_recovers` (new). The panic came about 4 s after `docker run -d`, before ext4's
+    5 s commit, so dockerd's record of the start was lost and the container came back as
+    `created`, as after a power cut. With `sync` before the panic it was back in 3 s; the
+    check now syncs first.
+  - `fix_af_inet6_alone`, and again in the second run (40/41). The dmx daemon of the fresh
+    install starts the AAAA query and its own A query 13 ms apart. mDNSResponder never
+    answers that A query for the record registered on this Mac (its log has no result), so
+    the AAAA fails at 5 s, as designed when no A comes. The published 0.4.8 behaves the same
+    on this Mac now: installed fresh in the same way, it fails 3 times out of 3, though it
+    passed this check on 2026-11-12 before the Mac migration. So it is not a 0.5.0
+    regression. A daemon run from the terminal passes 20/20 at 1.0 s, and so does the
+    updated install in the same run (1.11 and 1.17 s, the A answered in 77–150 ms).
+    mDNSResponder logs `util_copy_trust_info … afpAccessDenied` for these app copies. Why it
+    withholds `.local` answers from a fresh copy and not from an updated one is not known.
+  - `update_previous_guest_fallback`. test-legacy-exec.py assumed a guest without stdin
+    credit (0.4.7). The 0.4.8 guest has credit and correctly holds 1 MiB back instead of
+    refusing it. `--credit` checks that, then Ctrl-C (exit 130 in 9 ms) and reaping: 10/10.
 - **release.py.** It used `Path | None` annotations, which the Xcode Python 3.9 left on this Mac
   cannot evaluate. It now uses `from __future__ import annotations`.
 

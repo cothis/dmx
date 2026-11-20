@@ -164,6 +164,9 @@ try:
     # A guest kernel panic with a restart-policy container running: a new VM brings it back.
     r = docker(env, area, "run", "-d", "--name", "relcrash", "--restart", "always", "busybox", "sleep", "3600")
     check("fix_crash_container", r.returncode == 0, r.stderr[-200:])
+    # dockerd's record that it runs must reach the disk first: a panic within ext4's 5 s commit
+    # leaves it "created", as a power cut would on any Linux host.
+    dmx(area, env, "exec", "--", "sync")
     dmx(area, env, "exec", "--", "sh", "-c", "echo c > /proc/sysrq-trigger", timeout=30)
     began, back = time.time(), False
     while time.time() - began < 90 and not back:
@@ -257,7 +260,7 @@ try:
     check("update_fix_clock_follows_host", *clock_follows(area, env))
     r = run([str(area / "prefix/bin/dmx"), "exec", "--", "cat"], env, stdin=payload)
     check("update_large_stdin_lossless", r.returncode == 0 and r.stdout == payload, len(r.stdout))
-    r = run([sys.executable, "-I", str(Path(__file__).with_name("test-legacy-exec.py")), str(area / "prefix/bin/dmx"), str(old_guest), "--require-fallback"], env, timeout=300)
+    r = run([sys.executable, "-I", str(Path(__file__).with_name("test-legacy-exec.py")), str(area / "prefix/bin/dmx"), str(old_guest), "--require-fallback"] + (["--credit"] if tuple(map(int, PREVIOUS.split("."))) >= (0, 4, 8) else []), env, timeout=300)
     (ROOT / "legacy-fallback.log").write_bytes(r.stdout + r.stderr)
     check("update_previous_guest_fallback", r.returncode == 0, r.stdout[-500:] + r.stderr[-500:])
     docker(env, area, "rm", "-f", "kept")
