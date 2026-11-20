@@ -649,8 +649,8 @@ to switch. One item per session, in this order; each is verified on the real VM.
 
 **Phase 13 is done; its open ends are closed except two that need the maintainer** (2026-11-20).
 `dmx import` now passes from OrbStack and Docker Desktop too ([finding](#import-from-orbstack-and-docker-desktop-2026-11-20)).
-Waiting for the maintainer: local names in Safari and Chrome (`dmx names setup`'s trust dialog).
-Then the reviews the maintainer asked for (a full audit with Mythos 5.2, a review with Codex
+Local names work in Safari and Chrome with no warning ([finding](#local-names-in-browsers-2026-11-20)).
+Next: the reviews the maintainer asked for (a full audit with Mythos 5.2, a review with Codex
 gpt-6.2-sol), and a release is the maintainer's decision. Everything since
 v0.4.8 is unreleased, now including a guest rebuilt from re-pinned inputs (Docker 29.9.3, runc
 1.4.4, the restart rule), libmalloc's space-efficient mode and vCPU threads at userInitiated
@@ -937,7 +937,18 @@ acceptance suites.
 
 ## Findings and measurements
 
-### Import from OrbStack and Docker Desktop (2026-11-20)
+### Local names in browsers (2026-11-20)
+
+Real setup with this build in a throwaway DMX_HOME (rebuilt guest), the maintainer answering both
+dialogs: `https://web.dmx.local` served by nginx opened in Chrome and Safari with no certificate
+warning; Chrome's site panel says the connection is secure. Chrome asked once for macOS's
+permission to reach the local network before loading it. Safari's networking log for the load:
+DNS to 127.0.0.1 in 4 ms, TLS 1.3, the CA's trust evaluated true, `GET` 200 in 13 ms. `dmx names
+remove` waits on macOS's dialogs as long as they are unanswered (a first run hit a 28-minute limit
+with nothing removed, as the earlier session saw); answered, it removed the CA from the keychain
+and trust settings and the resolver file. Every system change here needs the user's own answer:
+setup, remove and the engines' cleanup asked six times in all.
+
 
 OrbStack 2.2.5 (dockerd 29.8.2) and Docker Desktop 4.99.0 (dockerd 29.9.3), both with the
 containerd image store, installed for the check, the maintainer answering their licence and
