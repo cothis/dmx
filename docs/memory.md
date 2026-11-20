@@ -14,6 +14,9 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Maintainer preferences
 
+- 2026-11-21: Keep `dmx mcp` ("클로드데스크탑 같은데서도 쓸때 필요하다면 유지"). Agents with a shell can use the
+  `--json` CLI directly; MCP is for clients without one (Claude Desktop). Add a tool to MCP only when such a client
+  needs it.
 - 2026-11-20: Declined the Homebrew tap as a separate public repository ("공개저장소가 여러개로 나뉘는건 별로").
   Do not create `homebrew-dmx` or other side repositories; a cask inside this repo is possible only if asked.
 - 2026-11-20: Approved local names (`*.dmx.local`) with an admin prompt and a trusted, name-constrained CA ("로컬이름은 ok").
