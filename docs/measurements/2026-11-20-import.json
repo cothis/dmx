@@ -1,0 +1,620 @@
+{
+  "date": "2026-11-20",
+  "check": "make importtest FROM=colima (scripts/test-import.py)",
+  "source": "Colima 0.10.3 (Lima 2.3.0, vz), dockerd 29.5.2, containerd image store; installed briefly for this check",
+  "dmx": "main after 0.4.8, installed v0.4.8 guest, throwaway DMX_HOME, dockerd 29.9.2",
+  "manual_run": {
+    "project": "postgres:17-alpine with a named volume and a table row, redis:7-alpine with its anonymous /data and a key, a built image, two networks, a published port; plus a standalone container and a volume with uid 999 files, mode 700, a hard link and a symlink",
+    "items": 13,
+    "import_s": 4.6,
+    "result": "all imported; compose up -d started all three services without recreating; row, key, owners, modes and links present; a second run reported all 13 as already in dmx"
+  },
+  "runs_before_review_fixes": [
+    {
+      "ok": true,
+      "source": "colima",
+      "source_engine": "29.5.2 overlayfs",
+      "import_s": 2.7,
+      "items": [
+        "image dmximport-web:test imported",
+        "image alpine@sha256:e311ae748b imported",
+        "volume dmximport_data imported",
+        "network dmximport_front imported",
+        "network dmximport_back imported",
+        "container dmximport-web-1 imported",
+        "volume d4d3e7c08ab252f772130c1c imported",
+        "container dmximport-sidecar-1 imported",
+        "container dmximport-worker-1 imported",
+        "volume 83dccf9f7f0f77ab89fe2fe1 imported"
+      ],
+      "total_s": 9,
+      "checks": [
+        {
+          "name": "docker_tools",
+          "ok": true,
+          "detail": "~/.dmx/bin/docker and ~/.dmx/cli-plugins/docker-compose; run `dmx tools install`"
+        },
+        {
+          "name": "source_answers",
+          "ok": true,
+          "detail": "~/.colima/default/docker.sock"
+        },
+        {
+          "name": "source_up",
+          "ok": true,
+          "detail": "import-sidecar-1 Creating \n Container dmximport-sidecar-1 Created \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-sidecar-1 Started \n"
+        },
+        {
+          "name": "source_fill",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "source_stop",
+          "ok": true,
+          "detail": " Container dmximport-sidecar-1 Stopping \n Container dmximport-sidecar-1 Stopped \n Container dmximport-web-1 Stopping \n Container dmximport-web-1 Stopped \n"
+        },
+        {
+          "name": "dmx_start",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "dry_run",
+          "ok": true,
+          "detail": "[('image', 'planned'), ('image', 'planned'), ('volume', 'planned'), ('network', 'planned'), ('network', 'planned'), ('container', 'planned'), ('volume', 'planned'), ('container', 'planned'), ('container', 'planned'), ('volume', 'planned')]"
+        },
+        {
+          "name": "dry_run_changes_nothing",
+          "ok": true,
+          "detail": "{'containers': [], 'images': [], 'volumes': [], 'networks': ['bridge', 'host', 'none']}"
+        },
+        {
+          "name": "import_ok",
+          "ok": true,
+          "detail": "[]"
+        },
+        {
+          "name": "import_counts",
+          "ok": true,
+          "detail": "{'image': 2, 'volume': 3, 'network': 2, 'container': 3}"
+        },
+        {
+          "name": "running_noted",
+          "ok": true,
+          "detail": "{'action': 'imported', 'detail': 'running in colima; created here, not started', 'kind': 'container', 'name': 'dmximport-worker-1'}"
+        },
+        {
+          "name": "live_copy_warned",
+          "ok": true,
+          "detail": "['volume dmximport_data was copied while dmximport-worker-1 ran in colima; for a consistent copy stop it there, then `docker volume rm dmximport_data` in dmx and import again', 'volume 83dccf9f7f0f77ab89fe2fe1b0309a9940390f32ee5bff66269f293fd33c43e4 was copied while dmximport-worker-1 ran in colima; for a consistent copy stop it there, then remove dmximport-worker-1 with `docker rm -v` in dmx and "
+        },
+        {
+          "name": "created_not_started",
+          "ok": true,
+          "detail": "['dmximport-sidecar-1:created', 'dmximport-web-1:created', 'dmximport-worker-1:created']"
+        },
+        {
+          "name": "second_run_exists",
+          "ok": true,
+          "detail": "[('image', 'exists'), ('image', 'exists'), ('volume', 'exists'), ('network', 'exists'), ('network', 'exists'), ('container', 'exists'), ('container', 'exists'), ('container', 'exists')]"
+        },
+        {
+          "name": "compose_up",
+          "ok": true,
+          "detail": "port-sidecar-1 Recreate \n Container dmximport-sidecar-1 Recreated \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-sidecar-1 Started \n"
+        },
+        {
+          "name": "compose_no_recreate",
+          "ok": true,
+          "detail": " Container dmximport-sidecar-1 Recreate \n Container dmximport-sidecar-1 Recreated \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-sidecar-1 Started \n"
+        },
+        {
+          "name": "digest_name_kept",
+          "ok": true,
+          "detail": "alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42"
+        },
+        {
+          "name": "compose_running",
+          "ok": true,
+          "detail": "sidecar:running\nweb:running\nworker:running\n"
+        },
+        {
+          "name": "data",
+          "ok": true,
+          "detail": "built-on-source\n999 999 700\n2\nsecret/f\nhi\nanon\n"
+        },
+        {
+          "name": "shared_namespace",
+          "ok": true,
+          "detail": "container:0e2e81d3862299cfbb8603d1a70b8057c8259034f2c878a6423a0551c90f9b91 vs web 0e2e81d38622"
+        },
+        {
+          "name": "port",
+          "ok": true,
+          "detail": "127.0.0.1:20181"
+        },
+        {
+          "name": "service_alias",
+          "ok": true,
+          "detail": "{\"dmximport_back\":{\"IPAMConfig\":null,\"Links\":null,\"Aliases\":[\"dmximport-worker-1\",\"worker\"],\"DriverOpts\":null,\"GwPriority\":0,\"NetworkID\":\"c9038965742a6c58c257f9f94da6b00ac8b209ecaf65b097ccc5901625ee6c"
+        },
+        {
+          "name": "compose_down",
+          "ok": true,
+          "detail": " dmximport-web-1 Stopped \n Container dmximport-web-1 Removing \n Container dmximport-web-1 Removed \n Volume dmximport_data Removing \n Network dmximport_front Removing \n Network dmximport_back Removing \n Volume dmximport_data Removed \n Network dmximport_back Removed \n Network dmximport_front Removed \n"
+        },
+        {
+          "name": "down_removes_everything",
+          "ok": true,
+          "detail": "{'containers': [], 'images': ['alpine:<none>@e311ae748be7', 'dmximport-web:test@b4045e9d2473'], 'volumes': [], 'networks': ['bridge', 'host', 'none']}"
+        },
+        {
+          "name": "source_unchanged",
+          "ok": true,
+          "detail": "{}"
+        },
+        {
+          "name": "no_source_helpers",
+          "ok": true,
+          "detail": "[]"
+        }
+      ]
+    },
+    {
+      "ok": true,
+      "source": "colima",
+      "source_engine": "29.5.2 overlayfs",
+      "import_s": 2.6,
+      "items": [
+        "image dmximport-web:test imported",
+        "image alpine@sha256:e311ae748b imported",
+        "volume dmximport_data imported",
+        "network dmximport_front imported",
+        "network dmximport_back imported",
+        "container dmximport-web-1 imported",
+        "volume e536000623526e9883ef1f6d imported",
+        "container dmximport-sidecar-1 imported",
+        "container dmximport-worker-1 imported",
+        "volume d2efe8abcf4f2a1801d90887 imported"
+      ],
+      "total_s": 8,
+      "checks": [
+        {
+          "name": "docker_tools",
+          "ok": true,
+          "detail": "~/.dmx/bin/docker and ~/.dmx/cli-plugins/docker-compose; run `dmx tools install`"
+        },
+        {
+          "name": "source_answers",
+          "ok": true,
+          "detail": "~/.colima/default/docker.sock"
+        },
+        {
+          "name": "source_up",
+          "ok": true,
+          "detail": "import-sidecar-1 Creating \n Container dmximport-sidecar-1 Created \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-sidecar-1 Started \n"
+        },
+        {
+          "name": "source_fill",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "source_stop",
+          "ok": true,
+          "detail": " Container dmximport-sidecar-1 Stopping \n Container dmximport-sidecar-1 Stopped \n Container dmximport-web-1 Stopping \n Container dmximport-web-1 Stopped \n"
+        },
+        {
+          "name": "dmx_start",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "dry_run",
+          "ok": true,
+          "detail": "[('image', 'planned'), ('image', 'planned'), ('volume', 'planned'), ('network', 'planned'), ('network', 'planned'), ('container', 'planned'), ('volume', 'planned'), ('container', 'planned'), ('container', 'planned'), ('volume', 'planned')]"
+        },
+        {
+          "name": "dry_run_changes_nothing",
+          "ok": true,
+          "detail": "{'containers': [], 'images': [], 'volumes': [], 'networks': ['bridge', 'host', 'none']}"
+        },
+        {
+          "name": "import_ok",
+          "ok": true,
+          "detail": "[]"
+        },
+        {
+          "name": "import_counts",
+          "ok": true,
+          "detail": "{'image': 2, 'volume': 3, 'network': 2, 'container': 3}"
+        },
+        {
+          "name": "running_noted",
+          "ok": true,
+          "detail": "{'action': 'imported', 'detail': 'running in colima; created here, not started', 'kind': 'container', 'name': 'dmximport-worker-1'}"
+        },
+        {
+          "name": "live_copy_warned",
+          "ok": true,
+          "detail": "['volume dmximport_data was copied while dmximport-worker-1 ran in colima; for a consistent copy stop it there, then `docker volume rm dmximport_data` in dmx and import again', 'volume d2efe8abcf4f2a1801d90887bc27c2292972ccc8b11d0f058942f3921db571db was copied while dmximport-worker-1 ran in colima; for a consistent copy stop it there, then remove dmximport-worker-1 with `docker rm -v` in dmx and "
+        },
+        {
+          "name": "created_not_started",
+          "ok": true,
+          "detail": "['dmximport-sidecar-1:created', 'dmximport-web-1:created', 'dmximport-worker-1:created']"
+        },
+        {
+          "name": "second_run_exists",
+          "ok": true,
+          "detail": "[('image', 'exists'), ('image', 'exists'), ('volume', 'exists'), ('network', 'exists'), ('network', 'exists'), ('container', 'exists'), ('container', 'exists'), ('container', 'exists')]"
+        },
+        {
+          "name": "compose_up",
+          "ok": true,
+          "detail": "port-sidecar-1 Recreate \n Container dmximport-sidecar-1 Recreated \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-sidecar-1 Started \n"
+        },
+        {
+          "name": "compose_no_recreate",
+          "ok": true,
+          "detail": " Container dmximport-sidecar-1 Recreate \n Container dmximport-sidecar-1 Recreated \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-sidecar-1 Started \n"
+        },
+        {
+          "name": "digest_name_kept",
+          "ok": true,
+          "detail": "alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42"
+        },
+        {
+          "name": "compose_running",
+          "ok": true,
+          "detail": "sidecar:running\nweb:running\nworker:running\n"
+        },
+        {
+          "name": "data",
+          "ok": true,
+          "detail": "built-on-source\n999 999 700\n2\nsecret/f\nhi\nanon\n"
+        },
+        {
+          "name": "shared_namespace",
+          "ok": true,
+          "detail": "container:9ec6c96c0cd1f60369f321d164a693d89cac2fa080939c79e6e795c1bf341921 vs web 9ec6c96c0cd1"
+        },
+        {
+          "name": "port",
+          "ok": true,
+          "detail": "127.0.0.1:20181"
+        },
+        {
+          "name": "service_alias",
+          "ok": true,
+          "detail": "{\"dmximport_back\":{\"IPAMConfig\":null,\"Links\":null,\"Aliases\":[\"dmximport-worker-1\",\"worker\"],\"DriverOpts\":null,\"GwPriority\":0,\"NetworkID\":\"a24d7bc47b6f176453f9bcb3fa38c38283031261b639da0b70d154b0011f90"
+        },
+        {
+          "name": "compose_down",
+          "ok": true,
+          "detail": " dmximport-web-1 Stopped \n Container dmximport-web-1 Removing \n Container dmximport-web-1 Removed \n Network dmximport_back Removing \n Volume dmximport_data Removing \n Network dmximport_front Removing \n Volume dmximport_data Removed \n Network dmximport_front Removed \n Network dmximport_back Removed \n"
+        },
+        {
+          "name": "down_removes_everything",
+          "ok": true,
+          "detail": "{'containers': [], 'images': ['alpine:<none>@e311ae748be7', 'dmximport-web:test@15e9e2852867'], 'volumes': [], 'networks': ['bridge', 'host', 'none']}"
+        },
+        {
+          "name": "source_unchanged",
+          "ok": true,
+          "detail": "{}"
+        },
+        {
+          "name": "no_source_helpers",
+          "ok": true,
+          "detail": "[]"
+        }
+      ]
+    }
+  ],
+  "runs": [
+    {
+      "ok": true,
+      "source": "colima",
+      "source_engine": "29.5.2 overlayfs",
+      "import_s": 2.7,
+      "items": [
+        "image dmximport-web:test imported",
+        "image alpine@sha256:e311ae748b imported",
+        "volume dmximport_data imported",
+        "network dmximport_front imported",
+        "network dmximport_back imported",
+        "container dmximport-web-1 imported",
+        "volume e5ec0327bcc9027ef560be95 imported",
+        "container dmximport-sidecar-1 imported",
+        "container dmximport-worker-1 imported",
+        "volume d87e6229a6bff4fb157a47bf imported"
+      ],
+      "total_s": 9,
+      "checks": [
+        {
+          "name": "docker_tools",
+          "ok": true,
+          "detail": "~/.dmx/bin/docker and ~/.dmx/cli-plugins/docker-compose; run `dmx tools install`"
+        },
+        {
+          "name": "source_answers",
+          "ok": true,
+          "detail": "~/.colima/default/docker.sock"
+        },
+        {
+          "name": "source_up",
+          "ok": true,
+          "detail": "mximport-worker-1 Created \n Container dmximport-sidecar-1 Created \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-sidecar-1 Started \n"
+        },
+        {
+          "name": "source_fill",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "source_stop",
+          "ok": true,
+          "detail": " Container dmximport-sidecar-1 Stopping \n Container dmximport-sidecar-1 Stopped \n Container dmximport-web-1 Stopping \n Container dmximport-web-1 Stopped \n"
+        },
+        {
+          "name": "dmx_start",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "dry_run",
+          "ok": true,
+          "detail": "[('image', 'planned'), ('image', 'planned'), ('volume', 'planned'), ('network', 'planned'), ('network', 'planned'), ('container', 'planned'), ('volume', 'planned'), ('container', 'planned'), ('container', 'planned'), ('volume', 'planned')]"
+        },
+        {
+          "name": "dry_run_changes_nothing",
+          "ok": true,
+          "detail": "{'containers': [], 'images': [], 'volumes': [], 'networks': ['bridge', 'host', 'none']}"
+        },
+        {
+          "name": "import_ok",
+          "ok": true,
+          "detail": "[]"
+        },
+        {
+          "name": "import_counts",
+          "ok": true,
+          "detail": "{'image': 2, 'volume': 3, 'network': 2, 'container': 3}"
+        },
+        {
+          "name": "running_noted",
+          "ok": true,
+          "detail": "{'action': 'imported', 'detail': 'running in colima; created here, not started', 'kind': 'container', 'name': 'dmximport-worker-1'}"
+        },
+        {
+          "name": "live_copy_warned",
+          "ok": true,
+          "detail": "['volume dmximport_data was copied while dmximport-worker-1 ran in colima; for a consistent copy stop it there, then `docker volume rm dmximport_data` in dmx and import again', 'volume d87e6229a6bff4fb157a47bfc8e092c4223eb7febe1cfee39019ade4c8896c81 was copied while dmximport-worker-1 ran in colima; for a consistent copy stop it there, then remove dmximport-worker-1 with `docker rm -v` in dmx and "
+        },
+        {
+          "name": "created_not_started",
+          "ok": true,
+          "detail": "['dmximport-sidecar-1:created', 'dmximport-web-1:created', 'dmximport-worker-1:created']"
+        },
+        {
+          "name": "second_run_exists",
+          "ok": true,
+          "detail": "[('image', 'exists'), ('image', 'exists'), ('volume', 'exists'), ('network', 'exists'), ('network', 'exists'), ('container', 'exists'), ('container', 'exists'), ('container', 'exists')]"
+        },
+        {
+          "name": "compose_up",
+          "ok": true,
+          "detail": "port-sidecar-1 Recreate \n Container dmximport-sidecar-1 Recreated \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-sidecar-1 Started \n"
+        },
+        {
+          "name": "compose_no_recreate",
+          "ok": true,
+          "detail": " Container dmximport-sidecar-1 Recreate \n Container dmximport-sidecar-1 Recreated \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-sidecar-1 Started \n"
+        },
+        {
+          "name": "digest_name_kept",
+          "ok": true,
+          "detail": "alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42"
+        },
+        {
+          "name": "compose_running",
+          "ok": true,
+          "detail": "sidecar:running\nweb:running\nworker:running\n"
+        },
+        {
+          "name": "data",
+          "ok": true,
+          "detail": "built-on-source\n999 999 700\n2\nsecret/f\nhi\nanon\n"
+        },
+        {
+          "name": "shared_namespace",
+          "ok": true,
+          "detail": "container:de88241bca29bb9572f5d90d0eaf863cab0b35d88136952a11f26cb2f1e6f451 vs web de88241bca29"
+        },
+        {
+          "name": "port",
+          "ok": true,
+          "detail": "127.0.0.1:20181"
+        },
+        {
+          "name": "service_alias",
+          "ok": true,
+          "detail": "{\"dmximport_back\":{\"IPAMConfig\":null,\"Links\":null,\"Aliases\":[\"dmximport-worker-1\",\"worker\"],\"DriverOpts\":null,\"GwPriority\":0,\"NetworkID\":\"4bb9e63e0c904ab73fa4218b8c0c1e2a7ccbd15a84487549c39a045151a951"
+        },
+        {
+          "name": "compose_down",
+          "ok": true,
+          "detail": " dmximport-web-1 Stopped \n Container dmximport-web-1 Removing \n Container dmximport-web-1 Removed \n Network dmximport_back Removing \n Volume dmximport_data Removing \n Network dmximport_front Removing \n Volume dmximport_data Removed \n Network dmximport_back Removed \n Network dmximport_front Removed \n"
+        },
+        {
+          "name": "down_removes_everything",
+          "ok": true,
+          "detail": "{'containers': [], 'images': ['alpine:<none>@e311ae748be7', 'dmximport-web:test@dc0e76a893ad'], 'volumes': [], 'networks': ['bridge', 'host', 'none']}"
+        },
+        {
+          "name": "source_unchanged",
+          "ok": true,
+          "detail": "{}"
+        },
+        {
+          "name": "no_source_helpers",
+          "ok": true,
+          "detail": "[]"
+        }
+      ]
+    },
+    {
+      "ok": true,
+      "source": "colima",
+      "source_engine": "29.5.2 overlayfs",
+      "import_s": 2.7,
+      "items": [
+        "image dmximport-web:test imported",
+        "image alpine@sha256:e311ae748b imported",
+        "volume dmximport_data imported",
+        "network dmximport_back imported",
+        "network dmximport_front imported",
+        "container dmximport-web-1 imported",
+        "volume cf96a4a1a493fc1bd64da7a2 imported",
+        "container dmximport-sidecar-1 imported",
+        "container dmximport-worker-1 imported",
+        "volume 1a38706c9fc64142971679e0 imported"
+      ],
+      "total_s": 8,
+      "checks": [
+        {
+          "name": "docker_tools",
+          "ok": true,
+          "detail": "~/.dmx/bin/docker and ~/.dmx/cli-plugins/docker-compose; run `dmx tools install`"
+        },
+        {
+          "name": "source_answers",
+          "ok": true,
+          "detail": "~/.colima/default/docker.sock"
+        },
+        {
+          "name": "source_up",
+          "ok": true,
+          "detail": "import-sidecar-1 Creating \n Container dmximport-sidecar-1 Created \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-sidecar-1 Started \n"
+        },
+        {
+          "name": "source_fill",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "source_stop",
+          "ok": true,
+          "detail": " Container dmximport-sidecar-1 Stopping \n Container dmximport-sidecar-1 Stopped \n Container dmximport-web-1 Stopping \n Container dmximport-web-1 Stopped \n"
+        },
+        {
+          "name": "dmx_start",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "name": "dry_run",
+          "ok": true,
+          "detail": "[('image', 'planned'), ('image', 'planned'), ('volume', 'planned'), ('network', 'planned'), ('network', 'planned'), ('container', 'planned'), ('volume', 'planned'), ('container', 'planned'), ('container', 'planned'), ('volume', 'planned')]"
+        },
+        {
+          "name": "dry_run_changes_nothing",
+          "ok": true,
+          "detail": "{'containers': [], 'images': [], 'volumes': [], 'networks': ['bridge', 'host', 'none']}"
+        },
+        {
+          "name": "import_ok",
+          "ok": true,
+          "detail": "[]"
+        },
+        {
+          "name": "import_counts",
+          "ok": true,
+          "detail": "{'image': 2, 'volume': 3, 'network': 2, 'container': 3}"
+        },
+        {
+          "name": "running_noted",
+          "ok": true,
+          "detail": "{'action': 'imported', 'detail': 'running in colima; created here, not started', 'kind': 'container', 'name': 'dmximport-worker-1'}"
+        },
+        {
+          "name": "live_copy_warned",
+          "ok": true,
+          "detail": "['volume dmximport_data was copied while dmximport-worker-1 ran in colima; for a consistent copy stop it there, then `docker volume rm dmximport_data` in dmx and import again', 'volume 1a38706c9fc64142971679e0997e9c3a3ce62d8efc860ec4f9aa607c1f719f00 was copied while dmximport-worker-1 ran in colima; for a consistent copy stop it there, then remove dmximport-worker-1 with `docker rm -v` in dmx and "
+        },
+        {
+          "name": "created_not_started",
+          "ok": true,
+          "detail": "['dmximport-sidecar-1:created', 'dmximport-web-1:created', 'dmximport-worker-1:created']"
+        },
+        {
+          "name": "second_run_exists",
+          "ok": true,
+          "detail": "[('image', 'exists'), ('image', 'exists'), ('volume', 'exists'), ('network', 'exists'), ('network', 'exists'), ('container', 'exists'), ('container', 'exists'), ('container', 'exists')]"
+        },
+        {
+          "name": "compose_up",
+          "ok": true,
+          "detail": "port-sidecar-1 Recreate \n Container dmximport-sidecar-1 Recreated \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-sidecar-1 Started \n"
+        },
+        {
+          "name": "compose_no_recreate",
+          "ok": true,
+          "detail": " Container dmximport-sidecar-1 Recreate \n Container dmximport-sidecar-1 Recreated \n Container dmximport-worker-1 Starting \n Container dmximport-web-1 Starting \n Container dmximport-worker-1 Started \n Container dmximport-web-1 Started \n Container dmximport-sidecar-1 Starting \n Container dmximport-sidecar-1 Started \n"
+        },
+        {
+          "name": "digest_name_kept",
+          "ok": true,
+          "detail": "alpine@sha256:e311ae748be7f56ae5cba304bc488f0786df68ee507513f654a5cc8597cffb42"
+        },
+        {
+          "name": "compose_running",
+          "ok": true,
+          "detail": "sidecar:running\nweb:running\nworker:running\n"
+        },
+        {
+          "name": "data",
+          "ok": true,
+          "detail": "built-on-source\n999 999 700\n2\nsecret/f\nhi\nanon\n"
+        },
+        {
+          "name": "shared_namespace",
+          "ok": true,
+          "detail": "container:fffa8c40bfdc8ae0b006c56a1ef5ec656b4709550d6f06fbcd5d2645059bf55f vs web fffa8c40bfdc"
+        },
+        {
+          "name": "port",
+          "ok": true,
+          "detail": "127.0.0.1:20181"
+        },
+        {
+          "name": "service_alias",
+          "ok": true,
+          "detail": "{\"dmximport_back\":{\"IPAMConfig\":null,\"Links\":null,\"Aliases\":[\"dmximport-worker-1\",\"worker\"],\"DriverOpts\":null,\"GwPriority\":0,\"NetworkID\":\"0da7bde6453beb253cf7013af87a2025e24e44a1c229201a9b0da065136c22"
+        },
+        {
+          "name": "compose_down",
+          "ok": true,
+          "detail": " dmximport-web-1 Stopped \n Container dmximport-web-1 Removing \n Container dmximport-web-1 Removed \n Network dmximport_back Removing \n Volume dmximport_data Removing \n Network dmximport_front Removing \n Volume dmximport_data Removed \n Network dmximport_back Removed \n Network dmximport_front Removed \n"
+        },
+        {
+          "name": "down_removes_everything",
+          "ok": true,
+          "detail": "{'containers': [], 'images': ['alpine:<none>@e311ae748be7', 'dmximport-web:test@2d35721b2e43'], 'volumes': [], 'networks': ['bridge', 'host', 'none']}"
+        },
+        {
+          "name": "source_unchanged",
+          "ok": true,
+          "detail": "{}"
+        },
+        {
+          "name": "no_source_helpers",
+          "ok": true,
+          "detail": "[]"
+        }
+      ]
+    }
+  ]
+}

@@ -85,6 +85,8 @@ dmx config set memory 8G         # also: cpus, idle_timeout, disk_size, shares; 
 dmx port add 8080:80             # forward a host port to the VM (Docker's -p needs no command)
 dmx doctor                       # check this Mac and the installation
 dmx bench                        # measure dmx's memory, and other engines' with --engine
+dmx import --dry-run             # bring images, volumes and Compose projects over from Docker Desktop,
+                                 # OrbStack or Colima (new after 0.4.8; docs/docker.md#importing-from-another-engine)
 dmx update                       # install the newest release over this one
 ```
 

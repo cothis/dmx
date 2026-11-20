@@ -621,9 +621,13 @@ to switch. One item per session, in this order; each is verified on the real VM.
       backoff 1 s doubling to 60 s, `guest_crash` in status; `make crashtest` 30/30, fails on
       v0.4.8 ([finding](#guest-crash-recovery-2026-11-20)). A VMM fault takes the same path but
       was not forced.
-- [ ] `dmx import`: bring images, volumes and (stopped) container definitions over from Docker
+- [x] `dmx import`: bring images, volumes and (stopped) container definitions over from Docker
       Desktop, OrbStack or Colima through their Docker sockets. Done when: an import from a real
-      second engine restores an image, a named volume's data and a Compose project.
+      second engine restores an image, a named volume's data and a Compose project. Done
+      2026-11-20: `dmx import [--from] [--project] [--dry-run]` (DMXCore/Import.swift), images by
+      save/load or by digest, volume data by `docker cp` between never-started helpers, bridge
+      networks, containers created not started; `make importtest FROM=colima` 26/26 against a
+      real Colima ([finding](#dmx-import-2026-11-20)). OrbStack and Docker Desktop not tried.
 - [ ] Homebrew tap (maintainer decision: a new public repository `cothis/homebrew-dmx`): a cask
       for the notarized app archive, `auto_updates true`, uninstall of the launchd agent and a zap
       of `~/.dmx`; the release script updates version and sha256. Homebrew stays optional.
@@ -634,19 +638,23 @@ to switch. One item per session, in this order; each is verified on the real VM.
 
 ## Next up
 
-**Phase 13 in progress** (2026-11-20): see [Phase 13](#phase-13-easier-to-try-and-to-trust-2026-11-20).
-Done: README front page, `dmx bench` ([finding](#dmx-bench-first-runs-2026-11-20)), the soak
-check, `make soaktest` ([finding](#soak-check-2026-11-20)), and guest crash recovery, `make
-crashtest` ([finding](#guest-crash-recovery-2026-11-20)). Next: `dmx import` (images, a named
-volume's data and a Compose project from a real second engine; none is installed here now, so it
-needs Docker Desktop, OrbStack or Colima installed briefly under the comparison rules in
-docs/memory.md). The Homebrew tap and local names wait for the maintainer. Open from crash
-recovery, both guest-side (`docker_autostart`'s count, needs a guest build): an `always`
-container stopped with `docker stop` does not start dockerd at boot although dockerd restarts it
-once started, and an `on-failure` container running at a crash is not counted. Open from bench: warm
-`docker run` is bimodal on this Mac (77–80 or 143–251 ms). `make guest` needs `make kernel` first
-here: `~/.dmx/cache` no longer has the kernel tarball (bench and soak sessions verified with the
-installed v0.4.8 guest; the guest was not changed).
+**Phase 13: the items that need no maintainer decision are done** (2026-11-20): README front
+page, `dmx bench` ([finding](#dmx-bench-first-runs-2026-11-20)), the soak check ([finding](#soak-check-2026-11-20)),
+guest crash recovery ([finding](#guest-crash-recovery-2026-11-20)) and `dmx import`
+([finding](#dmx-import-2026-11-20)). Next: the Homebrew tap and local names, both waiting for the
+maintainer (a new public repository; an admin prompt and a trusted CA). Without those, the open
+ends: `dmx import` was run against Colima only (OrbStack and Docker Desktop not tried; their
+sockets are known, and the classic image store, where image IDs differ from the containerd
+store's, was not a source), and it is not an MCP tool yet. From crash recovery, both guest-side
+(`docker_autostart`'s count, needs a guest build): an `always` container stopped with `docker
+stop` does not start dockerd at boot although dockerd restarts it once started, and an
+`on-failure` container running at a crash is not counted. From bench: warm `docker run` is
+bimodal on this Mac (77–80 or 143–251 ms), and `--engine` has not measured a real other engine.
+`make guest` needs `make kernel` first here: `~/.dmx/cache` no longer has the kernel tarball
+(sessions since bench verified with the installed v0.4.8 guest, unchanged). `UDPBackpressureTests`
+failed once in a full `make test` with `port_in_use` (it reserves an ephemeral port, closes it and
+binds it again, which a parallel test can take); it passed on its own three times and in the next
+full run.
 
 
 **v0.4.8 is published** (2026-11-12), signed, notarized and stapled, from tag commit `5cb05c3`.
@@ -908,6 +916,50 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### dmx import (2026-11-20)
+
+Source: Colima 0.10.3 (Lima 2.3.0, vz, 2 CPU / 2 GiB), dockerd 29.5.2 with the containerd image
+store, installed from the official release binaries for this check (sha256 checked) and removed
+afterwards. dmx: `main` after 0.4.8 with the installed v0.4.8 guest, dockerd 29.9.2.
+
+By hand first, into the everyday dmx: a Compose project with a built image, `postgres:17-alpine`
+on a named volume with a table row, `redis:7-alpine` with its anonymous `/data` and a key, two
+networks and a published port, plus a standalone container and a volume with uid 999 files, mode
+700, a hard link and a symlink. 13 items in 4.6 s; `compose up -d` in the same directory started
+all three services without recreating them, and the row, the key, owners, modes and both links
+were there; a second run reported all 13 as already in dmx.
+
+Three things that first pass got wrong, found by `scripts/test-import.py`: a container in another's
+network namespace carries that one's hostname, which dockerd refuses on create; anonymous volumes
+mounted by name made `compose down -v` leave them behind (they now stay anonymous: dockerd makes
+new ones and the import fills them); and overwriting `com.docker.compose.image` with dmx's image
+ID made Compose recreate everything (it is not the image ID; the label now comes over unchanged).
+`container:NAME` is kept by dockerd as written while Compose compares the ID, so references name
+the new container by its ID. A service with `network_mode: service:web` is still recreated on the
+first `up`: Compose hashes web's container ID into the sidecar's config hash, and IDs cannot be
+chosen. The containerd store lists `alpine@sha256:...` among an image's tags and `docker load`
+cannot restore that name, so such images are pulled by digest.
+
+A Sonnet 5.5 review of the code found, among others: a failed volume copy left the helper
+holding the volume, so deleting the half-filled volume failed silently and the next run called it
+`exists`; a failed anonymous-volume copy was never retried; `--dry-run` removed helpers of any
+run, including a concurrent one; the `--platform` retry hid the first error; `IpcMode`/`PidMode
+container:` were not remapped; and no warning when dmx's tag is a different image or a container
+mounts a volume that was skipped. All fixed (helpers removed before the volume, the container
+removed again, helpers labelled per run and left alone in a dry run). Not changed: Int values
+above `Int.max` in inspect output would come back as doubles (JSONValue), and the helper image is
+the smallest one each engine has, without checking its platform. The failure paths were reviewed,
+not forced; the tag warning was seen with a retagged image.
+
+`make importtest FROM=colima`, throwaway `DMX_HOME`: 26/26 four times (twice after the review fixes); the import itself 2.6–2.7 s,
+the whole check 8–9 s after the first pull. Dry run changes nothing; a second import is all
+`exists`; the running worker is reported and its live volume named in a warning; in dmx `compose
+up -d` recreates only the sidecar; files, owners, modes, links, the anonymous volume, the digest
+name, the shared namespace, the port and the service alias are there; `compose down -v` leaves no
+container, volume or network; Colima's containers, images, volumes and networks are unchanged and
+no helper is left. Unit 154 (9 new), selftest 23/23 at 99 MB.
+[Raw](measurements/2026-11-20-import.json).
 
 ### Guest crash recovery (2026-11-20)
 
@@ -1868,6 +1920,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-20: Added `dmx import` (DMXCore/Import.swift): images, volumes with their data, bridge networks and containers (created, not started) from Docker Desktop, OrbStack, Colima, Rancher Desktop or any socket; `--project`, `--dry-run`, `--json`; existing names are never overwritten, the source is never changed. `make importtest` (`scripts/test-import.py`) 26/26 against a real Colima, installed for the check and removed; unit 154, selftest 23/23 (99 MB). Phase 13's remaining items wait for the maintainer.
 - 2026-11-20: Guest crash recovery. Fixed a guest kernel panic leaving the VM "running" at about 1200% CPU (`panic=-1`; SYSTEM_RESET is now `Machine.Exit.guestReset`). The daemon keeps the crashed boot's console tail in `logs/guest-crash.log`, shows `guest_crash` in status, and with containers running boots a new VM after 1 s doubling to 60 s, cancelled by `dmx stop`. `make crashtest` 30/30 (fails on v0.4.8); unit 145, selftest 23/23 (99–100 MB, unchanged), daemontest 63/63, menu script 25/25. Next: `dmx import`.
 - 2026-11-20: Added the soak check, `make soaktest` (`scripts/test-soak.py`): 300 `docker run --rm` and 50 Compose cycles, then footprint, guest memory, daemon fds/threads, guest dockerd/containerd/agent fds/threads/RSS and leftovers against the start, each after the idle sweep. 28/28 at 300/50 and at 1500/250; no leak found. Unit 142, selftest 23/23 (99 MB). Next: guest crash recovery.
 - 2026-11-20: Added `dmx bench` (DMXCore/Bench.swift, BenchChart.swift): idle window, idle CPU, warm `docker run`, and memory every 100 ms while a container takes and frees 2 GiB, for dmx and each `--engine NAME=SOCKET,PID...`; `--json` and `--svg`. README graph and benchmark.md section from it; four rounds recorded. Unit 142 (5 new), selftest 23/23 (99 MB). `make guest` could not run: the kernel tarball is gone from `~/.dmx/cache` (the musl Rust target was also missing and is installed now). Next: the soak check.

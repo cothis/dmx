@@ -95,6 +95,9 @@ let dockerdLog = "/var/lib/dmx/log/dockerd.log"
 /// dockerd hands over for `exec` and `logs`. Blocking reads run on their own threads.
 struct DockerAPI: Sendable {
     let open: @Sendable () async throws -> DockerStream
+    /// The path prefix of every request; empty asks for the server's own newest version, which
+    /// suits reading another engine whose dockerd may be older than 1.47.
+    var apiVersion = DockerAPI.version
 
     /// API version sent with every request: dockerd 29 serves 1.44 and later; 1.47 has
     /// everything used here.
@@ -116,7 +119,12 @@ struct DockerAPI: Sendable {
         }
     }
 
-    private static func connectUnix(_ url: URL, timeoutSeconds: Int? = nil) throws -> DockerStream {
+    /// Any engine's socket, for example another engine's to import from.
+    static func unix(_ url: URL, timeoutSeconds: Int? = nil, apiVersion: String = DockerAPI.version) -> DockerAPI {
+        DockerAPI(open: { try connectUnix(url, timeoutSeconds: timeoutSeconds) }, apiVersion: apiVersion)
+    }
+
+    static func connectUnix(_ url: URL, timeoutSeconds: Int? = nil) throws -> DockerStream {
         var address = try unixAddress(url)
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw DMXError("docker_failed", "socket: \(String(cString: strerror(errno)))") }
@@ -141,7 +149,7 @@ struct DockerAPI: Sendable {
         let stream = try await open()
         do {
             let payload = body.map(\.compactData) ?? Data()
-            let head = "\(method) /\(Self.version)\(path) HTTP/1.0\r\nHost: docker\r\n"
+            let head = "\(method) \(apiVersion.isEmpty ? "" : "/" + apiVersion)\(path) HTTP/1.0\r\nHost: docker\r\n"
                 + (body != nil ? "Content-Type: application/json\r\nContent-Length: \(payload.count)\r\n" : "") + "\r\n"
             let (status, rest) = try await onThread { () throws -> (Int, Data) in
                 try stream.writeAll(Data(head.utf8) + payload)

@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build app install-app apptest localnettest localnetupdatetest menutest install kernel qemu fex guest selftest daemontest mcptest clocktest sandboxtest x86test dockertest soaktest crashtest imagetest javatest storagetest pressuretest benchmark test formaltest lifecycletest remaininglifecycletest release clean
+.PHONY: build app install-app apptest localnettest localnetupdatetest menutest install kernel qemu fex guest selftest daemontest mcptest clocktest sandboxtest x86test dockertest soaktest importtest crashtest imagetest javatest storagetest pressuretest benchmark test formaltest lifecycletest remaininglifecycletest release clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -95,6 +95,11 @@ dockertest: build
 # memory against the start, each after the idle sweep (needs the internet; about 4 min).
 soaktest: build
 	python3 -I scripts/test-soak.py $(BIN)
+
+# `dmx import` from a real second engine: a Compose project with a built image, named and
+# anonymous volumes, two networks and a shared namespace; FROM=colima|orbstack|docker-desktop.
+importtest: build
+	python3 -I scripts/test-import.py $(BIN) --from $(or $(FROM),colima)
 
 # Forced guest kernel panics: a new VM brings back `always`/`unless-stopped` containers, `no`
 # ones stay exited; backoff, `dmx stop` during it, a crash with nothing running (about 1 min).

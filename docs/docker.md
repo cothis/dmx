@@ -292,6 +292,56 @@ Before this, a panic left the VM reported as running, unreachable, with the daem
 of the Mac's CPU until it was stopped. An `on-failure` container that was running at the crash
 has not been checked: dockerd's record still says exit code 0 then.
 
+## Importing from another engine
+
+`dmx import` brings what another engine has over to dmx through its Docker socket: Docker
+Desktop (`~/.docker/run/docker.sock`), OrbStack (`~/.orbstack/run/docker.sock`), Colima
+(`~/.colima/default/docker.sock`), Rancher Desktop (`~/.rd/docker.sock`), or any socket with
+`--from unix:///path`. Without `--from` it uses the one of these that answers, and stops with
+`import_ambiguous_source` if more than one does. `--project NAME` limits it to a Compose project:
+its containers, the images and volumes they use, and the volumes and networks labelled with it.
+`--dry-run` lists what it would do; `--json` reports every item with its action (`imported`,
+`planned`, `exists`, `skipped`, `failed`), the warnings and the next command.
+
+```sh
+dmx import --dry-run             # what the one running engine has, nothing changed
+dmx import --from orbstack --project shop
+docker compose up -d             # in the project's directory, after stopping it in the other engine
+```
+
+Nothing on the other engine changes. Images go through `docker save | docker load` (with
+`--platform` when a multi-platform image has only some platforms there); an image a container
+names by digest (`alpine@sha256:...`) is pulled by that digest instead, because a load cannot
+bring that name back. Each volume's files, owners, modes and links are copied with `docker cp`
+between two containers that are created with the volume mounted and never started; any image
+each engine has will do for them, and they are removed afterwards. User bridge networks are
+created with their labels and options, without the other VM's bridge name, and with the subnet
+only when a container had a fixed address in it. Containers are created with their own
+configuration and labels, so Compose finds its projects, and are not started, so their ports do
+not fight the other engine's. Anonymous volumes (an image's `VOLUME`, `-v /path`) stay anonymous:
+dockerd makes new ones for the new container and they get the old ones' files, so `docker rm -v`
+and `compose down -v` still remove them.
+
+What dmx already has is left alone: a tag, a volume, a network or a container of the same name.
+So a second run picks up only what is missing, and nothing of yours is overwritten. A tag dmx
+has for a different image is named in a warning, and containers imported with it use dmx's. A
+volume whose copy fails is removed again, and so is a container whose anonymous volume could not
+be copied, so the next run tries them again. To copy a
+volume again (for example after stopping the database that was writing to it), remove it in dmx
+and run the import again. A volume in use by a running container is copied as it is and named in
+a warning. Not imported: volumes of other drivers or with driver options (they describe storage
+of the other VM; a container that mounts one is named in a warning), networks other than bridge,
+and containers whose names dmx already has. A bind mount of a Mac path dmx does not share (see
+[Bind mounts](#bind-mounts)) is named in a warning.
+
+Compose starts the imported containers without recreating them, with one exception: a service in
+another one's namespace (`network_mode: service:web`, also `ipc`, `pid` and `volumes_from`) is
+recreated on the first `up`, because Compose hashes the other container's ID into its
+configuration and container IDs are new in dmx. Its data is in its volumes, which Compose keeps.
+
+`make importtest FROM=colima` (`scripts/test-import.py`) builds a Compose project in a real
+second engine and checks the whole path into a throwaway `DMX_HOME`; `docs/PLAN.md` has the runs.
+
 ## Published ports
 
 Ports a running container publishes, TCP and UDP, are forwarded from the Mac, like Docker

@@ -404,18 +404,25 @@ struct DockerCLI: Sendable {
     let socket: URL
     let config: URL
 
+    /// The CLI set up to talk to this engine only; not started.
+    func process(_ args: [String]) -> Foundation.Process {
+        let process = Foundation.Process()
+        process.executableURL = docker
+        process.arguments = args
+        var env = ProcessInfo.processInfo.environment
+        env["DOCKER_HOST"] = "unix://" + socket.path
+        env["DOCKER_CONFIG"] = config.path
+        env["DOCKER_CLI_HINTS"] = "false"
+        env.removeValue(forKey: "DOCKER_CONTEXT")
+        process.environment = env
+        return process
+    }
+
     func run(_ args: [String], timeout: Double) async throws -> String {
-        let docker = docker, socket = socket, config = config
+        let docker = docker, socket = socket
+        let cli = self
         return try await onThread {
-            let process = Foundation.Process()
-            process.executableURL = docker
-            process.arguments = args
-            var env = ProcessInfo.processInfo.environment
-            env["DOCKER_HOST"] = "unix://" + socket.path
-            env["DOCKER_CONFIG"] = config.path
-            env["DOCKER_CLI_HINTS"] = "false"
-            env.removeValue(forKey: "DOCKER_CONTEXT")
-            process.environment = env
+            let process = cli.process(args)
             let out = Pipe(), err = Pipe()
             process.standardOutput = out
             process.standardError = err
@@ -448,7 +455,7 @@ struct DockerCLI: Sendable {
     }
 }
 
-private final class LockedData: @unchecked Sendable {
+final class LockedData: @unchecked Sendable {
     private let lock = NSLock()
     private var data = Data()
     private var finished = false
