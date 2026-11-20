@@ -59,7 +59,8 @@ public struct NameAuthority: Sendable {
         return NameAuthority(certificate: certificate, key: SecKeySendable(key.key))
     }
 
-    public static func load(_ directory: URL) throws -> NameAuthority? {
+    /// `current: false` reads a CA from an earlier dmx too, so `dmx names remove` can take it out.
+    public static func load(_ directory: URL, current: Bool = true) throws -> NameAuthority? {
         let keyFile = directory.appendingPathComponent("ca.key"), certFile = directory.appendingPathComponent("ca.pem")
         guard let keyBits = try? Data(contentsOf: keyFile), let text = try? String(contentsOf: certFile, encoding: .utf8) else { return nil }
         guard let der = HostCertificates.pemBlocks(text).first.flatMap(derOfPEM), let key = try? P256Key(privateBits: keyBits) else {
@@ -67,7 +68,7 @@ public struct NameAuthority: Sendable {
                            hint: "run `dmx names remove`, then `dmx names setup` to make a new one")
         }
         // A CA made before its constraints excluded IP addresses could vouch for https://<address>.
-        guard der.range(of: nameConstraints) != nil else {
+        guard !current || der.range(of: nameConstraints) != nil else {
             throw DMXError("names_bad_authority", "the CA in \(directory.path) is from an earlier dmx and does not exclude IP addresses",
                            hint: "run `dmx names remove`, then `dmx names setup` to make a new one")
         }

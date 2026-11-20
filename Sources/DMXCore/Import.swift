@@ -156,6 +156,8 @@ public enum Import {
         run.dmxRunning = dmxRunning
         run.journal = Journal(paths: paths)
         run.incomplete = run.journal.interrupted()
+        Import.activeRuns.insert(run.runID)
+        defer { Import.activeRuns.remove(run.runID) }
         if !options.dryRun { await run.removeStaleHelpers() }
         // A cancelled call (an MCP client gave up) stops between items; the item under way
         // finishes or rolls back, and the cleanup still runs.
@@ -244,9 +246,9 @@ extension Import {
         /// not an empty list, or the import would take an engine for empty.
         static func list(_ api: DockerAPI, _ path: String, key: String? = nil) async throws -> [JSONValue] {
             let reply = try await api.json("GET", path, code: "import_source_failed")
-            let value = key.map { reply[$0] ?? .null } ?? reply
-            // dockerd answers `"Volumes": null` when there are none.
-            if key != nil, value == .null, reply.object != nil { return [] }
+            // dockerd answers `"Volumes": null` when there are none; a missing key is not that.
+            if let key, reply.object?[key] == .null { return [] }
+            let value = key.map { reply[$0] ?? .bool(false) } ?? reply
             guard let list = value.array else {
                 throw DMXError("import_source_failed", "the engine's answer to GET \(path) is not a list",
                                hint: "check the engine with `docker info`, then run `dmx import` again")
@@ -278,7 +280,8 @@ extension Import {
                                             labels: strings(n["Labels"]), raw: n))
             }
             for c in try await list(api, "/containers/json?all=1") {
-                guard let id = c["Id"]?.string else { continue }
+                // An import's own helpers are not containers to bring over.
+                guard let id = c["Id"]?.string, c["Labels"]?[Import.helperKey] == nil else { continue }
                 let i = try await api.json("GET", "/containers/\(id)/json")
                 inv.containers.append(Container(id: id, name: String((i["Name"]?.string ?? id).drop { $0 == "/" }),
                                                 imageID: i["Image"]?.string ?? "", running: i["State"]?["Running"]?.bool ?? false,
@@ -390,8 +393,10 @@ extension Import {
         /// False for a dry run against a stopped dmx: nothing may ask dmx's Docker socket.
         var dmxRunning = true
         var journal = Journal(paths: nil)
-        /// What an interrupted run was copying when it stopped: in dmx, but not whole.
-        var incomplete: Set<String> = []
+        /// What interrupted runs were copying when they stopped (key to run id): in dmx, not whole.
+        var incomplete: [String: String] = [:]
+        /// This run's id (see Import.newRunID).
+        let runID = Import.newRunID()
         let progress: @Sendable (String) -> Void
         var warnings: [String] = []
         /// Source image ID to the ID of the same image in dmx.
@@ -402,7 +407,7 @@ extension Import {
         var helperImages: (src: String?, dst: String?) = (nil, nil)
         /// This run's helpers only, so a run never removes another one's. The value starts with
         /// the pid, so a later run can tell the helpers of an interrupted one.
-        let helperValue = "\(Import.hostID)-\(getpid())-\(UUID().uuidString.prefix(8))"
+        var helperValue: String { runID }
         var helperLabel: String { "\(Import.helperKey)=\(helperValue)" }
         /// Images this run pulled into the source to read its volumes, removed again at the end.
         var pulledIntoSource: [String] = []
@@ -504,8 +509,9 @@ extension Import {
                 missingVolumes[volume.name] = "its volume \(volume.name) has a name Docker does not give volumes"
                 return item
             }
-            if target.volumes.contains(where: { $0.name == volume.name }) {
-                if incomplete.contains("volume:\(volume.name)") {
+            if let existing = target.volumes.first(where: { $0.name == volume.name }) {
+                // Made by a run that was killed while copying it: its label names that run.
+                if let run = incomplete["volume:\(volume.name)"], existing.labels[Import.runKey] == run {
                     item.action = "failed"
                     item.detail = "an earlier import stopped while copying it; `docker volume rm \(volume.name)` in dmx and import again"
                     missingVolumes[volume.name] = "its volume \(volume.name) is incomplete from an interrupted import"
@@ -515,8 +521,6 @@ extension Import {
                 item.detail = "dmx has a volume of this name; its data was left alone"
                 return item
             }
-            // Removed since an interrupted run: this one copies it whole.
-            if !dryRun { journal.forget("volume:\(volume.name)") }
             guard volume.driver == "local", volume.options.isEmpty else {
                 item.action = "skipped"
                 item.detail = volume.driver != "local" ? "driver \(volume.driver) is not dmx's"
@@ -527,50 +531,61 @@ extension Import {
             warnIfInUse(volume.name, source: source, redo: "`docker volume rm \(volume.name)` in dmx and import again")
             if dryRun { item.action = "planned"; return item }
             progress("volume \(volume.name): copying its data")
-            var created = false
+            let key = "volume:\(volume.name)"
+            journal.begin(key, run: runID)
+            // Whether the volume of that name in dmx is this run's: the label is set only by the
+            // create that made it (dockerd answers a create for an existing name with that volume).
+            let dst = self.dst, runID = self.runID, name = volume.name
+            @Sendable func ours() async -> Bool? {
+                guard let r = try? await dst.call("GET", "/volumes/\(name)") else { return nil }
+                if r.status == 404 { return false }
+                guard r.status < 300, let v = try? JSONDecoder().decode(JSONValue.self, from: r.body) else { return nil }
+                return v["Labels"]?[Import.runKey]?.string == runID
+            }
             do {
-                // dockerd answers a create for a name it has with that volume, so a volume made
-                // since the listing (another import, Compose) is found here and left alone.
+                // Made since the listing (another import, Compose): left alone.
                 if (try await dst.call("GET", "/volumes/\(volume.name)")).status != 404 {
+                    journal.end(key, run: runID)
                     item.action = "exists"
                     item.detail = "dmx has a volume of this name (made during the import); its data was left alone"
                     return item
                 }
-                // Gone from the source since the listing: a helper mount would make it again, empty.
-                if (try await src.call("GET", "/volumes/\(volume.name)")).status == 404 {
-                    item.action = "skipped"
-                    item.detail = "removed from \(sourceName) during the import"
-                    missingVolumes[volume.name] = "its volume \(volume.name) was removed from \(sourceName) during the import"
-                    return item
-                }
-                journal.begin("volume:\(volume.name)")
-                // dockerd answers a create for a name it has with that volume and its own labels,
-                // so this run's label in the reply is what says the volume is new. Compose compares
-                // only its config-hash label, so the extra label changes nothing for it.
                 var labels = volume.labels.mapValues(JSONValue.string)
-                labels[Import.runKey] = .string(helperValue)
-                let made = try await dst.json("POST", "/volumes/create", body: .object([
+                // Compose compares only its config-hash label, so the extra one changes nothing for it.
+                labels[Import.runKey] = .string(runID)
+                _ = try await dst.call("POST", "/volumes/create", body: .object([
                     "Name": .string(volume.name), "Driver": "local", "Labels": .object(labels),
                 ]))
-                guard made["Labels"]?[Import.runKey]?.string == helperValue else {
-                    journal.end("volume:\(volume.name)")
+                switch await ours() {
+                case .some(true): break
+                case .some(false):
+                    journal.end(key, run: runID)
                     item.action = "exists"
                     item.detail = "dmx has a volume of this name (made during the import); its data was left alone"
                     return item
+                case .none:
+                    throw DMXError("import_failed", "cannot tell whether dmx made volume \(volume.name)", hint: "run `dmx import` again")
                 }
-                created = true
-                try await copyData(from: volume.name, into: volume.name)
-                journal.end("volume:\(volume.name)")
-                target.volumes.append(volume)
+                try await copyData(from: volume.name, into: volume.name) { await ours() == true }
+                journal.end(key, run: runID)
+                target.volumes.append(Volume(name: volume.name, driver: volume.driver,
+                                             labels: volume.labels.merging([Import.runKey: runID]) { a, _ in a }, options: volume.options))
             } catch {
                 item.action = "failed"
                 item.detail = Import.message(error)
                 missingVolumes[volume.name] = "its volume \(volume.name) could not be copied"
-                // The journal keeps the entry if the half-filled volume cannot go: the next run then
-                // reports it instead of taking it as whole.
-                let status = created ? (try? await dst.call("DELETE", "/volumes/\(queryValue(volume.name))"))?.status : 404
-                if let status, status < 300 || status == 404 { journal.end("volume:\(volume.name)") }
-                else { item.detail = (item.detail ?? "") + "; the half-copied volume could not be removed: `docker volume rm \(volume.name)` in dmx" }
+                // Only this run's volume is removed, and the journal entry goes only once it is gone
+                // or was never made: otherwise the next run reports it instead of taking it as whole.
+                switch await ours() {
+                case .some(false):
+                    journal.end(key, run: runID)
+                case .some(true):
+                    let status = (try? await dst.call("DELETE", "/volumes/\(queryValue(volume.name))"))?.status
+                    if let status, status < 300 || status == 404 { journal.end(key, run: runID) }
+                    else { item.detail = (item.detail ?? "") + "; the half-copied volume could not be removed: `docker volume rm \(volume.name)` in dmx" }
+                case .none:
+                    item.detail = (item.detail ?? "") + "; whether dmx has it half-copied is not known: check with `docker volume ls`"
+                }
             }
             return item
         }
@@ -587,7 +602,13 @@ extension Import {
         /// without running anything. Any image will do: the smallest one each engine has, or the
         /// pinned alpine pulled if it has none. The helpers go before it returns or throws, so a
         /// caller can delete a half-filled volume.
-        mutating func copyData(from sourceVolume: String, into targetVolume: String) async throws {
+        mutating func copyData(from sourceVolume: String, into targetVolume: String,
+                               stillOurs: () async -> Bool = { true }) async throws {
+            // Gone from the source since the listing: a helper mount would make it again, empty.
+            guard (try await src.call("GET", "/volumes/\(sourceVolume)")).status != 404 else {
+                throw DMXError("import_failed", "volume \(sourceVolume) was removed from \(sourceName) during the import",
+                               hint: "run `dmx import` again")
+            }
             if helperImages.src == nil { helperImages.src = try await helperImage(src, srcCLI, side: sourceName) }
             if helperImages.dst == nil { helperImages.dst = try await helperImage(dst, dstCLI, side: "dmx") }
             // volume-nocopy: an empty volume must not get the helper image's files at that path
@@ -602,6 +623,11 @@ extension Import {
             var d: String?
             do {
                 d = try await create(dstCLI, helperImages.dst!, targetVolume, ro: false)
+                // The volume the helper mounted is still the one this run made, not one put in
+                // its place meanwhile.
+                guard await stillOurs() else {
+                    throw DMXError("import_failed", "volume \(targetVolume) in dmx was replaced during the import", hint: "run `dmx import` again")
+                }
                 _ = try await DockerCLI.pipe(srcCLI, ["cp", "\(s):\(helperMount)", "-"], into: dstCLI, ["cp", "-a", "-", "\(d!):/"], timeout: 7200)
             } catch {
                 _ = try? await src.call("DELETE", "/containers/\(s)?force=1&v=1")
@@ -615,18 +641,17 @@ extension Import {
         }
 
         mutating func helperImage(_ api: DockerAPI, _ cli: DockerCLI, side: String) async throws -> String {
-            let images = try await api.json("GET", "/images/json").array ?? []
+            let images = try await Inventory.list(api, "/images/json")
             if let smallest = images.filter({ $0["Id"]?.string != nil }).min(by: { ($0["Size"]?.int ?? 0) < ($1["Size"]?.int ?? 0) }),
                let id = smallest["Id"]?.string {
                 return id
             }
             progress("\(side) has no image to read volumes with; pulling alpine")
+            // The source is left as it was: what is pulled there goes again at the end, and is in
+            // the journal before the pull, so an interrupted run's pull is removed by the next.
+            if side != "dmx" { journal.begin("pulled:\(sourceKey)|\(Bench.image)", run: runID) }
             _ = try await cli.run(["pull", "--quiet", Bench.image], timeout: 600)
-            // The source is left as it was: what was pulled there goes again at the end.
-            if side != "dmx" {
-                pulledIntoSource.append(Bench.image)
-                journal.begin("pulled:\(sourceKey)|\(Bench.image)")
-            }
+            if side != "dmx" { pulledIntoSource.append(Bench.image) }
             return Bench.image
         }
 
@@ -657,7 +682,8 @@ extension Import {
                                 runtimes: Set<String>, shares: [Share]) async -> [Item] {
             var item = Item(kind: "container", name: c.name, action: "imported", detail: c.running ? "running in \(sourceName); created here, not started" : "created, not started")
             if targetIDs[c.name] != nil || target.containers.contains(where: { $0.name == c.name }) {
-                if incomplete.contains("container:\(c.name)") {
+                // Made by a run that was killed while copying its volumes: its label names that run.
+                if let run = incomplete["container:\(c.name)"], target.containers.first(where: { $0.name == c.name })?.labels[Import.runKey] == run {
                     item.action = "failed"
                     item.detail = "an earlier import stopped while copying its volumes; `docker rm -v \(c.name)` in dmx and import again"
                     return [item]
@@ -666,7 +692,6 @@ extension Import {
                 item.detail = "dmx has a container of this name"
                 return [item]
             }
-            if !dryRun { journal.forget("container:\(c.name)") }
             for bind in Import.unsharedBinds(c, shares: shares) {
                 warnings.append("\(c.name): \(bind) is a Mac path dmx does not share; add it with `dmx config set shares ...` before starting it")
             }
@@ -683,7 +708,12 @@ extension Import {
                 item.detail = "not created: \(missing)"
                 return [item]
             }
-            let anonymous = Import.anonymousVolumes(c, containers: source.containers)
+            // An anonymous volume another container mounts by its name was copied as a named volume
+            // (Selection); this one mounts it by name too, so both still share it.
+            let byName = Set(source.containers.flatMap(Import.volumesNamed))
+            let own = Import.anonymousVolumes(c, containers: source.containers)
+            let anonymous = own.filter { !byName.contains($0.volume) }
+            let shared = own.filter { byName.contains($0.volume) }
             if dryRun {
                 item.action = "planned"
                 return [item] + anonymous.map { Item(kind: "volume", name: $0.volume, action: "planned", detail: "anonymous, of \(c.name)") }
@@ -716,19 +746,28 @@ extension Import {
                 composeImage = await Import.composeImageDigest(dst148, image)
             }
             let body = Import.containerBody(c, image: image, composeImage: composeImage, containers: source.containers,
-                                            runtimes: runtimes) { name in
+                                            runtimes: runtimes, runID: runID, anonymous: anonymous.map(\.dest), shared: shared) { name in
                 ids[name] ?? existing.first { $0.name == name }?.id
             }
             let created: JSONValue
-            if !anonymous.isEmpty { journal.begin("container:\(c.name)") }
+            let key = "container:\(c.name)"
+            if !anonymous.isEmpty { journal.begin(key, run: runID) }
             var keepJournal = false
-            defer { if !keepJournal { journal.end("container:\(c.name)") } }
+            defer { if !keepJournal { journal.end(key, run: runID) } }
             do {
                 created = try await dst.json("POST", "/containers/create?name=\(queryValue(c.name))", body: body)
                 targetIDs[c.name] = created["Id"]?.string
             } catch {
                 item.action = "failed"
                 item.detail = Import.message(error)
+                // The create may have happened with its reply lost: then dmx has this run's
+                // container without its volumes' data, and the journal keeps saying so.
+                if !anonymous.isEmpty,
+                   let r = try? await dst.call("GET", "/containers/\(queryValue(c.name))/json"), r.status < 300,
+                   (try? JSONDecoder().decode(JSONValue.self, from: r.body))?["Config"]?["Labels"]?[Import.runKey]?.string == runID {
+                    keepJournal = true
+                    item.detail = (item.detail ?? "") + "; dmx may have it without its volumes' data: `docker rm -v \(c.name)` in dmx and import again"
+                }
                 return [item]
             }
             // dockerd made new anonymous volumes for the container; they get the old ones' files,
@@ -782,7 +821,7 @@ extension Import {
             for api in [src, dst] { await Import.removeHelpers(api, label: helperLabel) }
             for image in pulledIntoSource {
                 let r = try? await src.call("DELETE", "/images/\(image)")
-                if let status = r?.status, status < 300 || status == 404 { journal.end("pulled:\(sourceKey)|\(image)") }
+                if let status = r?.status, status < 300 || status == 404 { journal.end("pulled:\(sourceKey)|\(image)", run: runID) }
                 else { warnings.append("could not remove \(image), pulled into \(sourceName) to read its volumes; the next import removes it") }
             }
         }
@@ -796,17 +835,17 @@ extension Import {
                     // Only what a dmx import on this Mac made: its host and a pid that is gone,
                     // never started, the helper's entry point and mount. A label alone could be anyone's.
                     guard let id = c["Id"]?.string, let value = c["Labels"]?[Import.helperKey]?.string,
-                          let pid = Import.helperPid(value), pid != getpid(), kill(pid, 0) != 0, errno == ESRCH,
+                          Import.helperPid(value) != nil, !Import.runIsLive(value),
                           c["State"]?.string == "created", c["Command"]?.string == helperMount,
                           (c["Mounts"]?.array ?? []).contains(where: { $0["Destination"]?.string == helperMount }) else { continue }
                     _ = try? await api.call("DELETE", "/containers/\(id)?v=1")
                 }
                 // Images an interrupted run pulled into this source to read its volumes.
                 if api.label == src.label {
-                    for key in journal.interrupted() where key.hasPrefix("pulled:\(sourceKey)|") {
+                    for (key, run) in journal.interrupted() where key.hasPrefix("pulled:\(sourceKey)|") {
                         let image = String(key.dropFirst("pulled:\(sourceKey)|".count))
                         let r = try? await src.call("DELETE", "/images/\(image)")
-                        if let status = r?.status, status < 300 || status == 404 { journal.forget(key) }
+                        if let status = r?.status, status < 300 || status == 404 { journal.forget(key, run: run) }
                     }
                 }
             }
@@ -853,7 +892,8 @@ extension Import {
     /// them, with what belonged to the old container (its ID as hostname, its MAC, a runtime
     /// dmx lacks) taken out and references to other containers by ID turned into names.
     static func containerBody(_ c: Container, image: String, composeImage: String? = nil, containers: [Container],
-                              runtimes: Set<String>, targetID: (String) -> String?) -> JSONValue {
+                              runtimes: Set<String>, runID: String? = nil, anonymous: [String] = [],
+                              shared: [(dest: String, volume: String)] = [], targetID: (String) -> String?) -> JSONValue {
         /// Another container, named by its ID in dmx when it is there.
         func ref(_ source: String) -> String {
             let name = containerName(source, containers)
@@ -861,10 +901,11 @@ extension Import {
         }
         var config = c.inspect["Config"]?.object ?? [:]
         config["Image"] = .string(image)
-        if let composeImage, var labels = config["Labels"]?.object {
-            labels["com.docker.compose.image"] = .string(composeImage)
-            config["Labels"] = .object(labels)
-        }
+        var labels = config["Labels"]?.object ?? [:]
+        if let composeImage { labels["com.docker.compose.image"] = .string(composeImage) }
+        // Which import made it (the journal compares it); Compose ignores labels it did not set.
+        if let runID { labels[runKey] = .string(runID) }
+        config["Labels"] = .object(labels)
         // A container in another's network namespace shows that one's names, and dockerd refuses
         // them on create.
         if c.networkMode.hasPrefix("container:") {
@@ -889,6 +930,16 @@ extension Import {
                 return .string(([ref(parts[0])] + parts.dropFirst()).joined(separator: ":"))
             })
         }
+        // Its anonymous volumes: still anonymous, but made without dockerd's copy of the image's
+        // files (the copy fills them with exactly what the source had). Shared ones by name.
+        var mounts = host["Mounts"]?.array ?? []
+        for dest in anonymous {
+            mounts.append(["Type": "volume", "Target": .string(dest), "VolumeOptions": ["NoCopy": true]])
+        }
+        for (dest, volume) in shared {
+            mounts.append(["Type": "volume", "Source": .string(volume), "Target": .string(dest)])
+        }
+        if !mounts.isEmpty { host["Mounts"] = .array(mounts) }
         config["HostConfig"] = .object(host)
 
         if !(mode == "host" || mode == "none" || mode.hasPrefix("container:")) {
@@ -943,7 +994,7 @@ extension Import {
     /// The pid in a helper label `<host>-<pid>-<random>`, if the host is this Mac.
     static func helperPid(_ value: String) -> Int32? {
         let parts = value.split(separator: "-")
-        guard parts.count == 3, parts[0] == Substring(hostID) else { return nil }
+        guard parts.count == 4, parts[0] == Substring(hostID) else { return nil }
         return Int32(parts[1])
     }
 
@@ -966,38 +1017,81 @@ extension Import {
         return f.date(from: text)
     }
 
-    /// What a run is copying into dmx, kept in $DMX_HOME/import-journal.json while it does: a run
-    /// that is killed midway leaves its entries, and the next one knows those objects are not
-    /// whole. One line per entry: `<pid> <kind>:<name>`.
+    /// Runs of this process that are under way: a long-lived `dmx mcp` runs several in turn.
+    static let activeRuns = ActiveRuns()
+
+    final class ActiveRuns: @unchecked Sendable {
+        private let lock = NSLock()
+        private var runs: Set<String> = []
+        func insert(_ run: String) { lock.withLock { _ = runs.insert(run) } }
+        func remove(_ run: String) { lock.withLock { _ = runs.remove(run) } }
+        func contains(_ run: String) -> Bool { lock.withLock { runs.contains(run) } }
+    }
+
+    /// When `pid` started, in seconds since 1970, or nil if it is not a process of this user.
+    static func processStart(_ pid: Int32) -> Int? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+        return Int(info.pbi_start_tvsec)
+    }
+
+    /// A run's id: `<host>-<pid>-<process start>-<random>`, in helper labels, volume and
+    /// container labels and journal entries.
+    static func newRunID() -> String {
+        "\(hostID)-\(getpid())-\(processStart(getpid()) ?? 0)-\(UUID().uuidString.prefix(8).lowercased())"
+    }
+
+    /// Whether the run is still going: this process's own runs by the list above, another
+    /// process's by its pid and start time (a pid reused after a crash or reboot is not it).
+    static func runIsLive(_ run: String) -> Bool {
+        let parts = run.split(separator: "-")
+        guard parts.count == 4, parts[0] == Substring(hostID), let pid = Int32(parts[1]), let start = Int(parts[2]) else { return false }
+        if pid == getpid() { return activeRuns.contains(run) }
+        return processStart(pid) == start
+    }
+
+    /// What runs are copying into dmx, kept in $DMX_HOME/import-journal.json while they do: a run
+    /// killed midway leaves its entries, and the next one knows those objects are not whole.
+    /// One line per entry: `<run id> <kind>:<name>`. Read and written under a lock file.
     struct Journal: Sendable {
         let file: URL?
         init(paths: Paths?) { file = paths?.home.appendingPathComponent("import-journal.json") }
 
-        private func entries() -> [(pid: Int32, key: String)] {
-            guard let file, let text = try? String(contentsOf: file, encoding: .utf8) else { return [] }
-            return text.split(separator: "\n").compactMap { line in
+        private func locked<T>(_ body: ([(run: String, key: String)]) -> (T, [(run: String, key: String)]?)) -> T? {
+            guard let file else { return nil }
+            let fd = open(file.path + ".lock", O_RDWR | O_CREAT | O_CLOEXEC, 0o600)
+            guard fd >= 0 else { return nil }
+            defer { close(fd) }
+            flock(fd, LOCK_EX)
+            defer { flock(fd, LOCK_UN) }
+            let text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+            let entries = text.split(separator: "\n").compactMap { line -> (run: String, key: String)? in
                 let parts = line.split(separator: " ", maxSplits: 1)
-                guard parts.count == 2, let pid = Int32(parts[0]) else { return nil }
-                return (pid, String(parts[1]))
+                return parts.count == 2 ? (String(parts[0]), String(parts[1])) : nil
             }
+            let (result, updated) = body(entries)
+            if let updated {
+                if updated.isEmpty { try? FileManager.default.removeItem(at: file) }
+                else { try? updated.map { "\($0.run) \($0.key)" }.joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8) }
+            }
+            return result
         }
 
-        private func write(_ list: [(pid: Int32, key: String)]) {
-            guard let file else { return }
-            if list.isEmpty { try? FileManager.default.removeItem(at: file); return }
-            try? list.map { "\($0.pid) \($0.key)" }.joined(separator: "\n").write(to: file, atomically: true, encoding: .utf8)
+        func begin(_ key: String, run: String) { _ = locked { (0, $0 + [(run, key)]) } }
+        func end(_ key: String, run: String) { _ = locked { (0, $0.filter { !($0.run == run && $0.key == key) }) } }
+
+        /// Entries of runs that are over without having ended them: key to run id. Those of
+        /// runs whose objects are gone are dropped (nothing is left to report).
+        func interrupted() -> [String: String] {
+            locked { entries in
+                let dead = entries.filter { !Import.runIsLive($0.run) }
+                return (Dictionary(dead.map { ($0.key, $0.run) }, uniquingKeysWith: { _, last in last }), nil)
+            } ?? [:]
         }
 
-        func begin(_ key: String) { write(entries() + [(getpid(), key)]) }
-        func end(_ key: String) { write(entries().filter { !($0.pid == getpid() && $0.key == key) }) }
-
-        /// Entries of runs that are no longer processes. They stay until the object is gone
-        /// (a run that finds the name free imports it again and drops the entry).
-        func interrupted() -> Set<String> {
-            Set(entries().filter { $0.pid != getpid() && kill($0.pid, 0) != 0 && errno == ESRCH }.map(\.key))
-        }
-
-        func forget(_ key: String) { write(entries().filter { $0.key != key }) }
+        /// Drops a finished run's entry for `key` (its object was removed, or reported).
+        func forget(_ key: String, run: String) { _ = locked { (0, $0.filter { !($0.run == run && $0.key == key) }) } }
     }
 
     /// Docker's own rule for volume and container names: [a-zA-Z0-9][a-zA-Z0-9_.-]+.

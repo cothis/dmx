@@ -52,6 +52,18 @@ import Testing
         #expect(kept["Labels"]?["com.docker.compose.image"] == "sha256:classic")
     }
 
+    /// Anonymous volumes are made without the image's files; one another container mounts by
+    /// name is mounted by that name; the run's label marks the container.
+    @Test func mountsAnonymousVolumesWithoutCopyUpAndSharedOnesByName() {
+        let c = Self.container(Self.webID, "web")
+        let body = Import.containerBody(c, image: "web:1", containers: [c], runtimes: [], runID: "h-1-2-r",
+                                        anonymous: ["/cache"], shared: [(dest: "/data", volume: Self.anon)]) { _ in nil }
+        let mounts = body["HostConfig"]?["Mounts"]?.array ?? []
+        #expect(mounts.contains(["Type": "volume", "Target": "/cache", "VolumeOptions": ["NoCopy": true]]))
+        #expect(mounts.contains(["Type": "volume", "Source": .string(Self.anon), "Target": "/data"]))
+        #expect(body["Labels"]?["dmx.import.run"] == "h-1-2-r")
+    }
+
     @Test func keepsAHostnameSomeoneChoseAndDropsARuntimeDmxLacks() {
         var c = Self.container(Self.webID, "web")
         var inspect = c.inspect.object!
@@ -267,23 +279,28 @@ import Testing
         #expect(ContinuousClock.now - started < .seconds(2))
     }
 
-    /// A killed run's entries mark what it was copying; a live run's do not.
+    /// A killed run's entries mark what it was copying; a live run's do not, also within one
+    /// process (`dmx mcp` runs imports in turn), and a reused pid is not the old run.
     @Test func journalKnowsWhatAnInterruptedRunLeft() throws {
         let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("import-journal-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let journal = Import.Journal(paths: Paths(environment: ["DMX_HOME": root.path]))
-        journal.begin("volume:data")
-        #expect(journal.interrupted().isEmpty)  // this process is alive
-        // A run that died: a pid that is no process (a child that exited).
-        let child = Process()
-        child.executableURL = URL(fileURLWithPath: "/usr/bin/true")
-        try child.run()
-        child.waitUntilExit()
-        try "\(child.processIdentifier) volume:old\n\(getpid()) volume:data".write(to: root.appendingPathComponent("import-journal.json"), atomically: true, encoding: .utf8)
-        #expect(journal.interrupted() == ["volume:old"])
-        journal.end("volume:data")
-        journal.forget("volume:old")
+        let live = Import.newRunID(), finished = Import.newRunID()
+        Import.activeRuns.insert(live)
+        defer { Import.activeRuns.remove(live) }
+        journal.begin("volume:data", run: live)
+        journal.begin("volume:old", run: finished)  // this process, but no longer under way
+        let parts = live.split(separator: "-")
+        let reused = "\(parts[0])-\(parts[1])-\(Int(parts[2])! - 1000)-abcdef12"  // same pid, earlier start
+        journal.begin("container:web", run: reused)
+        #expect(Import.runIsLive(live))
+        #expect(!Import.runIsLive(finished))
+        #expect(!Import.runIsLive(reused))
+        #expect(journal.interrupted() == ["volume:old": finished, "container:web": reused])
+        journal.end("volume:data", run: live)
+        journal.forget("volume:old", run: finished)
+        journal.forget("container:web", run: reused)
         #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("import-journal.json").path))
     }
 

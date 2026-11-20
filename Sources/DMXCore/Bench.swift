@@ -236,7 +236,7 @@ public enum Bench {
                 _ = try await cli.run(["run", "--pull", "never", "--platform", "linux/arm64", "--network", "none",
                                        "--name", container, "--label", "dmx.bench=\(container)", image, "true"], timeout: 120)
                 times.append((seconds(ContinuousClock.now - t) * 100_000).rounded() / 100)
-                _ = try await cli.run(["rm", "-fv", container], timeout: 60)
+                try await removeOwn(cli, container)
             }
             r.runTrue = Runs(samplesMs: times, medianMs: median(times))
             progress("\(name): docker run alpine true, median \(Int(median(times))) ms")
@@ -251,12 +251,16 @@ public enum Bench {
             r.error = asDMXError(error)
             progress("\(name): \(r.error!.message)")
         }
-        // What this run made and an error left behind, found by its label: a container that took
-        // the name meanwhile is not this run's.
-        if let ids = try? await cli.run(["ps", "-aq", "--filter", "label=dmx.bench=\(container)"], timeout: 30) {
-            for id in ids.split(separator: "\n") where !id.isEmpty { _ = try? await cli.run(["rm", "-fv", String(id)], timeout: 60) }
-        }
+        // What an error left behind.
+        try? await removeOwn(cli, container)
         return r
+    }
+
+    /// Removes the containers this run made under `name`, found by their label: one that took
+    /// the name meanwhile is not this run's.
+    static func removeOwn(_ cli: DockerCLI, _ name: String) async throws {
+        let ids = try await cli.run(["ps", "-aq", "--filter", "label=dmx.bench=\(name)"], timeout: 30)
+        for id in ids.split(separator: "\n") where !id.isEmpty { _ = try await cli.run(["rm", "-fv", String(id)], timeout: 60) }
     }
 
     static func takeAndFree(cli: DockerCLI, pids: [Int32], container: String, follow: Double) async throws -> TakeAndFree {
@@ -284,7 +288,7 @@ public enum Bench {
             throw DMXError("bench_failed", "the container failed to free its memory", hint: "run `docker logs \(container)`")
         }
         let freedAt = sampler.elapsed()
-        _ = try await cli.run(["rm", "-fv", container], timeout: 60)
+        try await removeOwn(cli, container)
         try await Task.sleep(for: .seconds(follow))
         sampler.stop()
         let points = sampler.points.map { Sample(atS: (($0.at - freedAt) * 10).rounded() / 10, footprintMb: $0.mb) }

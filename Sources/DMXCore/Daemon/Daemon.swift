@@ -41,6 +41,8 @@ public final class Daemon {
     /// pending the daemon stays up, as it does for a running VM.
     private var crashes = GuestCrashes()
     private var recovery: Task<Void, Never>?
+    /// Boots after a crash that failed in a row.
+    private var recoveryBootFailures = 0
     private var recoveryAt: ContinuousClock.Instant?
 
     /// Open connections, and those among them that asked for the VM (start, exec).
@@ -120,7 +122,7 @@ public final class Daemon {
             scheduleIdleCheck()
             publishActivity()
         }
-        docker.onContainers = { [unowned self] in names.update($0) }
+        docker.onContainers = { [unowned self] in names.update($0, current: docker.listingCurrent) }
         docker.onEvent = { [unowned self] in names.markStale() }
         ports.willListen = { [unowned self] in names.yield($0) }
         ports.released = { [unowned self] in names.portsReleased() }
@@ -528,8 +530,20 @@ public final class Daemon {
             recovery = nil
             recoveryAt = nil
             if state == .stopped && !exiting {
-                do { _ = try await running() } catch {
-                    log("guest crash: the new VM did not boot: \((error as? DMXError)?.message ?? "\(error)")")
+                do {
+                    _ = try await running()
+                    recoveryBootFailures = 0
+                } catch {
+                    let message = (error as? DMXError)?.message ?? "\(error)"
+                    recoveryBootFailures += 1
+                    // Try again with the backoff, a few times: a guest that cannot boot at all
+                    // must not keep booting every minute.
+                    if recoveryBootFailures < 5 {
+                        log("guest crash: the new VM did not boot (\(message)); trying again")
+                        return recover(reason: "the new VM did not boot: \(message)", uptime: nil, busy: true, containers: containers)
+                    }
+                    log("guest crash: the new VM did not boot \(recoveryBootFailures) times (\(message)); giving up until a client needs it")
+                    recoveryBootFailures = 0
                 }
             }
             scheduleIdleCheck()

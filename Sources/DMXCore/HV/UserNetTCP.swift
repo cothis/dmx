@@ -154,7 +154,7 @@ extension UserNet {
         let flow = TCPFlow(key: key, irs: seq)
         guard tcp.count < Self.maxTCP else { return send(key, seq: 0, ack: seq &+ 1, flags: Self.rst | Self.ack, window: 0) }
         let answeredHere = key.remotePort == 53 && (key.remote == Self.gateway || key.remote == Self.gateway6)
-        let endpoint = answeredHere ? nil : endpoint(for: key.remote, port: key.remotePort)
+        let endpoint = answeredHere ? nil : endpoint(for: key.remote, port: key.remotePort, tcp: true)
         guard answeredHere || endpoint != nil else { return refuse(flow, error: nowhere(key.remote)) }
         // Options: MSS and window scale; SACK and timestamps are left off.
         var i = 0

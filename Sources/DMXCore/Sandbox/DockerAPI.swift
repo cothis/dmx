@@ -210,7 +210,8 @@ struct DockerAPI: Sendable {
             var data = rest
             while data.count < min(length ?? .max, 64 << 20) {
                 // A chunked body ends at its last chunk, whether or not the connection closes.
-                if chunked, case .complete = Self.chunks(data) { break }
+                // Parsed again only when a line just ended, not for every read.
+                if chunked, data.suffix(2) == Data("\r\n".utf8), case .complete = Self.chunks(data) { break }
                 let chunk = try stream.read()
                 if chunk.isEmpty { break }
                 data.append(chunk)

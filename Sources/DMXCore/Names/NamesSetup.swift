@@ -30,7 +30,8 @@ extension LocalNames {
     }
 
     public static func setup(paths: Paths, options: SetupOptions, progress: @Sendable (String) -> Void) async throws -> Report {
-        var settings = Self.settings(paths) ?? Settings()
+        let previous = Self.settings(paths)
+        var settings = previous ?? Settings()
         if let p = options.dnsPort { settings.dnsPort = p }
         if let p = options.httpPort { settings.httpPort = p }
         if let p = options.httpsPort { settings.httpsPort = p }
@@ -55,8 +56,8 @@ extension LocalNames {
                 changes.append("wrote \(resolverFile)")
                 settings.ownsResolver = true
             } else if settings.ownsResolver == nil {
-                // The file is there as this home would write it, by another home's setup.
-                settings.ownsResolver = false
+                // Settings from before ownsResolver: this home wrote it. New settings: another did.
+                settings.ownsResolver = previous?.system == true
             }
         }
         try save(settings, paths)
@@ -76,11 +77,14 @@ extension LocalNames {
     public static func remove(paths: Paths, progress: @Sendable (String) -> Void) async throws -> Report {
         var changes: [String] = []
         let directory = Self.directory(paths)
-        let authority = try? NameAuthority.load(directory)
-        // Only a setup that changed macOS from this DMX_HOME removes the resolver file: another
-        // DMX_HOME (a test's, with --no-system) must not take away the one the user set up.
+        // Also a CA from an earlier dmx, which setup refuses: remove is how it goes.
+        let authority = try? NameAuthority.load(directory, current: false)
+        // Only the home whose setup wrote the resolver file removes it, and only while the file
+        // is still as that setup wrote it: another DMX_HOME (a test's, or one set up since with
+        // other ports) must not lose the one it relies on.
         let current = Self.settings(paths)
-        let changedSystem = (current?.system ?? false) && (current?.ownsResolver ?? true)
+        let ownsResolver = current?.ownsResolver ?? (current?.system ?? false)
+        let changedSystem = ownsResolver && current.map { resolverState($0) == "ok" } ?? false
         // The settings go last: if a dialog is cancelled, running remove again still knows that
         // this home changed macOS. The daemon stops listening now all the same.
         let settingsData = try? Data(contentsOf: settingsFile(paths))

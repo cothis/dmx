@@ -46,8 +46,9 @@ They do not boot the VM.
   `127.0.0.0/8`: other machines get nothing. Containers get nothing either: their connections to
   the Mac (`host.docker.internal`) are refused on these two ports while names hold them, since
   names reach every container's web port and would skip Docker's network isolation. HTTPS
-  listeners exist only for the names of running containers, and their ports on 127.0.0.1 are
-  refused to containers the same way. After a container starts, stops, is renamed or changes
+  listeners exist only for the names of running containers, and accept only names' own
+  connections to them. Another DMX_HOME's daemon keeps its containers from these ports too (each
+  daemon lists the ports it holds in `$TMPDIR/dmx-guarded-ports`); the block is TCP only. After a container starts, stops, is renamed or changes
   networks, connections wait (up to 3 s, then 503) until the container list is read again, so a
   name never goes to an address another container took meanwhile. No privileged helper runs.
 - **TLS.** `dmx names setup` makes a certificate authority in `~/.dmx/names` (ECDSA P-256, key
@@ -56,7 +57,7 @@ They do not boot the VM.
   else it signed, so trusting it cannot vouch for another site or address even if its key leaked.
   A CA made by an earlier dmx without the address exclusion is refused (`dmx names remove`, then
   `dmx names setup`). `dmx names remove` takes out the resolver file only if this DMX_HOME's
-  setup wrote it. The daemon issues a leaf for each name on its first
+  setup wrote it and it is still as that setup wrote it. The daemon issues a leaf for each name on its first
   TLS connection, in memory, valid for 397 days, and offers HTTP/1.1 (ALPN) to the container.
   The CA is trusted for TLS in your login keychain, for your user only.
 - **A container that publishes port 80 or 443** (`docker run -p 80:80`) takes the port while it

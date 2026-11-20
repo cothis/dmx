@@ -190,13 +190,27 @@ public enum LocalNames {
 
     /// The server name of a TLS ClientHello, or `.incomplete` if more bytes are needed. Nil
     /// inside `.host` if the bytes are not a ClientHello or carry no name.
-    static func serverName(_ b: [UInt8]) -> Head {
-        guard b.count >= 5 else { return .incomplete }
-        guard b[0] == 22, b[1] == 3 else { return .host(nil) }
-        let recordEnd = 5 + (Int(b[3]) << 8 | Int(b[4]))
-        guard b.count >= recordEnd else { return .incomplete }
+    static func serverName(_ records: [UInt8]) -> Head {
+        // The ClientHello may span several handshake records (TLS allows splitting a handshake
+        // message): join their payloads until the message is whole.
+        var b: [UInt8] = []
+        var r = 0
+        while true {
+            guard records.count >= r + 5 else { return .incomplete }
+            guard records[r] == 22, records[r + 1] == 3 else { return .host(nil) }
+            let length = Int(records[r + 3]) << 8 | Int(records[r + 4])
+            guard records.count >= r + 5 + length else { return .incomplete }
+            b += records[(r + 5)..<(r + 5 + length)]
+            r += 5 + length
+            if b.count >= 4 {
+                let need = 4 + (Int(b[1]) << 16 | Int(b[2]) << 8 | Int(b[3]))
+                guard need <= 65536 else { return .host(nil) }
+                if b.count >= need { b = Array(b.prefix(need)); break }
+            }
+        }
+        let recordEnd = b.count
         // Handshake: type 1, 3-byte length, version, random, then variable fields.
-        var i = 5
+        var i = 0
         guard recordEnd >= i + 4 + 2 + 32 + 1, b[i] == 1 else { return .host(nil) }
         i += 4 + 2 + 32
         func skip(_ lengthBytes: Int) -> Bool {

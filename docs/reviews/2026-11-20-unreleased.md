@@ -81,3 +81,34 @@ After the fixes: unit 171 and the agent's 8; namestest 37/37 (36/37 on `6cd79a5`
 listener check), crashtest 40/40, daemontest 63/63, sandboxtest 44/44, mcptest 38/38, dockertest
 81/81, importtest 29/29, launchdtest 10/10, selftest 23/23 at 96–97 MB; `verify-apk.py` on all
 122 new pins.
+
+## Third round (Opus 5.5 and Codex gpt-6.2-sol, on `6cd79a5..b43d79c`)
+
+Opus: NO RELEASE BLOCKERS, six fixes that reopened a path another way; Codex: RELEASE BLOCKERS
+([report](2026-11-20-unreleased/codex-gpt-6.2-sol-round3.md)). Fixed:
+
+| Finding | From | Fix |
+|---|---|---|
+| A listing asked for before an event cleared the names table's stale mark; a route chosen before an event was used after it | both | The stale mark clears only with a listing asked for after the last event; after connecting, a name whose table went stale meanwhile is checked again (503 if its address changed) |
+| Another DMX_HOME's guests were not kept from names' ports; a TLS listener could be reached in the moment before its port was guarded | Codex (blocker) | Daemons share the guarded ports through `$TMPDIR/dmx-guarded-ports/<pid>`; TLS listeners accept only names' own front connections, by their registered local ports |
+| The guard blocked UDP on the same port numbers | Codex | TCP only |
+| The import journal told runs apart by pid only (a long-lived `dmx mcp`, a reused pid), had no lock, and `forget` dropped other runs' entries | both | Run ids of host, pid, process start and a random part; this process's runs by a list of live runs; flock; entries compared with the object's `dmx.import.run` label, so only that run's object is reported |
+| A volume replaced between the ownership check and the copy; a rollback deleting by name; a lost create reply clearing the journal | Codex (blocker) | Ownership read back from dmx (not from the create reply) before the copy (with the helper mounted, the volume cannot be swapped) and before a rollback; an unknown outcome keeps the journal entry |
+| A source volume removed while waiting (pull) was made again empty; anonymous ones not checked | both | Checked inside each copy, just before the helper mounts it |
+| Helper containers of an interrupted run could be listed and imported as containers; a pull interrupted before its journal entry | Codex | Helpers are left out of listings; the journal entry is written before the pull |
+| An anonymous volume another container mounts by name was split in two | Codex | Copied once as a named volume and mounted by name by both |
+| Image files deleted in the source's anonymous volume came back from dockerd's copy-up | Codex | The new container's anonymous volumes are made with NoCopy |
+| An old CA, refused by setup, could not be removed by `names remove` | both | remove reads it without the constraint check and takes it out |
+| Resolver ownership: two homes could both own it; `setup --no-system` dropped ownership; older settings were taken as another home's | both | Removed only by the home that wrote it while it still matches that home's ports; ownership independent of `system`; older settings count as this home's |
+| A crash before the first listing after an autostart; a recovery boot that failed was not retried | Codex | An autostart for restartable containers counts as running until the first listing; failed recovery boots retry with the backoff, five times |
+| verify-apk read the signature stream without `ignore_zeros`, unlike the builder | Codex (blocker) | Same reading as the builder; a member after the end-of-archive blocks fails |
+| bench removed by name between runs; a listing missing its key read as empty; a ClientHello split over records lost its name; helper image listing; chunked reparse | both | By label; missing key is an error; records joined; checked listing; parse only at line ends |
+
+Left as limitations: a dry run that finds dmx running and asks it a moment after an idle stop
+boots it again (the status and the request are separate calls); reading the source engine's
+socket starts a socket-activated engine (reading it is the point); image tags between listing
+and `docker load` (as before).
+
+After the fixes: unit 172; namestest 37/37, crashtest 40/40, daemontest 63/63, sandboxtest 44/44,
+mcptest 38/38, dockertest 81/81, importtest 29/29, launchdtest 10/10, selftest 23/23 at 96–97 MB;
+verify-apk on the 122 pins and two crafted packages.

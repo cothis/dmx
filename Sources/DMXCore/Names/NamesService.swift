@@ -27,6 +27,8 @@ final class NamesService {
     private var state: [String: String] = [:]
     /// TLS listeners on 127.0.0.1 by server name, each with that name's leaf.
     private var tls: [String: TLSBackend] = [:]
+    /// Local ports of names' own connections to those listeners, the only ones they accept.
+    private let innerPorts = InnerPorts()
     /// Their ports, once listening: guarded from the guest like the web ports.
     private var tlsPorts: [String: UInt16] = [:]
     private var agent: (@MainActor () async throws -> AgentClient)?
@@ -109,8 +111,9 @@ final class NamesService {
 
     /// The running containers changed. Ports given up to a container are taken back once no
     /// forward holds them.
-    func update(_ containers: [[String: Any]]) {
-        staleSince = nil
+    func update(_ containers: [[String: Any]], current: Bool = true) {
+        // A listing asked for before the last event does not end the wait; the next one does.
+        if current { staleSince = nil }
         guard enabled else { return }
         let new = LocalNames.entries(containers)
         if new != entries {
@@ -303,9 +306,7 @@ final class NamesService {
         guard let (prefix, head) = await Self.readHead(fd, parse: LocalNames.requestHost) else { return }
         guard case .host(let header) = head else { return }
         // A table an event made stale is not used: wait for the listing, briefly.
-        let waitUntil = ContinuousClock.now + .seconds(3)
-        while staleSince != nil, ContinuousClock.now < waitUntil { try? await Task.sleep(for: .milliseconds(50)) }
-        if staleSince != nil {
+        guard await fresh() else {
             Self.write(fd, LocalNames.httpReply("503 Service Unavailable", "dmx: the containers changed and their list is not read yet; try again"))
             return
         }
@@ -328,8 +329,23 @@ final class NamesService {
             return
         }
         defer { stream.close() }
+        // An event while connecting: the address may belong to another container by now.
+        if staleSince != nil {
+            guard await fresh(), let now = entries.first(where: { $0.name == host }),
+                  now.address == entry.address, now.port == entry.port else {
+                Self.write(fd, LocalNames.httpReply("503 Service Unavailable", "dmx: the containers changed while connecting; try again"))
+                return
+            }
+        }
         guard Self.write(stream.fd, prefix) else { return }
         await splice(fd, stream.fd)
+    }
+
+    /// Waits up to 3 s for a listing after the last event; false if none came.
+    private func fresh() async -> Bool {
+        let until = ContinuousClock.now + .seconds(3)
+        while staleSince != nil, ContinuousClock.now < until { try? await Task.sleep(for: .milliseconds(50)) }
+        return staleSince == nil
     }
 
     /// malloc keeps what a burst of connections emptied; give it back once they are quiet, and
@@ -369,6 +385,17 @@ final class NamesService {
         defer { Darwin.close(inner) }
         var on: Int32 = 1
         _ = setsockopt(inner, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
+        // Bound first, so the TLS listener can tell this connection from anyone else's on
+        // 127.0.0.1 (a container through the host gateway, another program): it takes only
+        // connections from ports names registered.
+        var local = sockaddr_in()
+        var length = socklen_t(MemoryLayout<sockaddr_in>.size)
+        guard HostEndpoint.v4(0x7f00_0001, 0).withSockaddr({ bind(inner, $0, $1) }) == 0,
+              withUnsafeMutablePointer(to: &local, { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(inner, $0, &length) } }) == 0
+        else { return }
+        let innerPort = UInt16(bigEndian: local.sin_port)
+        innerPorts.insert(innerPort)
+        defer { innerPorts.remove(innerPort) }
         guard HostEndpoint.v4(0x7f00_0001, port).withSockaddr({ connect(inner, $0, $1) }) == 0,
               Self.write(inner, prefix) else { return }
         await splice(fd, inner)
@@ -381,7 +408,7 @@ final class NamesService {
             throw DMXError("names_error", "no CA for HTTPS names", hint: "run `dmx names setup`")
         }
         let identity = try authority.identity(name, leafKey: leafKey)
-        let backend = try TLSBackend(identity: identity) { [unowned self] plain in
+        let backend = try TLSBackend(identity: identity, from: innerPorts) { [unowned self] plain in
             Task { @MainActor in await serveHTTP(plain, tlsName: name) }
         }
         tls[name] = backend
@@ -458,7 +485,7 @@ final class TLSBackend: @unchecked Sendable {
     let port: Task<UInt16, Error>
     private let queue = DispatchQueue(label: "dmx.names.tls")
 
-    init(identity: SecIdentity, accepted: @escaping @Sendable (Int32) -> Void) throws {
+    init(identity: SecIdentity, from: InnerPorts, accepted: @escaping @Sendable (Int32) -> Void) throws {
         let options = NWProtocolTLS.Options()
         let sec = options.securityProtocolOptions
         guard let local = sec_identity_create(identity) else {
@@ -484,6 +511,10 @@ final class TLSBackend: @unchecked Sendable {
                     }
                 }
                 listener.newConnectionHandler = { connection in
+                    // Only names' own front connections (see serveTLS).
+                    guard case .hostPort(_, let remote) = connection.endpoint, from.contains(remote.rawValue) else {
+                        return connection.cancel()
+                    }
                     var pair: [Int32] = [0, 0]
                     guard socketpair(AF_UNIX, SOCK_STREAM, 0, &pair) == 0 else { return connection.cancel() }
                     for fd in pair {
@@ -616,4 +647,13 @@ private final class ConnectionPump: @unchecked Sendable {
         connection.send(content: nil, contentContext: .finalMessage, isComplete: true, completion: .contentProcessed { _ in })
         end()
     }
+}
+
+/// The local ports of names' connections to its TLS listeners.
+final class InnerPorts: @unchecked Sendable {
+    private let lock = NSLock()
+    private var ports: Set<UInt16> = []
+    func insert(_ port: UInt16) { lock.withLock { _ = ports.insert(port) } }
+    func remove(_ port: UInt16) { lock.withLock { _ = ports.remove(port) } }
+    func contains(_ port: UInt16) -> Bool { lock.withLock { ports.contains(port) } }
 }

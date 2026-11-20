@@ -49,7 +49,8 @@ def verify(path, keys):
         # so a fourth one would be packaged without being covered by the signed datahash.
         if len(segs) != 3:
             return False, f"{len(segs)} gzip streams, not 3"
-        signature = tarfile.open(fileobj=io.BytesIO(segs[0][1]))
+        # ignore_zeros as build-guest.py reads it: a member after the end-of-archive blocks counts.
+        signature = tarfile.open(fileobj=io.BytesIO(segs[0][1]), ignore_zeros=True)
         # The first stream holds the signature and nothing else: build-guest.py would package any
         # other file in it, and no signature covers that stream.
         members = signature.getmembers()

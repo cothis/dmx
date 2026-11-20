@@ -118,6 +118,14 @@ import Testing
         #expect(LocalNames.serverName(hello) == .host("front.shop.dmx.local"))
         #expect(LocalNames.serverName(Array(hello.prefix(20))) == .incomplete)
         #expect(LocalNames.serverName(Self.clientHello(nil)) == .host(nil))
+        // A ClientHello split over two handshake records, the cut inside the extensions.
+        let whole = Self.clientHello("api.dmx.local")
+        let message = Array(whole[5...])
+        let cut = message.count - 10
+        func record(_ part: ArraySlice<UInt8>) -> [UInt8] { [22, 3, 1, UInt8(part.count >> 8), UInt8(part.count & 0xff)] + part }
+        let split = record(message[..<cut]) + record(message[cut...])
+        #expect(LocalNames.serverName(split) == .host("api.dmx.local"))
+        #expect(LocalNames.serverName(Array(split.prefix(split.count - 3))) == .incomplete)
         #expect(LocalNames.serverName(Array("GET / HTTP/1.1\r\n".utf8)) == .host(nil))
     }
 

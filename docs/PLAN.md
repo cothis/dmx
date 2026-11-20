@@ -652,8 +652,9 @@ to switch. One item per session, in this order; each is verified on the real VM.
 Local names work in Safari and Chrome with no warning ([finding](#local-names-in-browsers-2026-11-20)).
 The audit with Mythos 5.2 and the review with Codex gpt-6.2-sol both found release blockers; all
 findings but three noted limitations are fixed and re-checked ([review](reviews/2026-11-20-unreleased.md)).
-A second round (Opus 5.5: no blockers; Codex gpt-6.2-sol: blockers) found fixes that missed a
-path; those are fixed and re-checked too. A release is the maintainer's decision. Everything since
+A second and a third round (Opus 5.5: no blockers both times; Codex gpt-6.2-sol: blockers both
+times) found fixes that missed a path; those are fixed and re-checked too. A release is the
+maintainer's decision. Everything since
 v0.4.8 is unreleased, now including a guest rebuilt from re-pinned inputs (Docker 29.9.3, runc
 1.4.4, the restart rule), libmalloc's space-efficient mode and vCPU threads at userInitiated
 ([finding](#open-ends-2026-11-20)). The rebuilt guest lives in a separate DMX_HOME on this Mac;
@@ -2080,6 +2081,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-20: Third review round (Opus 5.5 no blockers, Codex gpt-6.2-sol blockers) fixed: names table freshness after events and during connects, guarded ports shared between daemons and TLS listeners that accept only names' own connections, the import journal by run id with a lock and label check, ownership read back before copy and rollback, anonymous volumes without copy-up and shared ones by name, old CAs removable, resolver ownership, crash counting after autostart and retried recovery boots, verify-apk reading like the builder, split ClientHellos. Unit 172; namestest 37/37, crashtest 40/40, daemontest 63/63, sandboxtest 44/44, mcptest 38/38, dockertest 81/81, importtest 29/29, launchdtest 10/10, selftest 96–97 MB.
 - 2026-11-20: Second review round (Opus 5.5, Codex gpt-6.2-sol) of the fixes: TLS listener ports guarded from containers, volume ownership by a per-run label, an import journal for interrupted copies, stale helpers recognised by host and shape, cancellation, a stale names table waits for the next listing, rename followed, old CAs refused, resolver ownership, names take ports back from removed forwards, DockerAPI framing, verify-apk's signature stream, bench and launchdtest fixes. Unit 171; namestest 37/37 (36/37 on the previous commit), crashtest 40/40, daemontest 63/63, sandboxtest 44/44, mcptest 38/38, dockertest 81/81, importtest 29/29, launchdtest 10/10, selftest 96–97 MB.
 - 2026-11-20: Reviews of everything since v0.4.8 (Mythos 5.2 full audit, Codex gpt-6.2-sol): RELEASE BLOCKERS from both, all fixed except three documented limitations. Names: TLS listeners only for running names, failed handshakes close, containers cannot reach names through the host gateway, the CA excludes IP addresses, network events refresh the table, remove leaves another home's resolver. Import: no copy-up or leftover pulls in the source, volumes made meanwhile left alone, no container on a missing volume, stale helpers removed, dry run does not boot dmx, arguments checked. DockerAPI chunked/short replies, crash-reboot decision after a fresh start, `on-failure:N`, verify-apk's stream count, bench names, names after a failed forward; `make launchdtest` for launchd activation through the re-exec. Unit 168, namestest 35/35 (32/35 on the previous build), crashtest 40/40, daemontest 63/63, sandboxtest 44/44, mcptest 38/38, dockertest 81/81, importtest 29/29, launchdtest 9/9, selftest 96 MB.
 - 2026-11-20: `dmx import` from OrbStack and Docker Desktop: 29/29 twice each, after fixing `DockerAPI` for sockets that keep HTTP/1.0 connections open and send chunked bodies (OrbStack's). Both engines installed for the check and removed. Left for the maintainer: local names in browsers, the audit and review, release.

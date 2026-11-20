@@ -327,9 +327,13 @@ volume gets none of the helper image's files) and never started; any image each 
 do for them. A volume the import makes carries the label `dmx.import.run` (Compose compares only
 its own config-hash label): dockerd answers a create for a name it already has with that volume,
 and the label in the reply is what tells a new volume from one made meanwhile, which is left
-alone. While a volume or a container's anonymous volumes are copied, `~/.dmx/import-journal.json`
-says so; a run killed midway leaves the entry, and the next one reports that volume or container
-as incomplete (remove it in dmx and import again) instead of taking it as whole. A container
+alone; the containers it makes carry it too. While a volume or a container's anonymous volumes are
+copied, `~/.dmx/import-journal.json` says so under the run's id (this Mac, pid, process start);
+a run that is killed, or whose rollback fails, leaves the entry, and a later run reports that
+volume or container as incomplete when its label names that run (remove it in dmx and import
+again) instead of taking it as whole. A container's anonymous volumes are made without dockerd's
+copy of the image's files, so they end up with exactly the source's; one that another container
+mounts by its name is copied once, as a named volume, and both containers mount it. A container
 whose volume could not be copied, or was skipped, is not created, so it cannot start on an empty
 volume; a dry run does not start a stopped dmx (it then says it cannot
 tell what dmx has already). User bridge networks are

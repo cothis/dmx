@@ -30,6 +30,9 @@ final class DockerBridge {
     var onContainers: (@MainActor ([[String: Any]]) -> Void)?
     /// A container or network event came; the next listing (onContainers) catches up with it.
     var onEvent: (@MainActor () -> Void)?
+    /// Whether the listing just handed to onContainers was asked for after the last event: one
+    /// asked for before it still shows the old state.
+    private(set) var listingCurrent = true
     /// Sets the guest clock if the Mac slept or its clock moved (Daemon.syncClockIfKnown).
     private var clock: (@MainActor () async -> Void)?
 
@@ -372,6 +375,9 @@ final class DockerBridge {
                 guard result.running ?? true else { return }
                 let restarting = result.restartable.map { " for \($0) container\($0 == 1 ? "" : "s") with a restart policy" } ?? ""
                 log(result.started ? "dockerd up in \(milliseconds(ContinuousClock.now - begun)) ms\(restarting)" : "dockerd answers")
+                // dockerd is starting containers by their policies: until the first listing says
+                // which, a crash counts them as running (see runningAtCrash).
+                if (result.restartable ?? 0) > 0 { eventsSinceListing = true }
                 up = true
                 client = agent
                 follow(agent)
@@ -521,7 +527,9 @@ final class DockerBridge {
         listingUnknown = false
         changed?()
         ports.setDockerForwards(Self.published(list))
+        listingCurrent = eventCount == eventsBefore
         onContainers?(list)
+        listingCurrent = true
         runningAtLastListing = list.count
         // An event after this listing was asked for is not in it (the next one, already due, is).
         if eventCount == eventsBefore { eventsSinceListing = false }

@@ -105,12 +105,12 @@ final class UserNet: @unchecked Sendable {
     }
 
     /// Where a guest flow to `address:port` goes on the host, or nil if nowhere.
-    func endpoint(for address: IPAddress, port: UInt16) -> HostEndpoint? {
+    func endpoint(for address: IPAddress, port: UInt16, tcp: Bool = false) -> HostEndpoint? {
         switch address {
         case Self.host, Self.host6:
             // Local names route by name to any container's web port; reached from a container
             // through host.docker.internal they would skip Docker's network isolation.
-            guard !GuestHostPorts.shared.contains(port) else { return nil }
+            guard !(tcp && GuestHostPorts.shared.contains(port)) else { return nil }
             return address == Self.host ? .v4(0x7f00_0001, port) : .v6(.loopback6, port)
         case Self.gateway, Self.gateway6: return port == 53 ? resolver : nil
         default:
@@ -694,12 +694,52 @@ extension Array where Element == UInt8 {
     mutating func be32(_ v: UInt32) { be16(UInt16(v >> 16)); be16(UInt16(v & 0xffff)) }
 }
 
-/// Host ports a guest flow to the host gateway (host.docker.internal) must not reach: those local
-/// names listens on while it holds them. Set on the main actor, read on the network queue.
+/// TCP host ports a guest flow to the host gateway (host.docker.internal) must not reach: those
+/// local names listens on while it holds them, in this daemon or another one of this user's
+/// (another DMX_HOME): each daemon writes its own to $TMPDIR/dmx-guarded-ports/<pid>, and every
+/// daemon's guests are kept from all of them. Set on the main actor, read on the network queue.
 final class GuestHostPorts: @unchecked Sendable {
     static let shared = GuestHostPorts()
     private let lock = NSLock()
     private var ports: Set<UInt16> = []
-    func set(_ new: Set<UInt16>) { lock.withLock { ports = new } }
-    func contains(_ port: UInt16) -> Bool { lock.withLock { ports.contains(port) } }
+    private var others: Set<UInt16> = []
+    private var othersRead = ContinuousClock.now - .seconds(10)
+    static let directory = FileManager.default.temporaryDirectory.appendingPathComponent("dmx-guarded-ports", isDirectory: true)
+
+    func set(_ new: Set<UInt16>) {
+        lock.withLock { ports = new }
+        let file = Self.directory.appendingPathComponent("\(getpid())")
+        if new.isEmpty {
+            try? FileManager.default.removeItem(at: file)
+        } else {
+            try? FileManager.default.createDirectory(at: Self.directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            try? new.sorted().map(String.init).joined(separator: " ").write(to: file, atomically: true, encoding: .utf8)
+        }
+    }
+
+    func contains(_ port: UInt16) -> Bool {
+        lock.withLock {
+            if ports.contains(port) { return true }
+            // Other daemons' ports, read again at most once a second (a new flow, not a packet).
+            if ContinuousClock.now - othersRead > .seconds(1) {
+                othersRead = .now
+                others = Self.readOthers()
+            }
+            return others.contains(port)
+        }
+    }
+
+    private static func readOthers() -> Set<UInt16> {
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: directory.path) else { return [] }
+        var result: Set<UInt16> = []
+        for name in names {
+            guard let pid = Int32(name), pid != getpid() else { continue }
+            let file = directory.appendingPathComponent(name)
+            // A daemon that is gone guards nothing.
+            guard kill(pid, 0) == 0 || errno == EPERM else { try? FileManager.default.removeItem(at: file); continue }
+            let text = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+            result.formUnion(text.split(separator: " ").compactMap { UInt16($0) })
+        }
+        return result
+    }
 }
