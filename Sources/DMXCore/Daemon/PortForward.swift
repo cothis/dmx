@@ -150,6 +150,8 @@ final class PortForwards {
     /// Forwarded connections open on all forwards, and the pending malloc trim after a burst.
     private var open = 0
     private var trim: Task<Void, Never>?
+    /// Called before listening on a TCP host port, so local names can give it up.
+    var willListen: (@MainActor (Int) -> Void)?
 
     init(paths: Paths) { self.paths = paths }
 
@@ -289,6 +291,9 @@ final class PortForwards {
 
     func list() -> [PortForwardStatus] { listeners.map(\.status) }
 
+    /// Whether a forward listens on TCP host `port` (local names leave such ports alone).
+    func holdsTCP(_ port: Int) -> Bool { listeners.contains { $0.forward.proto == "tcp" && $0.forward.hostPort == port } }
+
     private func save() throws {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
@@ -325,6 +330,7 @@ final class PortForwards {
             if v6 { listener.udp6 = relay } else { listener.udp = relay }
             return
         }
+        if !v6 { willListen?(listener.forward.hostPort) }
         let fd = try listenTCP(listener.forward, v6: v6)
         _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK)
         let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: .main)

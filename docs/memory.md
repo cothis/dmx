@@ -14,6 +14,10 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Maintainer preferences
 
+- 2026-11-20: Declined the Homebrew tap as a separate public repository ("공개저장소가 여러개로 나뉘는건 별로").
+  Do not create `homebrew-dmx` or other side repositories; a cask inside this repo is possible only if asked.
+- 2026-11-20: Approved local names (`*.dmx.local`) with an admin prompt and a trusted, name-constrained CA ("로컬이름은 ok").
+
 - 2026-11-20: Approved Phase 13 in PLAN.md (ideas from comparing dmx with Kiri; README first). Work it one item per
   session through "이어서 진행해", not with parallel subagents: one VM and quiet-host measurements. Keep real dockerd.
 

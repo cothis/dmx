@@ -26,6 +26,8 @@ final class DockerBridge {
     private var agent: (@MainActor () async throws -> AgentClient)?
     private var using: (@MainActor (Bool) -> Void)?
     private var changed: (@MainActor () -> Void)?
+    /// Gets each listing of running containers, and [] when they are gone (local names).
+    var onContainers: (@MainActor ([[String: Any]]) -> Void)?
     /// Sets the guest clock if the Mac slept or its clock moved (Daemon.syncClockIfKnown).
     private var clock: (@MainActor () async -> Void)?
 
@@ -116,6 +118,7 @@ final class DockerBridge {
         events?.close()
         events = nil
         ports.setDockerForwards([])
+        onContainers?([])
         if containers != nil {
             containers = nil
             changed?()
@@ -435,8 +438,14 @@ final class DockerBridge {
         up = false
         client = nil
         ports.setDockerForwards([])
+        onContainers?([])
         containers = nil
         changed?()
+    }
+
+    /// Lists the running containers again if dockerd is up (local names were turned on).
+    func relist() {
+        if up, let client { syncSoon(client, epoch) }
     }
 
     /// Lists the containers again; events coming in meanwhile cause one more listing.
@@ -494,6 +503,7 @@ final class DockerBridge {
         listingUnknown = false
         changed?()
         ports.setDockerForwards(Self.published(list))
+        onContainers?(list)
         runningAtLastListing = list.count
         if containers != list.count {
             containers = list.count

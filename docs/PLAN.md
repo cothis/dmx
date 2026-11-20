@@ -83,6 +83,8 @@ dmx.app (AppKit) ── short-lived control calls; passive run/engine.json + pro
 | Alpine Linux artifacts, pinned by sha256 | Small, musl, official signed packages. A custom kernel is allowed when needed (see phase 3). |
 | Apache-2.0 | Same as Docker/moby and containerd; includes a patent grant. |
 | State in `~/.dmx`, override with `DMX_HOME` | Simple for people and agents; easy to sandbox in tests. |
+| Local names listen on 0.0.0.0:80/443 and take only loopback connections (2026-11-20) | macOS refuses a user `127.0.0.1:80` (EACCES) but allows the wildcard. Closing every connection whose local address is not 127/8 keeps other machines out without a root helper or pf rule. A container publishing 80/443 still takes the port (names give it up and take it back). DNS answers A 127.0.0.1 for every name under dmx.local and no AAAA, so there is one IPv4 listener per port. |
+| The names CA is name-constrained, its key in a file, trusted in the user's login keychain (2026-11-20) | `permittedSubtrees dNSName dmx.local` (critical) makes macOS reject anything else it signs (unit test fails without it), so trusting it is not trusting a general root. A key file (0600) instead of a keychain item avoids keychain prompts after every re-signed build. User-domain trust needs only the user's password; the resolver file is the one administrator step. |
 | The daemon keeps the guest clock on the host's (2026-11-06) | The guest counter stops while the Mac sleeps and the guest has no other time source, so a locked Mac's guest stayed behind after waking (maintainer report). After sleep or a step of the Mac's clock the guest is stepped at once (seen every 15 s and before each Docker, port or exec request); every 60 s an offset under 128 ms is slewed, as NTP clients do, so a periodic sync never sets the clock back. Host-driven like the other engines' time sync, no NTP daemon in the guest. |
 
 ## Phases
@@ -629,17 +631,29 @@ to switch. One item per session, in this order; each is verified on the real VM.
       networks, containers created not started; `make importtest FROM=colima` 26/26 against a
       real Colima ([finding](#dmx-import-2026-11-20)). OrbStack and Docker Desktop not tried.
       MCP tool `dmx_import` (same report) added the same day.
-- [ ] Homebrew tap (maintainer decision: a new public repository `cothis/homebrew-dmx`): a cask
-      for the notarized app archive, `auto_updates true`, uninstall of the launchd agent and a zap
-      of `~/.dmx`; the release script updates version and sha256. Homebrew stays optional.
-- [ ] Local names (maintainer decision: admin prompt and a trusted CA): `<container>.dmx.local`
+- Homebrew tap: declined (maintainer, 2026-11-20: no second public repository). A cask kept in
+      this repository (`brew tap cothis/dmx https://github.com/cothis/dmx`) would need no new
+      repository; not started, only if asked.
+- [ ] Local names (approved 2026-11-20, admin prompt and a trusted CA): `<container>.dmx.local`
       and `<service>.<project>.dmx.local` over HTTP and HTTPS, with a CA whose name constraints
-      allow only `*.dmx.local`, and `/etc/resolver/dmx.local`.
+      allow only `*.dmx.local`, and `/etc/resolver/dmx.local`. Implemented 2026-11-20: `dmx names
+      setup|ls|remove` (DMXCore/Names), [docs/names.md](names.md), `make namestest` 32/32 with
+      macOS left alone ([finding](#local-names-2026-11-20)). Done when: one real `dmx names setup`
+      (both dialogs) makes `curl https://web.dmx.local` and Safari work with no flags, and `dmx
+      names remove` undoes it.
 - Not planned now: Kubernetes (k3s), Windows/Linux hosts, an own runtime in place of dockerd.
 
 ## Next up
 
-**Phase 13: the items that need no maintainer decision are done** (2026-11-20): README front
+**Phase 13: local names are implemented; their macOS half waits for the maintainer**
+(2026-11-20). `dmx names setup` needs two password dialogs (the CA's trust, then
+`/etc/resolver/dmx.local`); `make namestest` covered everything else with macOS left alone. Next:
+the maintainer runs `dmx names setup` once from this build (a throwaway `DMX_HOME` is enough: the
+system changes do not depend on it), checks `curl https://web.dmx.local` and Safari with no flags,
+in particular that the resolver file wins over mDNS for `.local`, then `dmx names remove`. If
+`.local` does not resolve, the domain needs a maintainer decision. The Homebrew tap is declined.
+
+Earlier in Phase 13 (2026-11-20): README front
 page, `dmx bench` ([finding](#dmx-bench-first-runs-2026-11-20)), the soak check ([finding](#soak-check-2026-11-20)),
 guest crash recovery ([finding](#guest-crash-recovery-2026-11-20)) and `dmx import`
 ([finding](#dmx-import-2026-11-20)). Next: the Homebrew tap and local names, both waiting for the
@@ -917,6 +931,34 @@ sharing extensions are tracked under phase 6. None is silently marked complete b
 acceptance suites.
 
 ## Findings and measurements
+
+### Local names (2026-11-20)
+
+`dmx names setup --no-system` and `make namestest` (throwaway `DMX_HOME`, ports 18080/18443/15353,
+installed v0.4.8 guest): 32/32. DNS: A 127.0.0.1 under dmx.local, empty AAAA, REFUSED elsewhere.
+Routing by Host and SNI to a container, a Compose service, the `dmx.http-port` label and a
+`--network container:` sidecar; 404 lists the names, 502 names the label; the leaf is for the
+name, issued by the CA, ALPN http/1.1; without the CA the certificate is refused; a connection to
+the Mac's LAN address gets nothing. 200 HTTPS requests 50 at a time: 200/200 (three runs before
+the check existed, 600/600). 100 MB: HTTP 0.05 s, HTTPS 0.41–0.49 s, sha256 matching. `docker run
+-p 18080:80` takes the port; names take it back after `docker rm` (retry with backoff, since the
+forward's socket closes a moment later). Unit 162 (8 new; the name-constraint test fails with the
+constraint removed), selftest 23/23 at 99 MB, daemontest 63/63, mcptest 38/38.
+
+Bugs found on the way: DNS source handlers inferred `@MainActor` trapped on the global queue;
+reload rebinding raced the previous socket's asynchronous close (fixed with `dup2` onto an unbound
+socket, which frees the port at once); TLS connection queues targeting one serial queue blocked
+each other, and a cancelled connection's state handler shut down a descriptor number reused by
+another connection (HTTPS: 58 of 200 failed, 15 with "agent closed the connection").
+
+Memory (host footprint from `dmx status`, idle nginx, alternating off/on twice): turning names
+on costs 0–1 MB; 200 HTTP requests about 2 MB (mostly guest); the first 200 HTTPS requests 11–13
+MB, later bursts 3–5 MB. The daemon's objects return to their starting count within two minutes
+(Network.framework holds finished TLS connections that long), but malloc keeps about 7–10 MB of
+freed pages; `malloc_zone_pressure_relief` 2 s and 150 s after the last connection did not lower
+`vmmap`'s dirty size. Names are off until `dmx names setup`. Not measured: Safari and Chrome,
+the resolver file with `.local` (macOS's mDNS domain), and the trust dialog: an administrator
+dialog shown once timed out unanswered.
 
 ### dmx import (2026-11-20)
 
@@ -1929,6 +1971,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-20: Local names: `dmx names setup|ls|remove` (DMXCore/Names): DNS on 127.0.0.1:53530 for `/etc/resolver/dmx.local`, HTTP/HTTPS on 80/443 routed by Host and SNI to `<container>.dmx.local` and `<service>.<project>.dmx.local`, a name-constrained CA with leaves issued per name. `make namestest` 32/32 (macOS left alone), unit 162, selftest 23/23 (99 MB), daemontest 63/63. The real setup (two dialogs) waits for the maintainer. Homebrew tap declined (no second public repository).
 - 2026-11-20: Added the MCP tool `dmx_import` (the `dmx import --json` report; `from`, `projects`, `dry_run`). `make importtest` 29/29 with a second dmx as the source, `make mcptest` 38/38, unit 154, selftest 23/23 (99 MB). Phase 13's remaining items still wait for the maintainer.
 - 2026-11-20: Added `dmx import` (DMXCore/Import.swift): images, volumes with their data, bridge networks and containers (created, not started) from Docker Desktop, OrbStack, Colima, Rancher Desktop or any socket; `--project`, `--dry-run`, `--json`; existing names are never overwritten, the source is never changed. `make importtest` (`scripts/test-import.py`) 26/26 against a real Colima, installed for the check and removed; unit 154, selftest 23/23 (99 MB). Phase 13's remaining items wait for the maintainer.
 - 2026-11-20: Guest crash recovery. Fixed a guest kernel panic leaving the VM "running" at about 1200% CPU (`panic=-1`; SYSTEM_RESET is now `Machine.Exit.guestReset`). The daemon keeps the crashed boot's console tail in `logs/guest-crash.log`, shows `guest_crash` in status, and with containers running boots a new VM after 1 s doubling to 60 s, cancelled by `dmx stop`. `make crashtest` 30/30 (fails on v0.4.8); unit 145, selftest 23/23 (99–100 MB, unchanged), daemontest 63/63, menu script 25/25. Next: `dmx import`.

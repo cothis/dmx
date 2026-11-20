@@ -1,6 +1,6 @@
 BIN := .build/release/dmx
 
-.PHONY: build app install-app apptest localnettest localnetupdatetest menutest install kernel qemu fex guest selftest daemontest mcptest clocktest sandboxtest x86test dockertest soaktest importtest crashtest imagetest javatest storagetest pressuretest benchmark test formaltest lifecycletest remaininglifecycletest release clean
+.PHONY: build app install-app apptest localnettest localnetupdatetest menutest install kernel qemu fex guest selftest daemontest mcptest clocktest sandboxtest x86test dockertest soaktest importtest namestest crashtest imagetest javatest storagetest pressuretest benchmark test formaltest lifecycletest remaininglifecycletest release clean
 
 PREFIX ?= $(HOME)/.local
 
@@ -100,6 +100,11 @@ soaktest: build
 # anonymous volumes, two networks and a shared namespace; FROM=colima|orbstack|docker-desktop.
 importtest: build
 	python3 -I scripts/test-import.py $(BIN) --from $(or $(FROM),colima)
+
+# Local names (`dmx names`) in a throwaway DMX_HOME with test ports, macOS left alone: DNS,
+# HTTP and HTTPS routing, LAN refusal, 200 parallel requests, port takeover (about 1 min).
+namestest: build
+	python3 -I scripts/test-names.py $(BIN)
 
 # Forced guest kernel panics: a new VM brings back `always`/`unless-stopped` containers, `no`
 # ones stay exited; backoff, `dmx stop` during it, a crash with nothing running (about 1 min).

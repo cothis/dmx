@@ -57,6 +57,8 @@ command to run.
 | `port_add` | `host_port`, `guest_port`, `host_address` (default `127.0.0.1`), `protocol` (`tcp`, the default, or `udp`) | the forward, see below |
 | `port_rm` | `host_port`, `host_address` (default: every address) | `forwards`: those removed |
 | `port_ls` | none | `forwards` |
+| `names` | none | local names ([names.md](names.md)): `enabled`, `settings` (`dns_port`, `http_port`, `https_port`, `system`), `names` (`name`, `container`, `address`, `port`), `listeners` (`dns`, `http`, `https`: `listening`, `yielded: ...` or an error) |
+| `names_reload` | none | the same, after reading `~/.dmx/names/names.json` again and listing the containers (`dmx names setup` and `remove`) |
 
 `status` fields: `state` (`stopped`, `starting`, `running`, `stopping`), `pid` (the daemon, which
 is also the process guest memory is charged to), `version`, `launchd`, `uptime_s`, `cpus`,

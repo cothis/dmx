@@ -87,6 +87,8 @@ dmx doctor                       # check this Mac and the installation
 dmx bench                        # measure dmx's memory, and other engines' with --engine
 dmx import --dry-run             # bring images, volumes and Compose projects over from Docker Desktop,
                                  # OrbStack or Colima (new after 0.4.8; docs/docker.md#importing-from-another-engine)
+dmx names setup                  # https://<container>.dmx.local for running containers
+                                 # (new after 0.4.8; docs/names.md)
 dmx update                       # install the newest release over this one
 ```
 
@@ -265,7 +267,7 @@ make selftest  # boot, agent, memory return; then daemontest, dockertest, mcptes
 
 How it works and what has been measured: [docs/PLAN.md](docs/PLAN.md) (goal, decisions,
 phases, measurements), [docs/docker.md](docs/docker.md), [docs/network.md](docs/network.md),
-[docs/compatibility.md](docs/compatibility.md), [docs/release.md](docs/release.md).
+[docs/compatibility.md](docs/compatibility.md), [docs/names.md](docs/names.md), [docs/release.md](docs/release.md).
 
 ## Layout
 

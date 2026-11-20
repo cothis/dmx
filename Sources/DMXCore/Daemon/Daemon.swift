@@ -58,6 +58,8 @@ public final class Daemon {
     private let ports: PortForwards
     /// `~/.dmx/docker.sock` and the containers behind it; see Docker.swift.
     private let docker: DockerBridge
+    /// `<name>.dmx.local` (Names/), on once `dmx names setup` ran.
+    private let names: NamesService
     /// Removes sandboxes at their TTL (Sandbox/SandboxReaper.swift).
     private let sandboxReaper = SandboxReaper()
 
@@ -79,6 +81,7 @@ public final class Daemon {
         idleTimeout = (try? Config.load(paths))?.idleTimeoutSeconds ?? Config.defaultIdleTimeout
         ports = PortForwards(paths: paths)
         docker = DockerBridge(paths: paths, ports: ports)
+        names = NamesService(paths: paths)
     }
 
     /// Serves until the daemon decides to exit (idle, `quit`, SIGTERM or SIGINT).
@@ -117,6 +120,10 @@ public final class Daemon {
             scheduleIdleCheck()
             publishActivity()
         }
+        docker.onContainers = { [unowned self] in names.update($0) }
+        ports.willListen = { [unowned self] in names.yield($0) }
+        names.start(agent: { [unowned self] in try await runningInTime() }, using: using,
+                    forwarded: { [unowned self] in ports.holdsTCP($0) })
         log("listening on \(paths.controlSocket.path) (\(launchd ? "launchd" : "standalone"), pid \(getpid()))")
         scheduleIdleCheck()
         publishActivity()
@@ -176,6 +183,12 @@ public final class Daemon {
                     cancelRecovery()
                     await stopVM(reason: "stop requested")
                     try connection.send(DaemonReply(id: request.id, result: await status()))
+                case "names":
+                    try connection.send(DaemonReply(id: request.id, result: names.status()))
+                case "names_reload":
+                    names.reload()
+                    docker.relist()
+                    try connection.send(DaemonReply(id: request.id, result: names.status()))
                 case "port_add", "port_rm", "port_ls":
                     try ports.serve(request.method, id: request.id, payload: payload, on: connection)
                 case "quit":
@@ -639,6 +652,7 @@ public final class Daemon {
         idleCheck?.cancel()
         cancelRecovery()
         ports.stop()
+        names.stop()
         docker.stop()
         await stopVM(reason: "daemon exiting")
         if !launchd {
