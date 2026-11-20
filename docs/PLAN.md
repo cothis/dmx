@@ -634,24 +634,24 @@ to switch. One item per session, in this order; each is verified on the real VM.
 - Homebrew tap: declined (maintainer, 2026-11-20: no second public repository). A cask kept in
       this repository (`brew tap cothis/dmx https://github.com/cothis/dmx`) would need no new
       repository; not started, only if asked.
-- [ ] Local names (approved 2026-11-20, admin prompt and a trusted CA): `<container>.dmx.local`
+- [x] Local names (approved 2026-11-20, admin prompt and a trusted CA): `<container>.dmx.local`
       and `<service>.<project>.dmx.local` over HTTP and HTTPS, with a CA whose name constraints
       allow only `*.dmx.local`, and `/etc/resolver/dmx.local`. Implemented 2026-11-20: `dmx names
       setup|ls|remove` (DMXCore/Names), [docs/names.md](names.md), `make namestest` 32/32 with
       macOS left alone ([finding](#local-names-2026-11-20)). Done when: one real `dmx names setup`
       (both dialogs) makes `curl https://web.dmx.local` and Safari work with no flags, and `dmx
-      names remove` undoes it.
+      names remove` undoes it. Done the same day with the maintainer's dialogs: curl and nscurl
+      with no flags; Safari was opened but not seen by the agent.
 - Not planned now: Kubernetes (k3s), Windows/Linux hosts, an own runtime in place of dockerd.
 
 ## Next up
 
-**Phase 13: local names are implemented; their macOS half waits for the maintainer**
-(2026-11-20). `dmx names setup` needs two password dialogs (the CA's trust, then
-`/etc/resolver/dmx.local`); `make namestest` covered everything else with macOS left alone. Next:
-the maintainer runs `dmx names setup` once from this build (a throwaway `DMX_HOME` is enough: the
-system changes do not depend on it), checks `curl https://web.dmx.local` and Safari with no flags,
-in particular that the resolver file wins over mDNS for `.local`, then `dmx names remove`. If
-`.local` does not resolve, the domain needs a maintainer decision. The Homebrew tap is declined.
+**Phase 13 is done** (2026-11-20): local names work end to end on this Mac (real setup with
+both dialogs, `.local` resolves through the resolver file, curl and URLSession trust the CA with no
+flags; [finding](#local-names-2026-11-20)); the Homebrew tap is declined. Open from local names:
+Safari and Chrome not seen by the agent; HTTPS bursts leave 7–10 MB of malloc free pages in the
+daemon. Everything since v0.4.8 (bench, soak, crash recovery, import and `dmx_import`, local
+names) is unreleased; a release is the maintainer's decision.
 
 Earlier in Phase 13 (2026-11-20): README front
 page, `dmx bench` ([finding](#dmx-bench-first-runs-2026-11-20)), the soak check ([finding](#soak-check-2026-11-20)),
@@ -956,9 +956,18 @@ on costs 0–1 MB; 200 HTTP requests about 2 MB (mostly guest); the first 200 HT
 MB, later bursts 3–5 MB. The daemon's objects return to their starting count within two minutes
 (Network.framework holds finished TLS connections that long), but malloc keeps about 7–10 MB of
 freed pages; `malloc_zone_pressure_relief` 2 s and 150 s after the last connection did not lower
-`vmmap`'s dirty size. Names are off until `dmx names setup`. Not measured: Safari and Chrome,
-the resolver file with `.local` (macOS's mDNS domain), and the trust dialog: an administrator
-dialog shown once timed out unanswered.
+`vmmap`'s dirty size. Names are off until `dmx names setup`.
+
+Real setup on this Mac (throwaway `DMX_HOME`, default ports, the maintainer answering the
+dialogs): the trust dialog and the administrator dialog, then `scutil --dns` lists a `dmx.local`
+resolver on 127.0.0.1:53530 and `dscacheutil` resolves `web.dmx.local` to 127.0.0.1, so the
+resolver file wins over mDNS for `.local`. `curl https://web.dmx.local/` and `http://` with no
+flags: nginx, 200, 49 ms; `nscurl` (URLSession, the system trust): nginx. Safari was opened on
+the URL; the agent could not see the screen (no capture or automation permission). `dmx names
+remove`: the CA's trust and keychain item went after the maintainer answered macOS's dialog; the
+resolver file's administrator dialog timed out unanswered and the file was removed with sudo
+instead; afterwards the name no longer resolves. A CLI waiting on these dialogs waits until they
+are answered (the trust removal waited over 6 minutes). Chrome not tried.
 
 ### dmx import (2026-11-20)
 
@@ -1971,6 +1980,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-20: Local names verified for real with the maintainer's dialogs: the resolver file wins over mDNS for `.local`; `curl` and `nscurl` reach `https://web.dmx.local` with no flags; `dmx names remove` undid trust, keychain item, resolver file (by sudo after its dialog timed out) and the CA. Phase 13 done. Docs only.
 - 2026-11-20: Local names: `dmx names setup|ls|remove` (DMXCore/Names): DNS on 127.0.0.1:53530 for `/etc/resolver/dmx.local`, HTTP/HTTPS on 80/443 routed by Host and SNI to `<container>.dmx.local` and `<service>.<project>.dmx.local`, a name-constrained CA with leaves issued per name. `make namestest` 32/32 (macOS left alone), unit 162, selftest 23/23 (99 MB), daemontest 63/63. The real setup (two dialogs) waits for the maintainer. Homebrew tap declined (no second public repository).
 - 2026-11-20: Added the MCP tool `dmx_import` (the `dmx import --json` report; `from`, `projects`, `dry_run`). `make importtest` 29/29 with a second dmx as the source, `make mcptest` 38/38, unit 154, selftest 23/23 (99 MB). Phase 13's remaining items still wait for the maintainer.
 - 2026-11-20: Added `dmx import` (DMXCore/Import.swift): images, volumes with their data, bridge networks and containers (created, not started) from Docker Desktop, OrbStack, Colima, Rancher Desktop or any socket; `--project`, `--dry-run`, `--json`; existing names are never overwritten, the source is never changed. `make importtest` (`scripts/test-import.py`) 26/26 against a real Colima, installed for the check and removed; unit 154, selftest 23/23 (99 MB). Phase 13's remaining items wait for the maintainer.

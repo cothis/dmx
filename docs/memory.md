@@ -91,6 +91,9 @@ This repo is public: no private hostnames, IPs or personal details here.
 
 ## Lessons
 
+- 2026-11-20: macOS's trust-settings and `osascript` administrator dialogs wait until someone answers; an agent's call
+  just times out. Tell the maintainer before triggering one and give it minutes. Trust changes need the GUI dialog even
+  with sudo; a root file step can use sudo when the maintainer offers it (never write a password down).
 - 2026-11-12: Closing an owning connection can invalidate raw-fd cancellation and HTTP code outside that connection's frame reader. Audit every raw-fd user when adding an EOF/error close, and force descriptor reuse in an isolated process to verify the cancellation path too.
 - 2026-11-12: On this Mac a blocking Unix stream remained blocked with `send(MSG_DONTWAIT)`;
   set `O_NONBLOCK` on the UDP relay stream and poll EAGAIN in its reply reader. Check that

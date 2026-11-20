@@ -251,7 +251,7 @@ try:
     check("compose_up", r.returncode == 0, out[-300:])
     # Compose hashes `service:web` resolved to web's container ID into the sidecar's config hash;
     # IDs are new in dmx, so the sidecar (only) is recreated, as it would be after web changed.
-    others = [line for line in out.splitlines() if "Creat" in line and "sidecar" not in line]
+    others = [line for line in out.splitlines() if "creat" in line.lower() and "sidecar" not in line]
     check("compose_no_recreate", not others, out[-400:])
     sidecar = dst("inspect", f"{PROJECT}-sidecar-1", "--format", "{{.Config.Image}}").stdout.strip()
     check("digest_name_kept", sidecar == ALPINE, sidecar)

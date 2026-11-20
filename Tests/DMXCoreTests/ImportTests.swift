@@ -41,6 +41,17 @@ import Testing
         #expect(endpoint?["IPAMConfig"] == nil)
     }
 
+    /// Compose's image label is recomputed only when the caller found it current in the source.
+    @Test func replacesComposesImageLabelOnlyWhenGivenOne() {
+        let labels = ["com.docker.compose.image": "sha256:classic", "com.docker.compose.project": "shop"]
+        let c = Self.container(Self.webID, "web", labels: labels)
+        let moved = Import.containerBody(c, image: "web:1", composeImage: "sha256:manifest", containers: [c], runtimes: []) { _ in nil }
+        #expect(moved["Labels"]?["com.docker.compose.image"] == "sha256:manifest")
+        #expect(moved["Labels"]?["com.docker.compose.project"] == "shop")
+        let kept = Import.containerBody(c, image: "web:1", containers: [c], runtimes: []) { _ in nil }
+        #expect(kept["Labels"]?["com.docker.compose.image"] == "sha256:classic")
+    }
+
     @Test func keepsAHostnameSomeoneChoseAndDropsARuntimeDmxLacks() {
         var c = Self.container(Self.webID, "web")
         var inspect = c.inspect.object!

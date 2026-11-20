@@ -576,7 +576,18 @@ extension Import {
             // dockerd keeps `container:NAME` as written while Compose expects the ID it would pass,
             // so references to other containers name them by their ID in dmx.
             let ids = targetIDs, existing = target.containers
-            let body = Import.containerBody(c, image: image, containers: source.containers, runtimes: runtimes) { name in
+            // Compose labels a container with its image's digest as it computes it, which differs
+            // between the classic and the containerd image store for the same image. A label that
+            // was current in the source is made current in dmx, so Compose does not recreate the
+            // container; an outdated one stays outdated.
+            var composeImage: String?
+            if let label = c.labels["com.docker.compose.image"], label == (await Import.composeImageDigest(src, configImage)) {
+                var dst148 = dst
+                dst148.apiVersion = "v1.48"
+                composeImage = await Import.composeImageDigest(dst148, image)
+            }
+            let body = Import.containerBody(c, image: image, composeImage: composeImage, containers: source.containers,
+                                            runtimes: runtimes) { name in
                 ids[name] ?? existing.first { $0.name == name }?.id
             }
             let created: JSONValue
@@ -677,8 +688,8 @@ extension Import {
     /// The create request for a container: its own Config and HostConfig as the source has
     /// them, with what belonged to the old container (its ID as hostname, its MAC, a runtime
     /// dmx lacks) taken out and references to other containers by ID turned into names.
-    static func containerBody(_ c: Container, image: String, containers: [Container], runtimes: Set<String>,
-                              targetID: (String) -> String?) -> JSONValue {
+    static func containerBody(_ c: Container, image: String, composeImage: String? = nil, containers: [Container],
+                              runtimes: Set<String>, targetID: (String) -> String?) -> JSONValue {
         /// Another container, named by its ID in dmx when it is there.
         func ref(_ source: String) -> String {
             let name = containerName(source, containers)
@@ -686,6 +697,10 @@ extension Import {
         }
         var config = c.inspect["Config"]?.object ?? [:]
         config["Image"] = .string(image)
+        if let composeImage, var labels = config["Labels"]?.object {
+            labels["com.docker.compose.image"] = .string(composeImage)
+            config["Labels"] = .object(labels)
+        }
         // A container in another's network namespace shows that one's names, and dockerd refuses
         // them on create.
         if c.networkMode.hasPrefix("container:") {
@@ -743,6 +758,21 @@ extension Import {
                   !named.contains(dest) else { return nil }
             return (dest, name)
         }
+    }
+
+    /// The image digest Compose records in `com.docker.compose.image` (its localContentDigest):
+    /// with per-manifest data (the containerd store, API 1.48 and later) the available image
+    /// manifest for linux/arm64, or the only available one; otherwise the image ID.
+    static func composeImageDigest(_ api: DockerAPI, _ ref: String) async -> String? {
+        guard let i = try? await api.json("GET", "/images/\(ref)/json?manifests=1") else { return nil }
+        let available = (i["Manifests"]?.array ?? []).filter { $0["Kind"]?.string == "image" && $0["Available"]?.bool == true }
+        if let m = available.first(where: {
+            $0["ImageData"]?["Platform"]?["os"]?.string == "linux" && $0["ImageData"]?["Platform"]?["architecture"]?.string == "arm64"
+        }) {
+            return m["ID"]?.string
+        }
+        if available.count == 1 { return available[0]["ID"]?.string }
+        return i["Id"]?.string
     }
 
     /// The container path of a `-v` bind: `src:dst[:opts]`.
