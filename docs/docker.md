@@ -338,6 +338,10 @@ Compose starts the imported containers without recreating them, with one excepti
 another one's namespace (`network_mode: service:web`, also `ipc`, `pid` and `volumes_from`) is
 recreated on the first `up`, because Compose hashes the other container's ID into its
 configuration and container IDs are new in dmx. Its data is in its volumes, which Compose keeps.
+Compose also labels each container with its image's digest (`com.docker.compose.image`), which is
+the image ID in the classic image store and a manifest digest in the containerd store (dmx's); a
+label that was current in the other engine is recomputed for dmx, so a project from an engine
+with the classic store is not recreated either.
 
 `make importtest FROM=colima` (`scripts/test-import.py`) builds a Compose project in a real
 second engine and checks the whole path into a throwaway `DMX_HOME`; `docs/PLAN.md` has the runs.

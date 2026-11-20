@@ -128,6 +128,25 @@ within 64 MB lands either side of the second step. `docker run` is slower than t
 CLI timed from Python shows the same), which is not explained yet. The `--engine` path was
 checked against a second throwaway dmx running beside the first.
 
+Against a real Colima, 2026-11-20: Colima 0.10.3 (vz, 2 CPU, 4 GiB, docker 29.5.2) installed for
+the run and removed afterwards, dmx as above but with the default shares, two rounds back to back
+at host load 3.2 to 1.9 (`dmx bench --engine colima=...` with both `limactl`, the VM process and
+the ssh mux; [raw](measurements/2026-11-20-bench-colima.json)):
+
+| | dmx, round 1 / 2 | Colima, round 1 / 2 |
+|---|---|---|
+| Idle, steady state at 95 s, MB | 234 / 223 | 1123 / 3106 |
+| Idle CPU, % of one core | 0.44 / 0.43 | 0.57 / 0.53 |
+| Holding 2 GiB in tmpfs, MB | 2401 / 2379 | 3107 / 3133 |
+| 10 s after freeing it, MB | 324 / 299 | 3114 / 3138 |
+| Back within 64 MB of the reading before the container | 3.9 s / 4.1 s | never / at once (it never went down) |
+| `docker run alpine true`, ms | 147 / 141 | 51 / 50 |
+
+Colima's VM keeps what its guest once used: the 2 GiB of round 1 was still charged to it, idle,
+through round 2. dmx gave it back within about 4 s both times. Colima's warm `docker run` is
+about three times faster here, as in the earlier tables (dmx's data disk flushes, see the
+profile below).
+
 ## dmx re-check, 2026-11-06 (0.4.7)
 
 0.3.7 to 0.4.7 added the menu app, bounded logs, FEX, DNS and guest clock changes, so dmx alone was measured again

@@ -629,7 +629,8 @@ to switch. One item per session, in this order; each is verified on the real VM.
       2026-11-20: `dmx import [--from] [--project] [--dry-run]` (DMXCore/Import.swift), images by
       save/load or by digest, volume data by `docker cp` between never-started helpers, bridge
       networks, containers created not started; `make importtest FROM=colima` 26/26 against a
-      real Colima ([finding](#dmx-import-2026-11-20)). OrbStack and Docker Desktop not tried.
+      real Colima ([finding](#dmx-import-2026-11-20)), 29/29 also from Colima with the classic image
+      store. OrbStack and Docker Desktop not tried.
       MCP tool `dmx_import` (same report) added the same day.
 - Homebrew tap: declined (maintainer, 2026-11-20: no second public repository). A cask kept in
       this repository (`brew tap cothis/dmx https://github.com/cothis/dmx`) would need no new
@@ -658,13 +659,13 @@ page, `dmx bench` ([finding](#dmx-bench-first-runs-2026-11-20)), the soak check 
 guest crash recovery ([finding](#guest-crash-recovery-2026-11-20)) and `dmx import`
 ([finding](#dmx-import-2026-11-20)). Next: the Homebrew tap and local names, both waiting for the
 maintainer (a new public repository; an admin prompt and a trusted CA). Without those, the open
-ends: `dmx import` (CLI and the `dmx_import` MCP tool) was run against Colima and a second dmx
-only (OrbStack and Docker Desktop not tried; their sockets are known, and the classic image
-store, where image IDs differ from the containerd store's, was not a source). From crash recovery, both guest-side
+ends: `dmx import` (CLI and the `dmx_import` MCP tool) was run against Colima (both image stores)
+and a second dmx only; OrbStack and Docker Desktop not tried, their sockets are known. From crash recovery, both guest-side
 (`docker_autostart`'s count, needs a guest build): an `always` container stopped with `docker
 stop` does not start dockerd at boot although dockerd restarts it once started, and an
 `on-failure` container running at a crash is not counted. From bench: warm `docker run` is
-bimodal on this Mac (77–80 or 143–251 ms), and `--engine` has not measured a real other engine.
+bimodal on this Mac (77–80 or 143–251 ms); `--engine` measured a real Colima
+([benchmark.md](benchmark.md#dmx-bench)): it kept the 2 GiB, dmx gave it back in about 4 s.
 `make guest` needs `make kernel` first here: `~/.dmx/cache` no longer has the kernel tarball
 (sessions since bench verified with the installed v0.4.8 guest, unchanged). `UDPBackpressureTests`
 failed once in a full `make test` with `port_in_use` (it reserves an ephemeral port, closes it and
@@ -1020,6 +1021,21 @@ v0.4.8 dmx as the source (`FROM=unix://$HOME/.dmx/docker.sock`, dockerd 29.9.2; 
 longer installed), import 3.0 s, the check 12 s; the source was left with no container. `make
 mcptest` 38/38 (argument and missing-tools errors), unit 154, selftest 23/23 at 99 MB. No memory
 path changed.
+
+Later the same day, from Colima with the classic image store (`overlay2`, containerd snapshotter
+off): `make importtest` first showed 29/29 while Compose had in fact recreated web and worker; the
+check looked for "Creat" and missed "Recreated" (now case-insensitive). The cause:
+`com.docker.compose.image` is Compose's localContentDigest, the image ID in the classic store and
+the available linux/arm64 manifest digest with the containerd store's per-manifest data, so it
+differs between stores for the same image. A label that matches what Compose computes in the
+source is now recomputed in dmx (`Import.composeImageDigest`, API 1.48 for `manifests=1`); an
+outdated one is kept, so Compose still recreates what was stale. After the fix: classic store
+29/29 (import 3.1 s), containerd store 29/29 twice (2.6 and 3.0 s). Unit 163, selftest 23/23 at
+103, 100 and 100 MB (import touches no memory path). The same Colima at 2 CPU / 4 GiB went into
+`dmx bench --engine` ([benchmark.md](benchmark.md#dmx-bench)): idle 1123 MB, then 3106 MB in
+round 2 after keeping the 2 GiB of round 1, against dmx's 234 and 223 MB.
+[Raw](measurements/2026-11-20-bench-colima.json). Colima was removed afterwards and `~/.docker`,
+`~/.ssh/config` restored.
 
 ### Guest crash recovery (2026-11-20)
 
@@ -1980,6 +1996,7 @@ daemontest's new `disk_idle_trim` (256 MB freed without discard) fails on the v0
 
 ## Progress log
 
+- 2026-11-20: `dmx import` from the classic image store: Compose's image label is recomputed for dmx, so such projects are not recreated (importtest's recreate check had missed "Recreated"; fixed). importtest 29/29 from Colima with each store. `dmx bench --engine` against a real Colima, two rounds: Colima kept the 2 GiB (3106 MB idle in round 2), dmx back to 299–324 MB in about 4 s. Unit 163, selftest 23/23 (100 MB). Colima removed again.
 - 2026-11-20: Local names verified for real with the maintainer's dialogs: the resolver file wins over mDNS for `.local`; `curl` and `nscurl` reach `https://web.dmx.local` with no flags; `dmx names remove` undid trust, keychain item, resolver file (by sudo after its dialog timed out) and the CA. Phase 13 done. Docs only.
 - 2026-11-20: Local names: `dmx names setup|ls|remove` (DMXCore/Names): DNS on 127.0.0.1:53530 for `/etc/resolver/dmx.local`, HTTP/HTTPS on 80/443 routed by Host and SNI to `<container>.dmx.local` and `<service>.<project>.dmx.local`, a name-constrained CA with leaves issued per name. `make namestest` 32/32 (macOS left alone), unit 162, selftest 23/23 (99 MB), daemontest 63/63. The real setup (two dialogs) waits for the maintainer. Homebrew tap declined (no second public repository).
 - 2026-11-20: Added the MCP tool `dmx_import` (the `dmx import --json` report; `from`, `projects`, `dry_run`). `make importtest` 29/29 with a second dmx as the source, `make mcptest` 38/38, unit 154, selftest 23/23 (99 MB). Phase 13's remaining items still wait for the maintainer.
